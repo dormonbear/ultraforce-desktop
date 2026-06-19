@@ -249,7 +249,10 @@ async fn existing_trace_flag(
     let q: QueryRecords = invoker
         .run_json(&with_org(vec!["data", "query", "-q", &soql, "-t"], org))
         .await?;
-    Ok(q.records.into_iter().next().map(|r| (r.id, r.debug_level_id)))
+    Ok(q.records
+        .into_iter()
+        .next()
+        .map(|r| (r.id, r.debug_level_id)))
 }
 
 /// Upsert the running user's DebugLevel + TraceFlag so runs log at `levels`.
@@ -268,7 +271,15 @@ pub async fn set_debug_config(
             let _: CreateResult = invoker
                 .run_json(&with_org(
                     vec![
-                        "data", "update", "record", "-t", "-s", "DebugLevel", "-i", &dl_id, "-v",
+                        "data",
+                        "update",
+                        "record",
+                        "-t",
+                        "-s",
+                        "DebugLevel",
+                        "-i",
+                        &dl_id,
+                        "-v",
                         &values,
                     ],
                     target_org,
@@ -280,7 +291,15 @@ pub async fn set_debug_config(
             let _: CreateResult = invoker
                 .run_json(&with_org(
                     vec![
-                        "data", "update", "record", "-t", "-s", "TraceFlag", "-i", &tf_id, "-v",
+                        "data",
+                        "update",
+                        "record",
+                        "-t",
+                        "-s",
+                        "TraceFlag",
+                        "-i",
+                        &tf_id,
+                        "-v",
                         &tf_values,
                     ],
                     target_org,
@@ -289,12 +308,20 @@ pub async fn set_debug_config(
             (tf_id, dl_id)
         }
         None => {
-            let dl_values =
-                format!("DeveloperName={DL_DEVELOPER_NAME} MasterLabel={DL_DEVELOPER_NAME} {values}");
+            let dl_values = format!(
+                "DeveloperName={DL_DEVELOPER_NAME} MasterLabel={DL_DEVELOPER_NAME} {values}"
+            );
             let dl: CreateResult = invoker
                 .run_json(&with_org(
                     vec![
-                        "data", "create", "record", "-t", "-s", "DebugLevel", "-v", &dl_values,
+                        "data",
+                        "create",
+                        "record",
+                        "-t",
+                        "-s",
+                        "DebugLevel",
+                        "-v",
+                        &dl_values,
                     ],
                     target_org,
                 ))
@@ -307,7 +334,14 @@ pub async fn set_debug_config(
             let tf: CreateResult = invoker
                 .run_json(&with_org(
                     vec![
-                        "data", "create", "record", "-t", "-s", "TraceFlag", "-v", &tf_values,
+                        "data",
+                        "create",
+                        "record",
+                        "-t",
+                        "-s",
+                        "TraceFlag",
+                        "-v",
+                        &tf_values,
                     ],
                     target_org,
                 ))
@@ -324,7 +358,10 @@ pub async fn set_debug_config(
 }
 
 fn lvl(level: &Option<String>) -> LogLevel {
-    level.as_deref().map(LogLevel::from_sf).unwrap_or(LogLevel::None)
+    level
+        .as_deref()
+        .map(LogLevel::from_sf)
+        .unwrap_or(LogLevel::None)
 }
 
 impl From<DebugLevelFields> for CategoryLevels {
@@ -358,7 +395,10 @@ pub async fn get_debug_config(
          WHERE TracedEntityId='{user_id}' AND LogType='DEVELOPER_LOG' LIMIT 1"
     );
     let q: QueryFull = invoker
-        .run_json(&with_org(vec!["data", "query", "-q", &soql, "-t"], target_org))
+        .run_json(&with_org(
+            vec!["data", "query", "-q", &soql, "-t"],
+            target_org,
+        ))
         .await?;
 
     let Some(tf) = q.records.into_iter().next() else {

@@ -12,7 +12,9 @@ async fn e2e_set_then_get_roundtrips() {
     set_debug_config(&invoker, &preset_levels(Preset::ApexOnly), None)
         .await
         .expect("set debug config");
-    let cfg = get_debug_config(&invoker, None).await.expect("get debug config");
+    let cfg = get_debug_config(&invoker, None)
+        .await
+        .expect("get debug config");
     assert_eq!(cfg.levels.apex_code, LogLevel::Debug);
     assert!(cfg.trace_flag_id.is_some());
 }
