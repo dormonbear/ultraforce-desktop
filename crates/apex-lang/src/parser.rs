@@ -120,6 +120,64 @@ pub fn needed_type_at(input: &str, cursor: usize) -> Option<String> {
     }
 }
 
+/// If `cursor` sits inside an inline SOQL literal `[SELECT …]`, return the byte range of the inner
+/// SOQL text (brackets excluded). `None` for array indexing (`arr[0]`) or outside any bracket.
+/// Tolerates an unclosed bracket (region ends at EOF) for live typing.
+pub fn soql_region_at(input: &str, cursor: usize) -> Option<(usize, usize)> {
+    let cursor = cursor.min(input.len());
+    let bytes = input.as_bytes();
+
+    // Nearest enclosing '[' to the left (skip balanced ']' … '[').
+    let mut depth = 0i32;
+    let mut open = None;
+    let mut i = cursor;
+    while i > 0 {
+        i -= 1;
+        match bytes[i] {
+            b']' => depth += 1,
+            b'[' => {
+                if depth == 0 {
+                    open = Some(i);
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    let open = open?;
+
+    // Matching ']' at/after the open (EOF if unclosed).
+    let mut depth = 0i32;
+    let mut close = input.len();
+    let mut j = open + 1;
+    while j < input.len() {
+        match bytes[j] {
+            b'[' => depth += 1,
+            b']' => {
+                if depth == 0 {
+                    close = j;
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+
+    let inner = &input[open + 1..close];
+    let is_soql = inner
+        .trim_start()
+        .get(..6)
+        .is_some_and(|s| s.eq_ignore_ascii_case("select"));
+    if is_soql {
+        Some((open + 1, close))
+    } else {
+        None
+    }
+}
+
 fn next_non_ws(tokens: &[Token], start: usize) -> Option<usize> {
     tokens
         .iter()
@@ -300,5 +358,24 @@ mod tests {
             context_at("Account a; a.na", "Account a; a.na".len()),
             CursorContext::InstanceMember { .. }
         ));
+    }
+
+    #[test]
+    fn soql_region_detection() {
+        // cursor inside a SOQL literal -> inner range (excludes brackets)
+        let s = "Account a = [SELECT Na FROM Account];";
+        let cur = s.find("Na").unwrap() + 2;
+        let (start, end) = soql_region_at(s, cur).expect("in soql");
+        assert_eq!(&s[start..end], "SELECT Na FROM Account");
+
+        // array indexing is NOT soql
+        assert!(soql_region_at("x = arr[0];", "x = arr[0".len()).is_none());
+
+        // outside any bracket
+        assert!(soql_region_at("Integer x = 1;", 5).is_none());
+
+        // unclosed bracket while typing -> region runs to EOF
+        let u = "List<Account> l = [SELECT Id FROM Acc";
+        assert!(soql_region_at(u, u.len()).is_some());
     }
 }
