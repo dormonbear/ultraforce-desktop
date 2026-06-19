@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+/*
+ * Fonts: the design contract calls for bundled JetBrains Mono + Chakra Petch
+ * .ttf assets under src/assets/fonts/. Those binary assets are not vendored in
+ * this slice, so we declare the families with local() lookups and fall back to
+ * the platform monospace / system stack. Drop the .ttf files into
+ * src/assets/fonts/ and add url() sources to bundle them.
+ */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: local("JetBrains Mono"), local("JetBrainsMono-Regular");
+}
+@font-face {
+  font-family: "Chakra Petch";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: local("Chakra Petch"), local("ChakraPetch-Medium");
+}
+
+@theme {
+  --color-bg: #0a0b0d;
+  --color-surface: #111317;
+  --color-surface-2: #16181d;
+  --color-surface-3: #1d2026;
+  --color-hair: #23262d;
+  --color-line: #2b2f37;
+  --color-text: #e6e8ec;
+  --color-text-dim: #9aa0ab;
+  --color-text-faint: #5c626d;
+  --color-accent: #3ddc84;
+  --color-accent-press: #33c574;
+  --color-amber: #ffb454;
+  --color-red: #ff6b6b;
+  --color-blue: #6cb6ff;
+
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
+  --font-display: "Chakra Petch", "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  --bg: var(--color-bg);
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-2);
+  --surface-3: var(--color-surface-3);
+  --hair: var(--color-hair);
+  --line: var(--color-line);
+  --text: var(--color-text);
+  --text-dim: var(--color-text-dim);
+  --text-faint: var(--color-text-faint);
+  --accent: var(--color-accent);
+  --accent-press: var(--color-accent-press);
+  --amber: var(--color-amber);
+  --red: var(--color-red);
+  --blue: var(--color-blue);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  font-feature-settings: "tnum" 1, "ss02" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Micro-label: uppercase, tracked, dim, with a trailing hairline rule. */
+.micro-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  user-select: none;
+}
+.micro-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--hair);
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus ring = accent at 2px, with subtle glow. */
+.focus-accent:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px -4px var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.8s linear infinite;
+}
