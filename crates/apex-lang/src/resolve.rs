@@ -93,16 +93,30 @@ pub fn resolve_expr_type<'a>(
     if base.is_call {
         return None; // free function / unqualified call — unsupported in MVP
     }
-    // Base type string: a local's declared type (keeps generics) or the receiver name itself.
-    let mut cur_str = outline
+    let (mut cur, mut cur_str, rest): (&ApexType, String, &[Segment]) = if let Some(local) = outline
         .locals
         .iter()
         .find(|local| local.name.eq_ignore_ascii_case(&base.name))
-        .map(|local| local.declared_type.clone())
-        .unwrap_or_else(|| base.name.clone());
-    let mut cur = resolve_type(ost, base_type_name(&cur_str))?;
+    {
+        let s = local.declared_type.clone();
+        (resolve_type(ost, base_type_name(&s))?, s, rest)
+    } else if let Some(ty) = resolve_type(ost, base_type_name(&base.name)) {
+        (ty, base.name.clone(), rest)
+    } else if let Some((next, tail)) = rest.split_first() {
+        // namespace-qualified head: `Namespace.Type`
+        if next.is_call {
+            return None;
+        }
+        (
+            ost.type_in(&base.name, &next.name)?,
+            next.name.clone(),
+            tail,
+        )
+    } else {
+        return None;
+    };
 
-    for seg in rest {
+    for seg in rest.iter() {
         let next_str: String = if let Some(elem) = collection_element(&cur_str, seg) {
             elem
         } else if seg.is_call {
@@ -370,5 +384,46 @@ mod tests {
                 .name,
             "Account"
         );
+    }
+
+    #[test]
+    fn resolve_expr_type_resolves_namespace_qualified_head() {
+        use crate::parser::Segment;
+        let described = ApexType {
+            name: "DescribeSObjectResult".into(),
+            kind: TypeKind::Class,
+            methods: vec![Method {
+                name: "getName".into(),
+                return_type: "String".into(),
+                params: vec![],
+                is_static: false,
+            }],
+            properties: vec![],
+            enum_values: vec![],
+        };
+        let ost = Ost {
+            namespaces: vec![Namespace {
+                name: "Schema".into(),
+                types: vec![described],
+            }],
+            org_types: vec![],
+        };
+        let outline = ApexOutline::default();
+        let seg = |n: &str| Segment {
+            name: n.into(),
+            is_call: false,
+        };
+        // `Schema.DescribeSObjectResult.` -> the type itself
+        let t = resolve_expr_type(
+            &ost,
+            &outline,
+            &[seg("Schema"), seg("DescribeSObjectResult")],
+        )
+        .unwrap();
+        assert_eq!(t.name, "DescribeSObjectResult");
+        // unknown namespace member -> None
+        assert!(resolve_expr_type(&ost, &outline, &[seg("Schema"), seg("Nope")]).is_none());
+        // a bare unknown head with no namespace match -> None
+        assert!(resolve_expr_type(&ost, &outline, &[seg("Bogus"), seg("X")]).is_none());
     }
 }
