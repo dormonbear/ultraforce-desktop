@@ -141,6 +141,28 @@ fn set_target_org(username: Option<String>, state: State<'_, AppState>) -> Resul
     Ok(())
 }
 
+#[tauri::command]
+async fn get_debug_config(state: State<'_, AppState>) -> Result<dto::DebugConfigDto, String> {
+    let org = current_org(&state);
+    let cfg = features::debug_config::get_debug_config(&state.invoker, org.as_deref())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(dto::DebugConfigDto::from(&cfg))
+}
+
+#[tauri::command]
+async fn set_debug_config(
+    levels: dto::CategoryLevelsDto,
+    state: State<'_, AppState>,
+) -> Result<dto::DebugConfigDto, String> {
+    let org = current_org(&state);
+    let core = features::debug_config::CategoryLevels::from(&levels);
+    let cfg = features::debug_config::set_debug_config(&state.invoker, &core, org.as_deref())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(dto::DebugConfigDto::from(&cfg))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
@@ -156,7 +178,9 @@ pub fn run() {
             list_logs,
             get_log,
             list_orgs,
-            set_target_org
+            set_target_org,
+            get_debug_config,
+            set_debug_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

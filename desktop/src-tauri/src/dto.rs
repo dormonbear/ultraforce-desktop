@@ -1,6 +1,7 @@
 //! Serde-serializable DTOs for the parsed debug-log view, plus mappers from the
 //! `log_parser` / `features` model types (which are not serde-aware).
 
+use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
 use features::debug_log::{DebugLogView, UnitView};
 use features::soql::{FieldValue, Record};
 use log_parser::event::LogEvent;
@@ -24,6 +25,75 @@ impl From<&OrgRef> for OrgDto {
             alias: o.alias.clone(),
             instance_url: o.instance_url.clone(),
             is_default: o.is_default,
+        }
+    }
+}
+
+/// Eleven category levels as sf strings, camelCase for the React side.
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CategoryLevelsDto {
+    pub apex_code: String,
+    pub apex_profiling: String,
+    pub callout: String,
+    pub data_access: String,
+    pub database: String,
+    pub nba: String,
+    pub system: String,
+    pub validation: String,
+    pub visualforce: String,
+    pub wave: String,
+    pub workflow: String,
+}
+
+impl From<&CategoryLevels> for CategoryLevelsDto {
+    fn from(c: &CategoryLevels) -> Self {
+        CategoryLevelsDto {
+            apex_code: c.apex_code.as_sf().into(),
+            apex_profiling: c.apex_profiling.as_sf().into(),
+            callout: c.callout.as_sf().into(),
+            data_access: c.data_access.as_sf().into(),
+            database: c.database.as_sf().into(),
+            nba: c.nba.as_sf().into(),
+            system: c.system.as_sf().into(),
+            validation: c.validation.as_sf().into(),
+            visualforce: c.visualforce.as_sf().into(),
+            wave: c.wave.as_sf().into(),
+            workflow: c.workflow.as_sf().into(),
+        }
+    }
+}
+
+impl From<&CategoryLevelsDto> for CategoryLevels {
+    fn from(d: &CategoryLevelsDto) -> Self {
+        CategoryLevels {
+            apex_code: LogLevel::from_sf(&d.apex_code),
+            apex_profiling: LogLevel::from_sf(&d.apex_profiling),
+            callout: LogLevel::from_sf(&d.callout),
+            data_access: LogLevel::from_sf(&d.data_access),
+            database: LogLevel::from_sf(&d.database),
+            nba: LogLevel::from_sf(&d.nba),
+            system: LogLevel::from_sf(&d.system),
+            validation: LogLevel::from_sf(&d.validation),
+            visualforce: LogLevel::from_sf(&d.visualforce),
+            wave: LogLevel::from_sf(&d.wave),
+            workflow: LogLevel::from_sf(&d.workflow),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugConfigDto {
+    pub trace_flag_id: Option<String>,
+    pub levels: CategoryLevelsDto,
+}
+
+impl From<&DebugConfig> for DebugConfigDto {
+    fn from(c: &DebugConfig) -> Self {
+        DebugConfigDto {
+            trace_flag_id: c.trace_flag_id.clone(),
+            levels: CategoryLevelsDto::from(&c.levels),
         }
     }
 }
