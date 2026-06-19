@@ -2733,6 +2733,7 @@ name = "sf-toolkit-desktop"
 version = "0.1.0"
 dependencies = [
  "features",
+ "log-parser",
  "serde",
  "serde_json",
  "sf-core",

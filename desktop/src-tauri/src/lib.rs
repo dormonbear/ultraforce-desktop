@@ -3,6 +3,9 @@ use std::sync::Arc;
 use sf_core::{ProcessRunner, SfInvoker};
 use tauri::State;
 
+mod dto;
+use dto::{map_units, UnitDto};
+
 /// Shared application state: one `SfInvoker` over the real `sf` CLI process runner.
 pub struct AppState {
     invoker: SfInvoker,
@@ -87,12 +90,12 @@ async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, String>
         .collect())
 }
 
-/// A fetched debug log's raw body plus a small parsed summary.
+/// A fetched debug log's raw body plus its parsed execution tree + limits.
 #[derive(serde::Serialize)]
 struct LogViewDto {
     raw: String,
     api_version: Option<String>,
-    unit_count: usize,
+    units: Vec<UnitDto>,
 }
 
 #[tauri::command]
@@ -102,8 +105,8 @@ async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, S
         .map_err(|e| format!("{e:?}"))?;
     let view = features::debug_log::DebugLogView::from_log(&body);
     Ok(LogViewDto {
-        api_version: view.header.map(|h| h.api_version),
-        unit_count: view.units.len(),
+        api_version: view.header.as_ref().map(|h| h.api_version.clone()),
+        units: map_units(&view),
         raw: body,
     })
 }

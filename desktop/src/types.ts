@@ -23,8 +23,31 @@ export interface LogRefDto {
   application: string;
 }
 
+export interface ExecNodeDto {
+  label: string;
+  detail: string;
+  dur_ns: number | null;
+  children: ExecNodeDto[];
+}
+
+export interface LimitEntryDto {
+  name: string;
+  used: number;
+  max: number;
+}
+
+export interface LimitRollupDto {
+  namespace: string;
+  entries: LimitEntryDto[];
+}
+
+export interface UnitDto {
+  tree: ExecNodeDto[];
+  limits: LimitRollupDto[];
+}
+
 export interface LogViewDto {
   raw: string;
   api_version: string | null;
-  unit_count: number;
+  units: UnitDto[];
 }
