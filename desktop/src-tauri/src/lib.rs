@@ -179,6 +179,23 @@ async fn apex_complete(
     Ok(cands.iter().map(dto::CandidateDto::from).collect())
 }
 
+#[tauri::command]
+async fn soql_complete(
+    query: String,
+    offset: usize,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    Ok(features::soql::complete_fields(
+        &state.invoker,
+        sf_schema::SchemaStore::default_root(),
+        &org,
+        &query,
+        offset,
+    )
+    .await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
@@ -198,7 +215,8 @@ pub fn run() {
             set_target_org,
             get_debug_config,
             set_debug_config,
-            apex_complete
+            apex_complete,
+            soql_complete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
