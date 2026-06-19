@@ -169,6 +169,47 @@ struct QueryRecords {
     records: Vec<TraceFlagRow>,
 }
 
+#[derive(Deserialize)]
+struct DebugLevelFields {
+    #[serde(rename = "ApexCode", default)]
+    apex_code: Option<String>,
+    #[serde(rename = "ApexProfiling", default)]
+    apex_profiling: Option<String>,
+    #[serde(rename = "Callout", default)]
+    callout: Option<String>,
+    #[serde(rename = "DataAccess", default)]
+    data_access: Option<String>,
+    #[serde(rename = "Database", default)]
+    database: Option<String>,
+    #[serde(rename = "Nba", default)]
+    nba: Option<String>,
+    #[serde(rename = "System", default)]
+    system: Option<String>,
+    #[serde(rename = "Validation", default)]
+    validation: Option<String>,
+    #[serde(rename = "Visualforce", default)]
+    visualforce: Option<String>,
+    #[serde(rename = "Wave", default)]
+    wave: Option<String>,
+    #[serde(rename = "Workflow", default)]
+    workflow: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct TraceFlagFull {
+    #[serde(rename = "Id")]
+    id: String,
+    #[serde(rename = "DebugLevelId")]
+    debug_level_id: String,
+    #[serde(rename = "DebugLevel")]
+    debug_level: Option<DebugLevelFields>,
+}
+
+#[derive(Deserialize)]
+struct QueryFull {
+    records: Vec<TraceFlagFull>,
+}
+
 fn with_org<'a>(mut args: Vec<&'a str>, org: Option<&'a str>) -> Vec<&'a str> {
     if let Some(o) = org {
         args.push("--target-org");
@@ -279,6 +320,59 @@ pub async fn set_debug_config(
         trace_flag_id: Some(trace_flag_id),
         debug_level_id: Some(debug_level_id),
         levels: *levels,
+    })
+}
+
+fn lvl(level: &Option<String>) -> LogLevel {
+    level.as_deref().map(LogLevel::from_sf).unwrap_or(LogLevel::None)
+}
+
+impl From<DebugLevelFields> for CategoryLevels {
+    fn from(d: DebugLevelFields) -> Self {
+        CategoryLevels {
+            apex_code: lvl(&d.apex_code),
+            apex_profiling: lvl(&d.apex_profiling),
+            callout: lvl(&d.callout),
+            data_access: lvl(&d.data_access),
+            database: lvl(&d.database),
+            nba: lvl(&d.nba),
+            system: lvl(&d.system),
+            validation: lvl(&d.validation),
+            visualforce: lvl(&d.visualforce),
+            wave: lvl(&d.wave),
+            workflow: lvl(&d.workflow),
+        }
+    }
+}
+
+/// Read the running user's debug config. Missing TraceFlag or DebugLevel means all-None.
+pub async fn get_debug_config(
+    invoker: &SfInvoker,
+    target_org: Option<&str>,
+) -> Result<DebugConfig, SfError> {
+    let user_id = running_user_id(invoker, target_org).await?;
+    let soql = format!(
+        "SELECT Id, DebugLevelId, DebugLevel.ApexCode, DebugLevel.ApexProfiling, DebugLevel.Callout, \
+         DebugLevel.DataAccess, DebugLevel.Database, DebugLevel.Nba, DebugLevel.System, DebugLevel.Validation, \
+         DebugLevel.Visualforce, DebugLevel.Wave, DebugLevel.Workflow FROM TraceFlag \
+         WHERE TracedEntityId='{user_id}' AND LogType='DEVELOPER_LOG' LIMIT 1"
+    );
+    let q: QueryFull = invoker
+        .run_json(&with_org(vec!["data", "query", "-q", &soql, "-t"], target_org))
+        .await?;
+
+    let Some(tf) = q.records.into_iter().next() else {
+        return Ok(DebugConfig {
+            trace_flag_id: None,
+            debug_level_id: None,
+            levels: ALL_NONE,
+        });
+    };
+
+    Ok(DebugConfig {
+        trace_flag_id: Some(tf.id),
+        debug_level_id: Some(tf.debug_level_id),
+        levels: tf.debug_level.map(CategoryLevels::from).unwrap_or(ALL_NONE),
     })
 }
 
@@ -440,5 +534,42 @@ mod tests {
         assert_eq!(s.len(), 28, "got: {s}");
         assert!(s.ends_with("+0000"), "got: {s}");
         assert_eq!(&s[10..11], "T", "got: {s}");
+    }
+
+    #[tokio::test]
+    async fn get_debug_config_maps_levels() {
+        let seen: Arc<Mutex<Vec<Vec<String>>>> = Arc::new(Mutex::new(vec![]));
+        let runner = scripted(
+            vec![
+                ORG_DISPLAY,
+                USER_QUERY,
+                r#"{"status":0,"result":{"records":[{"Id":"7tfTF","DebugLevelId":"7dlDL","DebugLevel":{"ApexCode":"DEBUG","System":"DEBUG","Database":"NONE","ApexProfiling":"NONE","Callout":"NONE","DataAccess":"NONE","Nba":"NONE","Validation":"NONE","Visualforce":"NONE","Wave":"NONE","Workflow":"NONE"}}],"totalSize":1,"done":true}}"#,
+            ],
+            seen.clone(),
+        );
+        let invoker = SfInvoker::new(Arc::new(runner));
+        let cfg = get_debug_config(&invoker, None).await.unwrap();
+        assert_eq!(cfg.levels.apex_code, LogLevel::Debug);
+        assert_eq!(cfg.levels.database, LogLevel::None);
+        assert_eq!(cfg.trace_flag_id.as_deref(), Some("7tfTF"));
+        let flat: Vec<String> = seen.lock().unwrap().iter().flatten().cloned().collect();
+        assert!(flat.iter().any(|a| a == "-t"), "{flat:?}");
+    }
+
+    #[tokio::test]
+    async fn get_debug_config_absent_is_all_none() {
+        let seen: Arc<Mutex<Vec<Vec<String>>>> = Arc::new(Mutex::new(vec![]));
+        let runner = scripted(
+            vec![
+                ORG_DISPLAY,
+                USER_QUERY,
+                r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#,
+            ],
+            seen,
+        );
+        let invoker = SfInvoker::new(Arc::new(runner));
+        let cfg = get_debug_config(&invoker, None).await.unwrap();
+        assert_eq!(cfg.levels.apex_code, LogLevel::None);
+        assert!(cfg.trace_flag_id.is_none());
     }
 }
