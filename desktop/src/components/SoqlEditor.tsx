@@ -5,6 +5,7 @@ import type { editor } from "monaco-editor";
 import { configureMonaco } from "../monaco-soql";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
+import { useTheme, monacoTheme } from "../theme";
 
 interface Props {
   value: string;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function SoqlEditor({ value, onChange, onRun, running }: Props) {
+  const { theme } = useTheme();
   const onRunRef = useRef(onRun);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
@@ -93,7 +95,7 @@ export function SoqlEditor({ value, onChange, onRun, running }: Props) {
         <Editor
           height="100%"
           language="soql"
-          theme="sf"
+          theme={monacoTheme(theme)}
           value={value}
           beforeMount={beforeMount}
           onMount={onMount}

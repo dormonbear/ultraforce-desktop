@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { Database, Terminal, ScrollText, Table as TableIcon } from "lucide-react";
+import {
+  Database,
+  Terminal,
+  ScrollText,
+  Table as TableIcon,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
+import { useTheme } from "./theme";
 
 type ActivePanel = "soql" | "apex" | "logs";
 
@@ -16,6 +24,7 @@ const RAIL = [
 
 export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
+  const { theme, toggle } = useTheme();
 
   return (
     <div className="flex h-full flex-col bg-bg text-text">
@@ -30,7 +39,18 @@ export default function App() {
         >
           SF·TOOLKIT
         </span>
-        <OrgSelector />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggle}
+            title={theme === "dark" ? "Switch to light" : "Switch to dark"}
+            aria-label="Toggle color theme"
+            className="focus-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-text"
+          >
+            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
+          <OrgSelector />
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1">

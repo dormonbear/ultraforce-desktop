@@ -83,6 +83,28 @@ export function configureMonaco(monaco: Monaco): void {
     },
   });
 
+  // Warm-dark counterpart (matches the app's [data-theme="dark"] palette).
+  monaco.editor.defineTheme("sf-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "keyword.soql", foreground: "f2f1ec", fontStyle: "bold" },
+      { token: "string.soql", foreground: "3fb488" },
+      { token: "number.soql", foreground: "d9a23f" },
+      { token: "comment.soql", foreground: "8c887d", fontStyle: "italic" },
+    ],
+    colors: {
+      "editor.background": "#211f1b",
+      "editor.foreground": "#f2f1ec",
+      "editorGutter.background": "#1a1916",
+      "editorLineNumber.foreground": "#8c887d",
+      "editorLineNumber.activeForeground": "#bdb9ae",
+      "editor.selectionBackground": "#ff5a1433",
+      "editor.lineHighlightBackground": "#26241f",
+      "editorCursor.foreground": "#ff5a14",
+    },
+  });
+
   if (registered) return;
   registered = true;
 

@@ -11,6 +11,7 @@ import { DebugConfigRow } from "./DebugConfigRow";
 import type { ApexOutcomeDto, CategoryLevels, DebugConfigDto } from "../types";
 import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
+import { useTheme, monacoTheme } from "../theme";
 
 const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
   minimap: { enabled: false },
@@ -50,6 +51,7 @@ interface ApexViewProps {
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
 export function ApexView({ tab, onPatch }: ApexViewProps) {
+  const { theme } = useTheme();
   const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
   const [levels, setLevels] = useState<CategoryLevels | null>(null);
@@ -165,7 +167,7 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
             <Editor
               height="100%"
               language="apex"
-              theme="sf"
+              theme={monacoTheme(theme)}
               value={src}
               beforeMount={beforeMount}
               onMount={onMount}
