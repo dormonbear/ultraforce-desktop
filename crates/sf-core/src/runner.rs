@@ -52,6 +52,7 @@ impl CommandRunner for ProcessRunner {
 /// Test double. Available to downstream crates via the `test-util` feature.
 #[cfg(any(test, feature = "test-util"))]
 pub struct MockRunner {
+    #[allow(clippy::type_complexity)]
     handler: Box<dyn Fn(&str, &[String]) -> Result<RawOutput, SfError> + Send + Sync>,
 }
 
