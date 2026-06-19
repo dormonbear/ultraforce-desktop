@@ -1,0 +1,20 @@
+[package]
+name = "sf-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Exposes MockRunner and JSON fixtures to downstream crates' dev-deps.
+test-util = []
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+async-trait.workspace = true
+thiserror.workspace = true
+semver.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true }
