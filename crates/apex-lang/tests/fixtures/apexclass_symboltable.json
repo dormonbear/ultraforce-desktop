@@ -66,9 +66,32 @@
             }
           ]
         }
+      },
+      {
+        "Name": "PremiumAccountService",
+        "SymbolTable": {
+          "name": "PremiumAccountService",
+          "namespace": null,
+          "parentClass": "AccountService",
+          "constructors": [],
+          "interfaces": [],
+          "innerClasses": [],
+          "variables": [],
+          "methods": [
+            {
+              "name": "upgrade",
+              "returnType": "void",
+              "modifiers": [],
+              "parameters": [],
+              "annotations": [],
+              "references": []
+            }
+          ],
+          "properties": []
+        }
       }
     ],
-    "totalSize": 1,
+    "totalSize": 2,
     "done": true
   }
 }

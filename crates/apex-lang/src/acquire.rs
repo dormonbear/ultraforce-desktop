@@ -54,35 +54,38 @@ pub fn parse_stdlib(raw: &serde_json::Value) -> Vec<Namespace> {
 }
 
 pub fn parse_org_types(records: &[serde_json::Value]) -> Vec<ApexType> {
-    let mut out = Vec::new();
+    let mut entries: Vec<(ApexType, Option<String>)> = Vec::new();
     for record in records {
         let Some(symbol_table) = record.get("SymbolTable") else {
             continue;
         };
         let fallback = record.get("Name").and_then(Value::as_str);
-        collect_symbol_table_types(symbol_table, fallback, &mut out);
+        collect_symbol_table_types(symbol_table, fallback, &mut entries);
     }
-    out
+    flatten_inheritance(entries)
 }
 
 /// Append the type described by `symbol_table` plus all of its recursively nested inner classes.
 fn collect_symbol_table_types(
     symbol_table: &Value,
     name_fallback: Option<&str>,
-    out: &mut Vec<ApexType>,
+    out: &mut Vec<(ApexType, Option<String>)>,
 ) {
     if let Some(name) = symbol_table
         .get("name")
         .and_then(Value::as_str)
         .or(name_fallback)
     {
-        out.push(ApexType {
-            name: name.to_string(),
-            kind: TypeKind::Class,
-            methods: parse_org_methods(symbol_table),
-            properties: parse_org_properties(symbol_table),
-            enum_values: Vec::new(),
-        });
+        out.push((
+            ApexType {
+                name: name.to_string(),
+                kind: TypeKind::Class,
+                methods: parse_org_methods(symbol_table),
+                properties: parse_org_properties(symbol_table),
+                enum_values: Vec::new(),
+            },
+            parent_name(symbol_table),
+        ));
     }
 
     if let Some(inner) = symbol_table.get("innerClasses").and_then(Value::as_array) {
@@ -90,6 +93,92 @@ fn collect_symbol_table_types(
             collect_symbol_table_types(inner_class, None, out);
         }
     }
+}
+
+/// Superclass name from a SymbolTable (`parentClass` string, or its `name` if an object).
+fn parent_name(symbol_table: &Value) -> Option<String> {
+    let parent_class = symbol_table.get("parentClass")?;
+    let name = parent_class.as_str().map(str::to_string).or_else(|| {
+        parent_class
+            .get("name")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    })?;
+    let name = name.trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+/// Simple, generics-stripped, namespace-stripped name for parent lookup.
+fn simple_key(name: &str) -> String {
+    name.split('<')
+        .next()
+        .unwrap_or(name)
+        .rsplit('.')
+        .next()
+        .unwrap_or(name)
+        .trim()
+        .to_ascii_lowercase()
+}
+
+/// Merge each type's transitive `parentClass` members (org types only; child wins; cycle-safe).
+fn flatten_inheritance(entries: Vec<(ApexType, Option<String>)>) -> Vec<ApexType> {
+    use std::collections::HashMap;
+
+    let index: HashMap<String, usize> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, (ty, _))| (simple_key(&ty.name), i))
+        .collect();
+
+    let mut out = Vec::with_capacity(entries.len());
+    for i in 0..entries.len() {
+        let mut methods = entries[i].0.methods.clone();
+        let mut properties = entries[i].0.properties.clone();
+        let mut visited = vec![i];
+        let mut parent = entries[i].1.clone();
+        while let Some(parent_name) = parent {
+            let Some(&parent_index) = index.get(&simple_key(&parent_name)) else {
+                break;
+            };
+            if visited.contains(&parent_index) {
+                break;
+            }
+            visited.push(parent_index);
+
+            for method in &entries[parent_index].0.methods {
+                if !methods
+                    .iter()
+                    .any(|existing| existing.name.eq_ignore_ascii_case(&method.name))
+                {
+                    methods.push(method.clone());
+                }
+            }
+            for property in &entries[parent_index].0.properties {
+                if !properties
+                    .iter()
+                    .any(|existing| existing.name.eq_ignore_ascii_case(&property.name))
+                {
+                    properties.push(property.clone());
+                }
+            }
+
+            parent = entries[parent_index].1.clone();
+        }
+
+        let base = &entries[i].0;
+        out.push(ApexType {
+            name: base.name.clone(),
+            kind: base.kind.clone(),
+            methods,
+            properties,
+            enum_values: base.enum_values.clone(),
+        });
+    }
+    out
 }
 
 fn parse_stdlib_methods(raw_type: &Value) -> Vec<Method> {
@@ -287,7 +376,7 @@ mod tests {
 
         let records = fetch_apex_symbols(&invoker).await.unwrap();
 
-        assert_eq!(records.len(), 1);
+        assert_eq!(records.len(), 2);
         assert_eq!(
             *seen.lock().unwrap(),
             vec![
@@ -318,7 +407,7 @@ mod tests {
 
         let types = parse_org_types(records);
 
-        assert_eq!(types.len(), 2);
+        assert_eq!(types.len(), 3);
         let by_name = |name: &str| types.iter().find(|ty| ty.name == name);
         let outer = by_name("AccountService").expect("outer");
         assert_eq!(outer.methods[0].name, "save");
@@ -334,5 +423,18 @@ mod tests {
             .properties
             .iter()
             .any(|property| property.name == "quantity"));
+
+        let premium = by_name("PremiumAccountService").expect("subclass");
+        assert!(
+            premium
+                .methods
+                .iter()
+                .any(|method| method.name == "upgrade"),
+            "own method"
+        );
+        assert!(
+            premium.methods.iter().any(|method| method.name == "save"),
+            "inherited from AccountService"
+        );
     }
 }
