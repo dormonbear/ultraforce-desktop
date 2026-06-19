@@ -20,7 +20,7 @@ pub fn resolve_receiver_type<'a>(
         .iter()
         .find(|local| local.name.eq_ignore_ascii_case(receiver))
     {
-        return resolve_type(ost, &local.declared_type);
+        return resolve_type(ost, base_type_name(&local.declared_type));
     }
 
     resolve_type(ost, receiver)
@@ -33,7 +33,6 @@ fn base_type_name(t: &str) -> &str {
 
 /// Top-level generic args of a type string: `Map<Id, List<Account>>` → `["Id", "List<Account>"]`.
 /// Empty when the type is non-generic. Splits on commas only at angle-bracket depth 0.
-#[allow(dead_code)]
 fn generic_args(t: &str) -> Vec<String> {
     let t = t.trim();
     let (Some(lt), Some(gt)) = (t.find('<'), t.rfind('>')) else {
@@ -67,7 +66,6 @@ fn generic_args(t: &str) -> Vec<String> {
 /// Element/value type for the well-known generic collection accessors, derived from the receiver's
 /// own type args — independent of how stdlib encodes generic return types.
 /// ponytail: hardcoded List/Set/Map accessors; extend the table if more generic APIs need it.
-#[allow(dead_code)]
 fn collection_element(receiver_type: &str, seg: &Segment) -> Option<String> {
     if !seg.is_call {
         return None;
@@ -95,32 +93,43 @@ pub fn resolve_expr_type<'a>(
     if base.is_call {
         return None; // free function / unqualified call — unsupported in MVP
     }
-    let mut cur = resolve_receiver_type(ost, outline, &base.name)?;
+    // Base type string: a local's declared type (keeps generics) or the receiver name itself.
+    let mut cur_str = outline
+        .locals
+        .iter()
+        .find(|local| local.name.eq_ignore_ascii_case(&base.name))
+        .map(|local| local.declared_type.clone())
+        .unwrap_or_else(|| base.name.clone());
+    let mut cur = resolve_type(ost, base_type_name(&cur_str))?;
+
     for seg in rest {
-        let next_name: &str = if seg.is_call {
-            let m = cur
-                .methods
+        let next_str: String = if let Some(elem) = collection_element(&cur_str, seg) {
+            elem
+        } else if seg.is_call {
+            cur.methods
                 .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&seg.name))?;
-            base_type_name(&m.return_type)
+                .find(|m| m.name.eq_ignore_ascii_case(&seg.name))?
+                .return_type
+                .clone()
         } else if let Some(p) = cur
             .properties
             .iter()
             .find(|p| p.name.eq_ignore_ascii_case(&seg.name))
         {
-            base_type_name(&p.prop_type)
+            p.prop_type.clone()
         } else {
             // getter-as-method fallback
-            let m = cur
-                .methods
+            cur.methods
                 .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&seg.name))?;
-            base_type_name(&m.return_type)
+                .find(|m| m.name.eq_ignore_ascii_case(&seg.name))?
+                .return_type
+                .clone()
         };
-        if next_name.eq_ignore_ascii_case("void") {
+        if base_type_name(&next_str).eq_ignore_ascii_case("void") {
             return None;
         }
-        cur = resolve_type(ost, next_name)?;
+        cur = resolve_type(ost, base_type_name(&next_str))?;
+        cur_str = next_str;
     }
     Some(cur)
 }
@@ -129,7 +138,7 @@ pub fn resolve_expr_type<'a>(
 mod tests {
     use super::*;
     use crate::parser::{ApexOutline, LocalVar};
-    use crate::symbols::{ApexType, Method, Namespace, Ost, TypeKind};
+    use crate::symbols::{ApexType, Method, Namespace, Ost, Property, TypeKind};
 
     fn ost() -> Ost {
         Ost {
@@ -276,5 +285,90 @@ mod tests {
             },
         ];
         assert!(resolve_expr_type(&ost, &outline, &bad).is_none());
+    }
+
+    #[test]
+    fn resolve_expr_type_unwraps_generic_collections() {
+        use crate::parser::Segment;
+        let elem = ApexType {
+            name: "Account".into(),
+            kind: TypeKind::Class,
+            methods: vec![],
+            properties: vec![Property {
+                name: "Name".into(),
+                prop_type: "String".into(),
+                is_static: false,
+            }],
+            enum_values: vec![],
+        };
+        // List/Map need only to EXIST in the OST (their stdlib get() return type is irrelevant now).
+        let collection = |name: &str| ApexType {
+            name: name.into(),
+            kind: TypeKind::Class,
+            methods: vec![
+                Method {
+                    name: "get".into(),
+                    return_type: "Object".into(),
+                    params: vec![],
+                    is_static: false,
+                },
+                Method {
+                    name: "values".into(),
+                    return_type: "List".into(),
+                    params: vec![],
+                    is_static: false,
+                },
+            ],
+            properties: vec![],
+            enum_values: vec![],
+        };
+        let ost = Ost {
+            namespaces: vec![Namespace {
+                name: "System".into(),
+                types: vec![collection("List"), collection("Map"), elem],
+            }],
+            org_types: vec![],
+        };
+        let call = |n: &str| Segment {
+            name: n.into(),
+            is_call: true,
+        };
+        let var = |n: &str| Segment {
+            name: n.into(),
+            is_call: false,
+        };
+
+        let lst = ApexOutline {
+            locals: vec![LocalVar {
+                name: "l".into(),
+                declared_type: "List<Account>".into(),
+            }],
+        };
+        assert_eq!(
+            resolve_expr_type(&ost, &lst, &[var("l"), call("get")])
+                .unwrap()
+                .name,
+            "Account"
+        );
+
+        let map = ApexOutline {
+            locals: vec![LocalVar {
+                name: "m".into(),
+                declared_type: "Map<Id, Account>".into(),
+            }],
+        };
+        assert_eq!(
+            resolve_expr_type(&ost, &map, &[var("m"), call("get")])
+                .unwrap()
+                .name,
+            "Account"
+        );
+        // values() → List<Account>, then get() → Account
+        assert_eq!(
+            resolve_expr_type(&ost, &map, &[var("m"), call("values"), call("get")])
+                .unwrap()
+                .name,
+            "Account"
+        );
     }
 }
