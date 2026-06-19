@@ -133,7 +133,12 @@ mod tests {
         }
     }
 
-    fn node(event: LogEvent, params: &[&str], dur_ns: Option<u64>, children: Vec<ExecNode>) -> ExecNode {
+    fn node(
+        event: LogEvent,
+        params: &[&str],
+        dur_ns: Option<u64>,
+        children: Vec<ExecNode>,
+    ) -> ExecNode {
         ExecNode {
             entry: entry(event, params),
             children,
@@ -144,7 +149,10 @@ mod tests {
     #[test]
     fn event_label_maps_known_and_other() {
         assert_eq!(event_label(&LogEvent::UserDebug), "USER_DEBUG");
-        assert_eq!(event_label(&LogEvent::SoqlExecuteBegin), "SOQL_EXECUTE_BEGIN");
+        assert_eq!(
+            event_label(&LogEvent::SoqlExecuteBegin),
+            "SOQL_EXECUTE_BEGIN"
+        );
         assert_eq!(
             event_label(&LogEvent::Other("FLOW_ELEMENT_BEGIN".to_string())),
             "FLOW_ELEMENT_BEGIN"
