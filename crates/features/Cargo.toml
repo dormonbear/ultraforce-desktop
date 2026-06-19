@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+apex-lang = { path = "../apex-lang" }
 sf-core = { path = "../sf-core" }
 log-parser = { path = "../log-parser" }
 serde = { workspace = true }

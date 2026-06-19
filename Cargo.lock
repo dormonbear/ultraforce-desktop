@@ -769,6 +769,7 @@ dependencies = [
 name = "features"
 version = "0.1.0"
 dependencies = [
+ "apex-lang",
  "log-parser",
  "serde",
  "serde_json",
