@@ -7,9 +7,9 @@ use sf_core::{SfError, SfInvoker};
 
 use crate::debug_log::DebugLogView;
 
-/// Result of one `sf apex run`. Module-local (not `sf_core::ApexRunResult`)
-/// because `sf` returns `line`/`column` as JSON strings on compile failure and
-/// numbers/null otherwise, and empty problem/message strings must map to `None`.
+/// Result of one `sf apex run`. Lenient parsing: `sf` returns `line`/`column` as
+/// JSON strings on compile failure and numbers/null otherwise, and empty
+/// problem/message strings must map to `None`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApexRunResult {
     pub compiled: bool,

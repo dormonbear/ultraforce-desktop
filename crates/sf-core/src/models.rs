@@ -11,25 +11,6 @@ pub struct QueryResult {
     pub done: bool,
 }
 
-/// Result of `sf apex run --json`. Includes the debug log inline.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ApexRunResult {
-    pub success: bool,
-    pub compiled: bool,
-    #[serde(rename = "compileProblem", default)]
-    pub compile_problem: String,
-    #[serde(rename = "exceptionMessage", default)]
-    pub exception_message: String,
-    #[serde(rename = "exceptionStackTrace", default)]
-    pub exception_stack_trace: String,
-    #[serde(default)]
-    pub line: i64,
-    #[serde(default)]
-    pub column: i64,
-    #[serde(default)]
-    pub logs: String,
-}
-
 /// One entry from `sf apex list log --json` (PascalCase ApexLog fields).
 #[derive(Debug, Clone, Deserialize)]
 pub struct ApexLogRef {
@@ -61,28 +42,6 @@ mod tests {
         assert!(qr.done);
         assert_eq!(qr.records.len(), 1);
         assert_eq!(qr.records[0]["Name"], "Acme");
-    }
-
-    #[test]
-    fn deserializes_apex_run_result_with_logs() {
-        let json = r#"{"success":true,"compiled":true,"compileProblem":"",
-            "exceptionMessage":"","exceptionStackTrace":"","line":-1,"column":-1,
-            "logs":"45.0 APEX_CODE,DEBUG\nExecute Anonymous: x"}"#;
-        let r: ApexRunResult = serde_json::from_str(json).unwrap();
-        assert!(r.success && r.compiled);
-        assert_eq!(r.line, -1);
-        assert!(r.logs.contains("Execute Anonymous"));
-    }
-
-    #[test]
-    fn deserializes_apex_run_compile_failure() {
-        let json = r#"{"success":false,"compiled":false,
-            "compileProblem":"Unexpected token","exceptionMessage":"",
-            "exceptionStackTrace":"","line":3,"column":10,"logs":""}"#;
-        let r: ApexRunResult = serde_json::from_str(json).unwrap();
-        assert!(!r.compiled);
-        assert_eq!(r.compile_problem, "Unexpected token");
-        assert_eq!((r.line, r.column), (3, 10));
     }
 
     #[test]
