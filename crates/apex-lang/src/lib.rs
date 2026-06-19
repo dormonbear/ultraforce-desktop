@@ -8,4 +8,5 @@ pub mod symbols;
 
 pub use complete::complete;
 pub use lexer::lex;
+pub use parser::needed_type_at;
 pub use symbols::Ost;

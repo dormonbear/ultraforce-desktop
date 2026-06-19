@@ -102,6 +102,24 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
     }
 }
 
+/// The type name whose members the cursor wants, if any -- for ensure-describe in the wiring layer.
+/// `StaticMember` -> the type; `InstanceMember` -> the local's declared type, else the receiver as a
+/// type name. `TopLevel`/`ChainMember`/`Unknown` -> None (chains are resolved post-describe later).
+pub fn needed_type_at(input: &str, cursor: usize) -> Option<String> {
+    let o = outline(input);
+    match context_at(input, cursor) {
+        CursorContext::StaticMember { type_name, .. } => Some(type_name),
+        CursorContext::InstanceMember { receiver, .. } => Some(
+            o.locals
+                .iter()
+                .find(|l| l.name.eq_ignore_ascii_case(&receiver))
+                .map(|l| l.declared_type.clone())
+                .unwrap_or(receiver),
+        ),
+        _ => None,
+    }
+}
+
 fn next_non_ws(tokens: &[Token], start: usize) -> Option<usize> {
     tokens
         .iter()
@@ -230,6 +248,18 @@ mod tests {
                 prefix: "Inte".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn needed_type_at_returns_receiver_or_static_type() {
+        // local's declared type
+        let s = "Account a; a.na";
+        assert_eq!(needed_type_at(s, s.len()).as_deref(), Some("Account"));
+        // static / type receiver
+        let t = "String.va";
+        assert_eq!(needed_type_at(t, t.len()).as_deref(), Some("String"));
+        // top-level prefix -> nothing to describe
+        assert_eq!(needed_type_at("Acc", 3), None);
     }
 
     #[test]
