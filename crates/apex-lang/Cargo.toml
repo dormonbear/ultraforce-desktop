@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+sf-core = { path = "../sf-core" }
 sf-schema = { path = "../sf-schema" }
 serde.workspace = true
 serde_json.workspace = true

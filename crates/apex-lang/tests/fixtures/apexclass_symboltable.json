@@ -1,0 +1,46 @@
+{
+  "status": 0,
+  "result": {
+    "records": [
+      {
+        "Name": "AccountService",
+        "SymbolTable": {
+          "name": "AccountService",
+          "namespace": null,
+          "constructors": [],
+          "interfaces": [],
+          "innerClasses": [],
+          "variables": [],
+          "methods": [
+            {
+              "name": "save",
+              "returnType": "void",
+              "modifiers": [],
+              "parameters": [
+                {
+                  "name": "acct",
+                  "type": "Account"
+                }
+              ],
+              "annotations": [],
+              "references": []
+            }
+          ],
+          "properties": [
+            {
+              "name": "lastError",
+              "type": "String",
+              "modifiers": [
+                "private"
+              ],
+              "annotations": [],
+              "references": []
+            }
+          ]
+        }
+      }
+    ],
+    "totalSize": 1,
+    "done": true
+  }
+}

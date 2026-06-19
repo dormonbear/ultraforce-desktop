@@ -1,0 +1,5617 @@
+{
+  "publicDeclarations": {
+    "System": {
+      "String": {
+        "constructors": [],
+        "methods": [
+          {
+            "name": "abbreviate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "maxWidth",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "abbreviate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "maxWidth",
+                "type": "Integer"
+              },
+              {
+                "name": "offset",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "Exception"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "Exception"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "Exception",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "Exception"
+              },
+              {
+                "name": "escape",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "String"
+              },
+              {
+                "name": "escape",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "capitalize",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "center",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "size",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "center",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "size",
+                "type": "Integer"
+              },
+              {
+                "name": "padStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "charAt",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "index",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "codePointAt",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "index",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "codePointBefore",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "index",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "codePointCount",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "beginIndex",
+                "type": "Integer"
+              },
+              {
+                "name": "endIndex",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "compareTo",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "contains",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "containsAny",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "validChars",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "containsIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "containsNone",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "invalidChars",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "containsOnly",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "validChars",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "containsWhitespace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "countMatches",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "deleteWhitespace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "difference",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "other",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "endsWith",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "endsWithIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "suffix",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "equals",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "ANY"
+            ],
+            "parameters": [
+              {
+                "name": "obj",
+                "type": "ANY"
+              }
+            ]
+          },
+          {
+            "name": "equals",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "Object"
+            ],
+            "parameters": [
+              {
+                "name": "other",
+                "type": "Object"
+              }
+            ]
+          },
+          {
+            "name": "equalsIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "other",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "escapeCsv",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "escapeEcmaScript",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "escapeHtml3",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "escapeHtml4",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "escapeJava",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "escapeSingleQuotes",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "s",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "escapeUnicode",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "escapeXml",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "format",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "List<APEX_OBJECT>"
+            ],
+            "parameters": [
+              {
+                "name": "format",
+                "type": "String"
+              },
+              {
+                "name": "arguments",
+                "type": "List<APEX_OBJECT>"
+              }
+            ]
+          },
+          {
+            "name": "fromCharArray",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "List<Integer>"
+            ],
+            "parameters": [
+              {
+                "name": "charArr",
+                "type": "List<Integer>"
+              }
+            ]
+          },
+          {
+            "name": "getChars",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Integer>",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "getCommonPrefix",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "List<String>"
+            ],
+            "parameters": [
+              {
+                "name": "strings",
+                "type": "List<String>"
+              }
+            ]
+          },
+          {
+            "name": "getLevenshteinDistance",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "other",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "getLevenshteinDistance",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "other",
+                "type": "String"
+              },
+              {
+                "name": "threshold",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "hashCode",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "indexOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "indexOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              },
+              {
+                "name": "startPos",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "indexOfAny",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "searchChars",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "indexOfAnyBut",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "searchChars",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "indexOfChar",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "ch",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "indexOfChar",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "ch",
+                "type": "Integer"
+              },
+              {
+                "name": "fromIndex",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "indexOfDifference",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "other",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "indexOfIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "indexOfIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              },
+              {
+                "name": "startPos",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "isAllLowerCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isAllUpperCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isAlpha",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isAlphaSpace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isAlphanumeric",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isAlphanumericSpace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isAsciiPrintable",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isBlank",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "isEmpty",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "isNotBlank",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "isNotEmpty",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "isNumeric",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isNumericSpace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "isWhitespace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "join",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "APEX_OBJECT",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "iterableObj",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "separator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "lastIndexOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              },
+              {
+                "name": "startPos",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "lastIndexOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "lastIndexOfChar",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "ch",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "lastIndexOfChar",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "ch",
+                "type": "Integer"
+              },
+              {
+                "name": "fromIndex",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "lastIndexOfIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "lastIndexOfIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "searchStr",
+                "type": "String"
+              },
+              {
+                "name": "startPos",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "left",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "len",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "leftPad",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "len",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "leftPad",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "len",
+                "type": "Integer"
+              },
+              {
+                "name": "padStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "length",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "mid",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "pos",
+                "type": "Integer"
+              },
+              {
+                "name": "len",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "normalizeSpace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "offsetByCodePoints",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "index",
+                "type": "Integer"
+              },
+              {
+                "name": "codePointOffset",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "overlay",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "overlay",
+                "type": "String"
+              },
+              {
+                "name": "start",
+                "type": "Integer"
+              },
+              {
+                "name": "end",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "remove",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "toRemove",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "removeEnd",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "toRemove",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "removeEndIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "toRemove",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "removeStart",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "toRemove",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "removeStartIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "toRemove",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "repeat",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "numTimes",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "repeat",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "separator",
+                "type": "String"
+              },
+              {
+                "name": "numTimes",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "replace",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "target",
+                "type": "String"
+              },
+              {
+                "name": "replacement",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "replaceAll",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "regex",
+                "type": "String"
+              },
+              {
+                "name": "replacement",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "replaceFirst",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "regex",
+                "type": "String"
+              },
+              {
+                "name": "replacement",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "reverse",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "right",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "len",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "rightPad",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "len",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "rightPad",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "len",
+                "type": "Integer"
+              },
+              {
+                "name": "padStr",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "split",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<String>",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "regex",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "split",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<String>",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "regex",
+                "type": "String"
+              },
+              {
+                "name": "limit",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "splitByCharacterType",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<String>",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "splitByCharacterTypeCamelCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<String>",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "startsWith",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "startsWithIgnoreCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "prefix",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "stripHtmlTags",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "substring",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "start",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "substring",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "Integer",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "start",
+                "type": "Integer"
+              },
+              {
+                "name": "end",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "substringAfter",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "separator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "substringAfterLast",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "separator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "substringBefore",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "separator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "substringBeforeLast",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "separator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "substringBetween",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "open",
+                "type": "String"
+              },
+              {
+                "name": "close",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "substringBetween",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "tag",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "swapCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "toLowerCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "toLowerCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "locale",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "toString",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "toUpperCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "toUpperCase",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "locale",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "trim",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "uncapitalize",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeCsv",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeEcmaScript",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeHtml3",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeHtml4",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeJava",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeUnicode",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "unescapeXml",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Date"
+            ],
+            "parameters": [
+              {
+                "name": "d",
+                "type": "Date"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Datetime"
+            ],
+            "parameters": [
+              {
+                "name": "dt",
+                "type": "Datetime"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Decimal"
+            ],
+            "parameters": [
+              {
+                "name": "d",
+                "type": "Decimal"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Double"
+            ],
+            "parameters": [
+              {
+                "name": "d",
+                "type": "Double"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "i",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Long"
+            ],
+            "parameters": [
+              {
+                "name": "l",
+                "type": "Long"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Object"
+            ],
+            "parameters": [
+              {
+                "name": "o",
+                "type": "Object"
+              }
+            ]
+          },
+          {
+            "name": "valueOfGmt",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "Datetime"
+            ],
+            "parameters": [
+              {
+                "name": "dt",
+                "type": "Datetime"
+              }
+            ]
+          }
+        ],
+        "properties": []
+      },
+      "Database": {
+        "constructors": [],
+        "methods": [
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.LeadConvertResult",
+            "isStatic": true,
+            "argTypes": [
+              "Database.LeadConvert"
+            ],
+            "parameters": [
+              {
+                "name": "leadConvert",
+                "type": "Database.LeadConvert"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.LeadConvertResult",
+            "isStatic": true,
+            "argTypes": [
+              "Database.LeadConvert",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "leadConvert",
+                "type": "Database.LeadConvert"
+              },
+              {
+                "name": "DmlOptions || AccessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.LeadConvertResult",
+            "isStatic": true,
+            "argTypes": [
+              "Database.LeadConvert",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "leadConvert",
+                "type": "Database.LeadConvert"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.LeadConvertResult",
+            "isStatic": true,
+            "argTypes": [
+              "Database.LeadConvert",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "leadConvert",
+                "type": "Database.LeadConvert"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.LeadConvertResult",
+            "isStatic": true,
+            "argTypes": [
+              "Database.LeadConvert",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "leadConvert",
+                "type": "Database.LeadConvert"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.LeadConvertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Database.LeadConvert>"
+            ],
+            "parameters": [
+              {
+                "name": "leadConverts",
+                "type": "List<Database.LeadConvert>"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.LeadConvertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Database.LeadConvert>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "leadConverts",
+                "type": "List<Database.LeadConvert>"
+              },
+              {
+                "name": "DmlOptions || AccessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.LeadConvertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Database.LeadConvert>",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "leadConverts",
+                "type": "List<Database.LeadConvert>"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.LeadConvertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Database.LeadConvert>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "leadConverts",
+                "type": "List<Database.LeadConvert>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "convertLead",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.LeadConvertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Database.LeadConvert>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "leadConverts",
+                "type": "List<Database.LeadConvert>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "countQuery",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "countQuery",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "countQueryWithBinds",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<SObject>",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Map",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "bindMap",
+                "type": "Map"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "delete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "deleteAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "deleteAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "callback || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "deleteAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "callback",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "deleteAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "deleteAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "callback || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "deleteAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "callback",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "deleteImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "deleteImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.DeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "deleteImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "deleteImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "emptyRecycleBin",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.EmptyRecycleBinResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              }
+            ]
+          },
+          {
+            "name": "emptyRecycleBin",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.EmptyRecycleBinResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "emptyRecycleBin",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.EmptyRecycleBinResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "executeBatch",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "batchable",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "executeBatch",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "APEX_OBJECT",
+              "Integer"
+            ],
+            "parameters": [
+              {
+                "name": "batchable",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "batchSize",
+                "type": "Integer"
+              }
+            ]
+          },
+          {
+            "name": "getAsyncDeleteResult",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "deleteResult",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getAsyncDeleteResult",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.DeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "asyncLocator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "getAsyncLocator",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": true,
+            "argTypes": [
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "result",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getAsyncSaveResult",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "saveResult",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getAsyncSaveResult",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "asyncLocator",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "getCursor",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.Cursor",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "getCursor",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.Cursor",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getCursorWithBinds",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.Cursor",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Map",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "bindMap",
+                "type": "Map"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getDeleted",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.GetDeletedResult",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Datetime",
+              "Datetime"
+            ],
+            "parameters": [
+              {
+                "name": "sobjectType",
+                "type": "String"
+              },
+              {
+                "name": "startDate",
+                "type": "Datetime"
+              },
+              {
+                "name": "endDate",
+                "type": "Datetime"
+              }
+            ]
+          },
+          {
+            "name": "getPaginationCursor",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.PaginationCursor",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "getPaginationCursor",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.PaginationCursor",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getPaginationCursorWithBinds",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.PaginationCursor",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Map",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "bindMap",
+                "type": "Map"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getQueryLocator",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.QueryLocator",
+            "isStatic": true,
+            "argTypes": [
+              "List",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "staticSoqlQueryResult",
+                "type": "List"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getQueryLocator",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.QueryLocator",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "staticSoqlQueryResult",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "getQueryLocator",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.QueryLocator",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "getQueryLocator",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.QueryLocator",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getQueryLocatorWithBinds",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.QueryLocator",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Map",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "bindMap",
+                "type": "Map"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "getUpdated",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.GetUpdatedResult",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Datetime",
+              "Datetime"
+            ],
+            "parameters": [
+              {
+                "name": "sobjectType",
+                "type": "String"
+              },
+              {
+                "name": "startDate",
+                "type": "Datetime"
+              },
+              {
+                "name": "endDate",
+                "type": "Datetime"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "DmlOptions || AccessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "insert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insertAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "insertAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "callback || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insertAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "callback",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insertAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "insertAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "callback || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insertAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "callback",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insertImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "insertImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "insertImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "insertImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Id"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "Id"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Id",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "Id"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Id",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "Id"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Id",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "Id"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<Id>"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<Id>"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<Id>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<Id>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<Id>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<Id>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<Id>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<Id>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<SObject>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.MergeResult>",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "List<SObject>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicates",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "SObject",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "merge",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.MergeResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "SObject",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "primary",
+                "type": "SObject"
+              },
+              {
+                "name": "duplicate",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "query",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<SObject>",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "query",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<SObject>",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "queryWithBinds",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<SObject>",
+            "isStatic": true,
+            "argTypes": [
+              "String",
+              "Map",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "query",
+                "type": "String"
+              },
+              {
+                "name": "bindMap",
+                "type": "Map"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "releaseSavepoint",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": true,
+            "argTypes": [
+              "System.Savepoint"
+            ],
+            "parameters": [
+              {
+                "name": "savepoint",
+                "type": "System.Savepoint"
+              }
+            ]
+          },
+          {
+            "name": "rollback",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": true,
+            "argTypes": [
+              "System.Savepoint"
+            ],
+            "parameters": [
+              {
+                "name": "savepoint",
+                "type": "System.Savepoint"
+              }
+            ]
+          },
+          {
+            "name": "setSavepoint",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "System.Savepoint",
+            "isStatic": true,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "treeSave",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.NestedSaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "treeSave",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.NestedSaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "Id",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "id",
+                "type": "Id"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<Id>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "ids",
+                "type": "List<Id>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UndeleteResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "undelete",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UndeleteResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "DmlOptions || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "DmlOptions || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "DmlOptions",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "update",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "updateAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "updateAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "callback || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "updateAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "callback",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "updateAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "updateAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "callback || accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "updateAsync",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "callback",
+                "type": "APEX_OBJECT"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "updateImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "updateImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.SaveResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "updateImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "updateImmediate",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.SaveResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Schema.SObjectField",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "field ",
+                "type": "Schema.SObjectField"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Schema.SObjectField"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Schema.SObjectField",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<Database.UpsertResult>",
+            "isStatic": true,
+            "argTypes": [
+              "List<SObject>",
+              "Schema.SObjectField",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobjects",
+                "type": "List<SObject>"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Schema.SObjectField"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Schema.SObjectField",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Schema.SObjectField",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "upsert",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Database.UpsertResult",
+            "isStatic": true,
+            "argTypes": [
+              "SObject",
+              "Schema.SObjectField",
+              "Boolean",
+              "APEX_OBJECT"
+            ],
+            "parameters": [
+              {
+                "name": "sobject",
+                "type": "SObject"
+              },
+              {
+                "name": "field",
+                "type": "Schema.SObjectField"
+              },
+              {
+                "name": "allOrNothing",
+                "type": "Boolean"
+              },
+              {
+                "name": "accessLevel",
+                "type": "APEX_OBJECT"
+              }
+            ]
+          }
+        ],
+        "properties": []
+      },
+      "LoggingLevel": {
+        "constructors": [],
+        "methods": [
+          {
+            "name": "equals",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "Object"
+            ],
+            "parameters": [
+              {
+                "name": "obj",
+                "type": "Object"
+              }
+            ]
+          },
+          {
+            "name": "hashCode",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "ordinal",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "System.LoggingLevel",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "str",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "values",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "List<System.LoggingLevel>",
+            "isStatic": true,
+            "argTypes": [],
+            "parameters": []
+          }
+        ],
+        "properties": [
+          {
+            "name": "DEBUG",
+            "references": []
+          },
+          {
+            "name": "ERROR",
+            "references": []
+          },
+          {
+            "name": "FINE",
+            "references": []
+          },
+          {
+            "name": "FINER",
+            "references": []
+          },
+          {
+            "name": "FINEST",
+            "references": []
+          },
+          {
+            "name": "INFO",
+            "references": []
+          },
+          {
+            "name": "INTERNAL",
+            "references": []
+          },
+          {
+            "name": "NONE",
+            "references": []
+          },
+          {
+            "name": "WARN",
+            "references": []
+          }
+        ]
+      },
+      "Integer": {
+        "constructors": [],
+        "methods": [
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "Exception"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "Exception"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "Exception",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "Exception"
+              },
+              {
+                "name": "escape",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "String"
+              }
+            ]
+          },
+          {
+            "name": "addError",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "void",
+            "isStatic": false,
+            "argTypes": [
+              "String",
+              "Boolean"
+            ],
+            "parameters": [
+              {
+                "name": "msg",
+                "type": "String"
+              },
+              {
+                "name": "escape",
+                "type": "Boolean"
+              }
+            ]
+          },
+          {
+            "name": "equals",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Boolean",
+            "isStatic": false,
+            "argTypes": [
+              "ANY"
+            ],
+            "parameters": [
+              {
+                "name": "obj",
+                "type": "ANY"
+              }
+            ]
+          },
+          {
+            "name": "format",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "hashCode",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "toString",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "String",
+            "isStatic": false,
+            "argTypes": [],
+            "parameters": []
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": true,
+            "argTypes": [
+              "Object"
+            ],
+            "parameters": [
+              {
+                "name": "o",
+                "type": "Object"
+              }
+            ]
+          },
+          {
+            "name": "valueOf",
+            "references": [],
+            "methodDoc": null,
+            "returnType": "Integer",
+            "isStatic": true,
+            "argTypes": [
+              "String"
+            ],
+            "parameters": [
+              {
+                "name": "i",
+                "type": "String"
+              }
+            ]
+          }
+        ],
+        "properties": []
+      }
+    }
+  }
+}
