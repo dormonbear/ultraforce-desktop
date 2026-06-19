@@ -1,7 +1,7 @@
 //! SOQL execution slice: run a query → typed [`QueryResult`] → flat [`TableModel`].
 
 use serde::de::{self, MapAccess, Visitor};
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use sf_core::{SfError, SfInvoker};
 use std::fmt;
 use std::path::PathBuf;
@@ -265,6 +265,46 @@ pub async fn complete_fields(
         .collect()
 }
 
+/// One SOQL diagnostic for the editor (byte offsets into the query; severity as a lowercase string).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoqlDiagnostic {
+    pub message: String,
+    pub start: usize,
+    pub end: usize,
+    pub severity: String,
+}
+
+/// Unknown-field diagnostics for the standalone SOQL editor. Best-effort: empty when there is no FROM
+/// object or the describe fails (benign -- never invents errors).
+pub async fn diagnose(
+    invoker: &SfInvoker,
+    root: impl Into<PathBuf>,
+    org_id: &str,
+    query: &str,
+) -> Vec<SoqlDiagnostic> {
+    let Some(object) = soql_lang::outline(query).from_object else {
+        return Vec::new();
+    };
+    let mut store = sf_schema::SchemaStore::new(root, org_id);
+    let Ok(schema) = store.get_or_fetch(invoker, API_VERSION, &object).await else {
+        return Vec::new();
+    };
+    soql_lang::diagnostics(query, &schema)
+        .into_iter()
+        .map(|d| SoqlDiagnostic {
+            message: d.message,
+            start: d.start,
+            end: d.end,
+            severity: match d.severity {
+                soql_lang::Severity::Error => "error",
+                soql_lang::Severity::Warning => "warning",
+            }
+            .to_string(),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -416,6 +456,25 @@ mod tests {
         let cursor = q.find("Na").unwrap() + 2;
         let got = complete_fields(&invoker, &dir, "myorg", q, cursor).await;
         assert!(got.iter().any(|l| l == "Name"), "{got:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn diagnose_flags_unknown_select_field() {
+        let body = r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Id","type":"id"},{"name":"Name","type":"string"}]}}"#;
+        let runner = sf_core::runner::MockRunner::new(move |_p, _a| {
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-diag-test-{}", std::process::id()));
+        let diags = diagnose(&invoker, &dir, "myorg", "SELECT Id, Bogus FROM Account").await;
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert!(diags[0].message.contains("Bogus"));
+        assert_eq!(diags[0].severity, "error");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
