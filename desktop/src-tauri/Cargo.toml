@@ -15,6 +15,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+apex-lang = { path = "../../crates/apex-lang" }
 features = { path = "../../crates/features" }
 log-parser = { path = "../../crates/log-parser" }
 soql-lang = { path = "../../crates/soql-lang" }

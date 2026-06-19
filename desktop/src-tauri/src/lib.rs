@@ -10,6 +10,7 @@ use dto::{map_units, UnitDto};
 pub struct AppState {
     invoker: SfInvoker,
     selected_org: std::sync::Mutex<Option<String>>,
+    apex: features::apex_complete::ApexCompleter,
 }
 
 /// Read the currently selected target org as an owned value (guard not held across `.await`).
@@ -163,11 +164,27 @@ async fn set_debug_config(
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
+#[tauri::command]
+async fn apex_complete(
+    src: String,
+    offset: usize,
+    state: State<'_, AppState>,
+) -> Result<Vec<dto::CandidateDto>, String> {
+    let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    let cands = state
+        .apex
+        .complete(&state.invoker, &org, &src, offset)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(cands.iter().map(dto::CandidateDto::from).collect())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
+        apex: features::apex_complete::ApexCompleter::with_default_root(),
     };
 
     tauri::Builder::default()
@@ -180,7 +197,8 @@ pub fn run() {
             list_orgs,
             set_target_org,
             get_debug_config,
-            set_debug_config
+            set_debug_config,
+            apex_complete
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

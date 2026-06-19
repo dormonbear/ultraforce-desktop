@@ -1,6 +1,7 @@
 //! Serde-serializable DTOs for the parsed debug-log view, plus mappers from the
 //! `log_parser` / `features` model types (which are not serde-aware).
 
+use apex_lang::complete::{Candidate, CandidateKind};
 use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
 use features::debug_log::{DebugLogView, UnitView};
 use features::soql::{FieldValue, Record};
@@ -25,6 +26,33 @@ impl From<&OrgRef> for OrgDto {
             alias: o.alias.clone(),
             instance_url: o.instance_url.clone(),
             is_default: o.is_default,
+        }
+    }
+}
+
+/// One completion candidate for the React/Monaco side.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CandidateDto {
+    pub label: String,
+    pub kind: String,
+}
+
+fn candidate_kind_str(k: &CandidateKind) -> &'static str {
+    match k {
+        CandidateKind::Type => "type",
+        CandidateKind::Keyword => "keyword",
+        CandidateKind::LocalVar => "localVar",
+        CandidateKind::Method => "method",
+        CandidateKind::Property => "property",
+    }
+}
+
+impl From<&Candidate> for CandidateDto {
+    fn from(c: &Candidate) -> Self {
+        CandidateDto {
+            label: c.label.clone(),
+            kind: candidate_kind_str(&c.kind).to_string(),
         }
     }
 }
@@ -315,6 +343,17 @@ mod tests {
             children,
             dur_ns,
         }
+    }
+
+    #[test]
+    fn candidate_dto_maps_method_kind() {
+        let candidate = apex_lang::complete::Candidate {
+            label: "valueOf".into(),
+            kind: apex_lang::complete::CandidateKind::Method,
+        };
+        let dto = CandidateDto::from(&candidate);
+        assert_eq!(dto.label, "valueOf");
+        assert_eq!(dto.kind, "method");
     }
 
     #[test]
