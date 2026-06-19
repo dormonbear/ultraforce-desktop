@@ -5,28 +5,30 @@ import { SoqlEditor } from "../components/SoqlEditor";
 import { ResultTable } from "../components/ResultTable";
 import { RecordTree } from "../components/RecordTree";
 import type { SoqlResultDto } from "../types";
+import type { SoqlTab } from "../tabs/types";
 
-const DEFAULT_QUERY = "SELECT Id, Name FROM Account LIMIT 10";
+interface SoqlViewProps {
+  tab: SoqlTab;
+  onPatch: (partial: Partial<SoqlTab>) => void;
+}
 
-/** SOQL tool: editor on top, Table/Tree result toggle + status line below. */
-export function SoqlPanel() {
-  const [query, setQuery] = useState(DEFAULT_QUERY);
-  const [result, setResult] = useState<SoqlResultDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+/** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
+export function SoqlView({ tab, onPatch }: SoqlViewProps) {
+  const { query, result, error, view } = tab;
   const [running, setRunning] = useState(false);
-  const [view, setView] = useState<"table" | "tree">("table");
 
   const run = useCallback(async () => {
     setRunning(true);
-    setError(null);
+    onPatch({ error: null });
     try {
-      setResult(await invoke<SoqlResultDto>("run_soql", { query }));
+      const dto = await invoke<SoqlResultDto>("run_soql", { query });
+      onPatch({ result: dto });
     } catch (e) {
-      setError(typeof e === "string" ? e : String(e));
+      onPatch({ error: typeof e === "string" ? e : String(e) });
     } finally {
       setRunning(false);
     }
-  }, [query]);
+  }, [query, onPatch]);
 
   const status = running
     ? "Executing…"
@@ -39,7 +41,12 @@ export function SoqlPanel() {
   return (
     <PanelGroup direction="vertical">
       <Panel defaultSize={40} minSize={20}>
-        <SoqlEditor value={query} onChange={setQuery} onRun={run} running={running} />
+        <SoqlEditor
+          value={query}
+          onChange={(v) => onPatch({ query: v })}
+          onRun={run}
+          running={running}
+        />
       </Panel>
       <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-accent data-[resize-handle-state=drag]:bg-accent" />
       <Panel defaultSize={60} minSize={20}>
@@ -50,7 +57,7 @@ export function SoqlPanel() {
                 <button
                   key={v}
                   type="button"
-                  onClick={() => setView(v)}
+                  onClick={() => onPatch({ view: v })}
                   className={`focus-accent cursor-pointer rounded-[3px] px-2 py-0.5 text-[11px] uppercase tracking-wide transition-colors ${
                     view === v ? "text-accent" : "text-text-dim hover:text-text"
                   }`}

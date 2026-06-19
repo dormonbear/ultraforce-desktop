@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Database, Terminal, ScrollText, Table as TableIcon } from "lucide-react";
-import { SoqlPanel } from "./panels/SoqlPanel";
+import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexPanel } from "./panels/ApexPanel";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
@@ -65,7 +65,7 @@ export default function App() {
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {active === "soql" && <SoqlPanel />}
+          {active === "soql" && <SoqlTabs />}
           {active === "apex" && <ApexPanel />}
           {active === "logs" && <LogsPanel />}
         </main>
