@@ -1,7 +1,23 @@
-export interface TableDto {
+export interface FieldValueDto {
+  kind: "null" | "scalar" | "parent" | "children";
+  scalar?: string;
+  parent?: RecordDto;
+  children?: RecordDto[];
+}
+export interface FieldDto {
+  name: string;
+  value: FieldValueDto;
+}
+export interface RecordDto {
+  sobject_type: string;
+  fields: FieldDto[];
+}
+export interface SoqlResultDto {
   columns: string[];
   rows: string[][];
   total_size: number;
+  done: boolean;
+  tree: RecordDto[];
 }
 
 export interface OrgDto {

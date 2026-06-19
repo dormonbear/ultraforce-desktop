@@ -9,7 +9,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, Rows3, Rows4 } from "lucide-react";
-import type { TableDto } from "../types";
+import type { SoqlResultDto } from "../types";
 
 type Row = Record<string, string>;
 
@@ -30,7 +30,11 @@ function isNumericColumn(col: string, rows: Row[]): boolean {
   return seen > 0;
 }
 
-export function ResultTable({ data }: { data: TableDto }) {
+export function ResultTable({
+  data,
+}: {
+  data: Pick<SoqlResultDto, "columns" | "rows" | "total_size">;
+}) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [compact, setCompact] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
