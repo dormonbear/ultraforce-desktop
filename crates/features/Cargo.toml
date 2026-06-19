@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 apex-lang = { path = "../apex-lang" }
+soql-lang = { path = "../soql-lang" }
 sf-core = { path = "../sf-core" }
 sf-schema = { path = "../sf-schema" }
 log-parser = { path = "../log-parser" }

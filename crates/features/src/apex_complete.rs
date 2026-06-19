@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use apex_lang::acquire::{parse_org_types, parse_stdlib};
-use apex_lang::complete::{complete as ost_complete, Candidate};
+use apex_lang::complete::{complete as ost_complete, Candidate, CandidateKind};
 use apex_lang::resolve::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
 use apex_lang::symbols::{ApexType, Ost, Property, TypeKind};
@@ -49,6 +49,12 @@ impl ApexCompleter {
         src: &str,
         cursor: usize,
     ) -> Result<Vec<Candidate>, SfError> {
+        if let Some((s, e)) = apex_lang::soql_region_at(src, cursor) {
+            return self
+                .complete_soql(invoker, org_id, &src[s..e], cursor.saturating_sub(s))
+                .await;
+        }
+
         let ost = self.ensure_base(invoker, org_id).await?;
         // On-demand sObject describe: if the cursor needs a type the OST lacks, try describing it.
         if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
@@ -60,6 +66,31 @@ impl ApexCompleter {
             }
         }
         Ok(ost_complete(src, cursor, &ost))
+    }
+
+    /// SOQL field completion inside an Apex `[SELECT …]` literal. Empty when there is no FROM object
+    /// or its describe fails (benign).
+    async fn complete_soql(
+        &self,
+        invoker: &SfInvoker,
+        org_id: &str,
+        inner: &str,
+        rel_cursor: usize,
+    ) -> Result<Vec<Candidate>, SfError> {
+        let Some(object) = soql_lang::outline(inner).from_object else {
+            return Ok(Vec::new());
+        };
+        let Some(schema) = self.describe_schema(invoker, org_id, &object).await else {
+            return Ok(Vec::new());
+        };
+        let fields = soql_lang::complete(inner, rel_cursor, &schema);
+        Ok(fields
+            .into_iter()
+            .map(|c| Candidate {
+                label: c.label,
+                kind: CandidateKind::Property,
+            })
+            .collect())
     }
 
     async fn ensure_base(&self, invoker: &SfInvoker, org_id: &str) -> Result<Arc<Ost>, SfError> {
@@ -78,12 +109,20 @@ impl ApexCompleter {
         org_id: &str,
         name: &str,
     ) -> Option<ApexType> {
-        let mut store = SchemaStore::new(self.root.clone(), org_id);
-        store
-            .get_or_fetch(invoker, API_VERSION, name)
+        self.describe_schema(invoker, org_id, name)
             .await
-            .ok()
             .map(|s| schema_to_apex_type(&s))
+    }
+
+    /// Best-effort raw describe (None if not a real sObject / describe fails).
+    async fn describe_schema(
+        &self,
+        invoker: &SfInvoker,
+        org_id: &str,
+        object: &str,
+    ) -> Option<SObjectSchema> {
+        let mut store = SchemaStore::new(self.root.clone(), org_id);
+        store.get_or_fetch(invoker, API_VERSION, object).await.ok()
     }
 
     /// Insert `ty` into the cached OST's org_types (dedupe by name); returns the new Arc. Lock not held
@@ -260,6 +299,31 @@ mod tests {
         let input = "Account a; a.Na";
         let got = completer
             .complete(&invoker, "myorg", input, input.len())
+            .await
+            .unwrap();
+        assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn completes_soql_field_inside_apex_literal() {
+        let body = r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string"},{"name":"Industry","type":"picklist"}]}}"#;
+        let runner = MockRunner::new(move |_p, _args| {
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-in-apex-test-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+
+        let src = "Account a = [SELECT Na FROM Account];";
+        let cursor = src.find("Na").unwrap() + 2;
+        let got = completer
+            .complete(&invoker, "myorg", src, cursor)
             .await
             .unwrap();
         assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
