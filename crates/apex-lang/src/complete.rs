@@ -46,6 +46,7 @@ pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
                 .map(|ty| member_candidates(ty, &prefix, false))
                 .unwrap_or_default()
         }
+        CursorContext::ChainMember { .. } => Vec::new(),
         CursorContext::Unknown => Vec::new(),
     }
 }

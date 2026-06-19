@@ -11,11 +11,19 @@ pub struct ApexOutline {
     pub locals: Vec<LocalVar>,
 }
 
+/// One link in a receiver chain: `name` plus whether it is a call `name(...)`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Segment {
+    pub name: String,
+    pub is_call: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CursorContext {
     TopLevel { prefix: String },
     StaticMember { type_name: String, prefix: String },
     InstanceMember { receiver: String, prefix: String },
+    ChainMember { chain: Vec<Segment>, prefix: String },
     Unknown,
 }
 
@@ -66,21 +74,27 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
         .last()
         .is_some_and(|token| token.kind == TokenKind::Dot)
     {
-        if let Some(receiver) = non_ws.iter().rev().nth(1) {
-            if receiver.kind == TokenKind::Ident {
-                if is_type_shaped(&receiver.text) {
-                    return CursorContext::StaticMember {
-                        type_name: receiver.text.clone(),
+        let chain = extract_chain(&non_ws);
+        return match chain.as_slice() {
+            [only] if !only.is_call => {
+                if is_type_shaped(&only.name) {
+                    CursorContext::StaticMember {
+                        type_name: only.name.clone(),
                         prefix: prefix.to_string(),
-                    };
+                    }
+                } else {
+                    CursorContext::InstanceMember {
+                        receiver: only.name.clone(),
+                        prefix: prefix.to_string(),
+                    }
                 }
-                return CursorContext::InstanceMember {
-                    receiver: receiver.text.clone(),
-                    prefix: prefix.to_string(),
-                };
             }
-        }
-        return CursorContext::Unknown;
+            [] => CursorContext::Unknown,
+            _ => CursorContext::ChainMember {
+                chain,
+                prefix: prefix.to_string(),
+            },
+        };
     }
 
     CursorContext::TopLevel {
@@ -103,6 +117,62 @@ fn statement_has_semicolon(tokens: &[Token], start: usize) -> bool {
         .skip(start)
         .take_while(|token| token.kind != TokenKind::LBrace && token.kind != TokenKind::RBrace)
         .any(|token| token.kind == TokenKind::Semicolon)
+}
+
+/// Walk the receiver chain ending at the trailing `.` (non_ws.last()). Returns segments
+/// left→right. Skips balanced call parens; stops at the first token that is not part of a
+/// `Ident (call)? (. Ident (call)?)*` run.
+fn extract_chain(non_ws: &[&Token]) -> Vec<Segment> {
+    let mut segs: Vec<Segment> = Vec::new();
+    // index of the token just before the trailing dot
+    let mut i = match non_ws.len().checked_sub(2) {
+        Some(i) => i as isize,
+        None => return segs,
+    };
+    loop {
+        let mut is_call = false;
+        // optional call: skip a balanced ) ... (
+        if i >= 0 && non_ws[i as usize].kind == TokenKind::RParen {
+            let mut depth = 0i32;
+            while i >= 0 {
+                match non_ws[i as usize].kind {
+                    TokenKind::RParen => depth += 1,
+                    TokenKind::LParen => {
+                        depth -= 1;
+                        if depth == 0 {
+                            i -= 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+                i -= 1;
+            }
+            if depth != 0 {
+                return Vec::new();
+            } // unbalanced → give up
+            is_call = true;
+        }
+        // the name
+        if i >= 0 && non_ws[i as usize].kind == TokenKind::Ident {
+            segs.push(Segment {
+                name: non_ws[i as usize].text.clone(),
+                is_call,
+            });
+            i -= 1;
+        } else {
+            // a call with no preceding identifier, or no identifier at all → stop
+            break;
+        }
+        // continue only if another dot precedes this segment
+        if i >= 0 && non_ws[i as usize].kind == TokenKind::Dot {
+            i -= 1;
+            continue;
+        }
+        break;
+    }
+    segs.reverse();
+    segs
 }
 
 fn is_ident_continue(byte: u8) -> bool {
@@ -160,5 +230,45 @@ mod tests {
                 prefix: "Inte".to_string(),
             }
         );
+    }
+
+    #[test]
+    fn chain_member_context_extracts_segments() {
+        // svc : base, getSelf() : call segment; completing ".sa"
+        let input = "AccountService svc; svc.getSelf().sa";
+        match context_at(input, input.len()) {
+            CursorContext::ChainMember { chain, prefix } => {
+                assert_eq!(prefix, "sa");
+                assert_eq!(chain.len(), 2);
+                assert_eq!(
+                    chain[0],
+                    Segment {
+                        name: "svc".into(),
+                        is_call: false
+                    }
+                );
+                assert_eq!(
+                    chain[1],
+                    Segment {
+                        name: "getSelf".into(),
+                        is_call: true
+                    }
+                );
+            }
+            other => panic!("expected ChainMember, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn single_segment_still_instance_or_static() {
+        // unchanged behavior for one-segment receivers
+        assert!(matches!(
+            context_at("String.va", "String.va".len()),
+            CursorContext::StaticMember { .. }
+        ));
+        assert!(matches!(
+            context_at("Account a; a.na", "Account a; a.na".len()),
+            CursorContext::InstanceMember { .. }
+        ));
     }
 }
