@@ -65,8 +65,13 @@ impl LogEvent {
         match self {
             ExecutionStarted | CodeUnitStarted | MethodEntry | ConstructorEntry
             | SoqlExecuteBegin | DmlBegin | CumulativeLimitUsage => ScopeKind::Start,
-            ExecutionFinished | CodeUnitFinished | MethodExit | ConstructorExit
-            | SoqlExecuteEnd | DmlEnd | CumulativeLimitUsageEnd => ScopeKind::End,
+            ExecutionFinished
+            | CodeUnitFinished
+            | MethodExit
+            | ConstructorExit
+            | SoqlExecuteEnd
+            | DmlEnd
+            | CumulativeLimitUsageEnd => ScopeKind::End,
             Other(name) => scope_kind_by_suffix(name),
             _ => ScopeKind::Leaf,
         }
@@ -89,9 +94,15 @@ mod tests {
 
     #[test]
     fn maps_known_event_names() {
-        assert_eq!(LogEvent::from_name("EXECUTION_STARTED"), LogEvent::ExecutionStarted);
+        assert_eq!(
+            LogEvent::from_name("EXECUTION_STARTED"),
+            LogEvent::ExecutionStarted
+        );
         assert_eq!(LogEvent::from_name("USER_DEBUG"), LogEvent::UserDebug);
-        assert_eq!(LogEvent::from_name("LIMIT_USAGE_FOR_NS"), LogEvent::LimitUsageForNs);
+        assert_eq!(
+            LogEvent::from_name("LIMIT_USAGE_FOR_NS"),
+            LogEvent::LimitUsageForNs
+        );
     }
 
     #[test]
@@ -111,8 +122,17 @@ mod tests {
 
     #[test]
     fn scope_kind_of_other_uses_suffix() {
-        assert_eq!(LogEvent::from_name("FLOW_X_BEGIN").scope_kind(), ScopeKind::Start);
-        assert_eq!(LogEvent::from_name("FLOW_X_END").scope_kind(), ScopeKind::End);
-        assert_eq!(LogEvent::from_name("SOME_DETAIL").scope_kind(), ScopeKind::Leaf);
+        assert_eq!(
+            LogEvent::from_name("FLOW_X_BEGIN").scope_kind(),
+            ScopeKind::Start
+        );
+        assert_eq!(
+            LogEvent::from_name("FLOW_X_END").scope_kind(),
+            ScopeKind::End
+        );
+        assert_eq!(
+            LogEvent::from_name("SOME_DETAIL").scope_kind(),
+            ScopeKind::Leaf
+        );
     }
 }

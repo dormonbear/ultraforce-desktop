@@ -24,7 +24,10 @@ impl SfVersion {
     pub async fn detect(invoker: &SfInvoker) -> Result<SfVersion, SfError> {
         let out = invoker.run_raw(&["--version"]).await?;
         let version = Self::parse(&out.stdout)?;
-        Ok(SfVersion { version, raw: out.stdout.trim().to_string() })
+        Ok(SfVersion {
+            version,
+            raw: out.stdout.trim().to_string(),
+        })
     }
 
     pub fn meets_minimum(&self) -> bool {
@@ -53,9 +56,15 @@ mod tests {
 
     #[test]
     fn meets_minimum_compares_correctly() {
-        let ok = SfVersion { version: Version::new(2, 127, 2), raw: String::new() };
+        let ok = SfVersion {
+            version: Version::new(2, 127, 2),
+            raw: String::new(),
+        };
         assert!(ok.meets_minimum());
-        let old = SfVersion { version: Version::new(1, 99, 0), raw: String::new() };
+        let old = SfVersion {
+            version: Version::new(1, 99, 0),
+            raw: String::new(),
+        };
         assert!(!old.meets_minimum());
     }
 

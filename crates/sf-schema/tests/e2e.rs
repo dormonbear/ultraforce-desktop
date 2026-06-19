@@ -29,10 +29,7 @@ async fn describe_account_against_live_org() {
     );
 
     assert!(
-        schema
-            .fields
-            .iter()
-            .any(|f| !f.picklist_values.is_empty()),
+        schema.fields.iter().any(|f| !f.picklist_values.is_empty()),
         "at least one field should have picklist values"
     );
 }

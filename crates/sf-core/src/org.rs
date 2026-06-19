@@ -37,7 +37,10 @@ impl OrgRegistry {
     }
 
     pub async fn default_org(invoker: &SfInvoker) -> Result<Option<OrgRef>, SfError> {
-        Ok(Self::list(invoker).await?.into_iter().find(|o| o.is_default))
+        Ok(Self::list(invoker)
+            .await?
+            .into_iter()
+            .find(|o| o.is_default))
     }
 }
 
@@ -75,7 +78,9 @@ mod tests {
                 {"username":"b@x.com","isDefaultUsername":true}
             ]
         }}"#;
-        let def = OrgRegistry::default_org(&invoker_returning(json)).await.unwrap();
+        let def = OrgRegistry::default_org(&invoker_returning(json))
+            .await
+            .unwrap();
         assert_eq!(def.unwrap().username, "b@x.com");
     }
 }

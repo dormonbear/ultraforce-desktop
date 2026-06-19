@@ -61,14 +61,20 @@ impl MockRunner {
     pub fn new(
         handler: impl Fn(&str, &[String]) -> Result<RawOutput, SfError> + Send + Sync + 'static,
     ) -> Self {
-        Self { handler: Box::new(handler) }
+        Self {
+            handler: Box::new(handler),
+        }
     }
 
     /// Convenience: always return `stdout` with exit status 0.
     pub fn ok_json(stdout: impl Into<String>) -> Self {
         let s = stdout.into();
         Self::new(move |_, _| {
-            Ok(RawOutput { status: 0, stdout: s.clone(), stderr: String::new() })
+            Ok(RawOutput {
+                status: 0,
+                stdout: s.clone(),
+                stderr: String::new(),
+            })
         })
     }
 }
@@ -104,7 +110,11 @@ mod tests {
     #[tokio::test]
     async fn process_runner_maps_missing_binary_to_not_found() {
         let err = ProcessRunner
-            .run("definitely-not-a-real-binary-xyz", &[], Duration::from_secs(5))
+            .run(
+                "definitely-not-a-real-binary-xyz",
+                &[],
+                Duration::from_secs(5),
+            )
             .await
             .unwrap_err();
         assert!(matches!(err, SfError::NotFound), "got: {err:?}");

@@ -15,7 +15,10 @@ pub struct SfInvoker {
 
 impl SfInvoker {
     pub fn new(runner: Arc<dyn CommandRunner>) -> Self {
-        Self { runner, timeout: DEFAULT_TIMEOUT }
+        Self {
+            runner,
+            timeout: DEFAULT_TIMEOUT,
+        }
     }
 
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
@@ -83,7 +86,10 @@ mod tests {
             })
         });
         let invoker = SfInvoker::new(Arc::new(runner));
-        let _: Demo = invoker.run_json(&["data", "query", "--json"]).await.unwrap();
+        let _: Demo = invoker
+            .run_json(&["data", "query", "--json"])
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

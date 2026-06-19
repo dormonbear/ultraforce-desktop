@@ -4,10 +4,7 @@ use crate::model::SObjectSchema;
 use sf_core::{SfError, SfInvoker};
 
 /// Describe a single object: `sf sobject describe -s <object> --json`.
-pub async fn describe_object(
-    invoker: &SfInvoker,
-    object: &str,
-) -> Result<SObjectSchema, SfError> {
+pub async fn describe_object(invoker: &SfInvoker, object: &str) -> Result<SObjectSchema, SfError> {
     invoker
         .run_json(&["sobject", "describe", "-s", object])
         .await
@@ -47,9 +44,6 @@ mod tests {
         assert_eq!(schema.child_relationships.len(), 2);
 
         let args = seen.lock().unwrap().clone();
-        assert_eq!(
-            args,
-            vec!["sobject", "describe", "-s", "Account", "--json"]
-        );
+        assert_eq!(args, vec!["sobject", "describe", "-s", "Account", "--json"]);
     }
 }

@@ -2,8 +2,8 @@
 
 pub mod model;
 pub mod puller;
-pub mod store;
 pub mod query;
+pub mod store;
 
 pub use model::{ChildRelationship, Field, PicklistValue, SObjectSchema};
 pub use puller::describe_object;

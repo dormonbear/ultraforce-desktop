@@ -11,7 +11,11 @@ pub enum SfError {
     #[error("`sf` timed out after {0:?}")]
     Timeout(Duration),
     #[error("`sf` command failed (status {status}): {name}: {message}")]
-    Command { status: i32, name: String, message: String },
+    Command {
+        status: i32,
+        name: String,
+        message: String,
+    },
     #[error("failed to parse `sf` JSON output: {0}")]
     Parse(#[source] serde_json::Error),
     #[error("unexpected `sf` output: {0}")]
@@ -31,7 +35,11 @@ mod tests {
 
     #[test]
     fn command_error_includes_status_and_name() {
-        let e = SfError::Command { status: 1, name: "NoOrgFound".into(), message: "no org".into() };
+        let e = SfError::Command {
+            status: 1,
+            name: "NoOrgFound".into(),
+            message: "no org".into(),
+        };
         let msg = e.to_string();
         assert!(msg.contains("status 1"), "got: {msg}");
         assert!(msg.contains("NoOrgFound"), "got: {msg}");

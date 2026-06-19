@@ -97,7 +97,10 @@ mod tests {
     async fn get_log_body_errors_on_empty_result() {
         let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(r#"{"status":0,"result":[]}"#)));
         let err = get_log_body(&invoker, "x").await.unwrap_err();
-        assert!(matches!(err, sf_core::SfError::Unexpected(_)), "got: {err:?}");
+        assert!(
+            matches!(err, sf_core::SfError::Unexpected(_)),
+            "got: {err:?}"
+        );
     }
 
     const SAMPLE: &str = "67.0 APEX_CODE,DEBUG;APEX_PROFILING,INFO\n\

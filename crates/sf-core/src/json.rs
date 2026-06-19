@@ -52,7 +52,11 @@ mod tests {
         let json = r#"{"status":1,"name":"NoOrgFound","message":"no default org"}"#;
         let err = parse_envelope::<Demo>(json).unwrap_err();
         match err {
-            SfError::Command { status, name, message } => {
+            SfError::Command {
+                status,
+                name,
+                message,
+            } => {
                 assert_eq!(status, 1);
                 assert_eq!(name, "NoOrgFound");
                 assert_eq!(message, "no default org");

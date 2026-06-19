@@ -25,7 +25,11 @@ pub fn extract_limits(unit: &ExecUnit) -> Vec<LimitRollup> {
             continue;
         }
         let namespace = entry.params.first().cloned().unwrap_or_default();
-        let entries: Vec<LimitEntry> = entry.params.iter().filter_map(|p| parse_limit_line(p)).collect();
+        let entries: Vec<LimitEntry> = entry
+            .params
+            .iter()
+            .filter_map(|p| parse_limit_line(p))
+            .collect();
         if !entries.is_empty() {
             rollups.push(LimitRollup { namespace, entries });
         }
@@ -64,11 +68,19 @@ mod tests {
         assert_eq!(rollups[0].namespace, "(default)");
         assert_eq!(
             rollups[0].entries[0],
-            LimitEntry { name: "Number of SOQL queries".to_string(), used: 2, max: 100 }
+            LimitEntry {
+                name: "Number of SOQL queries".to_string(),
+                used: 2,
+                max: 100
+            }
         );
         assert_eq!(
             rollups[0].entries[1],
-            LimitEntry { name: "Maximum CPU time".to_string(), used: 50, max: 10000 }
+            LimitEntry {
+                name: "Maximum CPU time".to_string(),
+                used: 50,
+                max: 10000
+            }
         );
     }
 

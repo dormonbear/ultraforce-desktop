@@ -30,18 +30,22 @@ impl ParsedLog {
                         if let Some(u) = current.take() {
                             units.push(u);
                         }
-                        current = Some(ExecUnit { entries: vec![entry] });
+                        current = Some(ExecUnit {
+                            entries: vec![entry],
+                        });
                     }
                     LogEvent::ExecutionFinished => {
-                        let mut u = current
-                            .take()
-                            .unwrap_or_else(|| ExecUnit { entries: Vec::new() });
+                        let mut u = current.take().unwrap_or_else(|| ExecUnit {
+                            entries: Vec::new(),
+                        });
                         u.entries.push(entry);
                         units.push(u);
                     }
                     _ => {
                         current
-                            .get_or_insert_with(|| ExecUnit { entries: Vec::new() })
+                            .get_or_insert_with(|| ExecUnit {
+                                entries: Vec::new(),
+                            })
                             .entries
                             .push(entry);
                     }
@@ -74,7 +78,10 @@ mod tests {
         let entry = &log.units[0].entries[0];
         assert_eq!(entry.event, LogEvent::LimitUsageForNs);
         // namespace param plus the appended continuation line
-        assert!(entry.params.iter().any(|p| p.contains("Number of SOQL queries")));
+        assert!(entry
+            .params
+            .iter()
+            .any(|p| p.contains("Number of SOQL queries")));
     }
 
     #[test]
