@@ -8,8 +8,7 @@ import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import type { ApexOutcomeDto } from "../types";
-
-const DEFAULT_SRC = "System.debug('hello');";
+import type { ApexTab } from "../tabs/types";
 
 const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
   minimap: { enabled: false },
@@ -42,32 +41,33 @@ function StatusChip({ label, ok }: { label: string; ok: boolean }) {
   );
 }
 
-/** Anonymous-Apex runner: Monaco editor + status chips + error + debug log. */
-export function ApexPanel() {
-  const [src, setSrc] = useState(DEFAULT_SRC);
-  const [outcome, setOutcome] = useState<ApexOutcomeDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+interface ApexViewProps {
+  tab: ApexTab;
+  onPatch: (partial: Partial<ApexTab>) => void;
+}
+
+/** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
+export function ApexView({ tab, onPatch }: ApexViewProps) {
+  const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
-  const [traceOpen, setTraceOpen] = useState(false);
 
   const srcRef = useRef(src);
   srcRef.current = src;
 
   const run = useCallback(async () => {
     setRunning(true);
-    setError(null);
+    onPatch({ error: null });
     try {
       const dto = await invoke<ApexOutcomeDto>("run_apex", {
         src: srcRef.current,
       });
-      setOutcome(dto);
+      onPatch({ outcome: dto });
     } catch (e) {
-      setError(typeof e === "string" ? e : String(e));
-      setOutcome(null);
+      onPatch({ error: typeof e === "string" ? e : String(e), outcome: null });
     } finally {
       setRunning(false);
     }
-  }, []);
+  }, [onPatch]);
 
   const beforeMount = (monaco: Monaco) => configureMonacoApex(monaco);
   const onMount: OnMount = (instance, monaco) => {
@@ -92,7 +92,7 @@ export function ApexPanel() {
               value={src}
               beforeMount={beforeMount}
               onMount={onMount}
-              onChange={(v) => setSrc(v ?? "")}
+              onChange={(v) => onPatch({ src: v ?? "" })}
               options={EDITOR_OPTS}
             />
           </div>
@@ -145,7 +145,7 @@ export function ApexPanel() {
                     <div className="mt-1">
                       <button
                         type="button"
-                        onClick={() => setTraceOpen((o) => !o)}
+                        onClick={() => onPatch({ traceOpen: !traceOpen })}
                         className="focus-accent inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-text-faint hover:text-text-dim cursor-pointer"
                       >
                         <ChevronRight
