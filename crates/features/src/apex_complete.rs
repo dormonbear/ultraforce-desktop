@@ -7,11 +7,27 @@ use apex_lang::acquire::{parse_org_types, parse_stdlib};
 use apex_lang::complete::{complete as ost_complete, Candidate, CandidateKind};
 use apex_lang::resolve::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
-use apex_lang::symbols::{ApexType, Ost, Property, TypeKind};
+use apex_lang::symbols::{ApexType, Method, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};
 use sf_schema::{SObjectSchema, SchemaStore};
 
 const API_VERSION: &str = "60.0";
+
+/// Common Apex SObject instance methods (name, return type). Curated subset -- not exhaustive.
+/// ponytail: extend the list if a needed builtin is missing; not worth modelling the full surface.
+const SOBJECT_METHODS: &[(&str, &str)] = &[
+    ("get", "Object"),
+    ("put", "Object"),
+    ("getSObjectType", "Schema.SObjectType"),
+    ("getSObject", "SObject"),
+    ("getSObjects", "List<SObject>"),
+    ("getPopulatedFieldsAsMap", "Map<String,Object>"),
+    ("getErrors", "List<Database.Error>"),
+    ("hasErrors", "Boolean"),
+    ("isClone", "Boolean"),
+    ("addError", "void"),
+    ("clone", "SObject"),
+];
 
 /// Owns the assembled-OST cache (one `Arc<Ost>` per org id). The mutex guards only the
 /// cheap swap of the cached pointer -- it is NEVER held across an `.await`.
@@ -206,10 +222,19 @@ fn schema_to_apex_type(schema: &SObjectSchema) -> ApexType {
             });
         }
     }
+    let methods = SOBJECT_METHODS
+        .iter()
+        .map(|(name, ret)| Method {
+            name: (*name).to_string(),
+            return_type: (*ret).to_string(),
+            params: Vec::new(),
+            is_static: false,
+        })
+        .collect();
     ApexType {
         name: schema.name.clone(),
         kind: TypeKind::Class,
-        methods: Vec::new(),
+        methods,
         properties,
         enum_values: Vec::new(),
     }
@@ -225,6 +250,23 @@ mod tests {
     // Minimal real-shape payloads (see apex-lang fixtures for the full shape).
     const STDLIB: &str = r#"{"publicDeclarations":{"System":{"String":{"constructors":[],"methods":[{"name":"valueOf","returnType":"String","isStatic":true,"argTypes":["Integer"],"parameters":[{"name":"i","type":"Integer"}]}],"properties":[]}}}}"#;
     const ORGTYPES: &str = r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#;
+
+    #[test]
+    fn schema_to_apex_type_includes_sobject_instance_methods() {
+        let schema: SObjectSchema = serde_json::from_str(
+            r#"{"name":"Account","fields":[{"name":"Name","type":"string"}]}"#,
+        )
+        .unwrap();
+        let ty = schema_to_apex_type(&schema);
+        assert!(
+            ty.properties.iter().any(|p| p.name == "Name"),
+            "fields kept"
+        );
+        assert!(ty.methods.iter().any(|m| m.name == "getSObjectType"));
+        assert!(ty.methods.iter().any(|m| m.name == "put"));
+        assert!(ty.methods.iter().any(|m| m.name == "get"));
+        assert!(ty.methods.iter().all(|m| !m.is_static), "instance methods");
+    }
 
     /// Counting runner: stdlib `api request rest` (raw, NO --json) then `data query` (--json).
     fn counting(seen: Arc<AtomicUsize>) -> MockRunner {
