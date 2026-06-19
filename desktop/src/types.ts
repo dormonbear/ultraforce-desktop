@@ -20,6 +20,13 @@ export interface SoqlResultDto {
   tree: RecordDto[];
 }
 
+export interface SoqlDiagnosticDto {
+  message: string;
+  start: number;
+  end: number;
+  severity: "error" | "warning";
+}
+
 export interface OrgDto {
   username: string;
   alias: string | null;
