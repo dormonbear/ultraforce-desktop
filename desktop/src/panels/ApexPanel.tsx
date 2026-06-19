@@ -9,6 +9,7 @@ import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { DebugConfigRow } from "./DebugConfigRow";
 import type { ApexOutcomeDto, CategoryLevels, DebugConfigDto } from "../types";
+import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
 
 const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
@@ -56,6 +57,8 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
   const [cfgError, setCfgError] = useState<string | null>(null);
 
   const srcRef = useRef(src);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
   srcRef.current = src;
 
   useEffect(() => {
@@ -97,10 +100,50 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
 
   const beforeMount = (monaco: Monaco) => configureMonacoApex(monaco);
   const onMount: OnMount = (instance, monaco) => {
+    editorRef.current = instance;
+    monacoRef.current = monaco;
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
       run()
     );
   };
+
+  useEffect(() => {
+    const instance = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!instance || !monaco) return;
+    const model = instance.getModel();
+    if (!model) return;
+    const handle = setTimeout(async () => {
+      let diags: SoqlDiagnosticDto[];
+      try {
+        diags = await invoke<SoqlDiagnosticDto[]>("apex_soql_diagnostics", {
+          src,
+        });
+      } catch {
+        return;
+      }
+      monaco.editor.setModelMarkers(
+        model,
+        "apex-soql",
+        diags.map((d) => {
+          const s = model.getPositionAt(d.start);
+          const e = model.getPositionAt(d.end);
+          return {
+            message: d.message,
+            severity:
+              d.severity === "warning"
+                ? monaco.MarkerSeverity.Warning
+                : monaco.MarkerSeverity.Error,
+            startLineNumber: s.lineNumber,
+            startColumn: s.column,
+            endLineNumber: e.lineNumber,
+            endColumn: e.column,
+          } as editor.IMarkerData;
+        })
+      );
+    }, 350);
+    return () => clearTimeout(handle);
+  }, [src]);
 
   return (
     <PanelGroup direction="vertical">
