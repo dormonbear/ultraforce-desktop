@@ -74,3 +74,22 @@ export interface LogViewDto {
   api_version: string | null;
   units: UnitDto[];
 }
+
+export type CategoryLevels = {
+  apexCode: string;
+  apexProfiling: string;
+  callout: string;
+  dataAccess: string;
+  database: string;
+  nba: string;
+  system: string;
+  validation: string;
+  visualforce: string;
+  wave: string;
+  workflow: string;
+};
+
+export type DebugConfigDto = {
+  traceFlagId: string | null;
+  levels: CategoryLevels;
+};
