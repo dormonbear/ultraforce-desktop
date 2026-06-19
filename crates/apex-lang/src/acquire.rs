@@ -54,7 +54,7 @@ pub fn parse_stdlib(raw: &serde_json::Value) -> Vec<Namespace> {
 }
 
 pub fn parse_org_types(records: &[serde_json::Value]) -> Vec<ApexType> {
-    let mut entries: Vec<(ApexType, Option<String>)> = Vec::new();
+    let mut entries: Vec<(ApexType, Vec<String>)> = Vec::new();
     for record in records {
         let Some(symbol_table) = record.get("SymbolTable") else {
             continue;
@@ -69,7 +69,7 @@ pub fn parse_org_types(records: &[serde_json::Value]) -> Vec<ApexType> {
 fn collect_symbol_table_types(
     symbol_table: &Value,
     name_fallback: Option<&str>,
-    out: &mut Vec<(ApexType, Option<String>)>,
+    out: &mut Vec<(ApexType, Vec<String>)>,
 ) {
     if let Some(name) = symbol_table
         .get("name")
@@ -84,7 +84,7 @@ fn collect_symbol_table_types(
                 properties: parse_org_properties(symbol_table),
                 enum_values: Vec::new(),
             },
-            parent_name(symbol_table),
+            super_types(symbol_table),
         ));
     }
 
@@ -95,21 +95,32 @@ fn collect_symbol_table_types(
     }
 }
 
-/// Superclass name from a SymbolTable (`parentClass` string, or its `name` if an object).
-fn parent_name(symbol_table: &Value) -> Option<String> {
-    let parent_class = symbol_table.get("parentClass")?;
-    let name = parent_class.as_str().map(str::to_string).or_else(|| {
-        parent_class
-            .get("name")
-            .and_then(Value::as_str)
-            .map(str::to_string)
-    })?;
-    let name = name.trim();
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.to_string())
+/// All org-supertype names: `parentClass` (if any) followed by `interfaces[]`.
+fn super_types(symbol_table: &Value) -> Vec<String> {
+    let mut names = Vec::new();
+    if let Some(parent) = symbol_table.get("parentClass") {
+        if let Some(name) = type_ref_name(parent) {
+            names.push(name);
+        }
     }
+    if let Some(arr) = symbol_table.get("interfaces").and_then(Value::as_array) {
+        for iface in arr {
+            if let Some(name) = type_ref_name(iface) {
+                names.push(name);
+            }
+        }
+    }
+    names
+}
+
+/// A SymbolTable type reference is either a bare string or an object with `name`.
+fn type_ref_name(v: &Value) -> Option<String> {
+    let name = v
+        .as_str()
+        .map(str::to_string)
+        .or_else(|| v.get("name").and_then(Value::as_str).map(str::to_string))?;
+    let name = name.trim();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 /// Simple, generics-stripped, namespace-stripped name for parent lookup.
@@ -124,8 +135,8 @@ fn simple_key(name: &str) -> String {
         .to_ascii_lowercase()
 }
 
-/// Merge each type's transitive `parentClass` members (org types only; child wins; cycle-safe).
-fn flatten_inheritance(entries: Vec<(ApexType, Option<String>)>) -> Vec<ApexType> {
+/// Merge each type's transitive org supertypes (child wins; cycle-safe).
+fn flatten_inheritance(entries: Vec<(ApexType, Vec<String>)>) -> Vec<ApexType> {
     use std::collections::HashMap;
 
     let index: HashMap<String, usize> = entries
@@ -139,17 +150,17 @@ fn flatten_inheritance(entries: Vec<(ApexType, Option<String>)>) -> Vec<ApexType
         let mut methods = entries[i].0.methods.clone();
         let mut properties = entries[i].0.properties.clone();
         let mut visited = vec![i];
-        let mut parent = entries[i].1.clone();
-        while let Some(parent_name) = parent {
-            let Some(&parent_index) = index.get(&simple_key(&parent_name)) else {
-                break;
+        let mut worklist: Vec<String> = entries[i].1.clone();
+        while let Some(super_name) = worklist.pop() {
+            let Some(&super_index) = index.get(&simple_key(&super_name)) else {
+                continue;
             };
-            if visited.contains(&parent_index) {
-                break;
+            if visited.contains(&super_index) {
+                continue;
             }
-            visited.push(parent_index);
+            visited.push(super_index);
 
-            for method in &entries[parent_index].0.methods {
+            for method in &entries[super_index].0.methods {
                 if !methods
                     .iter()
                     .any(|existing| existing.name.eq_ignore_ascii_case(&method.name))
@@ -157,7 +168,7 @@ fn flatten_inheritance(entries: Vec<(ApexType, Option<String>)>) -> Vec<ApexType
                     methods.push(method.clone());
                 }
             }
-            for property in &entries[parent_index].0.properties {
+            for property in &entries[super_index].0.properties {
                 if !properties
                     .iter()
                     .any(|existing| existing.name.eq_ignore_ascii_case(&property.name))
@@ -166,7 +177,7 @@ fn flatten_inheritance(entries: Vec<(ApexType, Option<String>)>) -> Vec<ApexType
                 }
             }
 
-            parent = entries[parent_index].1.clone();
+            worklist.extend(entries[super_index].1.clone());
         }
 
         let base = &entries[i].0;
@@ -435,6 +446,37 @@ mod tests {
         assert!(
             premium.methods.iter().any(|method| method.name == "save"),
             "inherited from AccountService"
+        );
+    }
+
+    #[test]
+    fn parse_org_types_flattens_implemented_interface_members() {
+        let records = vec![
+            serde_json::json!({
+                "Name": "Payable",
+                "SymbolTable": {
+                    "name": "Payable",
+                    "methods": [{ "name": "pay", "returnType": "void", "modifiers": [] }]
+                }
+            }),
+            serde_json::json!({
+                "Name": "Invoice",
+                "SymbolTable": {
+                    "name": "Invoice",
+                    "interfaces": ["Payable"],
+                    "methods": [{ "name": "total", "returnType": "Decimal", "modifiers": [] }]
+                }
+            }),
+        ];
+        let types = parse_org_types(&records);
+        let invoice = types.iter().find(|t| t.name == "Invoice").expect("Invoice");
+        assert!(
+            invoice.methods.iter().any(|m| m.name == "total"),
+            "own method"
+        );
+        assert!(
+            invoice.methods.iter().any(|m| m.name == "pay"),
+            "interface method"
         );
     }
 }
