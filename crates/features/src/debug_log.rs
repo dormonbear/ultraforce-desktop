@@ -7,8 +7,16 @@ use log_parser::parse::ParsedLog;
 use log_parser::tree::{build_tree, ExecNode};
 
 /// List recent debug logs via `sf apex list log`.
-pub async fn list_logs(invoker: &SfInvoker) -> Result<Vec<ApexLogRef>, SfError> {
-    invoker.run_json(&["apex", "list", "log"]).await
+pub async fn list_logs(
+    invoker: &SfInvoker,
+    target_org: Option<&str>,
+) -> Result<Vec<ApexLogRef>, SfError> {
+    let mut args = vec!["apex", "list", "log"];
+    if let Some(org) = target_org {
+        args.push("--target-org");
+        args.push(org);
+    }
+    invoker.run_json(&args).await
 }
 
 #[derive(Deserialize)]
@@ -17,8 +25,17 @@ struct LogBody {
 }
 
 /// Fetch one debug log's raw body by Id via `sf apex get log -i <id>`.
-pub async fn get_log_body(invoker: &SfInvoker, id: &str) -> Result<String, SfError> {
-    let bodies: Vec<LogBody> = invoker.run_json(&["apex", "get", "log", "-i", id]).await?;
+pub async fn get_log_body(
+    invoker: &SfInvoker,
+    id: &str,
+    target_org: Option<&str>,
+) -> Result<String, SfError> {
+    let mut args = vec!["apex", "get", "log", "-i", id];
+    if let Some(org) = target_org {
+        args.push("--target-org");
+        args.push(org);
+    }
+    let bodies: Vec<LogBody> = invoker.run_json(&args).await?;
     bodies
         .into_iter()
         .next()
@@ -60,8 +77,12 @@ impl DebugLogView {
 }
 
 /// Fetch a log body by Id and parse it into a `DebugLogView`.
-pub async fn fetch_and_parse(invoker: &SfInvoker, id: &str) -> Result<DebugLogView, SfError> {
-    let body = get_log_body(invoker, id).await?;
+pub async fn fetch_and_parse(
+    invoker: &SfInvoker,
+    id: &str,
+    target_org: Option<&str>,
+) -> Result<DebugLogView, SfError> {
+    let body = get_log_body(invoker, id, target_org).await?;
     Ok(DebugLogView::from_log(&body))
 }
 
@@ -79,7 +100,7 @@ mod tests {
             {"Id":"07L2","Operation":"Api","Status":"Success","StartTime":"2026-06-18T00:00:01.000+0000","LogLength":20,"DurationMilliseconds":7,"Application":"Unknown"}
         ]}"#;
         let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(json)));
-        let logs = list_logs(&invoker).await.unwrap();
+        let logs = list_logs(&invoker, None).await.unwrap();
         assert_eq!(logs.len(), 2);
         assert_eq!(logs[0].id, "07L1");
         assert_eq!(logs[1].operation, "Api");
@@ -89,14 +110,14 @@ mod tests {
     async fn get_log_body_extracts_log_field() {
         let json = r#"{"status":0,"result":[{"log":"67.0 APEX_CODE,DEBUG\n16:00:00.0 (1)|EXECUTION_STARTED"}]}"#;
         let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(json)));
-        let body = get_log_body(&invoker, "07L1").await.unwrap();
+        let body = get_log_body(&invoker, "07L1", None).await.unwrap();
         assert!(body.contains("EXECUTION_STARTED"));
     }
 
     #[tokio::test]
     async fn get_log_body_errors_on_empty_result() {
         let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(r#"{"status":0,"result":[]}"#)));
-        let err = get_log_body(&invoker, "x").await.unwrap_err();
+        let err = get_log_body(&invoker, "x", None).await.unwrap_err();
         assert!(
             matches!(err, sf_core::SfError::Unexpected(_)),
             "got: {err:?}"
@@ -125,7 +146,7 @@ mod tests {
         let log_json = serde_json::to_string(SAMPLE).unwrap();
         let json = format!(r#"{{"status":0,"result":[{{"log":{log_json}}}]}}"#);
         let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(json)));
-        let v = fetch_and_parse(&invoker, "07L1").await.unwrap();
+        let v = fetch_and_parse(&invoker, "07L1", None).await.unwrap();
         assert_eq!(v.units.len(), 1);
         assert_eq!(v.header.unwrap().api_version, "67.0");
     }

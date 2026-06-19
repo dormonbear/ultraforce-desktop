@@ -115,14 +115,21 @@ impl ApexRunResult {
 /// Writes the source to a unique temp file, runs `sf apex run -f <file> --json`
 /// via `run_raw` (so a non-zero compile-failure exit still yields its payload),
 /// parses the envelope, and always deletes the temp file.
-pub async fn run_anon(invoker: &SfInvoker, apex_src: &str) -> Result<AnonApexOutcome, SfError> {
+pub async fn run_anon(
+    invoker: &SfInvoker,
+    apex_src: &str,
+    target_org: Option<&str>,
+) -> Result<AnonApexOutcome, SfError> {
     let path = unique_temp_path();
     std::fs::write(&path, apex_src).map_err(SfError::Spawn)?;
 
     let path_str = path.to_string_lossy().into_owned();
-    let raw = invoker
-        .run_raw(&["apex", "run", "-f", &path_str, "--json"])
-        .await;
+    let mut args = vec!["apex", "run", "-f", &path_str, "--json"];
+    if let Some(org) = target_org {
+        args.push("--target-org");
+        args.push(org);
+    }
+    let raw = invoker.run_raw(&args).await;
 
     let _ = std::fs::remove_file(&path); // best-effort cleanup, even on error
 
@@ -279,7 +286,9 @@ mod tests {
             "line":null,"column":null,"logs":"{log}"}}}}"#
         );
         let invoker = invoker_returning(0, &stdout);
-        let out = run_anon(&invoker, "System.debug('x');").await.unwrap();
+        let out = run_anon(&invoker, "System.debug('x');", None)
+            .await
+            .unwrap();
         assert!(out.result.success && out.result.compiled);
         let view = out.log_view.expect("log_view should be Some");
         assert_eq!(view.header.as_ref().unwrap().api_version, "67.0");
@@ -292,7 +301,7 @@ mod tests {
             "compileProblem":"Unexpected token 'x'.","exceptionMessage":"",
             "exceptionStackTrace":"","line":"1","column":"9","logs":""}}"#;
         let invoker = invoker_returning(1, stdout);
-        let out = run_anon(&invoker, "x").await.unwrap();
+        let out = run_anon(&invoker, "x", None).await.unwrap();
         assert!(!out.result.compiled);
         assert_eq!(out.result.line, Some(1));
         assert_eq!(out.result.column, Some(9));
@@ -307,7 +316,7 @@ mod tests {
     async fn run_anon_genuine_error_envelope_is_sf_error() {
         let stdout = r#"{"status":1,"name":"Error","message":"socket hang up"}"#;
         let invoker = invoker_returning(1, stdout);
-        let err = run_anon(&invoker, "x").await.unwrap_err();
+        let err = run_anon(&invoker, "x", None).await.unwrap_err();
         match err {
             SfError::Command {
                 status,
@@ -320,5 +329,30 @@ mod tests {
             }
             other => panic!("expected SfError::Command, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn run_anon_forwards_target_org() {
+        use std::sync::Mutex;
+        let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let seen2 = seen.clone();
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            *seen2.lock().unwrap() = args.to_vec();
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: r#"{"status":0,"result":{"success":true,"compiled":true,"logs":""}}"#
+                    .into(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = SfInvoker::new(Arc::new(runner));
+        run_anon(&invoker, "System.debug(1);", Some("me@x.com"))
+            .await
+            .unwrap();
+        let args = seen.lock().unwrap().clone();
+        assert!(
+            args.windows(2).any(|w| w == ["--target-org", "me@x.com"]),
+            "got: {args:?}"
+        );
     }
 }

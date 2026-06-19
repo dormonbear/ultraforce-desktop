@@ -12,7 +12,7 @@ async fn e2e_run_anon_debug() {
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
 
     // Read-only: a single debug statement, no DML.
-    let out = run_anon(&invoker, "System.debug('sf-toolkit-e2e');")
+    let out = run_anon(&invoker, "System.debug('sf-toolkit-e2e');", None)
         .await
         .expect("sf apex run");
 

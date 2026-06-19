@@ -10,13 +10,13 @@ use std::sync::Arc;
 async fn e2e_list_get_parse() {
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
 
-    let logs = list_logs(&invoker).await.expect("sf apex list log");
+    let logs = list_logs(&invoker, None).await.expect("sf apex list log");
     assert!(
         !logs.is_empty(),
         "the org should have at least one debug log"
     );
 
-    let view = fetch_and_parse(&invoker, &logs[0].id)
+    let view = fetch_and_parse(&invoker, &logs[0].id, None)
         .await
         .expect("fetch + parse the first log");
     assert!(view.header.is_some(), "parsed log should have a header");

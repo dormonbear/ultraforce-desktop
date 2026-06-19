@@ -21,7 +21,7 @@ struct TableDto {
 
 #[tauri::command]
 async fn run_soql(query: String, state: State<'_, AppState>) -> Result<TableDto, String> {
-    let table = features::soql::run_query_table(&state.invoker, &query)
+    let table = features::soql::run_query_table(&state.invoker, &query, None)
         .await
         .map_err(|e| format!("{e:?}"))?;
     let total_size = table.rows.len() as u64;
@@ -47,7 +47,7 @@ struct ApexOutcomeDto {
 
 #[tauri::command]
 async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcomeDto, String> {
-    let outcome = features::anon_apex::run_anon(&state.invoker, &src)
+    let outcome = features::anon_apex::run_anon(&state.invoker, &src, None)
         .await
         .map_err(|e| format!("{e:?}"))?;
     let r = outcome.result;
@@ -75,7 +75,7 @@ struct LogRefDto {
 
 #[tauri::command]
 async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, String> {
-    let logs = features::debug_log::list_logs(&state.invoker)
+    let logs = features::debug_log::list_logs(&state.invoker, None)
         .await
         .map_err(|e| format!("{e:?}"))?;
     Ok(logs
@@ -100,7 +100,7 @@ struct LogViewDto {
 
 #[tauri::command]
 async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, String> {
-    let body = features::debug_log::get_log_body(&state.invoker, &id)
+    let body = features::debug_log::get_log_body(&state.invoker, &id, None)
         .await
         .map_err(|e| format!("{e:?}"))?;
     let view = features::debug_log::DebugLogView::from_log(&body);

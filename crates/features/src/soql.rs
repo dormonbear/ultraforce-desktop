@@ -217,15 +217,26 @@ fn scalar_text(v: &serde_json::Value) -> String {
 }
 
 /// Execute a SOQL query and return the typed [`QueryResult`].
-pub async fn run_query(invoker: &SfInvoker, soql: &str) -> Result<QueryResult, SfError> {
-    invoker
-        .run_json::<QueryResult>(&["data", "query", "-q", soql])
-        .await
+pub async fn run_query(
+    invoker: &SfInvoker,
+    soql: &str,
+    target_org: Option<&str>,
+) -> Result<QueryResult, SfError> {
+    let mut args = vec!["data", "query", "-q", soql];
+    if let Some(org) = target_org {
+        args.push("--target-org");
+        args.push(org);
+    }
+    invoker.run_json::<QueryResult>(&args).await
 }
 
 /// Execute a SOQL query and project it into a flat [`TableModel`].
-pub async fn run_query_table(invoker: &SfInvoker, soql: &str) -> Result<TableModel, SfError> {
-    let result = run_query(invoker, soql).await?;
+pub async fn run_query_table(
+    invoker: &SfInvoker,
+    soql: &str,
+    target_org: Option<&str>,
+) -> Result<TableModel, SfError> {
+    let result = run_query(invoker, soql, target_org).await?;
     Ok(result.to_table())
 }
 
@@ -320,7 +331,7 @@ mod tests {
         let invoker = SfInvoker::new(Arc::new(runner));
 
         let soql = "SELECT Id, Name, Owner.Name, (SELECT LastName FROM Contacts) FROM Account";
-        let qr = run_query(&invoker, soql).await.unwrap();
+        let qr = run_query(&invoker, soql, None).await.unwrap();
 
         let args = seen.lock().unwrap().clone();
         assert_eq!(args, vec!["data", "query", "-q", soql, "--json"]);
@@ -334,9 +345,33 @@ mod tests {
         let runner = MockRunner::ok_json(FIXTURE);
         let invoker = SfInvoker::new(Arc::new(runner));
 
-        let table = run_query_table(&invoker, "SELECT Id FROM Account")
+        let table = run_query_table(&invoker, "SELECT Id FROM Account", None)
             .await
             .unwrap();
         assert_eq!(table.columns, ["Id", "Name", "Owner.Name", "Contacts"]);
+    }
+
+    #[tokio::test]
+    async fn run_query_appends_target_org_when_set() {
+        use std::sync::{Arc, Mutex};
+        let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let seen2 = seen.clone();
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            *seen2.lock().unwrap() = args.to_vec();
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#.into(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = SfInvoker::new(Arc::new(runner));
+        run_query(&invoker, "SELECT Id FROM Account", Some("me@x.com"))
+            .await
+            .unwrap();
+        let args = seen.lock().unwrap().clone();
+        assert!(
+            args.windows(2).any(|w| w == ["--target-org", "me@x.com"]),
+            "got: {args:?}"
+        );
     }
 }
