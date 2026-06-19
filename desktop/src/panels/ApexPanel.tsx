@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
@@ -7,7 +7,8 @@ import { ChevronRight } from "lucide-react";
 import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
-import type { ApexOutcomeDto } from "../types";
+import { DebugConfigRow } from "./DebugConfigRow";
+import type { ApexOutcomeDto, CategoryLevels, DebugConfigDto } from "../types";
 import type { ApexTab } from "../tabs/types";
 
 const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
@@ -50,9 +51,34 @@ interface ApexViewProps {
 export function ApexView({ tab, onPatch }: ApexViewProps) {
   const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
+  const [levels, setLevels] = useState<CategoryLevels | null>(null);
+  const [cfgApplying, setCfgApplying] = useState(false);
+  const [cfgError, setCfgError] = useState<string | null>(null);
 
   const srcRef = useRef(src);
   srcRef.current = src;
+
+  useEffect(() => {
+    invoke<DebugConfigDto>("get_debug_config")
+      .then((dto) => setLevels(dto.levels))
+      .catch((e) => setCfgError(typeof e === "string" ? e : String(e)));
+  }, []);
+
+  const applyConfig = useCallback(async (next: CategoryLevels) => {
+    setCfgApplying(true);
+    setCfgError(null);
+    setLevels(next);
+    try {
+      const dto = await invoke<DebugConfigDto>("set_debug_config", {
+        levels: next,
+      });
+      setLevels(dto.levels);
+    } catch (e) {
+      setCfgError(typeof e === "string" ? e : String(e));
+    } finally {
+      setCfgApplying(false);
+    }
+  }, []);
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -84,6 +110,14 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
             <div className="micro-label flex-1">ANONYMOUS APEX</div>
             <RunButton onRun={run} running={running} />
           </div>
+          {levels && (
+            <DebugConfigRow
+              value={levels}
+              onApply={applyConfig}
+              applying={cfgApplying}
+              error={cfgError}
+            />
+          )}
           <div className="min-h-0 flex-1">
             <Editor
               height="100%"
