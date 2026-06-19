@@ -1,4 +1,5 @@
 import type { Monaco } from "@monaco-editor/react";
+import { invoke } from "@tauri-apps/api/core";
 
 const SOQL_KEYWORDS = [
   "SELECT",
@@ -21,6 +22,41 @@ const SOQL_KEYWORDS = [
 ];
 
 let registered = false;
+let soqlCompletionRegistered = false;
+
+/** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command. */
+export function registerSoqlCompletion(monaco: Monaco): void {
+  if (soqlCompletionRegistered) return;
+  soqlCompletionRegistered = true;
+  monaco.languages.registerCompletionItemProvider("soql", {
+    triggerCharacters: [" ", ",", "."],
+    provideCompletionItems: async (model, position) => {
+      const offset = model.getOffsetAt(position);
+      const query = model.getValue();
+      let labels: string[];
+      try {
+        labels = await invoke<string[]>("soql_complete", { query, offset });
+      } catch {
+        return { suggestions: [] };
+      }
+      const word = model.getWordUntilPosition(position);
+      const range = {
+        startLineNumber: position.lineNumber,
+        endLineNumber: position.lineNumber,
+        startColumn: word.startColumn,
+        endColumn: word.endColumn,
+      };
+      return {
+        suggestions: labels.map((label) => ({
+          label,
+          kind: monaco.languages.CompletionItemKind.Field,
+          insertText: label,
+          range,
+        })),
+      };
+    },
+  });
+}
 
 /** Register the `sf-dark` theme and a minimal `soql` language once. */
 export function configureMonaco(monaco: Monaco): void {
@@ -69,4 +105,6 @@ export function configureMonaco(monaco: Monaco): void {
       ],
     },
   });
+
+  registerSoqlCompletion(monaco);
 }
