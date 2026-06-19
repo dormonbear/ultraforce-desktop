@@ -27,13 +27,13 @@ pub fn outline(input: &str) -> ApexOutline {
     while i + 1 < tokens.len() {
         if tokens[i].kind == TokenKind::Ident {
             if let Some(name_idx) = next_non_ws(&tokens, i + 1) {
-                if tokens[name_idx].kind == TokenKind::Ident {
-                    if statement_has_semicolon(&tokens, name_idx + 1) {
-                        locals.push(LocalVar {
-                            declared_type: tokens[i].text.clone(),
-                            name: tokens[name_idx].text.clone(),
-                        });
-                    }
+                if tokens[name_idx].kind == TokenKind::Ident
+                    && statement_has_semicolon(&tokens, name_idx + 1)
+                {
+                    locals.push(LocalVar {
+                        declared_type: tokens[i].text.clone(),
+                        name: tokens[name_idx].text.clone(),
+                    });
                 }
                 i = name_idx;
             }
@@ -62,7 +62,10 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
         .filter(|token| token.kind != TokenKind::Whitespace)
         .collect();
 
-    if non_ws.last().is_some_and(|token| token.kind == TokenKind::Dot) {
+    if non_ws
+        .last()
+        .is_some_and(|token| token.kind == TokenKind::Dot)
+    {
         if let Some(receiver) = non_ws.iter().rev().nth(1) {
             if receiver.kind == TokenKind::Ident {
                 if is_type_shaped(&receiver.text) {

@@ -27,18 +27,13 @@ pub struct ApexType {
     pub enum_values: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TypeKind {
+    #[default]
     Class,
     Interface,
     Enum,
-}
-
-impl Default for TypeKind {
-    fn default() -> Self {
-        Self::Class
-    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
