@@ -31,6 +31,59 @@ fn base_type_name(t: &str) -> &str {
     t.split('<').next().unwrap_or(t).trim()
 }
 
+/// Top-level generic args of a type string: `Map<Id, List<Account>>` → `["Id", "List<Account>"]`.
+/// Empty when the type is non-generic. Splits on commas only at angle-bracket depth 0.
+#[allow(dead_code)]
+fn generic_args(t: &str) -> Vec<String> {
+    let t = t.trim();
+    let (Some(lt), Some(gt)) = (t.find('<'), t.rfind('>')) else {
+        return Vec::new();
+    };
+    if gt <= lt + 1 {
+        return Vec::new();
+    }
+    let inner = &t[lt + 1..gt];
+    let mut args = Vec::new();
+    let mut depth = 0i32;
+    let mut start = 0usize;
+    for (i, c) in inner.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth -= 1,
+            ',' if depth == 0 => {
+                args.push(inner[start..i].trim().to_string());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    let last = inner[start..].trim();
+    if !last.is_empty() {
+        args.push(last.to_string());
+    }
+    args
+}
+
+/// Element/value type for the well-known generic collection accessors, derived from the receiver's
+/// own type args — independent of how stdlib encodes generic return types.
+/// ponytail: hardcoded List/Set/Map accessors; extend the table if more generic APIs need it.
+#[allow(dead_code)]
+fn collection_element(receiver_type: &str, seg: &Segment) -> Option<String> {
+    if !seg.is_call {
+        return None;
+    }
+    let base = base_type_name(receiver_type).to_ascii_lowercase();
+    let args = generic_args(receiver_type);
+    let method = seg.name.to_ascii_lowercase();
+    match (base.as_str(), method.as_str()) {
+        ("list", "get") => args.first().cloned(),
+        ("map", "get") => args.get(1).cloned(),
+        ("map", "values") => args.get(1).map(|v| format!("List<{v}>")),
+        ("map", "keyset") => args.first().map(|k| format!("Set<{k}>")),
+        _ => None,
+    }
+}
+
 /// Resolve the type of a receiver chain (left→right). Returns None if any link fails to resolve,
 /// if a base call (no receiver type) appears, or if a step returns `void`.
 pub fn resolve_expr_type<'a>(
@@ -122,6 +175,53 @@ mod tests {
             "String"
         );
         assert!(resolve_receiver_type(&ost, &outline, "missing").is_none());
+    }
+
+    #[test]
+    fn generic_args_parses_nested() {
+        assert_eq!(generic_args("List<Account>"), vec!["Account".to_string()]);
+        assert_eq!(
+            generic_args("Map<Id, Account>"),
+            vec!["Id".to_string(), "Account".to_string()]
+        );
+        assert_eq!(
+            generic_args("Map<Id, List<Account>>"),
+            vec!["Id".to_string(), "List<Account>".to_string()]
+        );
+        assert!(generic_args("Account").is_empty());
+    }
+
+    #[test]
+    fn collection_element_known_accessors() {
+        let call = |n: &str| Segment {
+            name: n.into(),
+            is_call: true,
+        };
+        assert_eq!(
+            collection_element("List<Account>", &call("get")).as_deref(),
+            Some("Account")
+        );
+        assert_eq!(
+            collection_element("Map<Id,Account>", &call("get")).as_deref(),
+            Some("Account")
+        );
+        assert_eq!(
+            collection_element("Map<Id,Account>", &call("values")).as_deref(),
+            Some("List<Account>")
+        );
+        assert_eq!(
+            collection_element("Map<Id,Account>", &call("keySet")).as_deref(),
+            Some("Set<Id>")
+        );
+        assert!(collection_element(
+            "List<Account>",
+            &Segment {
+                name: "size".into(),
+                is_call: true
+            }
+        )
+        .is_none());
+        assert!(collection_element("Account", &call("get")).is_none());
     }
 
     #[test]
