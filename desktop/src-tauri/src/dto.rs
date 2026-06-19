@@ -5,6 +5,27 @@ use features::debug_log::{DebugLogView, UnitView};
 use log_parser::event::LogEvent;
 use log_parser::limits::{LimitEntry, LimitRollup};
 use log_parser::tree::ExecNode;
+use sf_core::OrgRef;
+
+/// One Salesforce org entry handed to the frontend.
+#[derive(serde::Serialize)]
+pub struct OrgDto {
+    pub username: String,
+    pub alias: Option<String>,
+    pub instance_url: Option<String>,
+    pub is_default: bool,
+}
+
+impl From<&OrgRef> for OrgDto {
+    fn from(o: &OrgRef) -> Self {
+        OrgDto {
+            username: o.username.clone(),
+            alias: o.alias.clone(),
+            instance_url: o.instance_url.clone(),
+            is_default: o.is_default,
+        }
+    }
+}
 
 /// Max length of a node's joined `detail` string before truncation.
 const MAX_DETAIL_LEN: usize = 300;
@@ -144,6 +165,20 @@ mod tests {
             children,
             dur_ns,
         }
+    }
+
+    #[test]
+    fn org_dto_maps_from_org_ref() {
+        let r = sf_core::OrgRef {
+            username: "me@x.com".into(),
+            alias: Some("dev".into()),
+            instance_url: Some("https://x.my".into()),
+            is_default: true,
+        };
+        let d = OrgDto::from(&r);
+        assert_eq!(d.username, "me@x.com");
+        assert_eq!(d.alias.as_deref(), Some("dev"));
+        assert!(d.is_default);
     }
 
     #[test]

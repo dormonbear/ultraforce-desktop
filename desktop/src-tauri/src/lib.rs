@@ -9,6 +9,12 @@ use dto::{map_units, UnitDto};
 /// Shared application state: one `SfInvoker` over the real `sf` CLI process runner.
 pub struct AppState {
     invoker: SfInvoker,
+    selected_org: std::sync::Mutex<Option<String>>,
+}
+
+/// Read the currently selected target org as an owned value (guard not held across `.await`).
+fn current_org(state: &AppState) -> Option<String> {
+    state.selected_org.lock().unwrap().clone()
 }
 
 /// Flat, table-shaped query result handed to the frontend.
@@ -21,7 +27,8 @@ struct TableDto {
 
 #[tauri::command]
 async fn run_soql(query: String, state: State<'_, AppState>) -> Result<TableDto, String> {
-    let table = features::soql::run_query_table(&state.invoker, &query, None)
+    let org = current_org(&state);
+    let table = features::soql::run_query_table(&state.invoker, &query, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
     let total_size = table.rows.len() as u64;
@@ -47,7 +54,8 @@ struct ApexOutcomeDto {
 
 #[tauri::command]
 async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcomeDto, String> {
-    let outcome = features::anon_apex::run_anon(&state.invoker, &src, None)
+    let org = current_org(&state);
+    let outcome = features::anon_apex::run_anon(&state.invoker, &src, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
     let r = outcome.result;
@@ -75,7 +83,8 @@ struct LogRefDto {
 
 #[tauri::command]
 async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, String> {
-    let logs = features::debug_log::list_logs(&state.invoker, None)
+    let org = current_org(&state);
+    let logs = features::debug_log::list_logs(&state.invoker, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
     Ok(logs
@@ -100,7 +109,8 @@ struct LogViewDto {
 
 #[tauri::command]
 async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, String> {
-    let body = features::debug_log::get_log_body(&state.invoker, &id, None)
+    let org = current_org(&state);
+    let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
     let view = features::debug_log::DebugLogView::from_log(&body);
@@ -111,16 +121,38 @@ async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, S
     })
 }
 
+/// List the available Salesforce orgs via `sf org list`.
+#[tauri::command]
+async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, String> {
+    let orgs = sf_core::OrgRegistry::list(&state.invoker)
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(orgs.iter().map(dto::OrgDto::from).collect())
+}
+
+/// Set (or clear) the target org used by all subsequent `sf` calls.
+#[tauri::command]
+fn set_target_org(username: Option<String>, state: State<'_, AppState>) -> Result<(), String> {
+    *state.selected_org.lock().unwrap() = username;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
+        selected_org: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()
         .manage(state)
         .invoke_handler(tauri::generate_handler![
-            run_soql, run_apex, list_logs, get_log
+            run_soql,
+            run_apex,
+            list_logs,
+            get_log,
+            list_orgs,
+            set_target_org
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
