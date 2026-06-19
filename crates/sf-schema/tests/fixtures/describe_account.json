@@ -1,0 +1,79 @@
+{
+  "status": 0,
+  "result": {
+    "name": "Account",
+    "label": "Account",
+    "labelPlural": "Accounts",
+    "keyPrefix": "001",
+    "custom": false,
+    "queryable": true,
+    "fields": [
+      {
+        "name": "Id",
+        "label": "Account ID",
+        "type": "id",
+        "custom": false,
+        "nillable": false,
+        "referenceTo": [],
+        "picklistValues": []
+      },
+      {
+        "name": "Name",
+        "label": "Account Name",
+        "type": "string",
+        "custom": false,
+        "nillable": false,
+        "referenceTo": [],
+        "picklistValues": []
+      },
+      {
+        "name": "Type",
+        "label": "Account Type",
+        "type": "picklist",
+        "custom": false,
+        "nillable": true,
+        "referenceTo": [],
+        "picklistValues": [
+          { "label": "Prospect", "value": "Prospect", "active": true, "defaultValue": false },
+          { "label": "Customer - Direct", "value": "Customer - Direct", "active": true, "defaultValue": false },
+          { "label": "Partner", "value": "Partner", "active": true, "defaultValue": false }
+        ]
+      },
+      {
+        "name": "OwnerId",
+        "label": "Owner ID",
+        "type": "reference",
+        "custom": false,
+        "nillable": false,
+        "referenceTo": ["User"],
+        "relationshipName": "Owner",
+        "picklistValues": []
+      },
+      {
+        "name": "Industry",
+        "label": "Industry",
+        "type": "picklist",
+        "custom": false,
+        "nillable": true,
+        "referenceTo": [],
+        "picklistValues": [
+          { "label": "Agriculture", "value": "Agriculture", "active": true, "defaultValue": false },
+          { "label": "Banking", "value": "Banking", "active": true, "defaultValue": false }
+        ]
+      }
+    ],
+    "childRelationships": [
+      {
+        "childSObject": "Contact",
+        "field": "AccountId",
+        "relationshipName": "Contacts"
+      },
+      {
+        "childSObject": "Opportunity",
+        "field": "AccountId",
+        "relationshipName": "Opportunities"
+      }
+    ]
+  },
+  "warnings": []
+}
