@@ -4,6 +4,9 @@ use serde::de::{self, MapAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 use sf_core::{SfError, SfInvoker};
 use std::fmt;
+use std::path::PathBuf;
+
+const API_VERSION: &str = "60.0";
 
 /// A parsed SOQL query response.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -240,6 +243,28 @@ pub async fn run_query_table(
     Ok(result.to_table())
 }
 
+/// SELECT field-name completion for the standalone SOQL editor. Best-effort: empty when there is no
+/// FROM object or the describe fails (benign). Returns field labels (the only candidate kind).
+pub async fn complete_fields(
+    invoker: &SfInvoker,
+    root: impl Into<PathBuf>,
+    org_id: &str,
+    query: &str,
+    cursor: usize,
+) -> Vec<String> {
+    let Some(object) = soql_lang::outline(query).from_object else {
+        return Vec::new();
+    };
+    let mut store = sf_schema::SchemaStore::new(root, org_id);
+    let Ok(schema) = store.get_or_fetch(invoker, API_VERSION, &object).await else {
+        return Vec::new();
+    };
+    soql_lang::complete(query, cursor, &schema)
+        .into_iter()
+        .map(|c| c.label)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,5 +398,24 @@ mod tests {
             args.windows(2).any(|w| w == ["--target-org", "me@x.com"]),
             "got: {args:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn complete_fields_returns_select_field_labels() {
+        let body = r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string"},{"name":"Industry","type":"picklist"}]}}"#;
+        let runner = sf_core::runner::MockRunner::new(move |_p, _a| {
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-panel-test-{}", std::process::id()));
+        let q = "SELECT Na FROM Account";
+        let cursor = q.find("Na").unwrap() + 2;
+        let got = complete_fields(&invoker, &dir, "myorg", q, cursor).await;
+        assert!(got.iter().any(|l| l == "Name"), "{got:?}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
