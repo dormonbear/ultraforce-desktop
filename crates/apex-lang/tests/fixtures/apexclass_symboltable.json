@@ -9,7 +9,35 @@
           "namespace": null,
           "constructors": [],
           "interfaces": [],
-          "innerClasses": [],
+          "innerClasses": [
+            {
+              "name": "LineItem",
+              "tableDeclaration": { "name": "LineItem" },
+              "constructors": [],
+              "interfaces": [],
+              "innerClasses": [],
+              "variables": [],
+              "methods": [
+                {
+                  "name": "total",
+                  "returnType": "Decimal",
+                  "modifiers": [],
+                  "parameters": [],
+                  "annotations": [],
+                  "references": []
+                }
+              ],
+              "properties": [
+                {
+                  "name": "quantity",
+                  "type": "Integer",
+                  "modifiers": ["public"],
+                  "annotations": [],
+                  "references": []
+                }
+              ]
+            }
+          ],
           "variables": [],
           "methods": [
             {

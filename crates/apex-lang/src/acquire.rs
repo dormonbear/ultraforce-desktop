@@ -54,23 +54,42 @@ pub fn parse_stdlib(raw: &serde_json::Value) -> Vec<Namespace> {
 }
 
 pub fn parse_org_types(records: &[serde_json::Value]) -> Vec<ApexType> {
-    records
-        .iter()
-        .filter_map(|record| {
-            let symbol_table = record.get("SymbolTable")?;
-            let name = symbol_table
-                .get("name")
-                .or_else(|| record.get("Name"))?
-                .as_str()?;
-            Some(ApexType {
-                name: name.to_string(),
-                kind: TypeKind::Class,
-                methods: parse_org_methods(symbol_table),
-                properties: parse_org_properties(symbol_table),
-                enum_values: Vec::new(),
-            })
-        })
-        .collect()
+    let mut out = Vec::new();
+    for record in records {
+        let Some(symbol_table) = record.get("SymbolTable") else {
+            continue;
+        };
+        let fallback = record.get("Name").and_then(Value::as_str);
+        collect_symbol_table_types(symbol_table, fallback, &mut out);
+    }
+    out
+}
+
+/// Append the type described by `symbol_table` plus all of its recursively nested inner classes.
+fn collect_symbol_table_types(
+    symbol_table: &Value,
+    name_fallback: Option<&str>,
+    out: &mut Vec<ApexType>,
+) {
+    if let Some(name) = symbol_table
+        .get("name")
+        .and_then(Value::as_str)
+        .or(name_fallback)
+    {
+        out.push(ApexType {
+            name: name.to_string(),
+            kind: TypeKind::Class,
+            methods: parse_org_methods(symbol_table),
+            properties: parse_org_properties(symbol_table),
+            enum_values: Vec::new(),
+        });
+    }
+
+    if let Some(inner) = symbol_table.get("innerClasses").and_then(Value::as_array) {
+        for inner_class in inner {
+            collect_symbol_table_types(inner_class, None, out);
+        }
+    }
 }
 
 fn parse_stdlib_methods(raw_type: &Value) -> Vec<Method> {
@@ -299,13 +318,21 @@ mod tests {
 
         let types = parse_org_types(records);
 
-        assert_eq!(types.len(), 1);
-        assert_eq!(types[0].name, "AccountService");
-        assert_eq!(types[0].methods[0].name, "save");
-        assert!(!types[0].methods[0].is_static);
-        assert_eq!(types[0].methods[0].params, vec!["Account"]);
-        assert_eq!(types[0].properties[0].name, "lastError");
-        assert_eq!(types[0].properties[0].prop_type, "String");
-        assert!(!types[0].properties[0].is_static);
+        assert_eq!(types.len(), 2);
+        let by_name = |name: &str| types.iter().find(|ty| ty.name == name);
+        let outer = by_name("AccountService").expect("outer");
+        assert_eq!(outer.methods[0].name, "save");
+        assert!(!outer.methods[0].is_static);
+        assert_eq!(outer.methods[0].params, vec!["Account"]);
+        assert_eq!(outer.properties[0].name, "lastError");
+        assert_eq!(outer.properties[0].prop_type, "String");
+        assert!(!outer.properties[0].is_static);
+
+        let inner = by_name("LineItem").expect("inner class");
+        assert!(inner.methods.iter().any(|method| method.name == "total"));
+        assert!(inner
+            .properties
+            .iter()
+            .any(|property| property.name == "quantity"));
     }
 }
