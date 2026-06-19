@@ -3,6 +3,7 @@ import { Database, Terminal, ScrollText, Table as TableIcon } from "lucide-react
 import { SoqlPanel } from "./panels/SoqlPanel";
 import { ApexPanel } from "./panels/ApexPanel";
 import { LogsPanel } from "./panels/LogsPanel";
+import { OrgSelector } from "./components/OrgSelector";
 
 type ActivePanel = "soql" | "apex" | "logs";
 
@@ -29,10 +30,7 @@ export default function App() {
         >
           SF·TOOLKIT
         </span>
-        <span className="inline-flex items-center gap-2 rounded-[3px] border border-hair px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-dim">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-          ORG default
-        </span>
+        <OrgSelector />
       </header>
 
       <div className="flex min-h-0 flex-1">

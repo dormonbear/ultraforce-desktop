@@ -4,6 +4,13 @@ export interface TableDto {
   total_size: number;
 }
 
+export interface OrgDto {
+  username: string;
+  alias: string | null;
+  instance_url: string | null;
+  is_default: boolean;
+}
+
 export interface ApexOutcomeDto {
   compiled: boolean;
   success: boolean;
