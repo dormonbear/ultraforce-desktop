@@ -32,18 +32,38 @@ pub fn outline(input: &str) -> ApexOutline {
     let mut locals = Vec::new();
     let mut i = 0;
 
-    while i + 1 < tokens.len() {
+    while i < tokens.len() {
         if tokens[i].kind == TokenKind::Ident {
-            if let Some(name_idx) = next_non_ws(&tokens, i + 1) {
+            // Greedily consume `Ident (Dot Ident)*` as a (possibly dotted) type.
+            let mut type_text = tokens[i].text.clone();
+            let mut last = i;
+            while let Some(dot) = next_non_ws(&tokens, last + 1) {
+                if tokens[dot].kind != TokenKind::Dot {
+                    break;
+                }
+                let Some(seg) = next_non_ws(&tokens, dot + 1) else {
+                    break;
+                };
+                if tokens[seg].kind != TokenKind::Ident {
+                    break;
+                }
+                type_text.push('.');
+                type_text.push_str(&tokens[seg].text);
+                last = seg;
+            }
+            // The next ident after the type is the variable name.
+            if let Some(name_idx) = next_non_ws(&tokens, last + 1) {
                 if tokens[name_idx].kind == TokenKind::Ident
                     && statement_has_semicolon(&tokens, name_idx + 1)
                 {
                     locals.push(LocalVar {
-                        declared_type: tokens[i].text.clone(),
+                        declared_type: type_text,
                         name: tokens[name_idx].text.clone(),
                     });
                 }
                 i = name_idx;
+            } else {
+                i = last;
             }
         }
         i += 1;
@@ -323,6 +343,18 @@ mod tests {
                     declared_type: "Integer".to_string(),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn outline_collects_dotted_declared_type() {
+        let o = outline("Outer.Inner x;");
+        assert_eq!(
+            o.locals,
+            vec![LocalVar {
+                name: "x".to_string(),
+                declared_type: "Outer.Inner".to_string(),
+            }]
         );
     }
 

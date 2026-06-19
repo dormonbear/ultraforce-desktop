@@ -20,7 +20,15 @@ pub fn resolve_receiver_type<'a>(
         .iter()
         .find(|local| local.name.eq_ignore_ascii_case(receiver))
     {
-        return resolve_type(ost, base_type_name(&local.declared_type));
+        let ty = base_type_name(&local.declared_type);
+        return resolve_type(ost, ty).or_else(|| {
+            // Dotted declared type (e.g. `Outer.Inner`): inner/qualified types are stored
+            // under their simple name, so retry with the last `.` segment.
+            ty.rsplit('.')
+                .next()
+                .filter(|s| *s != ty)
+                .and_then(|simple| resolve_type(ost, simple))
+        });
     }
 
     resolve_type(ost, receiver)
@@ -198,6 +206,35 @@ mod tests {
             "String"
         );
         assert!(resolve_receiver_type(&ost, &outline, "missing").is_none());
+    }
+
+    #[test]
+    fn resolve_receiver_type_resolves_dotted_local_type_by_simple_name() {
+        let ost = Ost {
+            namespaces: vec![],
+            org_types: vec![ApexType {
+                name: "Inner".to_string(),
+                kind: TypeKind::Class,
+                methods: vec![Method {
+                    name: "ping".to_string(),
+                    return_type: "void".to_string(),
+                    params: vec![],
+                    is_static: false,
+                }],
+                properties: vec![],
+                enum_values: vec![],
+            }],
+        };
+        let outline = ApexOutline {
+            locals: vec![LocalVar {
+                name: "x".to_string(),
+                declared_type: "Outer.Inner".to_string(),
+            }],
+        };
+
+        let ty = resolve_receiver_type(&ost, &outline, "x").unwrap();
+        assert_eq!(ty.name, "Inner");
+        assert!(ty.methods.iter().any(|m| m.name == "ping"));
     }
 
     #[test]
