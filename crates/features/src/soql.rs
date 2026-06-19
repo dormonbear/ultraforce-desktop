@@ -275,6 +275,34 @@ pub struct SoqlDiagnostic {
     pub severity: String,
 }
 
+/// Diagnose ONE SOQL string against its FROM describe (empty when no FROM / describe fails).
+async fn soql_query_diagnostics(
+    store: &mut sf_schema::SchemaStore,
+    invoker: &SfInvoker,
+    query: &str,
+) -> Vec<soql_lang::Diagnostic> {
+    let Some(object) = soql_lang::outline(query).from_object else {
+        return Vec::new();
+    };
+    let Ok(schema) = store.get_or_fetch(invoker, API_VERSION, &object).await else {
+        return Vec::new();
+    };
+    soql_lang::diagnostics(query, &schema)
+}
+
+fn to_dto(d: soql_lang::Diagnostic, offset: usize) -> SoqlDiagnostic {
+    SoqlDiagnostic {
+        message: d.message,
+        start: offset + d.start,
+        end: offset + d.end,
+        severity: match d.severity {
+            soql_lang::Severity::Error => "error",
+            soql_lang::Severity::Warning => "warning",
+        }
+        .to_string(),
+    }
+}
+
 /// Unknown-field diagnostics for the standalone SOQL editor. Best-effort: empty when there is no FROM
 /// object or the describe fails (benign -- never invents errors).
 pub async fn diagnose(
@@ -283,26 +311,31 @@ pub async fn diagnose(
     org_id: &str,
     query: &str,
 ) -> Vec<SoqlDiagnostic> {
-    let Some(object) = soql_lang::outline(query).from_object else {
-        return Vec::new();
-    };
     let mut store = sf_schema::SchemaStore::new(root, org_id);
-    let Ok(schema) = store.get_or_fetch(invoker, API_VERSION, &object).await else {
-        return Vec::new();
-    };
-    soql_lang::diagnostics(query, &schema)
+    soql_query_diagnostics(&mut store, invoker, query)
+        .await
         .into_iter()
-        .map(|d| SoqlDiagnostic {
-            message: d.message,
-            start: d.start,
-            end: d.end,
-            severity: match d.severity {
-                soql_lang::Severity::Error => "error",
-                soql_lang::Severity::Warning => "warning",
-            }
-            .to_string(),
-        })
+        .map(|d| to_dto(d, 0))
         .collect()
+}
+
+/// Unknown-field diagnostics for every inline `[SELECT …]` literal in Apex `src`, with spans in
+/// Apex-source coordinates. Best-effort (empty regions / describe failures are skipped).
+pub async fn diagnose_apex_soql(
+    invoker: &SfInvoker,
+    root: impl Into<PathBuf>,
+    org_id: &str,
+    src: &str,
+) -> Vec<SoqlDiagnostic> {
+    let mut store = sf_schema::SchemaStore::new(root, org_id);
+    let mut out = Vec::new();
+    for (start, end) in apex_lang::soql_regions(src) {
+        let inner = &src[start..end];
+        for d in soql_query_diagnostics(&mut store, invoker, inner).await {
+            out.push(to_dto(d, start));
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -475,6 +508,26 @@ mod tests {
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert!(diags[0].message.contains("Bogus"));
         assert_eq!(diags[0].severity, "error");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn diagnose_apex_soql_offsets_into_source() {
+        let body =
+            r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Id","type":"id"}]}}"#;
+        let runner = sf_core::runner::MockRunner::new(move |_p, _a| {
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("apex-soql-diag-{}", std::process::id()));
+        let src = "Account a = [SELECT Bogus FROM Account];";
+        let diags = diagnose_apex_soql(&invoker, &dir, "myorg", src).await;
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(&src[diags[0].start..diags[0].end], "Bogus");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
