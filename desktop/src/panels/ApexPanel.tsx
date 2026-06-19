@@ -25,18 +25,18 @@ const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
   overviewRulerLanes: 0,
 };
 
-/** A COMPILED / SUCCESS chip: accent when true, red when false. */
+/** A COMPILED / SUCCESS chip: success-green when true, red when false. */
 function StatusChip({ label, ok }: { label: string; ok: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
         ok
-          ? "border-accent/40 text-accent"
+          ? "border-success/40 text-success"
           : "border-red/40 text-red"
       }`}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-accent" : "bg-red"}`}
+        className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-success" : "bg-red"}`}
       />
       {label}
     </span>
@@ -165,7 +165,7 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
             <Editor
               height="100%"
               language="apex"
-              theme="sf-dark"
+              theme="sf"
               value={src}
               beforeMount={beforeMount}
               onMount={onMount}

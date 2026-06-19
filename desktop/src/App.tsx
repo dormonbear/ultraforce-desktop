@@ -25,7 +25,7 @@ export default function App() {
       {/* Top bar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-hair px-4">
         <span
-          className="text-[20px] font-bold tracking-wide text-text"
+          className="text-[20px] font-normal tracking-tight text-text"
           style={{ fontFamily: "var(--font-display)" }}
         >
           SF·TOOLKIT

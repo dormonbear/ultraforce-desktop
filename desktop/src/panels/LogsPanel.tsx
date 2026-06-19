@@ -191,7 +191,7 @@ export function LogsPanel() {
                     )}
                     <span
                       className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        ok ? "bg-accent" : "bg-red"
+                        ok ? "bg-success" : "bg-red"
                       }`}
                     />
                     <span className="min-w-0 flex-1 truncate text-[12px] text-text">
@@ -199,7 +199,7 @@ export function LogsPanel() {
                     </span>
                     <span
                       className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${
-                        ok ? "text-accent" : "text-red"
+                        ok ? "text-success" : "text-red"
                       }`}
                     >
                       {log.status}

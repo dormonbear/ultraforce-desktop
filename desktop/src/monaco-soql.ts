@@ -58,26 +58,28 @@ export function registerSoqlCompletion(monaco: Monaco): void {
   });
 }
 
-/** Register the `sf-dark` theme and a minimal `soql` language once. */
+/** Register the `sf` editor theme and a minimal `soql` language once. */
 export function configureMonaco(monaco: Monaco): void {
-  monaco.editor.defineTheme("sf-dark", {
-    base: "vs-dark",
+  // Cursor editorial light theme: ink keywords, success-green strings, gold numbers,
+  // orange cursor. Code stays restrained — orange is reserved for the caret only.
+  monaco.editor.defineTheme("sf", {
+    base: "vs",
     inherit: true,
     rules: [
-      { token: "keyword.soql", foreground: "3ddc84", fontStyle: "bold" },
-      { token: "string.soql", foreground: "6cb6ff" },
-      { token: "number.soql", foreground: "ffb454" },
-      { token: "comment.soql", foreground: "5c626d", fontStyle: "italic" },
+      { token: "keyword.soql", foreground: "26251e", fontStyle: "bold" },
+      { token: "string.soql", foreground: "1f8a65" },
+      { token: "number.soql", foreground: "c08532" },
+      { token: "comment.soql", foreground: "807d72", fontStyle: "italic" },
     ],
     colors: {
-      "editor.background": "#111317",
-      "editor.foreground": "#e6e8ec",
-      "editorGutter.background": "#0a0b0d",
-      "editorLineNumber.foreground": "#5c626d",
-      "editorLineNumber.activeForeground": "#9aa0ab",
-      "editor.selectionBackground": "#3ddc8433",
-      "editor.lineHighlightBackground": "#16181d",
-      "editorCursor.foreground": "#3ddc84",
+      "editor.background": "#fafaf7",
+      "editor.foreground": "#26251e",
+      "editorGutter.background": "#f7f7f4",
+      "editorLineNumber.foreground": "#a09c92",
+      "editorLineNumber.activeForeground": "#5a5852",
+      "editor.selectionBackground": "#f54e0022",
+      "editor.lineHighlightBackground": "#f1f0ea",
+      "editorCursor.foreground": "#f54e00",
     },
   });
 

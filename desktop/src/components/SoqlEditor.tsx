@@ -93,7 +93,7 @@ export function SoqlEditor({ value, onChange, onRun, running }: Props) {
         <Editor
           height="100%"
           language="soql"
-          theme="sf-dark"
+          theme="sf"
           value={value}
           beforeMount={beforeMount}
           onMount={onMount}
