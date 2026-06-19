@@ -17,25 +17,29 @@ fn current_org(state: &AppState) -> Option<String> {
     state.selected_org.lock().unwrap().clone()
 }
 
-/// Flat, table-shaped query result handed to the frontend.
+/// A SOQL query result: flat table projection plus the raw record tree.
 #[derive(serde::Serialize)]
-struct TableDto {
+struct SoqlResultDto {
     columns: Vec<String>,
     rows: Vec<Vec<String>>,
     total_size: u64,
+    done: bool,
+    tree: Vec<dto::RecordDto>,
 }
 
 #[tauri::command]
-async fn run_soql(query: String, state: State<'_, AppState>) -> Result<TableDto, String> {
+async fn run_soql(query: String, state: State<'_, AppState>) -> Result<SoqlResultDto, String> {
     let org = current_org(&state);
-    let table = features::soql::run_query_table(&state.invoker, &query, org.as_deref())
+    let result = features::soql::run_query(&state.invoker, &query, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
-    let total_size = table.rows.len() as u64;
-    Ok(TableDto {
+    let table = result.to_table();
+    Ok(SoqlResultDto {
         columns: table.columns,
         rows: table.rows,
-        total_size,
+        total_size: result.total_size,
+        done: result.done,
+        tree: result.records.iter().map(dto::map_record).collect(),
     })
 }
 

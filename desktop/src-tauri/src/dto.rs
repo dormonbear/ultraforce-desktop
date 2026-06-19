@@ -2,6 +2,7 @@
 //! `log_parser` / `features` model types (which are not serde-aware).
 
 use features::debug_log::{DebugLogView, UnitView};
+use features::soql::{FieldValue, Record};
 use log_parser::event::LogEvent;
 use log_parser::limits::{LimitEntry, LimitRollup};
 use log_parser::tree::ExecNode;
@@ -24,6 +25,85 @@ impl From<&OrgRef> for OrgDto {
             instance_url: o.instance_url.clone(),
             is_default: o.is_default,
         }
+    }
+}
+
+/// One Salesforce record in a SOQL result tree, ready for the frontend.
+#[derive(serde::Serialize)]
+pub struct RecordDto {
+    pub sobject_type: String,
+    pub fields: Vec<FieldDto>,
+}
+
+/// One field of a record: its name and tagged value.
+#[derive(serde::Serialize)]
+pub struct FieldDto {
+    pub name: String,
+    pub value: FieldValueDto,
+}
+
+/// A tagged field value: scalar text, a parent record, or child records.
+#[derive(serde::Serialize)]
+pub struct FieldValueDto {
+    pub kind: &'static str, // "null" | "scalar" | "parent" | "children"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scalar: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<Box<RecordDto>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<RecordDto>>,
+}
+
+/// Render a scalar JSON value as display text (strings unquoted).
+fn scalar_text(v: &serde_json::Value) -> String {
+    match v {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Null => String::new(),
+        other => other.to_string(),
+    }
+}
+
+/// Recursively map a `Record` into its serializable DTO.
+pub fn map_record(r: &Record) -> RecordDto {
+    RecordDto {
+        sobject_type: r.sobject_type.clone(),
+        fields: r
+            .fields
+            .iter()
+            .map(|(name, value)| FieldDto {
+                name: name.clone(),
+                value: map_field_value(value),
+            })
+            .collect(),
+    }
+}
+
+fn map_field_value(v: &FieldValue) -> FieldValueDto {
+    match v {
+        FieldValue::Null => FieldValueDto {
+            kind: "null",
+            scalar: None,
+            parent: None,
+            children: None,
+        },
+        FieldValue::Scalar(s) => FieldValueDto {
+            kind: "scalar",
+            scalar: Some(scalar_text(s)),
+            parent: None,
+            children: None,
+        },
+        FieldValue::Parent(rec) => FieldValueDto {
+            kind: "parent",
+            scalar: None,
+            parent: Some(Box::new(map_record(rec))),
+            children: None,
+        },
+        FieldValue::Children(qr) => FieldValueDto {
+            kind: "children",
+            scalar: None,
+            parent: None,
+            children: Some(qr.records.iter().map(map_record).collect()),
+        },
     }
 }
 
@@ -179,6 +259,51 @@ mod tests {
         assert_eq!(d.username, "me@x.com");
         assert_eq!(d.alias.as_deref(), Some("dev"));
         assert!(d.is_default);
+    }
+
+    #[test]
+    fn record_dto_maps_scalar_parent_children() {
+        use features::soql::{FieldValue, QueryResult, Record};
+        let parent = Record {
+            sobject_type: "User".into(),
+            fields: vec![("Name".into(), FieldValue::Scalar(serde_json::json!("Amy")))],
+        };
+        let child = Record {
+            sobject_type: "Contact".into(),
+            fields: vec![(
+                "LastName".into(),
+                FieldValue::Scalar(serde_json::json!("Lee")),
+            )],
+        };
+        let rec = Record {
+            sobject_type: "Account".into(),
+            fields: vec![
+                ("Id".into(), FieldValue::Scalar(serde_json::json!("001"))),
+                ("Phone".into(), FieldValue::Null),
+                ("Owner".into(), FieldValue::Parent(Box::new(parent))),
+                (
+                    "Contacts".into(),
+                    FieldValue::Children(QueryResult {
+                        total_size: 1,
+                        done: true,
+                        records: vec![child],
+                    }),
+                ),
+            ],
+        };
+        let d = map_record(&rec);
+        assert_eq!(d.sobject_type, "Account");
+        assert_eq!(d.fields.len(), 4);
+        assert_eq!(d.fields[0].value.kind, "scalar");
+        assert_eq!(d.fields[0].value.scalar.as_deref(), Some("001"));
+        assert_eq!(d.fields[1].value.kind, "null");
+        assert_eq!(d.fields[2].value.kind, "parent");
+        assert_eq!(
+            d.fields[2].value.parent.as_ref().unwrap().sobject_type,
+            "User"
+        );
+        assert_eq!(d.fields[3].value.kind, "children");
+        assert_eq!(d.fields[3].value.children.as_ref().unwrap().len(), 1);
     }
 
     #[test]
