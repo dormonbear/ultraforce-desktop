@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { RefreshCw, Loader2 } from "lucide-react";
+import { LogView } from "../components/LogView";
 import type {
   ExecNodeDto,
   LogRefDto,
@@ -255,9 +256,9 @@ export function LogsPanel() {
               </div>
 
               {tab === "raw" ? (
-                <pre className="min-h-0 flex-1 overflow-auto whitespace-pre rounded-[3px] border border-hair bg-surface p-3 text-[12px] text-text-dim">
-                  {view.raw}
-                </pre>
+                <div className="min-h-0 flex-1 overflow-hidden rounded-[3px] border border-hair">
+                  <LogView raw={view.raw} />
+                </div>
               ) : (
                 <div className="min-h-0 flex-1 overflow-auto rounded-[3px] border border-hair bg-surface p-3">
                   {tab === "tree" ? (

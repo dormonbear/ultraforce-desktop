@@ -6,6 +6,7 @@ import type { editor } from "monaco-editor";
 import { ChevronRight } from "lucide-react";
 import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
+import { LogView } from "../components/LogView";
 import type { ApexOutcomeDto } from "../types";
 
 const DEFAULT_SRC = "System.debug('hello');";
@@ -169,9 +170,9 @@ export function ApexPanel() {
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="micro-label pb-1">DEBUG LOG</div>
                 {outcome.logs ? (
-                  <pre className="min-h-0 flex-1 overflow-auto whitespace-pre rounded-[3px] border border-hair bg-surface p-3 text-[12px] text-text-dim">
-                    {outcome.logs}
-                  </pre>
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-[3px] border border-hair">
+                    <LogView raw={outcome.logs} />
+                  </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center text-text-faint text-[13px]">
                     — no log —
