@@ -93,3 +93,8 @@ export type DebugConfigDto = {
   traceFlagId: string | null;
   levels: CategoryLevels;
 };
+
+export interface ApexCandidateDto {
+  label: string;
+  kind: string;
+}
