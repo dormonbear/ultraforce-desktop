@@ -19,9 +19,6 @@ pub struct SoqlOutline {
 
 /// Build a `SoqlOutline` from raw SOQL text.
 ///
-/// Walks the non-whitespace token stream: collects dotted-ident runs between
-/// `SELECT` and `FROM` as select fields, and takes the first `Ident` after a
-/// `FROM` keyword as the `from_object`. A lone `*` is ignored.
 pub fn outline(input: &str) -> SoqlOutline {
     let toks: Vec<_> = lex(input)
         .into_iter()
@@ -31,6 +28,7 @@ pub fn outline(input: &str) -> SoqlOutline {
     let mut out = SoqlOutline::default();
     let mut in_select = false;
     let mut expect_from_object = false;
+    let mut at_item_start = false;
     let mut i = 0;
 
     while i < toks.len() {
@@ -39,10 +37,12 @@ pub fn outline(input: &str) -> SoqlOutline {
             TokenKind::Keyword if t.text.eq_ignore_ascii_case("SELECT") => {
                 in_select = true;
                 expect_from_object = false;
+                at_item_start = true;
                 i += 1;
             }
             TokenKind::Keyword if t.text.eq_ignore_ascii_case("FROM") => {
                 in_select = false;
+                at_item_start = false;
                 expect_from_object = true;
                 i += 1;
             }
@@ -51,25 +51,37 @@ pub fn outline(input: &str) -> SoqlOutline {
                 expect_from_object = false;
                 i += 1;
             }
-            TokenKind::Ident if in_select => {
-                // Join a dotted run: Ident (Dot Ident)*.
-                let start = t.start;
-                let mut end = t.end;
-                let mut name = t.text.clone();
+            TokenKind::Comma if in_select => {
+                at_item_start = true;
                 i += 1;
-                while i + 1 < toks.len()
-                    && toks[i].kind == TokenKind::Dot
-                    && toks[i + 1].kind == TokenKind::Ident
-                {
-                    name.push('.');
-                    name.push_str(&toks[i + 1].text);
-                    end = toks[i + 1].end;
-                    i += 2;
+            }
+            TokenKind::Ident if in_select && at_item_start => {
+                // A function call at item start (`ident (`) is not a field — skip the whole item.
+                if toks.get(i + 1).map(|n| n.kind) == Some(TokenKind::LParen) {
+                    at_item_start = false;
+                    i += 1;
+                } else {
+                    // Dotted field run at item start: Ident (Dot Ident)*.
+                    let start = t.start;
+                    let mut end = t.end;
+                    let mut name = t.text.clone();
+                    i += 1;
+                    while i + 1 < toks.len()
+                        && toks[i].kind == TokenKind::Dot
+                        && toks[i + 1].kind == TokenKind::Ident
+                    {
+                        name.push('.');
+                        name.push_str(&toks[i + 1].text);
+                        end = toks[i + 1].end;
+                        i += 2;
+                    }
+                    out.select_fields.push(FieldRef { name, start, end });
+                    at_item_start = false; // trailing idents in this item (alias) are not fields
                 }
-                out.select_fields.push(FieldRef { name, start, end });
             }
             _ => {
                 expect_from_object = false;
+                at_item_start = false;
                 i += 1;
             }
         }
@@ -108,5 +120,30 @@ mod tests {
     fn outline_without_from() {
         let o = outline("SELECT Id");
         assert_eq!(o.from_object, None);
+    }
+
+    #[test]
+    fn aggregate_function_is_not_a_field() {
+        let o = outline("SELECT COUNT(Id) FROM Account");
+        assert_eq!(o.from_object.as_deref(), Some("Account"));
+        let names: Vec<&str> = o.select_fields.iter().map(|f| f.name.as_str()).collect();
+        assert!(
+            names.is_empty(),
+            "function name/args must not be collected, got {names:?}"
+        );
+    }
+
+    #[test]
+    fn alias_is_not_a_field() {
+        let o = outline("SELECT Name n, Id FROM Account");
+        let names: Vec<&str> = o.select_fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["Name", "Id"]); // alias `n` skipped
+    }
+
+    #[test]
+    fn function_then_real_field() {
+        let o = outline("SELECT toLabel(Status), Name FROM Case");
+        let names: Vec<&str> = o.select_fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["Name"]); // toLabel + its arg skipped; Name kept
     }
 }

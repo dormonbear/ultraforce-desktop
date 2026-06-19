@@ -98,4 +98,10 @@ mod tests {
         let schema = account_schema();
         assert!(diagnostics("SELECT Owner.Name FROM Account", &schema).is_empty());
     }
+
+    #[test]
+    fn aggregate_function_no_false_diagnostic() {
+        let schema = account_schema();
+        assert!(diagnostics("SELECT COUNT(Id) FROM Account", &schema).is_empty());
+    }
 }
