@@ -1,38 +1,20 @@
-import { useCallback, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useState } from "react";
 import { Database, Terminal, ScrollText, Table as TableIcon } from "lucide-react";
-import { SoqlEditor } from "./components/SoqlEditor";
-import { ResultTable } from "./components/ResultTable";
-import type { TableDto } from "./types";
+import { SoqlPanel } from "./panels/SoqlPanel";
+import { ApexPanel } from "./panels/ApexPanel";
+import { LogsPanel } from "./panels/LogsPanel";
 
-const DEFAULT_QUERY = "SELECT Id, Name FROM Account LIMIT 10";
+type ActivePanel = "soql" | "apex" | "logs";
 
 const RAIL = [
-  { id: "soql", icon: Database, label: "SOQL", active: true },
-  { id: "apex", icon: Terminal, label: "Apex", active: false },
-  { id: "logs", icon: ScrollText, label: "Logs", active: false },
-  { id: "schema", icon: TableIcon, label: "Schema", active: false },
-];
+  { id: "soql", icon: Database, label: "SOQL", enabled: true },
+  { id: "apex", icon: Terminal, label: "Apex", enabled: true },
+  { id: "logs", icon: ScrollText, label: "Logs", enabled: true },
+  { id: "schema", icon: TableIcon, label: "Schema", enabled: false },
+] as const;
 
 export default function App() {
-  const [query, setQuery] = useState(DEFAULT_QUERY);
-  const [result, setResult] = useState<TableDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
-
-  const run = useCallback(async () => {
-    setRunning(true);
-    setError(null);
-    try {
-      const dto = await invoke<TableDto>("run_soql", { query });
-      setResult(dto);
-    } catch (e) {
-      setError(typeof e === "string" ? e : String(e));
-    } finally {
-      setRunning(false);
-    }
-  }, [query]);
+  const [active, setActive] = useState<ActivePanel>("soql");
 
   return (
     <div className="flex h-full flex-col bg-bg text-text">
@@ -56,59 +38,38 @@ export default function App() {
       <div className="flex min-h-0 flex-1">
         {/* Activity rail */}
         <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-hair py-2">
-          {RAIL.map(({ id, icon: Icon, label, active }) => (
-            <button
-              key={id}
-              type="button"
-              title={label}
-              disabled={!active}
-              aria-current={active ? "page" : undefined}
-              className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-[3px] ${
-                active
-                  ? "text-accent"
-                  : "text-text-faint hover:text-text-dim disabled:cursor-not-allowed"
-              } cursor-pointer`}
-            >
-              {active && (
-                <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-accent" />
-              )}
-              <Icon size={18} />
-            </button>
-          ))}
+          {RAIL.map(({ id, icon: Icon, label, enabled }) => {
+            const current = enabled && id === active;
+            return (
+              <button
+                key={id}
+                type="button"
+                title={label}
+                disabled={!enabled}
+                aria-current={current ? "page" : undefined}
+                onClick={() => enabled && setActive(id as ActivePanel)}
+                className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-[3px] ${
+                  current
+                    ? "text-accent"
+                    : enabled
+                      ? "text-text-dim hover:text-text"
+                      : "text-text-faint disabled:cursor-not-allowed"
+                } cursor-pointer`}
+              >
+                {current && (
+                  <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-accent" />
+                )}
+                <Icon size={18} />
+              </button>
+            );
+          })}
         </nav>
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          <PanelGroup direction="vertical">
-            <Panel defaultSize={40} minSize={20}>
-              <SoqlEditor
-                value={query}
-                onChange={setQuery}
-                onRun={run}
-                running={running}
-              />
-            </Panel>
-            <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-accent data-[resize-handle-state=drag]:bg-accent" />
-            <Panel defaultSize={60} minSize={20}>
-              {error ? (
-                <div className="flex h-full flex-col">
-                  <div className="micro-label px-4 py-2">RESULT</div>
-                  <pre className="mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-[3px] border border-red/40 bg-surface p-3 text-[12px] text-red">
-                    {error}
-                  </pre>
-                </div>
-              ) : result ? (
-                <ResultTable data={result} />
-              ) : (
-                <div className="flex h-full flex-col">
-                  <div className="micro-label px-4 py-2">RESULT</div>
-                  <div className="flex flex-1 items-center justify-center text-text-faint text-[13px]">
-                    — run a query —
-                  </div>
-                </div>
-              )}
-            </Panel>
-          </PanelGroup>
+          {active === "soql" && <SoqlPanel />}
+          {active === "apex" && <ApexPanel />}
+          {active === "logs" && <LogsPanel />}
         </main>
       </div>
     </div>
