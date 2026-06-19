@@ -1,5 +1,5 @@
 use crate::parser::{context_at, outline, CursorContext};
-use crate::resolve::{resolve_receiver_type, resolve_type};
+use crate::resolve::{resolve_expr_type, resolve_receiver_type, resolve_type};
 use crate::symbols::{ApexType, Ost};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -46,7 +46,9 @@ pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
                 .map(|ty| member_candidates(ty, &prefix, false))
                 .unwrap_or_default()
         }
-        CursorContext::ChainMember { .. } => Vec::new(),
+        CursorContext::ChainMember { chain, prefix } => resolve_expr_type(ost, &outline, &chain)
+            .map(|ty| member_candidates(ty, &prefix, false))
+            .unwrap_or_default(),
         CursorContext::Unknown => Vec::new(),
     }
 }
@@ -143,12 +145,20 @@ mod tests {
             org_types: vec![ApexType {
                 name: "AccountService".to_string(),
                 kind: TypeKind::Class,
-                methods: vec![Method {
-                    name: "save".to_string(),
-                    return_type: "void".to_string(),
-                    params: vec!["Account".to_string()],
-                    is_static: false,
-                }],
+                methods: vec![
+                    Method {
+                        name: "save".to_string(),
+                        return_type: "void".to_string(),
+                        params: vec!["Account".to_string()],
+                        is_static: false,
+                    },
+                    Method {
+                        name: "self_".to_string(),
+                        return_type: "AccountService".to_string(),
+                        params: vec![],
+                        is_static: false,
+                    },
+                ],
                 properties: vec![],
                 enum_values: vec![],
             }],
@@ -179,5 +189,17 @@ mod tests {
             .any(|candidate| candidate.label == "save" && candidate.kind == CandidateKind::Method));
 
         assert_eq!(complete(" ", 1, &ost), Vec::new());
+    }
+
+    #[test]
+    fn completes_member_access_through_a_call_chain() {
+        let ost = ost();
+        let input = "AccountService svc; svc.self_().sa";
+        let got = complete(input, input.len(), &ost);
+        assert!(
+            got.iter()
+                .any(|c| c.label == "save" && c.kind == CandidateKind::Method),
+            "{got:?}"
+        );
     }
 }
