@@ -178,6 +178,48 @@ pub fn soql_region_at(input: &str, cursor: usize) -> Option<(usize, usize)> {
     }
 }
 
+/// All inline SOQL literal inner ranges `[SELECT …]` in `input` (brackets excluded), left→right.
+/// Skips non-SELECT brackets (e.g. array indexing). Bracket bytes are ASCII so byte indexing is safe.
+pub fn soql_regions(input: &str) -> Vec<(usize, usize)> {
+    let bytes = input.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    while i < input.len() {
+        if bytes[i] != b'[' {
+            i += 1;
+            continue;
+        }
+        // matching ']' (depth-aware), EOF if unclosed
+        let mut depth = 0i32;
+        let mut close = input.len();
+        let mut j = i + 1;
+        while j < input.len() {
+            match bytes[j] {
+                b'[' => depth += 1,
+                b']' => {
+                    if depth == 0 {
+                        close = j;
+                        break;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+            j += 1;
+        }
+        let inner = &input[i + 1..close];
+        if inner
+            .trim_start()
+            .get(..6)
+            .is_some_and(|s| s.eq_ignore_ascii_case("select"))
+        {
+            out.push((i + 1, close));
+        }
+        i = close + 1;
+    }
+    out
+}
+
 fn next_non_ws(tokens: &[Token], start: usize) -> Option<usize> {
     tokens
         .iter()
@@ -377,5 +419,16 @@ mod tests {
         // unclosed bracket while typing -> region runs to EOF
         let u = "List<Account> l = [SELECT Id FROM Acc";
         assert!(soql_region_at(u, u.len()).is_some());
+    }
+
+    #[test]
+    fn soql_regions_finds_all_select_literals() {
+        let src = "List<Account> a = [SELECT Id FROM Account]; Integer n = arr[0]; Account b = [SELECT Bogus FROM Account];";
+        let r = soql_regions(src);
+        assert_eq!(r.len(), 2);
+        assert_eq!(&src[r[0].0..r[0].1], "SELECT Id FROM Account");
+        assert_eq!(&src[r[1].0..r[1].1], "SELECT Bogus FROM Account");
+        // a non-SELECT bracket (array index) is not a region
+        assert!(soql_regions("x = arr[0];").is_empty());
     }
 }

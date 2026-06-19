@@ -10,4 +10,5 @@ pub use complete::complete;
 pub use lexer::lex;
 pub use parser::needed_type_at;
 pub use parser::soql_region_at;
+pub use parser::soql_regions;
 pub use symbols::Ost;
