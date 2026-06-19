@@ -1,0 +1,36 @@
+{
+  "status": 0,
+  "result": {
+    "totalSize": 2,
+    "done": true,
+    "records": [
+      {
+        "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001A" },
+        "Id": "001A",
+        "Name": "Acme",
+        "Owner": {
+          "attributes": { "type": "User", "url": "/services/data/v60.0/sobjects/User/005A" },
+          "Name": "Alice"
+        },
+        "Contacts": {
+          "totalSize": 1,
+          "done": true,
+          "records": [
+            {
+              "attributes": { "type": "Contact", "url": "/services/data/v60.0/sobjects/Contact/003A" },
+              "LastName": "Smith"
+            }
+          ]
+        }
+      },
+      {
+        "attributes": { "type": "Account", "url": "/services/data/v60.0/sobjects/Account/001B" },
+        "Id": "001B",
+        "Name": "Globex",
+        "Owner": null,
+        "Contacts": null
+      }
+    ]
+  },
+  "warnings": []
+}
