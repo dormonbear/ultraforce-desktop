@@ -24,6 +24,12 @@ struct OrgListResult {
     sandboxes: Vec<OrgRef>,
 }
 
+#[derive(Debug, Deserialize)]
+struct OrgDisplay {
+    #[serde(rename = "apiVersion", default)]
+    api_version: Option<String>,
+}
+
 /// Discovery over `sf org list`.
 pub struct OrgRegistry;
 
@@ -41,6 +47,21 @@ impl OrgRegistry {
             .await?
             .into_iter()
             .find(|o| o.is_default))
+    }
+
+    /// The org's API version via `sf org display`. `target` is a username/alias;
+    /// pass `None` for the default org. `Ok(None)` if the field is absent.
+    pub async fn api_version(
+        invoker: &SfInvoker,
+        target: Option<&str>,
+    ) -> Result<Option<String>, SfError> {
+        let mut args = vec!["org", "display"];
+        if let Some(t) = target {
+            args.push("--target-org");
+            args.push(t);
+        }
+        let d: OrgDisplay = invoker.run_json(&args).await?;
+        Ok(d.api_version)
     }
 }
 
@@ -82,5 +103,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(def.unwrap().username, "b@x.com");
+    }
+
+    #[tokio::test]
+    async fn reads_api_version_from_org_display() {
+        let json = r#"{"status":0,"result":{"apiVersion":"67.0"}}"#;
+        let v = OrgRegistry::api_version(&invoker_returning(json), Some("me@x.com"))
+            .await
+            .unwrap();
+        assert_eq!(v.as_deref(), Some("67.0"));
     }
 }

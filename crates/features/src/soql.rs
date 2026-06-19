@@ -6,8 +6,6 @@ use sf_core::{SfError, SfInvoker};
 use std::fmt;
 use std::path::PathBuf;
 
-const API_VERSION: &str = "60.0";
-
 /// A parsed SOQL query response.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -255,8 +253,9 @@ pub async fn complete_fields(
     let Some(object) = soql_lang::outline(query).from_object else {
         return Vec::new();
     };
+    let api = crate::api_version::api_version_for(invoker, org_id).await;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
-    let Ok(schema) = store.get_or_fetch(invoker, API_VERSION, &object).await else {
+    let Ok(schema) = store.get_or_fetch(invoker, &api, &object).await else {
         return Vec::new();
     };
     soql_lang::complete(query, cursor, &schema)
@@ -279,12 +278,13 @@ pub struct SoqlDiagnostic {
 async fn soql_query_diagnostics(
     store: &mut sf_schema::SchemaStore,
     invoker: &SfInvoker,
+    api: &str,
     query: &str,
 ) -> Vec<soql_lang::Diagnostic> {
     let Some(object) = soql_lang::outline(query).from_object else {
         return Vec::new();
     };
-    let Ok(schema) = store.get_or_fetch(invoker, API_VERSION, &object).await else {
+    let Ok(schema) = store.get_or_fetch(invoker, api, &object).await else {
         return Vec::new();
     };
     soql_lang::diagnostics(query, &schema)
@@ -311,8 +311,9 @@ pub async fn diagnose(
     org_id: &str,
     query: &str,
 ) -> Vec<SoqlDiagnostic> {
+    let api = crate::api_version::api_version_for(invoker, org_id).await;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
-    soql_query_diagnostics(&mut store, invoker, query)
+    soql_query_diagnostics(&mut store, invoker, &api, query)
         .await
         .into_iter()
         .map(|d| to_dto(d, 0))
@@ -327,11 +328,12 @@ pub async fn diagnose_apex_soql(
     org_id: &str,
     src: &str,
 ) -> Vec<SoqlDiagnostic> {
+    let api = crate::api_version::api_version_for(invoker, org_id).await;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
     let mut out = Vec::new();
     for (start, end) in apex_lang::soql_regions(src) {
         let inner = &src[start..end];
-        for d in soql_query_diagnostics(&mut store, invoker, inner).await {
+        for d in soql_query_diagnostics(&mut store, invoker, &api, inner).await {
             out.push(to_dto(d, start));
         }
     }

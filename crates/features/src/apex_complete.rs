@@ -11,8 +11,6 @@ use apex_lang::symbols::{ApexType, Method, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};
 use sf_schema::{SObjectSchema, SchemaStore};
 
-const API_VERSION: &str = "60.0";
-
 /// Common Apex SObject instance methods (name, return type). Curated subset -- not exhaustive.
 /// ponytail: extend the list if a needed builtin is missing; not worth modelling the full surface.
 const SOBJECT_METHODS: &[(&str, &str)] = &[
@@ -137,8 +135,9 @@ impl ApexCompleter {
         org_id: &str,
         object: &str,
     ) -> Option<SObjectSchema> {
+        let api = crate::api_version::api_version_for(invoker, org_id).await;
         let mut store = SchemaStore::new(self.root.clone(), org_id);
-        store.get_or_fetch(invoker, API_VERSION, object).await.ok()
+        store.get_or_fetch(invoker, &api, object).await.ok()
     }
 
     /// Insert `ty` into the cached OST's org_types (dedupe by name); returns the new Arc. Lock not held
@@ -163,14 +162,13 @@ impl ApexCompleter {
 
     async fn build(&self, invoker: &SfInvoker, org_id: &str) -> Result<Ost, SfError> {
         // Fresh disk-backed store each rebuild; the disk cache makes repeat builds cheap.
+        let api = crate::api_version::api_version_for(invoker, org_id).await;
         let mut store = OstStore::new(self.root.clone(), org_id);
         // get_or_fetch returns an OWNED Value -- do NOT add `.clone()` (clippy redundant_clone).
-        let stdlib = store
-            .get_or_fetch(invoker, API_VERSION, OstSource::Stdlib)
-            .await?;
+        let stdlib = store.get_or_fetch(invoker, &api, OstSource::Stdlib).await?;
         let namespaces = parse_stdlib(&stdlib);
         let org_raw = store
-            .get_or_fetch(invoker, API_VERSION, OstSource::OrgTypes)
+            .get_or_fetch(invoker, &api, OstSource::OrgTypes)
             .await?;
         let records = org_raw.as_array().cloned().unwrap_or_default();
         let org_types = parse_org_types(&records);
@@ -319,8 +317,9 @@ mod tests {
     async fn completes_sobject_field_via_on_demand_describe() {
         use std::sync::Mutex as StdMutex;
 
-        // Sequenced responses keyed by call order: stdlib, org ApexClass, then sObject describe.
+        // Sequenced responses keyed by call order: org display, stdlib, org ApexClass, then sObject describe.
         let responses: Arc<StdMutex<Vec<&'static str>>> = Arc::new(StdMutex::new(vec![
+            r#"{"status":0,"result":{"apiVersion":"67.0"}}"#,
             r#"{"publicDeclarations":{"System":{}}}"#,
             r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#,
             r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string"},{"name":"AccountId","type":"reference","referenceTo":["Account"],"relationshipName":"Parent"}]}}"#,
