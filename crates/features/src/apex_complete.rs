@@ -5,9 +5,11 @@ use std::sync::{Arc, Mutex};
 
 use apex_lang::acquire::{parse_org_types, parse_stdlib};
 use apex_lang::complete::{complete as ost_complete, Candidate};
+use apex_lang::resolve::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
-use apex_lang::symbols::Ost;
+use apex_lang::symbols::{ApexType, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};
+use sf_schema::{SObjectSchema, SchemaStore};
 
 const API_VERSION: &str = "60.0";
 
@@ -47,13 +49,61 @@ impl ApexCompleter {
         src: &str,
         cursor: usize,
     ) -> Result<Vec<Candidate>, SfError> {
+        let ost = self.ensure_base(invoker, org_id).await?;
+        // On-demand sObject describe: if the cursor needs a type the OST lacks, try describing it.
+        if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
+            if resolve_type(&ost, &type_name).is_none() {
+                if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await {
+                    let augmented = self.augment(org_id, apex_ty);
+                    return Ok(ost_complete(src, cursor, &augmented));
+                }
+            }
+        }
+        Ok(ost_complete(src, cursor, &ost))
+    }
+
+    async fn ensure_base(&self, invoker: &SfInvoker, org_id: &str) -> Result<Arc<Ost>, SfError> {
         if let Some(ost) = self.cached(org_id) {
-            return Ok(ost_complete(src, cursor, &ost));
+            return Ok(ost);
         }
         let ost = Arc::new(self.build(invoker, org_id).await?);
-        // brief lock, no await held
         *self.cache.lock().unwrap() = Some((org_id.to_string(), ost.clone()));
-        Ok(ost_complete(src, cursor, &ost))
+        Ok(ost)
+    }
+
+    /// Best-effort describe (None if the name is not a real sObject or describe fails -- benign).
+    async fn describe_sobject(
+        &self,
+        invoker: &SfInvoker,
+        org_id: &str,
+        name: &str,
+    ) -> Option<ApexType> {
+        let mut store = SchemaStore::new(self.root.clone(), org_id);
+        store
+            .get_or_fetch(invoker, API_VERSION, name)
+            .await
+            .ok()
+            .map(|s| schema_to_apex_type(&s))
+    }
+
+    /// Insert `ty` into the cached OST's org_types (dedupe by name); returns the new Arc. Lock not held
+    /// across any await (this fn is sync).
+    fn augment(&self, org_id: &str, ty: ApexType) -> Arc<Ost> {
+        let mut guard = self.cache.lock().unwrap();
+        let mut ost = match &*guard {
+            Some((id, ost)) if id == org_id => (**ost).clone(),
+            _ => Ost::default(),
+        };
+        if !ost
+            .org_types
+            .iter()
+            .any(|t| t.name.eq_ignore_ascii_case(&ty.name))
+        {
+            ost.org_types.push(ty);
+        }
+        let arc = Arc::new(ost);
+        *guard = Some((org_id.to_string(), arc.clone()));
+        arc
     }
 
     async fn build(&self, invoker: &SfInvoker, org_id: &str) -> Result<Ost, SfError> {
@@ -73,6 +123,56 @@ impl ApexCompleter {
             namespaces,
             org_types,
         })
+    }
+}
+
+/// Salesforce describe `field.type` -> the Apex type name used in completion.
+fn apex_field_type(f: &sf_schema::model::Field) -> String {
+    match f.field_type.as_str() {
+        "id" => "Id",
+        "boolean" => "Boolean",
+        "int" => "Integer",
+        "double" | "currency" | "percent" => "Decimal",
+        "date" => "Date",
+        "datetime" => "Datetime",
+        "time" => "Time",
+        "base64" => "Blob",
+        "reference" => {
+            return f
+                .reference_to
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "Id".into())
+        }
+        // string, textarea, phone, url, email, picklist, multipicklist, encryptedstring, combobox, ...
+        _ => "String",
+    }
+    .to_string()
+}
+
+/// Map an sObject describe to an OST ApexType: fields -> instance properties (+ relationship props).
+fn schema_to_apex_type(schema: &SObjectSchema) -> ApexType {
+    let mut properties = Vec::new();
+    for f in &schema.fields {
+        properties.push(Property {
+            name: f.name.clone(),
+            prop_type: apex_field_type(f),
+            is_static: false,
+        });
+        if let (Some(rel), Some(parent)) = (f.relationship_name.clone(), f.reference_to.first()) {
+            properties.push(Property {
+                name: rel,
+                prop_type: parent.clone(),
+                is_static: false,
+            });
+        }
+    }
+    ApexType {
+        name: schema.name.clone(),
+        kind: TypeKind::Class,
+        methods: Vec::new(),
+        properties,
+        enum_values: Vec::new(),
     }
 }
 
@@ -130,6 +230,39 @@ mod tests {
             calls_after_first,
             "second call must not re-fetch"
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn completes_sobject_field_via_on_demand_describe() {
+        use std::sync::Mutex as StdMutex;
+
+        // Sequenced responses keyed by call order: stdlib, org ApexClass, then sObject describe.
+        let responses: Arc<StdMutex<Vec<&'static str>>> = Arc::new(StdMutex::new(vec![
+            r#"{"publicDeclarations":{"System":{}}}"#,
+            r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#,
+            r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string"},{"name":"AccountId","type":"reference","referenceTo":["Account"],"relationshipName":"Parent"}]}}"#,
+        ]));
+        let runner = MockRunner::new(move |_p, _args| {
+            let mut r = responses.lock().unwrap();
+            let body = if r.is_empty() { "{}" } else { r.remove(0) };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("apex-sobj-test-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+
+        let input = "Account a; a.Na";
+        let got = completer
+            .complete(&invoker, "myorg", input, input.len())
+            .await
+            .unwrap();
+        assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

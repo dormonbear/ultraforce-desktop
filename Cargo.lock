@@ -774,6 +774,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sf-core",
+ "sf-schema",
  "tokio",
 ]
 
