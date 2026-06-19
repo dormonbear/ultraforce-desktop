@@ -196,6 +196,21 @@ async fn soql_complete(
     .await)
 }
 
+#[tauri::command]
+async fn soql_diagnostics(
+    query: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<features::soql::SoqlDiagnostic>, String> {
+    let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    Ok(features::soql::diagnose(
+        &state.invoker,
+        sf_schema::SchemaStore::default_root(),
+        &org,
+        &query,
+    )
+    .await)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = AppState {
@@ -216,7 +231,8 @@ pub fn run() {
             get_debug_config,
             set_debug_config,
             apex_complete,
-            soql_complete
+            soql_complete,
+            soql_diagnostics
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
