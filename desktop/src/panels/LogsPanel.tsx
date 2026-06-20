@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -155,12 +156,12 @@ export function LogsPanel() {
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">LOGS</div>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={refresh}
               disabled={listLoading}
-              title="Refresh"
-              className="focus-accent inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground disabled:opacity-40 cursor-pointer"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
             >
               {listLoading ? (
                 <Loader2 size={12} className="spin" />
@@ -168,7 +169,7 @@ export function LogsPanel() {
                 <RefreshCw size={12} />
               )}
               REFRESH
-            </button>
+            </Button>
           </div>
 
           <ScrollArea className="min-h-0 flex-1">
@@ -206,7 +207,7 @@ export function LogsPanel() {
                     </span>
                     <Badge
                       variant={ok ? "success" : "destructive"}
-                      className="shrink-0 rounded-md px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide"
+                      className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
                     >
                       {log.status}
                     </Badge>

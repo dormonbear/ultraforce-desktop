@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { EDITOR_OPTS } from "../monaco-opts";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -19,31 +20,13 @@ import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
 
-const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
-  minimap: { enabled: false },
-  fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-  fontSize: 13,
-  fontLigatures: true,
-  renderLineHighlight: "all",
-  scrollBeyondLastLine: false,
-  padding: { top: 10 },
-  lineNumbersMinChars: 3,
-  scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-  overviewRulerLanes: 0,
-};
-
-/** A COMPILED / SUCCESS chip: success-green when true, red when false. */
+/** A COMPILED / SUCCESS chip: success-green when true, destructive when false. */
 function StatusChip({ label, ok }: { label: string; ok: boolean }) {
   return (
     <Badge
       variant={ok ? "success" : "destructive"}
-      className="rounded-md border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+      className="text-[11px] uppercase tracking-wide"
     >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${
-          ok ? "bg-success" : "bg-destructive"
-        }`}
-      />
       {label}
     </Badge>
   );
@@ -84,7 +67,9 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
       });
       setLevels(dto.levels);
     } catch (e) {
-      setCfgError(typeof e === "string" ? e : String(e));
+      const message = typeof e === "string" ? e : String(e);
+      setCfgError(message);
+      toast.error(`Debug config: ${message}`);
     } finally {
       setCfgApplying(false);
     }
@@ -98,6 +83,11 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
         src: srcRef.current,
       });
       onPatch({ outcome: dto });
+      if (!dto.compiled) {
+        toast.error(dto.compile_problem ?? "Compile failed");
+      } else if (!dto.success) {
+        toast.error(dto.exception_message ?? "Execution failed");
+      }
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
       toast.error(message);
@@ -180,6 +170,9 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
               onMount={onMount}
               onChange={(v) => onPatch({ src: v ?? "" })}
               options={EDITOR_OPTS}
+              loading={
+                <Loader2 size={18} className="spin text-muted-foreground" />
+              }
             />
           </div>
         </div>

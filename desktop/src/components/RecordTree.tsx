@@ -2,6 +2,14 @@ import { useState } from "react";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import type { RecordDto, FieldDto } from "../types";
 
+/** Stable key for a record row: its Id field if present, else type+position. */
+function recordKey(record: RecordDto, fallback: number): string {
+  const id = record.fields.find(
+    (f) => f.name.toLowerCase() === "id" && f.value.kind === "scalar"
+  );
+  return id?.value.scalar ?? `${record.sobject_type}-${fallback}`;
+}
+
 function FieldRow({ field, depth }: { field: FieldDto; depth: number }) {
   const [open, setOpen] = useState(false);
   const pad = { paddingLeft: `${depth * 14 + 12}px` };
@@ -38,7 +46,9 @@ function FieldRow({ field, depth }: { field: FieldDto; depth: number }) {
           <span className="text-muted-foreground tnum">[{v.children.length}]</span>
         </button>
         {open &&
-          v.children.map((c, i) => <RecordNode key={i} record={c} depth={depth + 1} />)}
+          v.children.map((c, i) => (
+            <RecordNode key={recordKey(c, i)} record={c} depth={depth + 1} />
+          ))}
       </>
     );
   }
@@ -61,8 +71,8 @@ function RecordNode({ record, depth }: { record: RecordDto; depth: number }) {
       >
         {record.sobject_type}
       </div>
-      {record.fields.map((f, i) => (
-        <FieldRow key={i} field={f} depth={depth + 1} />
+      {record.fields.map((f) => (
+        <FieldRow key={f.name} field={f} depth={depth + 1} />
       ))}
     </div>
   );
@@ -80,7 +90,7 @@ export function RecordTree({ records }: { records: RecordDto[] }) {
   return (
     <div className="h-full overflow-auto py-1 text-[12px]">
       {records.map((r, i) => (
-        <RecordNode key={i} record={r} depth={0} />
+        <RecordNode key={recordKey(r, i)} record={r} depth={0} />
       ))}
     </div>
   );

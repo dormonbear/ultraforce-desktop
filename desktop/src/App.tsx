@@ -13,6 +13,7 @@ import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
 import { useTheme } from "./theme";
+import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import {
   Tooltip,
@@ -64,14 +65,15 @@ export default function App() {
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={toggle}
                 aria-label="Toggle color theme"
-                className="focus-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
+                className="size-7 cursor-pointer text-text-dim hover:text-foreground"
               >
                 {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-              </button>
+              </Button>
             </TooltipTrigger>
             <TooltipContent>{themeTitle}</TooltipContent>
           </Tooltip>

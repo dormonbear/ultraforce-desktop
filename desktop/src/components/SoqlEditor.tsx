@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import { Loader2 } from "lucide-react";
 import { configureMonaco } from "../monaco-soql";
+import { EDITOR_OPTS } from "../monaco-opts";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
 import { useTheme, monacoTheme } from "../theme";
@@ -72,19 +74,6 @@ export function SoqlEditor({ value, onChange, onRun, running }: Props) {
     return () => clearTimeout(handle);
   }, [value]);
 
-  const options: editor.IStandaloneEditorConstructionOptions = {
-    minimap: { enabled: false },
-    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-    fontSize: 13,
-    fontLigatures: true,
-    renderLineHighlight: "all",
-    scrollBeyondLastLine: false,
-    padding: { top: 10 },
-    lineNumbersMinChars: 3,
-    scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
-    overviewRulerLanes: 0,
-  };
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-4 py-2">
@@ -100,7 +89,8 @@ export function SoqlEditor({ value, onChange, onRun, running }: Props) {
           beforeMount={beforeMount}
           onMount={onMount}
           onChange={(v) => onChange(v ?? "")}
-          options={options}
+          options={EDITOR_OPTS}
+          loading={<Loader2 size={18} className="spin text-muted-foreground" />}
         />
       </div>
     </div>

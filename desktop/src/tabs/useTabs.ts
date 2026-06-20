@@ -8,9 +8,9 @@ import type { TabBase } from "./types";
 export function useTabs<T extends TabBase>(make: (n: number) => T) {
   // Monotonic counter so closing then adding never reuses a number.
   const counter = useRef(1);
-  const first = make(counter.current);
-  const [tabs, setTabs] = useState<T[]>([first]);
-  const [activeId, setActiveId] = useState<string>(first.id);
+  // Lazy init so the first tab is built exactly once (not every render).
+  const [tabs, setTabs] = useState<T[]>(() => [make(counter.current)]);
+  const [activeId, setActiveId] = useState<string>(() => tabs[0].id);
 
   const add = useCallback(() => {
     counter.current += 1;

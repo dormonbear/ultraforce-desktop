@@ -19,7 +19,7 @@ const ThemeCtx = createContext<{ theme: Theme; toggle: () => void }>({
   toggle: () => {},
 });
 
-/** Owns the app theme; mirrors it onto `<html data-theme>` + localStorage. */
+/** Owns the app theme; mirrors it onto the `<html>` `.dark` class + localStorage. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
 

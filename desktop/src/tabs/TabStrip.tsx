@@ -27,6 +27,8 @@ export function TabStrip({
       const dir = e.key === "ArrowRight" ? 1 : -1;
       const next = tabs[(idx + dir + tabs.length) % tabs.length];
       onSelect(next.id);
+      // Move DOM focus with the roving tabindex so keyboard nav lands correctly.
+      document.getElementById(`tab-${next.id}`)?.focus();
     } else if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       onClose(id);
