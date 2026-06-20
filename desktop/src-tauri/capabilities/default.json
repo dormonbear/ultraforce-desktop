@@ -3,5 +3,20 @@
   "identifier": "default",
   "description": "Default capability set for the main window.",
   "windows": ["main"],
-  "permissions": ["core:default", "store:default"]
+  "permissions": [
+    "core:default",
+    "store:default",
+    "dialog:default",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-rename",
+    "fs:allow-remove",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$APPDATA/workspace/**" }]
+    }
+  ]
 }

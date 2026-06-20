@@ -13,6 +13,10 @@ pub struct AppState {
     invoker: SfInvoker,
     selected_org: std::sync::Mutex<Option<String>>,
     apex: features::apex_complete::ApexCompleter,
+    /// Cached sObject-name list per org, for FROM completion. Populated by
+    /// `warm_schema`/`refresh_schema_cache` so keystroke completion never blocks
+    /// on a live (multi-second) `sf sobject list`.
+    sobjects: std::sync::Mutex<std::collections::HashMap<String, Arc<Vec<String>>>>,
 }
 
 /// Read the currently selected target org as an owned value (guard not held across `.await`).
@@ -251,12 +255,20 @@ async fn soql_complete(
     let start = Instant::now();
     tracing::info!("soql_complete start");
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    let objects = state
+        .sobjects
+        .lock()
+        .unwrap()
+        .get(&org)
+        .cloned()
+        .unwrap_or_default();
     let cands = features::soql::complete_fields(
         &state.invoker,
         sf_schema::SchemaStore::default_root(),
         &org,
         &query,
         offset,
+        &objects,
     )
     .await;
     tracing::info!(
@@ -267,31 +279,49 @@ async fn soql_complete(
     Ok(cands.iter().map(dto::CompletionDto::from).collect())
 }
 
+/// Populate the in-memory sObject-name cache for `org` (one `sf sobject list`).
+/// Fire-and-forget from the frontend on org select, so FROM completion is ready
+/// without ever blocking a keystroke.
+#[tauri::command]
+async fn warm_schema(org: String, state: State<'_, AppState>) -> Result<usize, String> {
+    let start = Instant::now();
+    tracing::info!(org = %org, "warm_schema start");
+    let names = features::soql::list_sobject_names(&state.invoker, &org).await;
+    let count = names.len();
+    state.sobjects.lock().unwrap().insert(org, Arc::new(names));
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = "ok",
+        count,
+        "warm_schema complete"
+    );
+    Ok(count)
+}
+
 #[tauri::command]
 async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result<usize, String> {
-    let _ = &state;
     let start = Instant::now();
     tracing::info!(org = %org, "refresh_schema_cache start");
     let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
-    match store.clear() {
-        Ok(removed) => {
-            tracing::info!(
-                elapsed_ms = start.elapsed().as_millis(),
-                outcome = "ok",
-                removed,
-                "refresh_schema_cache complete"
-            );
-            Ok(removed)
-        }
-        Err(e) => {
-            tracing::warn!(
-                elapsed_ms = start.elapsed().as_millis(),
-                outcome = "err",
-                "refresh_schema_cache complete"
-            );
-            Err(format!("{e:?}"))
-        }
+    if let Err(e) = store.clear() {
+        tracing::warn!(
+            elapsed_ms = start.elapsed().as_millis(),
+            outcome = "err",
+            "refresh_schema_cache complete"
+        );
+        return Err(format!("{e:?}"));
     }
+    // Re-list sObjects so the next FROM completion reflects current metadata.
+    let names = features::soql::list_sobject_names(&state.invoker, &org).await;
+    let count = names.len();
+    state.sobjects.lock().unwrap().insert(org, Arc::new(names));
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = "ok",
+        count,
+        "refresh_schema_cache complete"
+    );
+    Ok(count)
 }
 
 #[tauri::command]
@@ -331,6 +361,7 @@ pub fn run() {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
         apex: features::apex_complete::ApexCompleter::with_default_root(),
+        sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
     };
 
     tauri::Builder::default()
@@ -347,11 +378,14 @@ pub fn run() {
             apex_complete,
             soql_complete,
             warm_apex,
+            warm_schema,
             refresh_schema_cache,
             soql_diagnostics,
             apex_soql_diagnostics
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_dialog::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
