@@ -15,6 +15,7 @@ import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { SchemaRefresh } from "./components/SchemaRefresh";
+import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { onOpenTabRequest } from "./openTab";
 import { useTheme } from "./theme";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,8 @@ export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
   const [cmdOpen, setCmdOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
+  // Bumped when a workspace root changes, to remount the affected tool panel.
+  const [wsVersion, setWsVersion] = useState(0);
   const { theme, toggle } = useTheme();
   const themeTitle = theme === "dark" ? "Switch to light" : "Switch to dark";
 
@@ -72,6 +75,7 @@ export default function App() {
         </span>
         <div className="flex items-center gap-2">
           <SchemaRefresh />
+          <WorkspaceSettings onChanged={() => setWsVersion((v) => v + 1)} />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -140,8 +144,8 @@ export default function App() {
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {active === "soql" && <SoqlTabs />}
-          {active === "apex" && <ApexTabs />}
+          {active === "soql" && <SoqlTabs key={`soql-${wsVersion}`} />}
+          {active === "apex" && <ApexTabs key={`apex-${wsVersion}`} />}
           {active === "logs" && <LogsPanel />}
         </main>
       </div>
