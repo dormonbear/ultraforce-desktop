@@ -1,5 +1,3 @@
-import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { Database, Moon, ScrollText, Terminal } from "lucide-react";
 import {
   CommandDialog,
@@ -11,7 +9,7 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { useTheme } from "../theme";
-import type { OrgDto } from "../types";
+import { useOrgs } from "../org";
 
 type PanelId = "soql" | "apex" | "logs";
 
@@ -33,17 +31,7 @@ export function CommandPalette({
   onSelectPanel,
 }: CommandPaletteProps) {
   const { toggle } = useTheme();
-  const [orgs, setOrgs] = useState<OrgDto[]>([]);
-  const [orgError, setOrgError] = useState<string | null>(null);
-  const loadedOrgs = useRef(false);
-
-  useEffect(() => {
-    if (!open || loadedOrgs.current) return;
-    loadedOrgs.current = true;
-    invoke<OrgDto[]>("list_orgs")
-      .then(setOrgs)
-      .catch((e) => setOrgError(typeof e === "string" ? e : String(e)));
-  }, [open]);
+  const { orgs, error: orgError, select } = useOrgs();
 
   const close = () => onOpenChange(false);
 
@@ -53,16 +41,12 @@ export function CommandPalette({
   };
 
   const selectOrg = (username: string) => {
-    void invoke("set_target_org", { username });
+    select(username);
     close();
   };
 
   return (
-    <CommandDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      className="rounded-[6px] border-border bg-card shadow-xl"
-    >
+    <CommandDialog open={open} onOpenChange={onOpenChange}>
       <CommandInput placeholder="Search commands..." />
       <CommandList>
         <CommandEmpty>No command found.</CommandEmpty>

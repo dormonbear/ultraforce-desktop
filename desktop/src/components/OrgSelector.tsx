@@ -1,71 +1,52 @@
-import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { toast } from "sonner";
-import { Globe, Check, ChevronDown } from "lucide-react";
+import { Globe, Check, ChevronDown, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { OrgDto } from "../types";
+import { useOrgs } from "../org";
 
 /** Top-bar org picker: lists `sf` orgs and sets the target org for all calls. */
 export function OrgSelector() {
-  const [orgs, setOrgs] = useState<OrgDto[]>([]);
-  const [selected, setSelected] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { orgs, selected, loading, error, select } = useOrgs();
 
-  useEffect(() => {
-    invoke<OrgDto[]>("list_orgs")
-      .then((list) => {
-        setOrgs(list);
-        const def = list.find((o) => o.is_default) ?? list[0];
-        if (def) {
-          setSelected(def.username);
-          invoke("set_target_org", { username: def.username });
-        }
-      })
-      .catch((e) => {
-        const message = typeof e === "string" ? e : String(e);
-        toast.error(message);
-        setError(message);
-      });
-  }, []);
-
-  const choose = (o: OrgDto) => {
-    setSelected(o.username);
-    invoke("set_target_org", { username: o.username });
-  };
-
-  const label = (() => {
-    const cur = orgs.find((o) => o.username === selected);
-    if (error) return "org error";
-    if (!cur) return orgs.length ? "select org" : "no orgs";
-    return cur.alias ?? cur.username;
-  })();
+  const cur = orgs.find((o) => o.username === selected);
+  const label = error
+    ? "org error"
+    : loading
+      ? "loading…"
+      : cur
+        ? (cur.alias ?? cur.username)
+        : orgs.length
+          ? "select org"
+          : "no orgs";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Select Salesforce org"
-        disabled={orgs.length === 0}
+        disabled={loading || orgs.length === 0}
         className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Globe size={12} className="text-primary" />
+        {loading ? (
+          <Loader2 size={12} className="spin text-muted-foreground" />
+        ) : (
+          <Globe size={12} className="text-primary" />
+        )}
         <span className="normal-case tracking-normal">{label}</span>
         <ChevronDown size={12} />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="max-h-72 w-72 overflow-auto rounded-md border-border bg-card py-1 text-[12px]"
+        className="max-h-72 w-72 overflow-auto text-[12px]"
       >
         {orgs.map((o) => (
           <DropdownMenuItem
             key={o.username}
-            onSelect={() => choose(o)}
-            className={`focus-accent flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-accent/40 ${
-              o.username === selected ? "text-primary" : "text-foreground"
+            onSelect={() => select(o.username)}
+            className={`flex cursor-pointer items-center justify-between gap-2 ${
+              o.username === selected ? "text-primary" : ""
             }`}
           >
             <span className="truncate">
