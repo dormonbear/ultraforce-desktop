@@ -80,9 +80,6 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
         prefix_start -= 1;
     }
     let prefix = &input[prefix_start..cursor];
-    if prefix.is_empty() {
-        return CursorContext::Unknown;
-    }
 
     let before_prefix = lex(&input[..prefix_start]);
     let non_ws: Vec<&Token> = before_prefix
@@ -90,6 +87,9 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
         .filter(|token| token.kind != TokenKind::Whitespace)
         .collect();
 
+    // Member access: the token right before the (possibly EMPTY) prefix is a
+    // `.`. Checking this before the empty-prefix bail-out is what lets `Foo.`
+    // and `a.` complete the instant the `.` trigger fires (nothing typed yet).
     if non_ws
         .last()
         .is_some_and(|token| token.kind == TokenKind::Dot)
@@ -115,6 +115,11 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
                 prefix: prefix.to_string(),
             },
         };
+    }
+
+    // Not member access: an empty prefix here has nothing to complete.
+    if prefix.is_empty() {
+        return CursorContext::Unknown;
     }
 
     CursorContext::TopLevel {
@@ -392,6 +397,47 @@ mod tests {
         assert_eq!(needed_type_at(t, t.len()).as_deref(), Some("String"));
         // top-level prefix -> nothing to describe
         assert_eq!(needed_type_at("Acc", 3), None);
+    }
+
+    #[test]
+    fn empty_prefix_after_dot_still_classifies_member_access() {
+        // The `.` trigger fires with nothing typed yet.
+        assert_eq!(
+            context_at("String.", "String.".len()),
+            CursorContext::StaticMember {
+                type_name: "String".to_string(),
+                prefix: String::new(),
+            }
+        );
+        assert_eq!(
+            context_at("Account a; a.", "Account a; a.".len()),
+            CursorContext::InstanceMember {
+                receiver: "a".to_string(),
+                prefix: String::new(),
+            }
+        );
+        // Chain with a trailing dot + empty prefix.
+        match context_at("a.getSelf().", "a.getSelf().".len()) {
+            CursorContext::ChainMember { prefix, chain } => {
+                assert_eq!(prefix, "");
+                assert_eq!(chain.len(), 2);
+            }
+            other => panic!("expected ChainMember, got {other:?}"),
+        }
+        // Empty prefix NOT after a dot stays Unknown.
+        assert_eq!(
+            context_at("Integer x = ", "Integer x = ".len()),
+            CursorContext::Unknown
+        );
+        // On-demand fetch still resolves the type with an empty prefix.
+        assert_eq!(
+            needed_type_at("String.", "String.".len()).as_deref(),
+            Some("String")
+        );
+        assert_eq!(
+            needed_type_at("Account a; a.", "Account a; a.".len()).as_deref(),
+            Some("Account")
+        );
     }
 
     #[test]

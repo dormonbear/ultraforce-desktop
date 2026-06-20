@@ -178,7 +178,8 @@ async fn e2e_apex_top_level_class_names() {
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_apex_class_member_on_demand() {
     let completer = ApexCompleter::with_default_root();
-    let src = "ExperienceController.get";
+    // Empty prefix — the `.` trigger fires with nothing typed yet.
+    let src = "ExperienceController.";
     let cands = completer
         .complete(&invoker(), &org(), src, src.len())
         .await
@@ -186,7 +187,7 @@ async fn e2e_apex_class_member_on_demand() {
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
     assert!(
         l.contains(&"getExperiences"),
-        "static member should complete after on-demand fetch: {l:?}"
+        "static member should complete on `.` with empty prefix: {l:?}"
     );
 }
 
