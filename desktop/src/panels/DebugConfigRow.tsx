@@ -1,5 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   CATEGORY_FIELDS,
   LOG_LEVELS,
@@ -24,61 +31,25 @@ function PresetMenu({
   value: PresetName | null;
   onChoose: (name: PresetName) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
+    <Select
+      value={value ?? undefined}
+      onValueChange={(name) => onChoose(name as PresetName)}
+    >
+      <SelectTrigger
         aria-label="Select debug preset"
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setOpen(false);
-          if (e.key === "ArrowDown") setOpen(true);
-        }}
-        className="focus-accent inline-flex h-7 cursor-pointer items-center gap-2 rounded-[3px] border border-hair bg-surface px-2.5 text-[12px] text-text-dim transition-colors hover:text-text"
+        className="focus-accent h-7 w-44 cursor-pointer rounded-[3px] border-hair bg-surface px-2.5 text-[12px] text-text-dim transition-colors hover:text-text"
       >
-        <span>{value ?? "Custom"}</span>
-        <ChevronDown size={12} />
-      </button>
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute left-0 z-40 mt-1 w-44 overflow-hidden rounded-[3px] border border-hair bg-surface py-1 text-[12px] shadow-lg"
-        >
-          {PRESET_NAMES.map((name) => (
-            <li key={name}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={name === value}
-                onClick={() => {
-                  onChoose(name);
-                  setOpen(false);
-                }}
-                className={`focus-accent nav-state-active flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-hair/40 ${
-                  name === value ? "text-primary" : "text-text"
-                }`}
-              >
-                <span>{name}</span>
-                {name === value && <Check size={12} className="text-primary" />}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+        <SelectValue placeholder="Custom" />
+      </SelectTrigger>
+      <SelectContent className="rounded-[3px] border-hair bg-surface text-[12px]">
+        {PRESET_NAMES.map((name) => (
+          <SelectItem key={name} value={name}>
+            {name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -137,18 +108,24 @@ export function DebugConfigRow({
                 <span className="w-28 shrink-0 truncate text-[11px] uppercase text-text-dim">
                   {label}
                 </span>
-                <select
-                  aria-label={`${label} debug level`}
+                <Select
                   value={value[key]}
-                  onChange={(e) => setLevel(key, e.target.value)}
-                  className="focus-accent h-7 min-w-0 flex-1 cursor-pointer rounded-[3px] border border-hair bg-surface px-2 text-[12px] text-text"
+                  onValueChange={(level) => setLevel(key, level)}
                 >
-                  {LOG_LEVELS.map((level) => (
-                    <option key={level} value={level}>
-                      {level}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger
+                  aria-label={`${label} debug level`}
+                    className="focus-accent h-7 min-w-0 flex-1 cursor-pointer rounded-[3px] border-hair bg-surface px-2 text-[12px] text-text"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-[3px] border-hair bg-surface text-[12px]">
+                    {LOG_LEVELS.map((level) => (
+                      <SelectItem key={level} value={level}>
+                        {level}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </label>
             ))}
           </div>
