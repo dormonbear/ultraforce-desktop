@@ -2,13 +2,21 @@ use crate::symbols::{ApexType, Method, Namespace, Property, TypeKind};
 use serde::Deserialize;
 use serde_json::Value;
 use sf_core::{SfError, SfInvoker};
+use std::time::Duration;
+
+/// The Tooling completions payload is multi-megabyte (≈18 MB / ~140 s observed)
+/// and only fetched once per org+api before being cached to disk, so it needs a
+/// far longer bound than the default 120 s.
+const COMPLETIONS_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub async fn fetch_completions(
     invoker: &SfInvoker,
     api_version: &str,
 ) -> Result<serde_json::Value, SfError> {
     let url = format!("/services/data/v{api_version}/tooling/completions?type=apex");
-    let out = invoker.run_raw(&["api", "request", "rest", &url]).await?;
+    let out = invoker
+        .run_raw_with_timeout(&["api", "request", "rest", &url], COMPLETIONS_TIMEOUT)
+        .await?;
     serde_json::from_str::<serde_json::Value>(&out.stdout).map_err(SfError::Parse)
 }
 
@@ -21,6 +29,29 @@ pub async fn fetch_apex_symbols(invoker: &SfInvoker) -> Result<Vec<serde_json::V
     let q = "SELECT Name, SymbolTable FROM ApexClass";
     let env: QueryEnvelope = invoker
         .run_json(&["data", "query", "--query", q, "--use-tooling-api"])
+        .await?;
+    Ok(env.records)
+}
+
+/// Fetch ONE Apex class's `SymbolTable` on demand (bounded — the scalable
+/// alternative to [`fetch_apex_symbols`], which pulls every class in the org).
+/// Returns the matching records (0 or 1) to feed [`parse_org_types`].
+pub async fn fetch_apex_class(
+    invoker: &SfInvoker,
+    name: &str,
+) -> Result<Vec<serde_json::Value>, SfError> {
+    #[derive(Deserialize)]
+    struct QueryEnvelope {
+        records: Vec<serde_json::Value>,
+    }
+
+    // Class names are bare identifiers; refuse anything with a quote (SOQL-injection safe).
+    if name.is_empty() || name.contains('\'') {
+        return Ok(Vec::new());
+    }
+    let q = format!("SELECT Name, SymbolTable FROM ApexClass WHERE Name = '{name}'");
+    let env: QueryEnvelope = invoker
+        .run_json(&["data", "query", "--query", &q, "--use-tooling-api"])
         .await?;
     Ok(env.records)
 }

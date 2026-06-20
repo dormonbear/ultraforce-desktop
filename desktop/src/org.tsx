@@ -40,6 +40,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     invoke("set_target_org", { username }).catch((e) => {
       toast.error(`Failed to switch org: ${typeof e === "string" ? e : String(e)}`);
     });
+    // Fire-and-forget: pre-warm the Apex OST so the first completion is instant.
+    void invoke("warm_apex", { org: username }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -52,6 +54,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         if (def) {
           setSelected(def.username);
           void invoke("set_target_org", { username: def.username });
+          void invoke("warm_apex", { org: def.username }).catch(() => {});
         }
       })
       .catch((e) => {

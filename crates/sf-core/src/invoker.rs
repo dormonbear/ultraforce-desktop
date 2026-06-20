@@ -41,6 +41,18 @@ impl SfInvoker {
         let full: Vec<String> = args.iter().map(|s| s.to_string()).collect();
         self.runner.run("sf", &full, self.timeout).await
     }
+
+    /// Like [`run_raw`], but with a per-call timeout — for the rare known-slow
+    /// call (e.g. the multi-megabyte Tooling completions payload) that
+    /// legitimately exceeds the default bound.
+    pub async fn run_raw_with_timeout(
+        &self,
+        args: &[&str],
+        timeout: Duration,
+    ) -> Result<RawOutput, SfError> {
+        let full: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        self.runner.run("sf", &full, timeout).await
+    }
 }
 
 #[cfg(test)]

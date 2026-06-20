@@ -223,6 +223,25 @@ async fn apex_complete(
     Ok(cands.iter().map(dto::CandidateDto::from).collect())
 }
 
+/// Pre-warm the Apex OST (one-time stdlib fetch) for an org so the first
+/// interactive completion is instant. Fire-and-forget from the frontend.
+#[tauri::command]
+async fn warm_apex(org: String, state: State<'_, AppState>) -> Result<(), String> {
+    let start = Instant::now();
+    tracing::info!(org = %org, "warm_apex start");
+    let r = state
+        .apex
+        .warm(&state.invoker, &org)
+        .await
+        .map_err(|e| format!("{e:?}"));
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = if r.is_ok() { "ok" } else { "err" },
+        "warm_apex complete"
+    );
+    r
+}
+
 #[tauri::command]
 async fn soql_complete(
     query: String,
@@ -327,6 +346,7 @@ pub fn run() {
             set_debug_config,
             apex_complete,
             soql_complete,
+            warm_apex,
             refresh_schema_cache,
             soql_diagnostics,
             apex_soql_diagnostics

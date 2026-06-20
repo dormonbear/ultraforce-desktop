@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use apex_lang::acquire::{parse_org_types, parse_stdlib};
+use apex_lang::acquire::{fetch_apex_class, parse_org_types, parse_stdlib};
 use apex_lang::complete::{complete as ost_complete, Candidate, CandidateKind};
 use apex_lang::resolve::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
@@ -70,11 +70,19 @@ impl ApexCompleter {
         }
 
         let ost = self.ensure_base(invoker, org_id).await?;
-        // On-demand sObject describe: if the cursor needs a type the OST lacks, try describing it.
+        // On-demand acquisition: if the cursor needs a type the base OST (stdlib)
+        // lacks, fetch JUST that type — an sObject describe first, then a single
+        // Apex class. Both are bounded to one type, so this scales to large orgs
+        // (we never bulk-fetch every class).
         if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
             if resolve_type(&ost, &type_name).is_none() {
                 if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await {
-                    let augmented = self.augment(org_id, apex_ty);
+                    let augmented = self.augment_types(org_id, vec![apex_ty]);
+                    return Ok(ost_complete(src, cursor, &augmented));
+                }
+                let classes = self.fetch_org_class(invoker, &type_name).await;
+                if !classes.is_empty() {
+                    let augmented = self.augment_types(org_id, classes);
                     return Ok(ost_complete(src, cursor, &augmented));
                 }
             }
@@ -107,6 +115,13 @@ impl ApexCompleter {
             .collect())
     }
 
+    /// Pre-build the base OST (stdlib) for `org_id` so the first interactive
+    /// completion does not block on the one-time multi-megabyte stdlib fetch.
+    /// Safe to call fire-and-forget when an org is selected.
+    pub async fn warm(&self, invoker: &SfInvoker, org_id: &str) -> Result<(), SfError> {
+        self.ensure_base(invoker, org_id).await.map(|_| ())
+    }
+
     async fn ensure_base(&self, invoker: &SfInvoker, org_id: &str) -> Result<Arc<Ost>, SfError> {
         if let Some(ost) = self.cached(org_id) {
             return Ok(ost);
@@ -114,6 +129,15 @@ impl ApexCompleter {
         let ost = Arc::new(self.build(invoker, org_id).await?);
         *self.cache.lock().unwrap() = Some((org_id.to_string(), ost.clone()));
         Ok(ost)
+    }
+
+    /// On-demand fetch + parse of a single org Apex class (and its inner types).
+    /// Empty when the name is not an Apex class or the query fails (benign).
+    async fn fetch_org_class(&self, invoker: &SfInvoker, name: &str) -> Vec<ApexType> {
+        match fetch_apex_class(invoker, name).await {
+            Ok(records) if !records.is_empty() => parse_org_types(&records),
+            _ => Vec::new(),
+        }
     }
 
     /// Best-effort describe (None if the name is not a real sObject or describe fails -- benign).
@@ -140,20 +164,22 @@ impl ApexCompleter {
         store.get_or_fetch(invoker, &api, object).await.ok()
     }
 
-    /// Insert `ty` into the cached OST's org_types (dedupe by name); returns the new Arc. Lock not held
-    /// across any await (this fn is sync).
-    fn augment(&self, org_id: &str, ty: ApexType) -> Arc<Ost> {
+    /// Insert `tys` into the cached OST's org_types (dedupe by name); returns the new Arc.
+    /// Lock not held across any await (this fn is sync).
+    fn augment_types(&self, org_id: &str, tys: Vec<ApexType>) -> Arc<Ost> {
         let mut guard = self.cache.lock().unwrap();
         let mut ost = match &*guard {
             Some((id, ost)) if id == org_id => (**ost).clone(),
             _ => Ost::default(),
         };
-        if !ost
-            .org_types
-            .iter()
-            .any(|t| t.name.eq_ignore_ascii_case(&ty.name))
-        {
-            ost.org_types.push(ty);
+        for ty in tys {
+            if !ost
+                .org_types
+                .iter()
+                .any(|t| t.name.eq_ignore_ascii_case(&ty.name))
+            {
+                ost.org_types.push(ty);
+            }
         }
         let arc = Arc::new(ost);
         *guard = Some((org_id.to_string(), arc.clone()));
@@ -167,14 +193,12 @@ impl ApexCompleter {
         // get_or_fetch returns an OWNED Value -- do NOT add `.clone()` (clippy redundant_clone).
         let stdlib = store.get_or_fetch(invoker, &api, OstSource::Stdlib).await?;
         let namespaces = parse_stdlib(&stdlib);
-        let org_raw = store
-            .get_or_fetch(invoker, &api, OstSource::OrgTypes)
-            .await?;
-        let records = org_raw.as_array().cloned().unwrap_or_default();
-        let org_types = parse_org_types(&records);
+        // Org Apex classes are fetched lazily per-type on member access (see
+        // `complete` / `fetch_org_class`), NEVER in bulk — so a first completion
+        // costs O(1) org query, not O(every class in the org).
         Ok(Ost {
             namespaces,
-            org_types,
+            org_types: Vec::new(),
         })
     }
 }
@@ -295,7 +319,7 @@ mod tests {
         let calls_after_first = seen.load(Ordering::SeqCst);
         assert!(
             calls_after_first >= 2,
-            "expected stdlib+orgtypes fetch, got {calls_after_first}"
+            "expected api-version + stdlib fetch, got {calls_after_first}"
         );
 
         // Second call, same org -> served from the in-memory Ost, no new sf calls.
@@ -315,18 +339,21 @@ mod tests {
 
     #[tokio::test]
     async fn completes_sobject_field_via_on_demand_describe() {
-        use std::sync::Mutex as StdMutex;
-
-        // Sequenced responses keyed by call order: org display, stdlib, org ApexClass, then sObject describe.
-        let responses: Arc<StdMutex<Vec<&'static str>>> = Arc::new(StdMutex::new(vec![
-            r#"{"status":0,"result":{"apiVersion":"67.0"}}"#,
-            r#"{"publicDeclarations":{"System":{}}}"#,
-            r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#,
-            r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string"},{"name":"AccountId","type":"reference","referenceTo":["Account"],"relationshipName":"Parent"}]}}"#,
-        ]));
-        let runner = MockRunner::new(move |_p, _args| {
-            let mut r = responses.lock().unwrap();
-            let body = if r.is_empty() { "{}" } else { r.remove(0) };
+        // Dispatch by command (robust to call order + the process-wide api_version
+        // cache): org display -> api version, api request -> stdlib, sobject
+        // describe -> Account fields. The base build no longer bulk-fetches org
+        // Apex classes, so an sObject describe is the only on-demand call here.
+        let runner = MockRunner::new(move |_p, args| {
+            let joined = args.join(" ");
+            let body = if joined.contains("display") {
+                r#"{"status":0,"result":{"apiVersion":"67.0"}}"#
+            } else if joined.contains("request") || joined.contains("completions") {
+                r#"{"publicDeclarations":{"System":{}}}"#
+            } else if joined.contains("describe") || joined.contains("sobject") {
+                r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string"},{"name":"AccountId","type":"reference","referenceTo":["Account"],"relationshipName":"Parent"}]}}"#
+            } else {
+                "{}"
+            };
             Ok(sf_core::RawOutput {
                 status: 0,
                 stdout: body.to_string(),
