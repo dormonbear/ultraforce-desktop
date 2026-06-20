@@ -9,28 +9,82 @@ use std::time::Duration;
 /// far longer bound than the default 120 s.
 const COMPLETIONS_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Append `--target-org <org>` unless `org` is empty or the "default" sentinel
+/// (then the CLI's configured default org is used). Keeps OST acquisition pinned
+/// to the SELECTED org instead of whatever the CLI default happens to be.
+fn with_target<'a>(mut args: Vec<&'a str>, org: &'a str) -> Vec<&'a str> {
+    if !org.is_empty() && org != "default" {
+        args.push("--target-org");
+        args.push(org);
+    }
+    args
+}
+
 pub async fn fetch_completions(
     invoker: &SfInvoker,
+    org: &str,
     api_version: &str,
 ) -> Result<serde_json::Value, SfError> {
     let url = format!("/services/data/v{api_version}/tooling/completions?type=apex");
+    let args = with_target(vec!["api", "request", "rest", &url], org);
     let out = invoker
-        .run_raw_with_timeout(&["api", "request", "rest", &url], COMPLETIONS_TIMEOUT)
+        .run_raw_with_timeout(&args, COMPLETIONS_TIMEOUT)
         .await?;
     serde_json::from_str::<serde_json::Value>(&out.stdout).map_err(SfError::Parse)
 }
 
-pub async fn fetch_apex_symbols(invoker: &SfInvoker) -> Result<Vec<serde_json::Value>, SfError> {
+pub async fn fetch_apex_symbols(
+    invoker: &SfInvoker,
+    org: &str,
+) -> Result<Vec<serde_json::Value>, SfError> {
     #[derive(Deserialize)]
     struct QueryEnvelope {
         records: Vec<serde_json::Value>,
     }
 
-    let q = "SELECT Name, SymbolTable FROM ApexClass";
-    let env: QueryEnvelope = invoker
-        .run_json(&["data", "query", "--query", q, "--use-tooling-api"])
-        .await?;
+    let args = with_target(
+        vec![
+            "data",
+            "query",
+            "--query",
+            "SELECT Name, SymbolTable FROM ApexClass",
+            "--use-tooling-api",
+        ],
+        org,
+    );
+    let env: QueryEnvelope = invoker.run_json(&args).await?;
     Ok(env.records)
+}
+
+/// Fetch just the NAMES of every org Apex class (cheap — no `SymbolTable`), for
+/// top-level type-name completion. Each class's full members load on demand via
+/// [`fetch_apex_class`]. Names-only stays small even on large orgs.
+pub async fn fetch_apex_class_names(
+    invoker: &SfInvoker,
+    org: &str,
+) -> Result<Vec<String>, SfError> {
+    #[derive(Deserialize)]
+    struct Rec {
+        #[serde(rename = "Name")]
+        name: String,
+    }
+    #[derive(Deserialize)]
+    struct QueryEnvelope {
+        records: Vec<Rec>,
+    }
+
+    let args = with_target(
+        vec![
+            "data",
+            "query",
+            "--query",
+            "SELECT Name FROM ApexClass",
+            "--use-tooling-api",
+        ],
+        org,
+    );
+    let env: QueryEnvelope = invoker.run_json(&args).await?;
+    Ok(env.records.into_iter().map(|r| r.name).collect())
 }
 
 /// Fetch ONE Apex class's `SymbolTable` on demand (bounded — the scalable
@@ -38,6 +92,7 @@ pub async fn fetch_apex_symbols(invoker: &SfInvoker) -> Result<Vec<serde_json::V
 /// Returns the matching records (0 or 1) to feed [`parse_org_types`].
 pub async fn fetch_apex_class(
     invoker: &SfInvoker,
+    org: &str,
     name: &str,
 ) -> Result<Vec<serde_json::Value>, SfError> {
     #[derive(Deserialize)]
@@ -50,9 +105,11 @@ pub async fn fetch_apex_class(
         return Ok(Vec::new());
     }
     let q = format!("SELECT Name, SymbolTable FROM ApexClass WHERE Name = '{name}'");
-    let env: QueryEnvelope = invoker
-        .run_json(&["data", "query", "--query", &q, "--use-tooling-api"])
-        .await?;
+    let args = with_target(
+        vec!["data", "query", "--query", &q, "--use-tooling-api"],
+        org,
+    );
+    let env: QueryEnvelope = invoker.run_json(&args).await?;
     Ok(env.records)
 }
 
@@ -387,7 +444,7 @@ mod tests {
         });
         let invoker = SfInvoker::new(Arc::new(runner));
 
-        let raw = fetch_completions(&invoker, "60.0").await.unwrap();
+        let raw = fetch_completions(&invoker, "default", "60.0").await.unwrap();
 
         assert!(raw.get("publicDeclarations").is_some());
         assert_eq!(
@@ -416,7 +473,7 @@ mod tests {
         });
         let invoker = SfInvoker::new(Arc::new(runner));
 
-        let records = fetch_apex_symbols(&invoker).await.unwrap();
+        let records = fetch_apex_symbols(&invoker, "default").await.unwrap();
 
         assert_eq!(records.len(), 2);
         assert_eq!(

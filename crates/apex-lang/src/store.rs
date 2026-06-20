@@ -90,8 +90,8 @@ impl OstStore {
         }
 
         let value = match source {
-            OstSource::Stdlib => fetch_completions(invoker, api_version).await?,
-            OstSource::OrgTypes => Value::Array(fetch_apex_symbols(invoker).await?),
+            OstSource::Stdlib => fetch_completions(invoker, &self.org_id, api_version).await?,
+            OstSource::OrgTypes => Value::Array(fetch_apex_symbols(invoker, &self.org_id).await?),
         };
         self.persist(api_version, source, &value)?;
         self.mem

@@ -128,11 +128,11 @@ async fn e2e_schema_cache_clear() {
     let root = SchemaStore::default_root();
     let api = features::api_version::api_version_for(&inv, &org()).await;
 
-    let mut s1 = SchemaStore::new(&root, &org());
+    let mut s1 = SchemaStore::new(&root, org());
     let schema = s1.get_or_fetch(&inv, &api, "Account").await.expect("describe Account");
     assert!(!schema.fields.is_empty(), "Account should have fields");
 
-    let mut s2 = SchemaStore::new(&root, &org());
+    let mut s2 = SchemaStore::new(&root, org());
     let removed = s2.clear().expect("clear should succeed");
     assert!(removed >= 1, "clear should remove >=1 cached object, got {removed}");
 }
@@ -152,6 +152,42 @@ async fn e2e_apex_completion_sobject() {
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
     assert!(!l.is_empty(), "expected member candidates after `a.Na`");
     assert!(l.contains(&"Name"), "Account.Name should complete: {l:?}");
+}
+
+/// Top-level org Apex CLASS NAME completion via the cheap names-only fetch
+/// (no bulk SymbolTable pull).
+#[tokio::test]
+#[ignore = "hits the live org; run with --ignored"]
+async fn e2e_apex_top_level_class_names() {
+    let completer = ApexCompleter::with_default_root();
+    let src = "Experience";
+    let cands = completer
+        .complete(&invoker(), &org(), src, src.len())
+        .await
+        .expect("apex completion should succeed");
+    let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
+    assert!(
+        l.contains(&"ExperienceController"),
+        "org class name should complete at top level: {l:?}"
+    );
+}
+
+/// On-demand upgrade: a name-only class stub fetches its full SymbolTable when a
+/// member is accessed.
+#[tokio::test]
+#[ignore = "hits the live org; run with --ignored"]
+async fn e2e_apex_class_member_on_demand() {
+    let completer = ApexCompleter::with_default_root();
+    let src = "ExperienceController.get";
+    let cands = completer
+        .complete(&invoker(), &org(), src, src.len())
+        .await
+        .expect("apex completion should succeed");
+    let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
+    assert!(
+        l.contains(&"getExperiences"),
+        "static member should complete after on-demand fetch: {l:?}"
+    );
 }
 
 /// #DML — insert → query → delete round-trip via the app's real command surface.

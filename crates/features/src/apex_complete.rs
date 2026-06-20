@@ -3,7 +3,9 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use apex_lang::acquire::{fetch_apex_class, parse_org_types, parse_stdlib};
+use apex_lang::acquire::{
+    fetch_apex_class, fetch_apex_class_names, parse_org_types, parse_stdlib,
+};
 use apex_lang::complete::{complete as ost_complete, Candidate, CandidateKind};
 use apex_lang::resolve::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
@@ -75,12 +77,14 @@ impl ApexCompleter {
         // Apex class. Both are bounded to one type, so this scales to large orgs
         // (we never bulk-fetch every class).
         if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
-            if resolve_type(&ost, &type_name).is_none() {
+            // Fetch when the type is unknown OR is a members-less stub (so a
+            // top-level-named org class upgrades to its full SymbolTable here).
+            if resolve_type(&ost, &type_name).is_none_or(is_stub_type) {
                 if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await {
                     let augmented = self.augment_types(org_id, vec![apex_ty]);
                     return Ok(ost_complete(src, cursor, &augmented));
                 }
-                let classes = self.fetch_org_class(invoker, &type_name).await;
+                let classes = self.fetch_org_class(invoker, org_id, &type_name).await;
                 if !classes.is_empty() {
                     let augmented = self.augment_types(org_id, classes);
                     return Ok(ost_complete(src, cursor, &augmented));
@@ -133,8 +137,13 @@ impl ApexCompleter {
 
     /// On-demand fetch + parse of a single org Apex class (and its inner types).
     /// Empty when the name is not an Apex class or the query fails (benign).
-    async fn fetch_org_class(&self, invoker: &SfInvoker, name: &str) -> Vec<ApexType> {
-        match fetch_apex_class(invoker, name).await {
+    async fn fetch_org_class(
+        &self,
+        invoker: &SfInvoker,
+        org_id: &str,
+        name: &str,
+    ) -> Vec<ApexType> {
+        match fetch_apex_class(invoker, org_id, name).await {
             Ok(records) if !records.is_empty() => parse_org_types(&records),
             _ => Vec::new(),
         }
@@ -173,13 +182,11 @@ impl ApexCompleter {
             _ => Ost::default(),
         };
         for ty in tys {
-            if !ost
-                .org_types
-                .iter()
-                .any(|t| t.name.eq_ignore_ascii_case(&ty.name))
-            {
-                ost.org_types.push(ty);
-            }
+            // Replace any same-name entry (e.g. upgrade a name-only stub to the
+            // fully-fetched type); otherwise append.
+            ost.org_types
+                .retain(|t| !t.name.eq_ignore_ascii_case(&ty.name));
+            ost.org_types.push(ty);
         }
         let arc = Arc::new(ost);
         *guard = Some((org_id.to_string(), arc.clone()));
@@ -193,14 +200,38 @@ impl ApexCompleter {
         // get_or_fetch returns an OWNED Value -- do NOT add `.clone()` (clippy redundant_clone).
         let stdlib = store.get_or_fetch(invoker, &api, OstSource::Stdlib).await?;
         let namespaces = parse_stdlib(&stdlib);
-        // Org Apex classes are fetched lazily per-type on member access (see
-        // `complete` / `fetch_org_class`), NEVER in bulk — so a first completion
-        // costs O(1) org query, not O(every class in the org).
+        // Top-level org-class-name completion is cheap: a names-only query (no
+        // SymbolTable) builds stub types. Each class's MEMBERS load lazily on
+        // member access (see `complete` / `fetch_org_class`), so we never bulk
+        // fetch every class's symbol table.
+        let org_types = fetch_apex_class_names(invoker, org_id)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(stub_type)
+            .collect();
         Ok(Ost {
             namespaces,
-            org_types: Vec::new(),
+            org_types,
         })
     }
+}
+
+/// A member-less placeholder for an org Apex class (top-level name completion
+/// only). Replaced by the full type when its members are fetched on demand.
+fn stub_type(name: String) -> ApexType {
+    ApexType {
+        name,
+        kind: TypeKind::Class,
+        methods: Vec::new(),
+        properties: Vec::new(),
+        enum_values: Vec::new(),
+    }
+}
+
+/// True for a stub (no members yet) — i.e. it still needs an on-demand fetch.
+fn is_stub_type(ty: &ApexType) -> bool {
+    ty.methods.is_empty() && ty.properties.is_empty() && ty.enum_values.is_empty()
 }
 
 /// Salesforce describe `field.type` -> the Apex type name used in completion.
@@ -370,6 +401,52 @@ mod tests {
             .await
             .unwrap();
         assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn upgrades_org_class_stub_via_on_demand_member_fetch() {
+        // Base OST gets a NAME-only stub for class `Foo`; accessing a member
+        // upgrades it to the full SymbolTable on demand. Dispatch by command so
+        // the names query and the single-class query are distinguished.
+        let runner = MockRunner::new(move |_p, args| {
+            let joined = args.join(" ");
+            let body = if joined.contains("display") {
+                r#"{"status":0,"result":{"apiVersion":"67.0"}}"#
+            } else if joined.contains("request") || joined.contains("completions") {
+                r#"{"publicDeclarations":{}}"#
+            } else if joined.contains("SymbolTable") {
+                // Single-class fetch -> full type with a static `bar`.
+                r#"{"status":0,"result":{"records":[{"Name":"Foo","SymbolTable":{"name":"Foo","methods":[{"name":"bar","modifiers":["static"],"returnType":"void","parameters":[]}]}}],"totalSize":1,"done":true}}"#
+            } else if joined.contains("ApexClass") {
+                // Names-only fetch -> one stub.
+                r#"{"status":0,"result":{"records":[{"Name":"Foo"}],"totalSize":1,"done":true}}"#
+            } else {
+                // sObject describe for `Foo` fails (it is a class, not an sObject).
+                "{}"
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("apex-stub-test-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+
+        // Top-level: the stub name is offered.
+        let top = completer.complete(&invoker, "myorg", "Fo", 2).await.unwrap();
+        assert!(top.iter().any(|c| c.label == "Foo"), "stub name: {top:?}");
+
+        // Member access upgrades the stub and surfaces its static method.
+        let input = "Foo.ba";
+        let got = completer
+            .complete(&invoker, "myorg", input, input.len())
+            .await
+            .unwrap();
+        assert!(got.iter().any(|c| c.label == "bar"), "upgraded member: {got:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
