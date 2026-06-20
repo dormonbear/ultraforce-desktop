@@ -33,12 +33,12 @@ function TreeNode({ node, depth }: { node: ExecNodeDto; depth: number }) {
   return (
     <>
       <div
-        className="flex items-baseline gap-2 border-b border-hair/50 py-0.5 text-[12px]"
+        className="flex items-baseline gap-2 border-b border-border/50 py-0.5 text-[12px]"
         style={{ paddingLeft: `${depth * 14}px` }}
       >
-        <span className="shrink-0 text-text">{node.label}</span>
+        <span className="shrink-0 text-foreground">{node.label}</span>
         {node.detail && (
-          <span className="min-w-0 flex-1 truncate text-text-faint">
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">
             {node.detail}
           </span>
         )}
@@ -60,7 +60,7 @@ function LimitsView({ units }: { units: UnitDto[] }) {
   const rollups = units.flatMap((u) => u.limits);
   if (rollups.length === 0) {
     return (
-      <div className="py-4 text-center text-[13px] text-text-faint">
+      <div className="py-4 text-center text-[13px] text-muted-foreground">
         — no limit usage —
       </div>
     );
@@ -74,7 +74,7 @@ function LimitsView({ units }: { units: UnitDto[] }) {
           </div>
           <table className="w-full text-[12px]">
             <thead>
-              <tr className="text-text-faint">
+              <tr className="text-muted-foreground">
                 <th className="py-1 text-left font-normal">NAME</th>
                 <th className="py-1 text-right font-normal">USED</th>
                 <th className="py-1 text-right font-normal">MAX</th>
@@ -86,11 +86,11 @@ function LimitsView({ units }: { units: UnitDto[] }) {
                 return (
                   <tr
                     key={ei}
-                    className={`border-t border-hair/50 ${
-                      hot ? "text-red" : "text-text-dim"
+                    className={`border-t border-border/50 ${
+                      hot ? "text-destructive" : "text-text-dim"
                     }`}
                   >
-                    <td className="py-0.5 pr-2 text-text">{e.name}</td>
+                    <td className="py-0.5 pr-2 text-foreground">{e.name}</td>
                     <td className="tnum py-0.5 text-right">{e.used}</td>
                     <td className="tnum py-0.5 text-right">{e.max}</td>
                   </tr>
@@ -160,7 +160,7 @@ export function LogsPanel() {
               onClick={refresh}
               disabled={listLoading}
               title="Refresh"
-              className="focus-accent inline-flex items-center gap-1 rounded-[3px] px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-text disabled:opacity-40 cursor-pointer"
+              className="focus-accent inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground disabled:opacity-40 cursor-pointer"
             >
               {listLoading ? (
                 <Loader2 size={12} className="spin" />
@@ -173,11 +173,11 @@ export function LogsPanel() {
 
           <ScrollArea className="min-h-0 flex-1">
             {listError ? (
-              <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-[3px] border border-red/40 bg-surface p-3 text-[12px] text-red">
+              <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
                 {listError}
               </pre>
             ) : logs.length === 0 && !listLoading ? (
-              <div className="flex h-full items-center justify-center text-text-faint text-[13px]">
+              <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
                 — no logs —
               </div>
             ) : (
@@ -189,7 +189,7 @@ export function LogsPanel() {
                     key={log.id}
                     type="button"
                     onClick={() => select(log.id)}
-                    className={`focus-accent relative flex w-full items-center gap-2 border-b border-hair px-4 py-2 text-left hover:bg-surface-3 cursor-pointer ${
+                    className={`focus-accent relative flex w-full items-center gap-2 border-b border-border px-4 py-2 text-left hover:bg-accent cursor-pointer ${
                       selected ? "bg-primary/10" : ""
                     }`}
                   >
@@ -198,15 +198,15 @@ export function LogsPanel() {
                     )}
                     <span
                       className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                        ok ? "bg-success" : "bg-red"
+                        ok ? "bg-success" : "bg-destructive"
                       }`}
                     />
-                    <span className="min-w-0 flex-1 truncate text-[12px] text-text">
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
                       {log.operation}
                     </span>
                     <Badge
                       variant={ok ? "success" : "destructive"}
-                      className="shrink-0 rounded-[3px] px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide"
+                      className="shrink-0 rounded-md px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide"
                     >
                       {log.status}
                     </Badge>
@@ -225,15 +225,15 @@ export function LogsPanel() {
           <div className="micro-label px-4 py-2">LOG DETAIL</div>
 
           {!selectedId ? (
-            <div className="flex flex-1 items-center justify-center text-text-faint text-[13px]">
+            <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
               — select a log —
             </div>
           ) : viewLoading ? (
-            <div className="flex flex-1 items-center justify-center text-text-faint">
+            <div className="flex flex-1 items-center justify-center text-muted-foreground">
               <Loader2 size={18} className="spin" />
             </div>
           ) : viewError ? (
-            <pre className="mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-[3px] border border-red/40 bg-surface p-3 text-[12px] text-red">
+            <pre className="mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
               {viewError}
             </pre>
           ) : view ? (
@@ -255,7 +255,7 @@ export function LogsPanel() {
                     <ToggleGroupItem
                       key={t}
                       value={t}
-                      className="focus-accent h-auto cursor-pointer rounded-[3px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-dim hover:text-text data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                      className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
                     >
                       {t}
                     </ToggleGroupItem>
@@ -264,16 +264,16 @@ export function LogsPanel() {
               </div>
 
               {tab === "raw" ? (
-                <div className="min-h-0 flex-1 overflow-hidden rounded-[3px] border border-hair">
+                <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
                   <LogView raw={view.raw} />
                 </div>
               ) : (
-                <ScrollArea className="min-h-0 flex-1 rounded-[3px] border border-hair bg-surface">
+                <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
                   <div className="p-3">
                   {tab === "tree" ? (
                     view.units.length === 0 ||
                     view.units.every((u) => u.tree.length === 0) ? (
-                      <div className="py-4 text-center text-[13px] text-text-faint">
+                      <div className="py-4 text-center text-[13px] text-muted-foreground">
                         — no execution tree —
                       </div>
                     ) : (

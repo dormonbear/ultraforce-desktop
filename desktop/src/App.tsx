@@ -49,14 +49,14 @@ export default function App() {
 
   return (
     <TooltipProvider>
-    <div className="flex h-full flex-col bg-bg text-text">
+    <div className="flex h-full flex-col bg-background text-foreground">
       {/* 2px accent strip */}
       <div className="h-0.5 w-full bg-primary" />
 
       {/* Top bar */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-hair px-4">
+      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <span
-          className="text-[20px] font-normal tracking-tight text-text"
+          className="text-[20px] font-normal tracking-tight text-foreground"
           style={{ fontFamily: "var(--font-display)" }}
         >
           SF·TOOLKIT
@@ -68,7 +68,7 @@ export default function App() {
                 type="button"
                 onClick={toggle}
                 aria-label="Toggle color theme"
-                className="focus-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-text"
+                className="focus-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
               >
                 {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
               </button>
@@ -81,7 +81,7 @@ export default function App() {
 
       <div className="flex min-h-0 flex-1">
         {/* Activity rail */}
-        <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-hair py-2">
+        <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-border py-2">
           {RAIL.map(({ id, icon: Icon, label, enabled }) => {
             const current = enabled && id === active;
             return (
@@ -93,12 +93,12 @@ export default function App() {
                     aria-label={label}
                     aria-current={current ? "page" : undefined}
                     onClick={() => enabled && setActive(id as ActivePanel)}
-                    className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-[3px] ${
+                    className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-md ${
                       current
                         ? "text-primary"
                         : enabled
-                          ? "text-text-dim hover:text-text"
-                          : "text-text-faint disabled:cursor-not-allowed"
+                          ? "text-text-dim hover:text-foreground"
+                          : "text-muted-foreground disabled:cursor-not-allowed"
                     } cursor-pointer`}
                   >
                     {current && (

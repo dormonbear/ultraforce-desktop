@@ -50,7 +50,7 @@ export function OrgSelector() {
       <DropdownMenuTrigger
         aria-label="Select Salesforce org"
         disabled={orgs.length === 0}
-        className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-[3px] border border-hair px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
+        className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Globe size={12} className="text-primary" />
         <span className="normal-case tracking-normal">{label}</span>
@@ -58,21 +58,21 @@ export function OrgSelector() {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="max-h-72 w-72 overflow-auto rounded-[3px] border-hair bg-surface py-1 text-[12px]"
+        className="max-h-72 w-72 overflow-auto rounded-md border-border bg-card py-1 text-[12px]"
       >
         {orgs.map((o) => (
           <DropdownMenuItem
             key={o.username}
             onSelect={() => choose(o)}
-            className={`focus-accent flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-hair/40 ${
-              o.username === selected ? "text-primary" : "text-text"
+            className={`focus-accent flex cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-accent/40 ${
+              o.username === selected ? "text-primary" : "text-foreground"
             }`}
           >
             <span className="truncate">
               {o.alias ? `${o.alias} · ` : ""}
               {o.username}
             </span>
-            <span className="flex items-center gap-1 text-text-faint">
+            <span className="flex items-center gap-1 text-muted-foreground">
               {o.is_default && (
                 <span className="text-[10px] uppercase">default</span>
               )}

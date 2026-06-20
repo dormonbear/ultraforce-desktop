@@ -14,11 +14,11 @@ function FieldRow({ field, depth }: { field: FieldDto; depth: number }) {
           type="button"
           onClick={() => setOpen((o) => !o)}
           style={pad}
-          className="focus-accent flex w-full cursor-pointer items-center gap-1 py-0.5 text-left hover:bg-hair/30"
+          className="focus-accent flex w-full cursor-pointer items-center gap-1 py-0.5 text-left hover:bg-accent/30"
         >
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          <span className="text-text">{field.name}</span>
-          <span className="text-text-faint">▸ {v.parent.sobject_type}</span>
+          <span className="text-foreground">{field.name}</span>
+          <span className="text-muted-foreground">▸ {v.parent.sobject_type}</span>
         </button>
         {open && <RecordNode record={v.parent} depth={depth + 1} />}
       </>
@@ -31,11 +31,11 @@ function FieldRow({ field, depth }: { field: FieldDto; depth: number }) {
           type="button"
           onClick={() => setOpen((o) => !o)}
           style={pad}
-          className="focus-accent flex w-full cursor-pointer items-center gap-1 py-0.5 text-left hover:bg-hair/30"
+          className="focus-accent flex w-full cursor-pointer items-center gap-1 py-0.5 text-left hover:bg-accent/30"
         >
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          <span className="text-text">{field.name}</span>
-          <span className="text-text-faint tnum">[{v.children.length}]</span>
+          <span className="text-foreground">{field.name}</span>
+          <span className="text-muted-foreground tnum">[{v.children.length}]</span>
         </button>
         {open &&
           v.children.map((c, i) => <RecordNode key={i} record={c} depth={depth + 1} />)}
@@ -45,8 +45,8 @@ function FieldRow({ field, depth }: { field: FieldDto; depth: number }) {
   return (
     <div style={pad} className="flex gap-2 py-0.5">
       <span className="text-text-dim">{field.name}</span>
-      <span className="tnum text-text">
-        {v.kind === "null" ? <span className="text-text-faint">null</span> : v.scalar}
+      <span className="tnum text-foreground">
+        {v.kind === "null" ? <span className="text-muted-foreground">null</span> : v.scalar}
       </span>
     </div>
   );
@@ -72,7 +72,7 @@ function RecordNode({ record, depth }: { record: RecordDto; depth: number }) {
 export function RecordTree({ records }: { records: RecordDto[] }) {
   if (records.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-[13px] text-text-faint">
+      <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
         — no rows —
       </div>
     );

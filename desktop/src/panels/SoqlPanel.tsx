@@ -59,7 +59,7 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
       <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
       <ResizablePanel defaultSize={60} minSize={20}>
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-hair px-4 py-1.5">
+          <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
             <ToggleGroup
               type="single"
               value={view}
@@ -72,7 +72,7 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
                 <ToggleGroupItem
                   key={v}
                   value={v}
-                  className="focus-accent h-auto cursor-pointer rounded-[3px] px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-text data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                  className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
                 >
                   {v}
                 </ToggleGroupItem>
@@ -82,11 +82,11 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
           </div>
           <div className="min-h-0 flex-1">
             {error ? (
-              <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-[3px] border border-red/40 bg-surface p-3 text-[12px] text-red">
+              <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
                 {error}
               </pre>
             ) : !result ? (
-              <div className="flex h-full items-center justify-center text-[13px] text-text-faint">
+              <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
                 — run a query —
               </div>
             ) : view === "table" ? (

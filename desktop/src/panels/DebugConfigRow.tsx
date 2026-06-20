@@ -38,11 +38,11 @@ function PresetMenu({
     >
       <SelectTrigger
         aria-label="Select debug preset"
-        className="focus-accent h-7 w-44 cursor-pointer rounded-[3px] border-hair bg-surface px-2.5 text-[12px] text-text-dim transition-colors hover:text-text"
+        className="focus-accent h-7 w-44 cursor-pointer rounded-md border-border bg-card px-2.5 text-[12px] text-text-dim transition-colors hover:text-foreground"
       >
         <SelectValue placeholder="Custom" />
       </SelectTrigger>
-      <SelectContent className="rounded-[3px] border-hair bg-surface text-[12px]">
+      <SelectContent className="rounded-md border-border bg-card text-[12px]">
         {PRESET_NAMES.map((name) => (
           <SelectItem key={name} value={name}>
             {name}
@@ -67,20 +67,20 @@ export function DebugConfigRow({
   };
 
   return (
-    <div className="border-y border-hair bg-surface/60 px-4 py-2">
+    <div className="border-y border-border bg-card/60 px-4 py-2">
       <button
         type="button"
         aria-label="Toggle debug levels"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="focus-accent flex w-full cursor-pointer items-center gap-3 rounded-[3px] py-1 text-left"
+        className="focus-accent flex w-full cursor-pointer items-center gap-3 rounded-md py-1 text-left"
       >
         <ChevronRight
           size={14}
           className={`shrink-0 text-text-dim transition-transform ${open ? "rotate-90" : ""}`}
         />
         <span className="micro-label min-w-[118px] shrink-0">DEBUG LEVELS</span>
-        <span className="text-[12px] text-text">{activePreset ?? "Custom"}</span>
+        <span className="text-[12px] text-foreground">{activePreset ?? "Custom"}</span>
         <span className="ml-auto flex min-w-0 items-center gap-2 text-[11px]">
           {applying && (
             <span className="inline-flex items-center gap-1 text-text-dim">
@@ -88,12 +88,12 @@ export function DebugConfigRow({
               applying
             </span>
           )}
-          {error && <span className="truncate text-red">{error}</span>}
+          {error && <span className="truncate text-destructive">{error}</span>}
         </span>
       </button>
 
       {open && (
-        <div className="mt-2 grid gap-2 border-t border-hair pt-2">
+        <div className="mt-2 grid gap-2 border-t border-border pt-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="micro-label w-24 shrink-0">PRESET</span>
             <PresetMenu
@@ -114,11 +114,11 @@ export function DebugConfigRow({
                 >
                   <SelectTrigger
                   aria-label={`${label} debug level`}
-                    className="focus-accent h-7 min-w-0 flex-1 cursor-pointer rounded-[3px] border-hair bg-surface px-2 text-[12px] text-text"
+                    className="focus-accent h-7 min-w-0 flex-1 cursor-pointer rounded-md border-border bg-card px-2 text-[12px] text-foreground"
                   >
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-[3px] border-hair bg-surface text-[12px]">
+                  <SelectContent className="rounded-md border-border bg-card text-[12px]">
                     {LOG_LEVELS.map((level) => (
                       <SelectItem key={level} value={level}>
                         {level}

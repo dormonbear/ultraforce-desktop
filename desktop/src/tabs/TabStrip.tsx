@@ -37,7 +37,7 @@ export function TabStrip({
     <div
       role="tablist"
       aria-label={ariaLabel}
-      className="flex h-9 shrink-0 items-center gap-px border-b border-hair bg-surface px-2"
+      className="flex h-9 shrink-0 items-center gap-px border-b border-border bg-card px-2"
     >
       {tabs.map((t, idx) => {
         const active = t.id === activeId;
@@ -50,8 +50,8 @@ export function TabStrip({
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(t.id)}
             onKeyDown={(e) => onKeyDown(e, t.id, idx)}
-            className={`focus-accent group relative flex h-7 cursor-pointer items-center gap-2 rounded-[3px] px-3 text-[12px] transition-colors ${
-              active ? "text-primary" : "text-text-dim hover:text-text"
+            className={`focus-accent group relative flex h-7 cursor-pointer items-center gap-2 rounded-md px-3 text-[12px] transition-colors ${
+              active ? "text-primary" : "text-text-dim hover:text-foreground"
             }`}
           >
             {active && (
@@ -65,7 +65,7 @@ export function TabStrip({
                 e.stopPropagation();
                 onClose(t.id);
               }}
-              className={`cursor-pointer rounded-[2px] text-text-faint transition-colors hover:text-red ${
+              className={`cursor-pointer rounded-[2px] text-muted-foreground transition-colors hover:text-destructive ${
                 lone ? "invisible" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
               } ${active ? "opacity-100" : ""}`}
             >
@@ -78,7 +78,7 @@ export function TabStrip({
         type="button"
         aria-label="New tab"
         onClick={onAdd}
-        className="focus-accent ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-primary"
+        className="focus-accent ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-primary"
       >
         <Plus size={14} />
       </button>

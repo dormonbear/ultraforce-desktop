@@ -61,7 +61,7 @@ export function CommandPalette({
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      className="rounded-[6px] border-hair bg-surface shadow-xl"
+      className="rounded-[6px] border-border bg-card shadow-xl"
     >
       <CommandInput placeholder="Search commands..." />
       <CommandList>
