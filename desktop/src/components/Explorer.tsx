@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactElement } from "react";
-import { FilePlus, FolderPlus, RefreshCw } from "lucide-react";
+import { FilePlus, FolderPlus, RefreshCw, Search, X } from "lucide-react";
 import {
   readTree,
   createFile,
@@ -9,6 +9,7 @@ import {
   moveNode,
   type TreeNode as Node,
 } from "../fs/tree";
+import { filterTree, searchContent, type FileHit } from "../fs/search";
 import { dirname } from "../fs/paths";
 import { TreeNode } from "./TreeNode";
 
@@ -38,6 +39,9 @@ export function Explorer({
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [edit, setEdit] = useState<Edit | null>(null);
   const [drag, setDrag] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [mode, setMode] = useState<"name" | "content">("name");
+  const [hits, setHits] = useState<FileHit[] | null>(null);
 
   const refresh = useCallback(() => {
     void readTree(root).then(setTree);
@@ -102,10 +106,24 @@ export function Explorer({
     refresh();
   };
 
+  // Name-filter the tree live; when active, dirs auto-expand to reveal hits.
+  const nameFilter = mode === "name" ? query.trim() : "";
+  const shown = nameFilter ? filterTree(tree, nameFilter) : tree;
+  const forceExpand = nameFilter.length > 0;
+
+  const runContentSearch = () => {
+    const q = query.trim();
+    if (!q) {
+      setHits(null);
+      return;
+    }
+    void searchContent(tree, q).then(setHits);
+  };
+
   const rows: ReactElement[] = [];
   const walk = (nodes: Node[], depth: number) => {
     for (const n of nodes) {
-      const isOpen = expanded.has(n.path);
+      const isOpen = forceExpand || expanded.has(n.path);
       rows.push(
         <TreeNode
           key={n.path}
@@ -126,7 +144,7 @@ export function Explorer({
       if (n.kind === "dir" && isOpen && n.children) walk(n.children, depth + 1);
     }
   };
-  walk(tree, 0);
+  walk(shown, 0);
 
   return (
     <div
@@ -137,6 +155,51 @@ export function Explorer({
         void drop(root);
       }}
     >
+      <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+        <Search size={12} className="shrink-0 text-text-dim" />
+        <input
+          value={query}
+          placeholder={mode === "name" ? "Filter by name" : "Search in files"}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (mode === "content" && e.key === "Enter") runContentSearch();
+            else if (e.key === "Escape") {
+              setQuery("");
+              setHits(null);
+            }
+          }}
+          className="min-w-0 flex-1 bg-transparent text-[12px] text-foreground outline-none placeholder:text-text-dim"
+        />
+        {query && (
+          <button
+            type="button"
+            aria-label="Clear search"
+            onClick={() => {
+              setQuery("");
+              setHits(null);
+            }}
+            className="shrink-0 text-text-dim hover:text-foreground"
+          >
+            <X size={12} />
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Toggle search mode"
+          title={mode === "name" ? "Filter file names" : "Search file contents"}
+          onClick={() => {
+            setMode((m) => (m === "name" ? "content" : "name"));
+            setHits(null);
+          }}
+          className={`shrink-0 rounded px-1 text-[10px] font-medium uppercase ${
+            mode === "content"
+              ? "bg-primary/15 text-primary"
+              : "text-text-dim hover:text-foreground"
+          }`}
+        >
+          {mode === "name" ? "Aa" : "Txt"}
+        </button>
+      </div>
       <div className="flex h-9 items-center justify-end gap-1 border-b border-border px-2">
         <IconBtn label="New file" onClick={() => newAt("new-file")}>
           <FilePlus size={14} />
@@ -148,17 +211,51 @@ export function Explorer({
           <RefreshCw size={13} />
         </IconBtn>
       </div>
-      <div role="tree" className="min-h-0 flex-1 overflow-auto py-1">
-        {rows}
-        {edit && edit.kind !== "rename" && (
-          <NewRow
-            ext={ext}
-            kind={edit.kind}
-            onCommit={commitName}
-            onCancel={() => setEdit(null)}
-          />
-        )}
-      </div>
+      {mode === "content" && hits !== null ? (
+        <div className="min-h-0 flex-1 overflow-auto py-1 text-[12px]">
+          {hits.length === 0 ? (
+            <div className="px-3 py-2 text-text-dim">No matches</div>
+          ) : (
+            hits.map((h) => (
+              <div key={h.path} className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => onOpen(h.path)}
+                  className="flex w-full items-center gap-1 px-2 py-0.5 text-left text-text-dim hover:text-foreground"
+                >
+                  <span className="truncate font-medium">{h.name}</span>
+                  <span className="shrink-0 text-[10px] text-text-dim">
+                    {h.matches.length}
+                  </span>
+                </button>
+                {h.matches.map((m) => (
+                  <button
+                    key={m.line}
+                    type="button"
+                    onClick={() => onOpen(h.path)}
+                    className="block w-full truncate px-2 py-0.5 pl-6 text-left text-[11px] text-text-dim hover:bg-card hover:text-foreground"
+                  >
+                    <span className="mr-2 tabular-nums text-text-dim">{m.line}</span>
+                    {m.text}
+                  </button>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        <div role="tree" className="min-h-0 flex-1 overflow-auto py-1">
+          {rows}
+          {edit && edit.kind !== "rename" && (
+            <NewRow
+              ext={ext}
+              kind={edit.kind}
+              onCommit={commitName}
+              onCancel={() => setEdit(null)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
