@@ -8,6 +8,7 @@ export interface TabBase {
 }
 
 export interface SoqlTab extends TabBase {
+  path: string;
   query: string;
   result: SoqlResultDto | null;
   error: string | null;
@@ -15,6 +16,7 @@ export interface SoqlTab extends TabBase {
 }
 
 export interface ApexTab extends TabBase {
+  path: string;
   src: string;
   outcome: ApexOutcomeDto | null;
   error: string | null;
