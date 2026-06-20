@@ -13,6 +13,7 @@ import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
 import { useTheme } from "./theme";
+import { Toaster } from "@/components/ui/sonner";
 import {
   Tooltip,
   TooltipContent,
@@ -124,6 +125,7 @@ export default function App() {
         onOpenChange={setCmdOpen}
         onSelectPanel={setActive}
       />
+      <Toaster theme={theme} />
     </div>
     </TooltipProvider>
   );

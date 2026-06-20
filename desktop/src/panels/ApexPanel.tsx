@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { ChevronRight } from "lucide-react";
@@ -98,7 +99,9 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
       });
       onPatch({ outcome: dto });
     } catch (e) {
-      onPatch({ error: typeof e === "string" ? e : String(e), outcome: null });
+      const message = typeof e === "string" ? e : String(e);
+      toast.error(message);
+      onPatch({ error: message, outcome: null });
     } finally {
       setRunning(false);
     }

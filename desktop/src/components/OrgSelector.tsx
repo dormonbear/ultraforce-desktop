@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { Globe, Check, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -25,7 +26,11 @@ export function OrgSelector() {
           invoke("set_target_org", { username: def.username });
         }
       })
-      .catch((e) => setError(typeof e === "string" ? e : String(e)));
+      .catch((e) => {
+        const message = typeof e === "string" ? e : String(e);
+        toast.error(message);
+        setError(message);
+      });
   }, []);
 
   const choose = (o: OrgDto) => {

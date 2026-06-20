@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -29,7 +30,9 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
       const dto = await invoke<SoqlResultDto>("run_soql", { query });
       onPatch({ result: dto });
     } catch (e) {
-      onPatch({ error: typeof e === "string" ? e : String(e) });
+      const message = typeof e === "string" ? e : String(e);
+      toast.error(message);
+      onPatch({ error: message });
     } finally {
       setRunning(false);
     }
