@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
 import type {
@@ -145,8 +150,8 @@ export function LogsPanel() {
   }, []);
 
   return (
-    <PanelGroup direction="horizontal">
-      <Panel defaultSize={38} minSize={22}>
+    <ResizablePanelGroup direction="horizontal">
+      <ResizablePanel defaultSize={38} minSize={22}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">LOGS</div>
@@ -166,7 +171,7 @@ export function LogsPanel() {
             </button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-auto">
+          <ScrollArea className="min-h-0 flex-1">
             {listError ? (
               <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-[3px] border border-red/40 bg-surface p-3 text-[12px] text-red">
                 {listError}
@@ -209,13 +214,13 @@ export function LogsPanel() {
                 );
               })
             )}
-          </div>
+          </ScrollArea>
         </div>
-      </Panel>
+      </ResizablePanel>
 
-      <PanelResizeHandle className="w-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
+      <ResizableHandle className="w-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
 
-      <Panel defaultSize={62} minSize={30}>
+      <ResizablePanel defaultSize={62} minSize={30}>
         <div className="flex h-full flex-col">
           <div className="micro-label px-4 py-2">LOG DETAIL</div>
 
@@ -263,7 +268,8 @@ export function LogsPanel() {
                   <LogView raw={view.raw} />
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 overflow-auto rounded-[3px] border border-hair bg-surface p-3">
+                <ScrollArea className="min-h-0 flex-1 rounded-[3px] border border-hair bg-surface">
+                  <div className="p-3">
                   {tab === "tree" ? (
                     view.units.length === 0 ||
                     view.units.every((u) => u.tree.length === 0) ? (
@@ -287,12 +293,13 @@ export function LogsPanel() {
                   ) : (
                     <LimitsView units={view.units} />
                   )}
-                </div>
+                  </div>
+                </ScrollArea>
               )}
             </div>
           ) : null}
         </div>
-      </Panel>
-    </PanelGroup>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

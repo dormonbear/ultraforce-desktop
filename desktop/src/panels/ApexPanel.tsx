@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
@@ -148,8 +152,8 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
   }, [src]);
 
   return (
-    <PanelGroup direction="vertical">
-      <Panel defaultSize={45} minSize={20}>
+    <ResizablePanelGroup direction="vertical">
+      <ResizablePanel defaultSize={45} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">ANONYMOUS APEX</div>
@@ -176,11 +180,11 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
             />
           </div>
         </div>
-      </Panel>
+      </ResizablePanel>
 
-      <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
+      <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
 
-      <Panel defaultSize={55} minSize={20}>
+      <ResizablePanel defaultSize={55} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="micro-label px-4 py-2">RESULT</div>
 
@@ -261,7 +265,7 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
             </div>
           )}
         </div>
-      </Panel>
-    </PanelGroup>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

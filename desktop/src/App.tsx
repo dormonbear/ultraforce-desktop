@@ -12,6 +12,12 @@ import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { useTheme } from "./theme";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type ActivePanel = "soql" | "apex" | "logs";
 
@@ -25,8 +31,10 @@ const RAIL = [
 export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
   const { theme, toggle } = useTheme();
+  const themeTitle = theme === "dark" ? "Switch to light" : "Switch to dark";
 
   return (
+    <TooltipProvider>
     <div className="flex h-full flex-col bg-bg text-text">
       {/* 2px accent strip */}
       <div className="h-0.5 w-full bg-primary" />
@@ -40,15 +48,19 @@ export default function App() {
           SF·TOOLKIT
         </span>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={toggle}
-            title={theme === "dark" ? "Switch to light" : "Switch to dark"}
-            aria-label="Toggle color theme"
-            className="focus-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-text"
-          >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={toggle}
+                aria-label="Toggle color theme"
+                className="focus-accent flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-text"
+              >
+                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{themeTitle}</TooltipContent>
+          </Tooltip>
           <OrgSelector />
         </div>
       </header>
@@ -59,26 +71,30 @@ export default function App() {
           {RAIL.map(({ id, icon: Icon, label, enabled }) => {
             const current = enabled && id === active;
             return (
-              <button
-                key={id}
-                type="button"
-                title={label}
-                disabled={!enabled}
-                aria-current={current ? "page" : undefined}
-                onClick={() => enabled && setActive(id as ActivePanel)}
-                className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-[3px] ${
-                  current
-                    ? "text-primary"
-                    : enabled
-                      ? "text-text-dim hover:text-text"
-                      : "text-text-faint disabled:cursor-not-allowed"
-                } cursor-pointer`}
-              >
-                {current && (
-                  <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
-                )}
-                <Icon size={18} />
-              </button>
+              <Tooltip key={id}>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    disabled={!enabled}
+                    aria-label={label}
+                    aria-current={current ? "page" : undefined}
+                    onClick={() => enabled && setActive(id as ActivePanel)}
+                    className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-[3px] ${
+                      current
+                        ? "text-primary"
+                        : enabled
+                          ? "text-text-dim hover:text-text"
+                          : "text-text-faint disabled:cursor-not-allowed"
+                    } cursor-pointer`}
+                  >
+                    {current && (
+                      <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
+                    )}
+                    <Icon size={18} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">{label}</TooltipContent>
+              </Tooltip>
             );
           })}
         </nav>
@@ -91,5 +107,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </TooltipProvider>
   );
 }

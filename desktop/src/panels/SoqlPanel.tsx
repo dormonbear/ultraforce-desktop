@@ -1,6 +1,10 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SoqlEditor } from "../components/SoqlEditor";
 import { ResultTable } from "../components/ResultTable";
@@ -40,17 +44,17 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
         : "";
 
   return (
-    <PanelGroup direction="vertical">
-      <Panel defaultSize={40} minSize={20}>
+    <ResizablePanelGroup direction="vertical">
+      <ResizablePanel defaultSize={40} minSize={20}>
         <SoqlEditor
           value={query}
           onChange={(v) => onPatch({ query: v })}
           onRun={run}
           running={running}
         />
-      </Panel>
-      <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
-      <Panel defaultSize={60} minSize={20}>
+      </ResizablePanel>
+      <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
+      <ResizablePanel defaultSize={60} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-hair px-4 py-1.5">
             <ToggleGroup
@@ -89,7 +93,7 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
             )}
           </div>
         </div>
-      </Panel>
-    </PanelGroup>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }

@@ -9,6 +9,14 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, Rows3, Rows4 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { SoqlResultDto } from "../types";
 
 type Row = Record<string, string>;
@@ -132,15 +140,15 @@ export function ResultTable({
         </div>
       ) : (
         <div ref={parentRef} className="min-h-0 flex-1 overflow-auto">
-          <table className="w-full border-collapse text-[13px]">
-            <thead className="sticky top-0 z-10 bg-surface">
+          <Table className="border-collapse text-[13px]">
+            <TableHeader className="sticky top-0 z-10 bg-surface">
               {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id}>
+                <TableRow key={hg.id} className="border-line hover:bg-transparent">
                   {hg.headers.map((header) => {
                     const m = meta(header.column.id);
                     const sorted = header.column.getIsSorted();
                     return (
-                      <th
+                      <TableHead
                         key={header.id}
                         aria-sort={
                           sorted === "asc"
@@ -150,7 +158,7 @@ export function ResultTable({
                               : "none"
                         }
                         onClick={header.column.getToggleSortingHandler()}
-                        className={`select-none border-b border-line px-3 py-1.5 font-bold text-text-dim cursor-pointer hover:text-text ${
+                        className={`h-auto select-none border-b border-line px-3 py-1.5 font-bold text-text-dim cursor-pointer hover:text-text ${
                           m?.numeric ? "text-right" : "text-left"
                         } ${m?.first ? "sticky left-0 z-20 bg-surface" : ""}`}
                       >
@@ -162,36 +170,38 @@ export function ResultTable({
                           {sorted === "asc" && <ArrowUp size={12} />}
                           {sorted === "desc" && <ArrowDown size={12} />}
                         </span>
-                      </th>
+                      </TableHead>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
-            </thead>
-            <tbody>
+            </TableHeader>
+            <TableBody>
               {padTop > 0 && (
-                <tr>
-                  <td style={{ height: padTop }} />
-                </tr>
+                <TableRow>
+                  <TableCell style={{ height: padTop }} />
+                </TableRow>
               )}
               {(virtualize
                 ? virtualItems.map((vi) => tableRows[vi.index])
                 : tableRows
               ).map((row, i) => (
-                <tr
+                <TableRow
                   key={row.id}
                   style={{ height: rowHeight }}
-                  className={i % 2 === 1 ? "bg-surface/40" : ""}
+                  className={`hover:bg-transparent ${
+                    i % 2 === 1 ? "bg-surface/40" : ""
+                  }`}
                 >
                   {row.getVisibleCells().map((cell) => {
                     const m = meta(cell.column.id);
                     const text = cell.getValue<string>() ?? "";
                     return (
-                      <td
+                      <TableCell
                         key={cell.id}
                         onClick={() => copyCell(text)}
                         title="Click to copy"
-                        className={`border-b border-hair px-3 cursor-pointer hover:bg-surface-3 ${
+                        className={`border-b border-hair px-3 py-0 cursor-pointer hover:bg-surface-3 ${
                           m?.numeric ? "text-right tnum" : "text-left"
                         } ${m?.first ? "font-bold sticky left-0 bg-bg" : "text-text"} ${
                           copied !== null && copied === text
@@ -200,18 +210,18 @@ export function ResultTable({
                         }`}
                       >
                         {text}
-                      </td>
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
               {padBottom > 0 && (
-                <tr>
-                  <td style={{ height: padBottom }} />
-                </tr>
+                <TableRow>
+                  <TableCell style={{ height: padBottom }} />
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </div>
