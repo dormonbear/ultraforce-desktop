@@ -68,11 +68,11 @@ function PresetMenu({
                   setOpen(false);
                 }}
                 className={`focus-accent nav-state-active flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-hair/40 ${
-                  name === value ? "text-accent" : "text-text"
+                  name === value ? "text-primary" : "text-text"
                 }`}
               >
                 <span>{name}</span>
-                {name === value && <Check size={12} className="text-accent" />}
+                {name === value && <Check size={12} className="text-primary" />}
               </button>
             </li>
           ))}
@@ -113,7 +113,7 @@ export function DebugConfigRow({
         <span className="ml-auto flex min-w-0 items-center gap-2 text-[11px]">
           {applying && (
             <span className="inline-flex items-center gap-1 text-text-dim">
-              <Loader2 size={12} className="animate-spin text-accent" />
+              <Loader2 size={12} className="animate-spin text-primary" />
               applying
             </span>
           )}

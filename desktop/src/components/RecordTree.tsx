@@ -57,7 +57,7 @@ function RecordNode({ record, depth }: { record: RecordDto; depth: number }) {
     <div>
       <div
         style={{ paddingLeft: `${depth * 14 + 12}px` }}
-        className="micro-label py-0.5 text-accent"
+        className="micro-label py-0.5 text-primary"
       >
         {record.sobject_type}
       </div>

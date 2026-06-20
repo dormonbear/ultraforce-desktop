@@ -178,7 +178,7 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
         </div>
       </Panel>
 
-      <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-accent data-[resize-handle-state=drag]:bg-accent" />
+      <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
 
       <Panel defaultSize={55} minSize={20}>
         <div className="flex h-full flex-col">

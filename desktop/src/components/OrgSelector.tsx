@@ -56,7 +56,7 @@ export function OrgSelector() {
         onClick={() => setOpen((v) => !v)}
         className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-[3px] border border-hair px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <Globe size={12} className="text-accent" />
+        <Globe size={12} className="text-primary" />
         <span className="normal-case tracking-normal">{label}</span>
         <ChevronDown size={12} />
       </button>
@@ -73,7 +73,7 @@ export function OrgSelector() {
                 aria-selected={o.username === selected}
                 onClick={() => choose(o)}
                 className={`focus-accent flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-1.5 text-left hover:bg-hair/40 ${
-                  o.username === selected ? "text-accent" : "text-text"
+                  o.username === selected ? "text-primary" : "text-text"
                 }`}
               >
                 <span className="truncate">
@@ -82,7 +82,7 @@ export function OrgSelector() {
                 </span>
                 <span className="flex items-center gap-1 text-text-faint">
                   {o.is_default && <span className="text-[10px] uppercase">default</span>}
-                  {o.username === selected && <Check size={12} className="text-accent" />}
+                  {o.username === selected && <Check size={12} className="text-primary" />}
                 </span>
               </button>
             </li>

@@ -48,7 +48,7 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
           running={running}
         />
       </Panel>
-      <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-accent data-[resize-handle-state=drag]:bg-accent" />
+      <PanelResizeHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
       <Panel defaultSize={60} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-hair px-4 py-1.5">
@@ -59,7 +59,7 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
                   type="button"
                   onClick={() => onPatch({ view: v })}
                   className={`focus-accent cursor-pointer rounded-[3px] px-2 py-0.5 text-[11px] uppercase tracking-wide transition-colors ${
-                    view === v ? "text-accent" : "text-text-dim hover:text-text"
+                    view === v ? "text-primary" : "text-text-dim hover:text-text"
                   }`}
                 >
                   {v}

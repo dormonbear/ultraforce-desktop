@@ -51,11 +51,11 @@ export function TabStrip({
             onClick={() => onSelect(t.id)}
             onKeyDown={(e) => onKeyDown(e, t.id, idx)}
             className={`focus-accent group relative flex h-7 cursor-pointer items-center gap-2 rounded-[3px] px-3 text-[12px] transition-colors ${
-              active ? "text-accent" : "text-text-dim hover:text-text"
+              active ? "text-primary" : "text-text-dim hover:text-text"
             }`}
           >
             {active && (
-              <span className="absolute inset-x-1 -bottom-px h-0.5 rounded bg-accent" />
+              <span className="absolute inset-x-1 -bottom-px h-0.5 rounded bg-primary" />
             )}
             <span className="tnum whitespace-nowrap">{t.title}</span>
             <button
@@ -78,7 +78,7 @@ export function TabStrip({
         type="button"
         aria-label="New tab"
         onClick={onAdd}
-        className="focus-accent ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-accent"
+        className="focus-accent ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-[3px] text-text-dim transition-colors hover:text-primary"
       >
         <Plus size={14} />
       </button>

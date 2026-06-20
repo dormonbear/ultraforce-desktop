@@ -183,11 +183,11 @@ export function LogsPanel() {
                     type="button"
                     onClick={() => select(log.id)}
                     className={`focus-accent relative flex w-full items-center gap-2 border-b border-hair px-4 py-2 text-left hover:bg-surface-3 cursor-pointer ${
-                      selected ? "bg-accent/10" : ""
+                      selected ? "bg-primary/10" : ""
                     }`}
                   >
                     {selected && (
-                      <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-accent" />
+                      <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
                     )}
                     <span
                       className={`h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -212,7 +212,7 @@ export function LogsPanel() {
         </div>
       </Panel>
 
-      <PanelResizeHandle className="w-px bg-line transition-colors data-[resize-handle-state=hover]:bg-accent data-[resize-handle-state=drag]:bg-accent" />
+      <PanelResizeHandle className="w-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
 
       <Panel defaultSize={62} minSize={30}>
         <div className="flex h-full flex-col">
@@ -245,7 +245,7 @@ export function LogsPanel() {
                       onClick={() => setTab(t)}
                       className={`focus-accent rounded-[3px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
                         tab === t
-                          ? "bg-accent/15 text-accent"
+                          ? "bg-primary/15 text-primary"
                           : "text-text-dim hover:text-text"
                       }`}
                     >

@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 /** Color class for a log line based on its event token (2nd `|` field). */
 function lineClass(line: string): string {
   if (/\|(FATAL_ERROR|EXCEPTION_THROWN)\|/.test(line)) return "text-red";
-  if (/\|USER_DEBUG\|/.test(line)) return "text-accent";
+  if (/\|USER_DEBUG\|/.test(line)) return "text-primary";
   if (/\|(LIMIT_USAGE|HEAP_ALLOCATE|CUMULATIVE_LIMIT)/.test(line)) return "text-text-faint";
   return "text-text-dim";
 }
@@ -32,7 +32,7 @@ export function LogView({ raw }: { raw: string }) {
     return (
       <>
         {line.slice(0, idx)}
-        <mark className="bg-accent/30 text-text">{line.slice(idx, idx + q.length)}</mark>
+        <mark className="bg-primary/30 text-text">{line.slice(idx, idx + q.length)}</mark>
         {line.slice(idx + q.length)}
       </>
     );

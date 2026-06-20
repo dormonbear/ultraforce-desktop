@@ -29,7 +29,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col bg-bg text-text">
       {/* 2px accent strip */}
-      <div className="h-0.5 w-full bg-accent" />
+      <div className="h-0.5 w-full bg-primary" />
 
       {/* Top bar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-hair px-4">
@@ -68,14 +68,14 @@ export default function App() {
                 onClick={() => enabled && setActive(id as ActivePanel)}
                 className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-[3px] ${
                   current
-                    ? "text-accent"
+                    ? "text-primary"
                     : enabled
                       ? "text-text-dim hover:text-text"
                       : "text-text-faint disabled:cursor-not-allowed"
                 } cursor-pointer`}
               >
                 {current && (
-                  <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-accent" />
+                  <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
                 )}
                 <Icon size={18} />
               </button>

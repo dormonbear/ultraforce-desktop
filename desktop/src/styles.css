@@ -1,62 +1,122 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:is(.dark *));
 
 /*
- * SF·TOOLKIT — Cursor editorial system.
- * Warm-cream canvas + warm ink, single Cursor-Orange voltage, hairline-only depth,
- * Inter for UI/display + JetBrains Mono on every code surface. Semantic token NAMES
- * are kept (bg/surface/hair/text/accent…) so all Tailwind utilities cascade; the
- * dark counterpart overrides the same vars at runtime via [data-theme="dark"].
+ * SF·TOOLKIT — Cursor editorial system, bridged to shadcn semantic tokens.
+ * Both the shadcn names (--background/--primary/…) and the kept Cursor names
+ * (--color-bg/surface/hair/…) resolve to ONE palette, so migrated shadcn
+ * components and un-migrated bespoke components stay visually identical.
+ * Dark mode = shadcn `.dark` class (driven by ThemeProvider).
  */
-@theme {
-  /* Surface — warm cream, white cards */
-  --color-bg: #f7f7f4; /* canvas — page floor */
-  --color-surface: #ffffff; /* surface-card — panels, editors */
-  --color-surface-2: #fafaf7; /* canvas-soft — line highlight, hover */
-  --color-surface-3: #e6e5e0; /* surface-strong — selected/active */
-  --color-hair: #e6e5e0; /* hairline */
-  --color-line: #cfcdc4; /* hairline-strong */
+:root {
+  --background: #f7f7f4;
+  --foreground: #26251e;
+  --card: #ffffff;
+  --card-foreground: #26251e;
+  --popover: #ffffff;
+  --popover-foreground: #26251e;
+  --primary: #f54e00;
+  --primary-foreground: #ffffff;
+  --secondary: #fafaf7;
+  --secondary-foreground: #26251e;
+  --muted: #fafaf7;
+  --muted-foreground: #807d72;
+  --accent: #e6e5e0;
+  --accent-foreground: #26251e;
+  --destructive: #cf2d56;
+  --destructive-foreground: #ffffff;
+  --success: #1f8a65;
+  --success-foreground: #ffffff;
+  --border: #e6e5e0;
+  --input: #e6e5e0;
+  --ring: #f54e00;
+  --radius: 0.5rem;
+  /* Cursor extras for un-migrated bespoke components. */
+  --c-surface-strong: #e6e5e0;
+  --c-line: #cfcdc4;
+  --c-text-dim: #5a5852;
+  --c-amber: #c08532;
+  --c-blue: #5a5852;
+}
 
-  /* Text — warm near-black ink */
-  --color-text: #26251e; /* ink */
-  --color-text-dim: #5a5852; /* body */
-  --color-text-faint: #807d72; /* muted */
+.dark {
+  --background: #1a1916;
+  --foreground: #f2f1ec;
+  --card: #26241f;
+  --card-foreground: #f2f1ec;
+  --popover: #26241f;
+  --popover-foreground: #f2f1ec;
+  --primary: #ff5a14;
+  --primary-foreground: #1a1611;
+  --secondary: #211f1b;
+  --secondary-foreground: #f2f1ec;
+  --muted: #211f1b;
+  --muted-foreground: #8c887d;
+  --accent: #383530;
+  --accent-foreground: #f2f1ec;
+  --destructive: #ff6d8a;
+  --destructive-foreground: #1a1611;
+  --success: #3fb488;
+  --success-foreground: #1a1611;
+  --border: #33302a;
+  --input: #33302a;
+  --ring: #ff5a14;
+  --c-surface-strong: #383530;
+  --c-line: #48443c;
+  --c-text-dim: #bdb9ae;
+  --c-amber: #d9a23f;
+  --c-blue: #bdb9ae;
+}
 
-  /* Brand — Cursor Orange, used scarcely */
-  --color-accent: #f54e00;
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Kept Cursor token names → same palette (un-migrated code unchanged). */
+  --color-bg: var(--background);
+  --color-surface: var(--card);
+  --color-surface-2: var(--secondary);
+  --color-surface-3: var(--c-surface-strong);
+  --color-hair: var(--border);
+  --color-line: var(--c-line);
+  --color-text: var(--foreground);
+  --color-text-dim: var(--c-text-dim);
+  --color-text-faint: var(--muted-foreground);
   --color-accent-press: #d04200;
-
-  /* Status & code accents */
-  --color-success: #1f8a65;
-  --color-red: #cf2d56; /* error */
-  --color-amber: #c08532; /* gold — numbers */
-  --color-blue: #5a5852; /* IDs → body (timeline pastels stay scoped) */
+  --color-red: var(--destructive);
+  --color-amber: var(--c-amber);
+  --color-blue: var(--c-blue);
 
   --font-sans: "Inter", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
     monospace;
   --font-display: "Inter", system-ui, "Helvetica Neue", Helvetica, Arial,
     sans-serif;
-}
-
-/* Warm-dark counterpart — same Cursor character (brown-black floor, warm off-white
-   ink, same orange voltage). Radius/spacing/type are theme-agnostic. */
-:root[data-theme="dark"] {
-  --color-bg: #1a1916;
-  --color-surface: #26241f;
-  --color-surface-2: #211f1b;
-  --color-surface-3: #383530;
-  --color-hair: #33302a;
-  --color-line: #48443c;
-  --color-text: #f2f1ec;
-  --color-text-dim: #bdb9ae;
-  --color-text-faint: #8c887d;
-  --color-accent: #ff5a14;
-  --color-accent-press: #f54e00;
-  --color-success: #3fb488;
-  --color-red: #ff6d8a;
-  --color-amber: #d9a23f;
-  --color-blue: #bdb9ae;
 }
 
 * {
@@ -71,8 +131,8 @@ body,
 }
 
 body {
-  background: var(--color-bg);
-  color: var(--color-text);
+  background: var(--background);
+  color: var(--foreground);
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
@@ -93,26 +153,25 @@ body {
   font-weight: 600;
   letter-spacing: 0.88px;
   text-transform: uppercase;
-  color: var(--color-text-faint);
+  color: var(--muted-foreground);
   user-select: none;
 }
 .micro-label::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: var(--color-hair);
+  background: var(--border);
 }
 
 .tnum {
   font-variant-numeric: tabular-nums;
 }
 
-/* Focus ring = Cursor Orange at 2px, restrained (no glow — hairline depth). */
 .focus-accent:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 2px var(--color-bg),
-    0 0 0 3px var(--color-accent);
+    0 0 0 2px var(--background),
+    0 0 0 3px var(--ring);
 }
 
 @media (prefers-reduced-motion: reduce) {

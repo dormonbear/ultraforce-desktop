@@ -195,7 +195,7 @@ export function ResultTable({
                           m?.numeric ? "text-right tnum" : "text-left"
                         } ${m?.first ? "font-bold sticky left-0 bg-bg" : "text-text"} ${
                           copied !== null && copied === text
-                            ? "text-accent"
+                            ? "text-primary"
                             : ""
                         }`}
                       >

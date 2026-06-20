@@ -24,7 +24,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
+    document.documentElement.classList.toggle("dark", theme === "dark");
     localStorage.setItem(KEY, theme);
   }, [theme]);
 

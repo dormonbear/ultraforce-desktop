@@ -21,7 +21,7 @@ export function RunButton({
       type="button"
       onClick={onRun}
       disabled={running}
-      className="focus-accent ml-3 inline-flex h-8 items-center gap-1.5 rounded-[3px] bg-accent px-3 text-[12px] font-bold uppercase tracking-wide text-bg transition-transform duration-150 ease-out hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+      className="focus-accent ml-3 inline-flex h-8 items-center gap-1.5 rounded-[3px] bg-primary px-3 text-[12px] font-bold uppercase tracking-wide text-bg transition-transform duration-150 ease-out hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
     >
       {running ? (
         <Loader2 size={14} className="spin" />
