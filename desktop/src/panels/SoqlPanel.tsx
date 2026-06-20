@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SoqlEditor } from "../components/SoqlEditor";
 import { ResultTable } from "../components/ResultTable";
 import { RecordTree } from "../components/RecordTree";
@@ -52,20 +53,24 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
       <Panel defaultSize={60} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-hair px-4 py-1.5">
-            <div className="flex gap-1">
+            <ToggleGroup
+              type="single"
+              value={view}
+              onValueChange={(next) => {
+                if (next) onPatch({ view: next as typeof view });
+              }}
+              className="gap-1"
+            >
               {(["table", "tree"] as const).map((v) => (
-                <button
+                <ToggleGroupItem
                   key={v}
-                  type="button"
-                  onClick={() => onPatch({ view: v })}
-                  className={`focus-accent cursor-pointer rounded-[3px] px-2 py-0.5 text-[11px] uppercase tracking-wide transition-colors ${
-                    view === v ? "text-primary" : "text-text-dim hover:text-text"
-                  }`}
+                  value={v}
+                  className="focus-accent h-auto cursor-pointer rounded-[3px] px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-text data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
                 >
                   {v}
-                </button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
             <span className="tnum text-[11px] text-text-dim">{status}</span>
           </div>
           <div className="min-h-0 flex-1">

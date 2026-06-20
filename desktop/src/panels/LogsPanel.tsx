@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { RefreshCw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
 import type {
   ExecNodeDto,
@@ -237,22 +238,24 @@ export function LogsPanel() {
                   API {view.api_version ?? "—"} · {view.units.length}{" "}
                   {view.units.length === 1 ? "unit" : "units"}
                 </div>
-                <div className="flex gap-1">
+                <ToggleGroup
+                  type="single"
+                  value={tab}
+                  onValueChange={(next) => {
+                    if (next) setTab(next as DetailTab);
+                  }}
+                  className="gap-1"
+                >
                   {(["tree", "limits", "raw"] as DetailTab[]).map((t) => (
-                    <button
+                    <ToggleGroupItem
                       key={t}
-                      type="button"
-                      onClick={() => setTab(t)}
-                      className={`focus-accent rounded-[3px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide cursor-pointer ${
-                        tab === t
-                          ? "bg-primary/15 text-primary"
-                          : "text-text-dim hover:text-text"
-                      }`}
+                      value={t}
+                      className="focus-accent h-auto cursor-pointer rounded-[3px] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-dim hover:text-text data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
                     >
                       {t}
-                    </button>
+                    </ToggleGroupItem>
                   ))}
-                </div>
+                </ToggleGroup>
               </div>
 
               {tab === "raw" ? (
