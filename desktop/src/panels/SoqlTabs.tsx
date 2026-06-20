@@ -1,68 +1,79 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TabStrip } from "../tabs/TabStrip";
-import { useTabs } from "../tabs/useTabs";
-import { consumePending, onOpenTabRequest } from "../openTab";
+import { useFileTabs } from "../tabs/useFileTabs";
+import { Explorer } from "../components/Explorer";
+import { getRoot } from "../fs/workspace";
+import { basename } from "../fs/paths";
 import { SoqlView } from "./SoqlPanel";
 import type { SoqlTab } from "../tabs/types";
 
-const DEFAULT_QUERY = "SELECT Id, Name FROM Account LIMIT 10";
-
-const makeSoqlTab = (n: number): SoqlTab => ({
+const makeSoqlTab = (path: string, content: string): SoqlTab => ({
   id: crypto.randomUUID(),
-  title: `SOQL Query ${n}`,
-  query: DEFAULT_QUERY,
+  path,
+  title: basename(path),
+  query: content,
   result: null,
   error: null,
   view: "table",
 });
 
-// Keep persisted tabs lean: drop result snapshots above this row count
-// (reopening the tab simply reruns the query).
-const MAX_PERSISTED_ROWS = 500;
-const serializeSoql = (t: SoqlTab): SoqlTab =>
-  t.result && t.result.rows.length > MAX_PERSISTED_ROWS
-    ? { ...t, result: null }
-    : t;
-
 export function SoqlTabs() {
-  const { tabs, active, activeId, add, openWith, close, select, patch, rename } =
-    useTabs<SoqlTab>(makeSoqlTab, {
-      storeKey: "soql",
-      serialize: serializeSoql,
-    });
+  const [root, setRoot] = useState<string | null>(null);
+  useEffect(() => {
+    void getRoot("soql").then(setRoot);
+  }, []);
+
+  const {
+    tabs,
+    active,
+    activeId,
+    openFile,
+    close,
+    select,
+    patch,
+    retitle,
+    closeByPath,
+  } = useFileTabs<SoqlTab>({ tool: "soql", contentKey: "query", make: makeSoqlTab });
 
   const onPatch = useCallback(
-    (partial: Partial<SoqlTab>) => patch(activeId, partial),
+    (partial: Partial<SoqlTab>) => {
+      if (activeId) patch(activeId, partial);
+    },
     [patch, activeId],
   );
 
-  // Open queries handed over from the history drawer in a fresh tab.
-  useEffect(() => {
-    const tryOpen = () => {
-      const text = consumePending("soql");
-      if (text != null) openWith({ query: text });
-    };
-    tryOpen();
-    return onOpenTabRequest(() => tryOpen());
-  }, [openWith]);
-
   return (
-    <div className="flex h-full flex-col">
-      <TabStrip
-        tabs={tabs}
-        activeId={activeId}
-        ariaLabel="SOQL tabs"
-        onSelect={select}
-        onClose={close}
-        onAdd={add}
-        onRename={rename}
-      />
-      <div
-        role="tabpanel"
-        aria-labelledby={`tab-${active.id}`}
-        className="min-h-0 flex-1"
-      >
-        <SoqlView key={active.id} tab={active} onPatch={onPatch} />
+    <div className="flex h-full">
+      {root && (
+        <Explorer
+          root={root}
+          ext="soql"
+          activePath={active?.path ?? null}
+          onOpen={(p) => void openFile(p)}
+          onRenamed={retitle}
+          onRemoved={closeByPath}
+        />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {active ? (
+          <>
+            <TabStrip
+              tabs={tabs}
+              activeId={activeId ?? ""}
+              ariaLabel="SOQL tabs"
+              onSelect={select}
+              onClose={close}
+              onAdd={() => {}}
+            />
+            <div role="tabpanel" className="min-h-0 flex-1">
+              <SoqlView key={active.id} tab={active} onPatch={onPatch} />
+            </div>
+          </>
+        ) : (
+          <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
+            — open a query from the sidebar —
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,57 +1,79 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TabStrip } from "../tabs/TabStrip";
-import { useTabs } from "../tabs/useTabs";
-import { consumePending, onOpenTabRequest } from "../openTab";
+import { useFileTabs } from "../tabs/useFileTabs";
+import { Explorer } from "../components/Explorer";
+import { getRoot } from "../fs/workspace";
+import { basename } from "../fs/paths";
 import { ApexView } from "./ApexPanel";
 import type { ApexTab } from "../tabs/types";
 
-const DEFAULT_SRC = "System.debug('hello');";
-
-const makeApexTab = (n: number): ApexTab => ({
+const makeApexTab = (path: string, content: string): ApexTab => ({
   id: crypto.randomUUID(),
-  title: `Anonymous Apex ${n}`,
-  src: DEFAULT_SRC,
+  path,
+  title: basename(path),
+  src: content,
   outcome: null,
   error: null,
   traceOpen: false,
 });
 
 export function ApexTabs() {
-  const { tabs, active, activeId, add, openWith, close, select, patch, rename } =
-    useTabs<ApexTab>(makeApexTab, { storeKey: "apex" });
+  const [root, setRoot] = useState<string | null>(null);
+  useEffect(() => {
+    void getRoot("apex").then(setRoot);
+  }, []);
+
+  const {
+    tabs,
+    active,
+    activeId,
+    openFile,
+    close,
+    select,
+    patch,
+    retitle,
+    closeByPath,
+  } = useFileTabs<ApexTab>({ tool: "apex", contentKey: "src", make: makeApexTab });
 
   const onPatch = useCallback(
-    (partial: Partial<ApexTab>) => patch(activeId, partial),
+    (partial: Partial<ApexTab>) => {
+      if (activeId) patch(activeId, partial);
+    },
     [patch, activeId],
   );
 
-  // Open sources handed over from the history drawer in a fresh tab.
-  useEffect(() => {
-    const tryOpen = () => {
-      const text = consumePending("apex");
-      if (text != null) openWith({ src: text });
-    };
-    tryOpen();
-    return onOpenTabRequest(() => tryOpen());
-  }, [openWith]);
-
   return (
-    <div className="flex h-full flex-col">
-      <TabStrip
-        tabs={tabs}
-        activeId={activeId}
-        ariaLabel="Apex tabs"
-        onSelect={select}
-        onClose={close}
-        onAdd={add}
-        onRename={rename}
-      />
-      <div
-        role="tabpanel"
-        aria-labelledby={`tab-${active.id}`}
-        className="min-h-0 flex-1"
-      >
-        <ApexView key={active.id} tab={active} onPatch={onPatch} />
+    <div className="flex h-full">
+      {root && (
+        <Explorer
+          root={root}
+          ext="apex"
+          activePath={active?.path ?? null}
+          onOpen={(p) => void openFile(p)}
+          onRenamed={retitle}
+          onRemoved={closeByPath}
+        />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {active ? (
+          <>
+            <TabStrip
+              tabs={tabs}
+              activeId={activeId ?? ""}
+              ariaLabel="Apex tabs"
+              onSelect={select}
+              onClose={close}
+              onAdd={() => {}}
+            />
+            <div role="tabpanel" className="min-h-0 flex-1">
+              <ApexView key={active.id} tab={active} onPatch={onPatch} />
+            </div>
+          </>
+        ) : (
+          <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
+            — open a script from the sidebar —
+          </div>
+        )}
       </div>
     </div>
   );
