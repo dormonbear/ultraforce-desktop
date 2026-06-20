@@ -2,13 +2,24 @@ import { useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
+  getFilteredRowModel,
   getSortedRowModel,
   useReactTable,
+  type Column,
   type ColumnDef,
   type SortingState,
+  type VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ArrowDown, ArrowUp, Rows3, Rows4 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
+  Rows3,
+  Rows4,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import {
   Table,
   TableBody,
@@ -17,16 +28,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import type { SoqlResultDto } from "../types";
 
 type Row = Record<string, string>;
 
 const NUMERIC = /^-?\d+(\.\d+)?$/;
-const ID_COL = /(^id$|id$)/i;
 
-/** A column is right-aligned (tabular) if it reads like an id or holds numbers. */
+/** Right-align a column only when its values are genuine numbers (Ids stay left). */
 function isNumericColumn(col: string, rows: Row[]): boolean {
-  if (ID_COL.test(col)) return true;
   let seen = 0;
   for (const r of rows) {
     const v = r[col];
@@ -38,16 +56,22 @@ function isNumericColumn(col: string, rows: Row[]): boolean {
   return seen > 0;
 }
 
+type ColMeta = { numeric?: boolean };
+
+const GUTTER_W = 52;
+
 export function ResultTable({
   data,
 }: {
   data: Pick<SoqlResultDto, "columns" | "rows" | "total_size">;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState("");
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [compact, setCompact] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const rowHeight = compact ? 24 : 32;
+  const rowHeight = compact ? 26 : 34;
 
   const rows = useMemo<Row[]>(
     () =>
@@ -67,12 +91,13 @@ export function ResultTable({
 
   const columns = useMemo<ColumnDef<Row>[]>(
     () =>
-      data.columns.map((col, idx) => ({
+      data.columns.map((col) => ({
         id: col,
         accessorFn: (r) => r[col],
         header: col,
         enableSorting: true,
-        meta: { first: idx === 0, numeric: numericCols.has(col) },
+        enableHiding: true,
+        meta: { numeric: numericCols.has(col) } satisfies ColMeta,
       })),
     [data.columns, numericCols]
   );
@@ -80,10 +105,16 @@ export function ResultTable({
   const table = useReactTable({
     data: rows,
     columns,
-    state: { sorting },
+    state: { sorting, globalFilter, columnVisibility },
     onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onColumnVisibilityChange: setColumnVisibility,
+    enableColumnResizing: true,
+    columnResizeMode: "onChange",
+    defaultColumn: { minSize: 80, size: 200 },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
   });
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -104,52 +135,100 @@ export function ResultTable({
     window.setTimeout(() => setCopied(null), 1200);
   }
 
-  function meta(colId: string) {
-    return table.getColumn(colId)?.columnDef.meta as
-      | { first?: boolean; numeric?: boolean }
-      | undefined;
-  }
+  const numeric = (c: Column<Row>) =>
+    (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
 
   const virtualItems = virtualizer.getVirtualItems();
+  const visibleLeafCount = table.getVisibleLeafColumns().length;
   const padTop = virtualize && virtualItems.length ? virtualItems[0].start : 0;
   const padBottom =
     virtualize && virtualItems.length
       ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
       : 0;
+  const renderRows = virtualize
+    ? virtualItems.map((vi) => ({ row: tableRows[vi.index], index: vi.index }))
+    : tableRows.map((row, index) => ({ row, index }));
+
+  const tableWidth = GUTTER_W + table.getCenterTotalSize();
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 px-4 py-2">
-        <div className="micro-label flex-1">RESULT</div>
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 px-4 py-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            placeholder="Filter rows…"
+            className="h-7 w-56 pl-8 text-[12px]"
+          />
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger className="focus-accent inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground cursor-pointer">
+            <SlidersHorizontal size={13} /> Columns
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
+            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+            {table.getAllLeafColumns().map((col) => (
+              <DropdownMenuCheckboxItem
+                key={col.id}
+                checked={col.getIsVisible()}
+                onCheckedChange={(v) => col.toggleVisibility(!!v)}
+                onSelect={(e) => e.preventDefault()}
+              >
+                {col.id}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <div className="micro-label flex-1" />
+
         <button
           type="button"
           onClick={() => setCompact((c) => !c)}
           title={compact ? "Comfortable rows" : "Compact rows"}
-          className="focus-accent inline-flex h-6 w-6 items-center justify-center rounded-[3px] text-text-dim hover:text-text hover:bg-surface-3 cursor-pointer"
+          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         >
           {compact ? <Rows3 size={14} /> : <Rows4 size={14} />}
         </button>
-        <span className="tnum text-[11px] text-text-dim">
-          {data.total_size} {data.total_size === 1 ? "row" : "rows"}
+        <span className="tnum text-[11px] text-muted-foreground">
+          {tableRows.length === data.total_size
+            ? `${data.total_size} ${data.total_size === 1 ? "row" : "rows"}`
+            : `${tableRows.length} / ${data.total_size}`}
         </span>
       </div>
 
       {data.rows.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center text-text-faint text-[13px]">
+        <div className="flex flex-1 items-center justify-center text-[13px] text-muted-foreground">
           — no rows —
         </div>
       ) : (
-        <div ref={parentRef} className="min-h-0 flex-1 overflow-auto">
-          <Table className="border-collapse text-[13px]">
-            <TableHeader className="sticky top-0 z-10 bg-surface">
+        <div
+          ref={parentRef}
+          className="min-h-0 flex-1 overflow-auto border-t border-border"
+        >
+          <Table
+            style={{ width: tableWidth }}
+            className="border-separate border-spacing-0 text-[13px]"
+          >
+            <TableHeader>
               {table.getHeaderGroups().map((hg) => (
-                <TableRow key={hg.id} className="border-line hover:bg-transparent">
+                <TableRow key={hg.id} className="hover:bg-transparent">
+                  {/* row-number gutter */}
+                  <TableHead
+                    style={{ width: GUTTER_W }}
+                    className="sticky left-0 top-0 z-30 h-8 border-b border-border bg-secondary px-0 text-center align-middle text-[10px] font-semibold text-muted-foreground"
+                  >
+                    #
+                  </TableHead>
                   {hg.headers.map((header) => {
-                    const m = meta(header.column.id);
                     const sorted = header.column.getIsSorted();
                     return (
                       <TableHead
                         key={header.id}
+                        style={{ width: header.getSize() }}
                         aria-sort={
                           sorted === "asc"
                             ? "ascending"
@@ -157,19 +236,45 @@ export function ResultTable({
                               ? "descending"
                               : "none"
                         }
-                        onClick={header.column.getToggleSortingHandler()}
-                        className={`h-auto select-none border-b border-line px-3 py-1.5 font-bold text-text-dim cursor-pointer hover:text-text ${
-                          m?.numeric ? "text-right" : "text-left"
-                        } ${m?.first ? "sticky left-0 z-20 bg-surface" : ""}`}
+                        className={cn(
+                          "group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 align-middle font-semibold text-muted-foreground",
+                          numeric(header.column) ? "text-right" : "text-left"
+                        )}
                       >
-                        <span className="inline-flex items-center gap-1">
-                          {flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
+                        <button
+                          type="button"
+                          onClick={header.column.getToggleSortingHandler()}
+                          className={cn(
+                            "inline-flex max-w-full items-center gap-1 truncate hover:text-foreground cursor-pointer",
+                            numeric(header.column) && "flex-row-reverse"
                           )}
-                          {sorted === "asc" && <ArrowUp size={12} />}
-                          {sorted === "desc" && <ArrowDown size={12} />}
-                        </span>
+                        >
+                          <span className="truncate">
+                            {flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                          </span>
+                          {sorted === "asc" ? (
+                            <ArrowUp size={12} className="shrink-0 text-primary" />
+                          ) : sorted === "desc" ? (
+                            <ArrowDown size={12} className="shrink-0 text-primary" />
+                          ) : (
+                            <ChevronsUpDown
+                              size={12}
+                              className="shrink-0 opacity-0 group-hover:opacity-40"
+                            />
+                          )}
+                        </button>
+                        {/* resize handle */}
+                        <span
+                          onMouseDown={header.getResizeHandler()}
+                          onTouchStart={header.getResizeHandler()}
+                          className={cn(
+                            "absolute right-0 top-0 h-full w-1 cursor-col-resize touch-none select-none bg-transparent hover:bg-primary/40",
+                            header.column.getIsResizing() && "bg-primary"
+                          )}
+                        />
                       </TableHead>
                     );
                   })}
@@ -178,36 +283,41 @@ export function ResultTable({
             </TableHeader>
             <TableBody>
               {padTop > 0 && (
-                <TableRow>
-                  <TableCell style={{ height: padTop }} />
-                </TableRow>
+                <tr>
+                  <td colSpan={visibleLeafCount + 1} style={{ height: padTop }} />
+                </tr>
               )}
-              {(virtualize
-                ? virtualItems.map((vi) => tableRows[vi.index])
-                : tableRows
-              ).map((row, i) => (
+              {renderRows.map(({ row, index }) => (
                 <TableRow
                   key={row.id}
                   style={{ height: rowHeight }}
-                  className={`hover:bg-transparent ${
-                    i % 2 === 1 ? "bg-surface/40" : ""
-                  }`}
+                  className={cn(
+                    "group/row border-0 hover:bg-accent/60",
+                    index % 2 === 1 && "bg-muted/50"
+                  )}
                 >
+                  <TableCell
+                    style={{ width: GUTTER_W }}
+                    className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
+                  >
+                    {index + 1}
+                  </TableCell>
                   {row.getVisibleCells().map((cell) => {
-                    const m = meta(cell.column.id);
                     const text = cell.getValue<string>() ?? "";
+                    const isCopied = copied !== null && copied === text;
                     return (
                       <TableCell
                         key={cell.id}
-                        onClick={() => copyCell(text)}
                         title="Click to copy"
-                        className={`border-b border-hair px-3 py-0 cursor-pointer hover:bg-surface-3 ${
-                          m?.numeric ? "text-right tnum" : "text-left"
-                        } ${m?.first ? "font-bold sticky left-0 bg-bg" : "text-text"} ${
-                          copied !== null && copied === text
-                            ? "text-primary"
-                            : ""
-                        }`}
+                        onClick={() => copyCell(text)}
+                        style={{ width: cell.column.getSize() }}
+                        className={cn(
+                          "max-w-0 cursor-pointer truncate border-b border-border px-3 align-middle",
+                          numeric(cell.column)
+                            ? "text-right tabular-nums"
+                            : "text-left",
+                          isCopied ? "text-primary" : "text-foreground"
+                        )}
                       >
                         {text}
                       </TableCell>
@@ -216,9 +326,12 @@ export function ResultTable({
                 </TableRow>
               ))}
               {padBottom > 0 && (
-                <TableRow>
-                  <TableCell style={{ height: padBottom }} />
-                </TableRow>
+                <tr>
+                  <td
+                    colSpan={visibleLeafCount + 1}
+                    style={{ height: padBottom }}
+                  />
+                </tr>
               )}
             </TableBody>
           </Table>
