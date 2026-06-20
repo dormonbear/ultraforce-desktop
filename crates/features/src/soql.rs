@@ -241,27 +241,55 @@ pub async fn run_query_table(
     Ok(result.to_table())
 }
 
-/// SELECT field-name completion for the standalone SOQL editor. Best-effort: empty when there is no
-/// FROM object or the describe fails (benign). Returns field labels (the only candidate kind).
+/// Context-aware completion for the standalone SOQL editor.
+///
+/// Best-effort: object-name completion still works when no FROM object is resolved, and field
+/// completion falls back to non-field candidates when describe fails.
 pub async fn complete_fields(
     invoker: &SfInvoker,
     root: impl Into<PathBuf>,
     org_id: &str,
     query: &str,
     cursor: usize,
-) -> Vec<String> {
-    let Some(object) = soql_lang::outline(query).from_object else {
-        return Vec::new();
-    };
-    let api = crate::api_version::api_version_for(invoker, org_id).await;
+) -> Vec<soql_lang::Candidate> {
+    let objects = list_sobject_names(invoker, org_id).await;
+    let object = soql_lang::outline(query).from_object;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
-    let Ok(schema) = store.get_or_fetch(invoker, &api, &object).await else {
-        return Vec::new();
+    let schema = if let Some(object) = object {
+        let api = crate::api_version::api_version_for(invoker, org_id).await;
+        store
+            .get_or_fetch(invoker, &api, &object)
+            .await
+            .unwrap_or_else(|_| empty_schema())
+    } else {
+        empty_schema()
     };
-    soql_lang::complete(query, cursor, &schema)
-        .into_iter()
-        .map(|c| c.label)
-        .collect()
+    soql_lang::complete(query, cursor, &schema, &objects)
+}
+
+/// Best-effort object-name list for FROM completion.
+pub async fn list_sobject_names(invoker: &SfInvoker, org_id: &str) -> Vec<String> {
+    let mut args = vec!["sobject", "list", "--sobject", "all"];
+    if org_id != "default" {
+        args.push("--target-org");
+        args.push(org_id);
+    }
+    invoker
+        .run_json::<Vec<String>>(&args)
+        .await
+        .unwrap_or_default()
+}
+
+fn empty_schema() -> sf_schema::SObjectSchema {
+    sf_schema::SObjectSchema {
+        name: String::new(),
+        label: String::new(),
+        label_plural: String::new(),
+        key_prefix: None,
+        custom: false,
+        fields: vec![],
+        child_relationships: vec![],
+    }
 }
 
 /// One SOQL diagnostic for the editor (byte offsets into the query; severity as a lowercase string).
@@ -490,7 +518,36 @@ mod tests {
         let q = "SELECT Na FROM Account";
         let cursor = q.find("Na").unwrap() + 2;
         let got = complete_fields(&invoker, &dir, "myorg", q, cursor).await;
-        assert!(got.iter().any(|l| l == "Name"), "{got:?}");
+        assert!(got
+            .iter()
+            .any(|c| c.label == "Name" && c.kind == soql_lang::CandidateKind::Field));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn complete_fields_returns_from_object_candidates() {
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            let stdout = if args.starts_with(&["sobject".to_string(), "list".to_string()]) {
+                r#"{"status":0,"result":["Account","Contact"]}"#
+            } else {
+                r#"{"status":1}"#
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: stdout.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir =
+            std::env::temp_dir().join(format!("soql-from-complete-test-{}", std::process::id()));
+        let q = "SELECT Id FROM Acc";
+        let got = complete_fields(&invoker, &dir, "from-org", q, q.len()).await;
+
+        assert!(got
+            .iter()
+            .any(|c| c.label == "Account" && c.kind == soql_lang::CandidateKind::Object));
+        assert!(!got.iter().any(|c| c.label == "Contact"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

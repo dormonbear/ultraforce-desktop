@@ -179,7 +179,7 @@ fn unique_temp_path() -> std::path::PathBuf {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     std::env::temp_dir().join(format!(
-        "sf-toolkit-anon-{}-{nanos}-{n}.apex",
+        "ultraforce-anon-{}-{nanos}-{n}.apex",
         std::process::id()
     ))
 }

@@ -26,7 +26,7 @@ impl SchemaStore {
         }
     }
 
-    /// OS cache dir + `sf-toolkit`, computed lazily from the environment.
+    /// OS cache dir + `ultraforce`, computed lazily from the environment.
     pub fn default_root() -> PathBuf {
         let base = if cfg!(windows) {
             std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
@@ -35,7 +35,7 @@ impl SchemaStore {
                 .map(PathBuf::from)
                 .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
         };
-        base.unwrap_or_else(std::env::temp_dir).join("sf-toolkit")
+        base.unwrap_or_else(std::env::temp_dir).join("ultraforce")
     }
 
     fn key(api_version: &str, object: &str) -> Key {
@@ -44,10 +44,14 @@ impl SchemaStore {
 
     /// `<root>/<org_id>/<api_version>/<object>.json`, with separators sanitized.
     fn file_path(&self, api_version: &str, object: &str) -> PathBuf {
-        self.root
-            .join(sanitize(&self.org_id))
+        self.org_dir()
             .join(sanitize(api_version))
             .join(format!("{}.json", sanitize(object)))
+    }
+
+    /// `<root>/<org_id>`, with separators sanitized.
+    fn org_dir(&self) -> PathBuf {
+        self.root.join(sanitize(&self.org_id))
     }
 
     /// Look up a schema in memory only.
@@ -104,6 +108,21 @@ impl SchemaStore {
         }
     }
 
+    /// Clear this org's in-memory and on-disk schema cache.
+    ///
+    /// Returns the number of cached object JSON files removed from disk.
+    pub fn clear(&mut self) -> Result<usize, SfError> {
+        self.mem.clear();
+        let dir = self.org_dir();
+        if !dir.exists() {
+            return Ok(0);
+        }
+
+        let removed = count_json_files(&dir)?;
+        std::fs::remove_dir_all(&dir).map_err(SfError::Spawn)?;
+        Ok(removed)
+    }
+
     fn persist(
         &self,
         api_version: &str,
@@ -123,6 +142,20 @@ impl SchemaStore {
 /// Replace path separators so org_id / object can't escape the cache root.
 fn sanitize(s: &str) -> String {
     s.replace(['/', '\\'], "_")
+}
+
+fn count_json_files(dir: &std::path::Path) -> Result<usize, SfError> {
+    let mut count = 0;
+    for entry in std::fs::read_dir(dir).map_err(SfError::Spawn)? {
+        let entry = entry.map_err(SfError::Spawn)?;
+        let path = entry.path();
+        if path.is_dir() {
+            count += count_json_files(&path)?;
+        } else if path.extension().is_some_and(|ext| ext == "json") {
+            count += 1;
+        }
+    }
+    Ok(count)
 }
 
 #[cfg(test)]
@@ -219,5 +252,23 @@ mod tests {
         store.get_or_fetch(&invoker, API, "Account").await.unwrap();
         assert_eq!(calls.load(Ordering::SeqCst), 2);
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn clear_removes_cached_objects() {
+        let root = unique_root();
+        let (invoker, _calls) = counting_invoker();
+        let mut store = SchemaStore::new(&root, "00Dorg");
+
+        store.get_or_fetch(&invoker, API, "Account").await.unwrap();
+        let org_dir = root.join("00Dorg");
+        assert!(org_dir.exists());
+
+        let removed = store.clear().unwrap();
+
+        assert!(removed >= 1, "removed {removed}");
+        assert!(!org_dir.exists());
+        assert!(store.get(API, "Account").is_none());
+        std::fs::remove_dir_all(&root).ok();
     }
 }

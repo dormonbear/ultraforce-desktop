@@ -1,5 +1,6 @@
 import type { Monaco } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
+import type { CompletionItemDto } from "./types";
 
 const SOQL_KEYWORDS = [
   "SELECT",
@@ -24,6 +25,26 @@ const SOQL_KEYWORDS = [
 let registered = false;
 let soqlCompletionRegistered = false;
 
+/** Map a backend completion kind to a Monaco icon. */
+function kindIcon(
+  monaco: Monaco,
+  kind: string,
+): number {
+  const K = monaco.languages.CompletionItemKind;
+  switch (kind) {
+    case "object":
+      return K.Class;
+    case "keyword":
+      return K.Keyword;
+    case "function":
+      return K.Function;
+    case "relationship":
+      return K.Reference;
+    default:
+      return K.Field;
+  }
+}
+
 /** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command. */
 export function registerSoqlCompletion(monaco: Monaco): void {
   if (soqlCompletionRegistered) return;
@@ -33,9 +54,12 @@ export function registerSoqlCompletion(monaco: Monaco): void {
     provideCompletionItems: async (model, position) => {
       const offset = model.getOffsetAt(position);
       const query = model.getValue();
-      let labels: string[];
+      let items: CompletionItemDto[];
       try {
-        labels = await invoke<string[]>("soql_complete", { query, offset });
+        items = await invoke<CompletionItemDto[]>("soql_complete", {
+          query,
+          offset,
+        });
       } catch {
         return { suggestions: [] };
       }
@@ -47,10 +71,11 @@ export function registerSoqlCompletion(monaco: Monaco): void {
         endColumn: word.endColumn,
       };
       return {
-        suggestions: labels.map((label) => ({
-          label,
-          kind: monaco.languages.CompletionItemKind.Field,
-          insertText: label,
+        suggestions: items.map((item) => ({
+          label: item.label,
+          detail: item.detail ?? undefined,
+          kind: kindIcon(monaco, item.kind),
+          insertText: item.label,
           range,
         })),
       };

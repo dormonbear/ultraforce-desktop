@@ -1,4 +1,4 @@
-import { Database, Moon, ScrollText, Terminal } from "lucide-react";
+import { Database, History, Moon, ScrollText, Terminal } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -17,6 +17,7 @@ interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectPanel: (panel: PanelId) => void;
+  onOpenHistory: () => void;
 }
 
 const PANELS: Array<{ id: PanelId; label: string; icon: typeof Database }> = [
@@ -29,6 +30,7 @@ export function CommandPalette({
   open,
   onOpenChange,
   onSelectPanel,
+  onOpenHistory,
 }: CommandPaletteProps) {
   const { toggle } = useTheme();
   const { orgs, error: orgError, select } = useOrgs();
@@ -57,6 +59,18 @@ export function CommandPalette({
               {label}
             </CommandItem>
           ))}
+        </CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading="History">
+          <CommandItem
+            onSelect={() => {
+              onOpenHistory();
+              close();
+            }}
+          >
+            <History size={14} />
+            Open run history
+          </CommandItem>
         </CommandGroup>
         <CommandSeparator />
         <CommandGroup heading="Theme">

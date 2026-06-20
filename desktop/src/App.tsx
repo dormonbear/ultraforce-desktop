@@ -6,12 +6,16 @@ import {
   Table as TableIcon,
   Sun,
   Moon,
+  History as HistoryIcon,
 } from "lucide-react";
 import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
+import { HistoryDrawer } from "./components/HistoryDrawer";
+import { SchemaRefresh } from "./components/SchemaRefresh";
+import { onOpenTabRequest } from "./openTab";
 import { useTheme } from "./theme";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -34,6 +38,7 @@ const RAIL = [
 export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [histOpen, setHistOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const themeTitle = theme === "dark" ? "Switch to light" : "Switch to dark";
 
@@ -48,6 +53,9 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // History "open in tab" requests switch to the owning tool's panel.
+  useEffect(() => onOpenTabRequest((tool) => setActive(tool)), []);
+
   return (
     <TooltipProvider>
     <div className="flex h-full flex-col bg-background text-foreground">
@@ -60,9 +68,24 @@ export default function App() {
           className="text-[20px] font-normal tracking-tight text-foreground"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          SF·TOOLKIT
+          ULTRAFORCE
         </span>
         <div className="flex items-center gap-2">
+          <SchemaRefresh />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setHistOpen(true)}
+                aria-label="Run history"
+                className="size-7 cursor-pointer text-text-dim hover:text-foreground"
+              >
+                <HistoryIcon size={15} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Run history</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -126,7 +149,9 @@ export default function App() {
         open={cmdOpen}
         onOpenChange={setCmdOpen}
         onSelectPanel={setActive}
+        onOpenHistory={() => setHistOpen(true)}
       />
+      <HistoryDrawer open={histOpen} onOpenChange={setHistOpen} />
       <Toaster theme={theme} />
     </div>
     </TooltipProvider>

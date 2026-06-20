@@ -1,20 +1,59 @@
-//! Cursor-aware clause detection and SELECT field-name completion (pure).
+//! Cursor-aware clause detection and SOQL completion (pure).
 
 use crate::parse::{outline, SoqlOutline};
 use sf_schema::SObjectSchema;
+
+const SOQL_FUNCTIONS: &[&str] = &[
+    "AVG",
+    "COUNT",
+    "COUNT_DISTINCT",
+    "MAX",
+    "MIN",
+    "SUM",
+    "CALENDAR_MONTH",
+    "CALENDAR_QUARTER",
+    "CALENDAR_YEAR",
+    "DAY_IN_MONTH",
+    "DAY_IN_WEEK",
+    "DAY_IN_YEAR",
+    "DAY_ONLY",
+    "FISCAL_MONTH",
+    "FISCAL_QUARTER",
+    "FISCAL_YEAR",
+    "HOUR_IN_DAY",
+    "WEEK_IN_MONTH",
+    "WEEK_IN_YEAR",
+    "CONVERTCURRENCY",
+    "CONVERTTIMEZONE",
+    "DISTANCE",
+    "FORMAT",
+    "GROUPING",
+    "TOLABEL",
+    "FIELDS",
+];
 
 /// Which clause region a cursor sits in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Clause {
     Select,
     From,
-    Other,
+    Where,
+    OrderBy,
+    GroupBy,
+    Having,
+    Limit,
+    Offset,
+    None,
 }
 
 /// Kind of completion candidate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CandidateKind {
     Field,
+    Object,
+    Keyword,
+    Function,
+    Relationship,
 }
 
 /// A single completion candidate.
@@ -22,60 +61,68 @@ pub enum CandidateKind {
 pub struct Candidate {
     pub label: String,
     pub kind: CandidateKind,
-}
-
-/// Find the byte offsets of the `SELECT` and `FROM` keywords (case-insensitive).
-fn keyword_span(input: &str, keyword: &str) -> Option<(usize, usize)> {
-    use crate::lexer::{lex, TokenKind};
-    lex(input).into_iter().find_map(|t| {
-        if t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case(keyword) {
-            Some((t.start, t.end))
-        } else {
-            None
-        }
-    })
+    pub detail: Option<String>,
 }
 
 /// Classify which clause region the `cursor` byte offset falls in.
-pub fn clause_at(outline: &SoqlOutline, input: &str, cursor: usize) -> Clause {
-    let select = keyword_span(input, "SELECT");
-    let from = keyword_span(input, "FROM");
+pub fn clause_at(_outline: &SoqlOutline, input: &str, cursor: usize) -> Clause {
+    use crate::lexer::{lex, Token, TokenKind};
 
-    // Between SELECT keyword end and FROM keyword start = Select region.
-    if let Some((_, sel_end)) = select {
-        let before_from = match from {
-            Some((from_start, _)) => cursor <= from_start,
-            None => true,
+    fn token_before(tokens: &[Token], cursor: usize, offset: usize) -> Option<&Token> {
+        tokens.iter().filter(|t| t.start < cursor).rev().nth(offset)
+    }
+
+    fn is_keyword(token: Option<&Token>, keyword: &str) -> bool {
+        token.is_some_and(|t| t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case(keyword))
+    }
+
+    let tokens: Vec<_> = lex(input)
+        .into_iter()
+        .filter(|t| t.kind != TokenKind::Whitespace)
+        .collect();
+
+    let previous = token_before(&tokens, cursor, 0);
+    let previous_previous = token_before(&tokens, cursor, 1);
+
+    if is_keyword(previous_previous, "ORDER") && is_keyword(previous, "BY") {
+        return Clause::OrderBy;
+    }
+    if is_keyword(previous_previous, "GROUP") && is_keyword(previous, "BY") {
+        return Clause::GroupBy;
+    }
+
+    let mut clause = Clause::None;
+    for token in tokens.iter().filter(|t| t.start < cursor) {
+        if token.kind != TokenKind::Keyword {
+            continue;
+        }
+
+        if token.text.eq_ignore_ascii_case("BY") {
+            continue;
+        }
+
+        clause = if token.text.eq_ignore_ascii_case("SELECT") {
+            Clause::Select
+        } else if token.text.eq_ignore_ascii_case("FROM") {
+            Clause::From
+        } else if token.text.eq_ignore_ascii_case("WHERE") {
+            Clause::Where
+        } else if token.text.eq_ignore_ascii_case("ORDER") {
+            Clause::OrderBy
+        } else if token.text.eq_ignore_ascii_case("GROUP") {
+            Clause::GroupBy
+        } else if token.text.eq_ignore_ascii_case("HAVING") {
+            Clause::Having
+        } else if token.text.eq_ignore_ascii_case("LIMIT") {
+            Clause::Limit
+        } else if token.text.eq_ignore_ascii_case("OFFSET") {
+            Clause::Offset
+        } else {
+            clause
         };
-        if cursor >= sel_end && before_from {
-            return Clause::Select;
-        }
     }
 
-    // At/after the FROM object slot = From region.
-    if let Some((_, from_end)) = from {
-        if cursor >= from_end {
-            // If a from_object is present and the cursor is within/at its span, From.
-            if let Some(obj) = &outline.from_object {
-                if let Some(pos) = input[from_end..].find(obj.as_str()) {
-                    let obj_start = from_end + pos;
-                    let obj_end = obj_start + obj.len();
-                    if cursor >= from_end && cursor <= obj_end {
-                        return Clause::From;
-                    }
-                    if cursor < obj_start {
-                        return Clause::From;
-                    }
-                } else if cursor >= from_end {
-                    return Clause::From;
-                }
-            } else {
-                return Clause::From;
-            }
-        }
-    }
-
-    Clause::Other
+    clause
 }
 
 /// Walk backwards from `cursor` over identifier characters to get the partial.
@@ -93,37 +140,102 @@ fn partial_at(input: &str, cursor: usize) -> &str {
     &input[start..cursor]
 }
 
-/// Produce SELECT field-name completions for `input` at `cursor`.
+fn matches_partial(label: &str, partial: &str) -> bool {
+    label
+        .to_ascii_lowercase()
+        .starts_with(&partial.to_ascii_lowercase())
+}
+
+fn keyword_candidates_for(clause: Clause) -> &'static [&'static str] {
+    match clause {
+        Clause::Select => &["FROM", "WHERE", "GROUP BY", "ORDER BY", "LIMIT", "OFFSET"],
+        Clause::Where => &[
+            "AND", "OR", "NOT", "LIKE", "IN", "GROUP BY", "ORDER BY", "LIMIT", "OFFSET", "NULL",
+            "TRUE", "FALSE",
+        ],
+        Clause::OrderBy => &[
+            "ASC",
+            "DESC",
+            "NULLS FIRST",
+            "NULLS LAST",
+            "LIMIT",
+            "OFFSET",
+        ],
+        Clause::GroupBy => &["HAVING", "ORDER BY", "LIMIT", "OFFSET"],
+        Clause::Having => &[
+            "AND", "OR", "NOT", "LIKE", "IN", "ORDER BY", "LIMIT", "OFFSET",
+        ],
+        Clause::None => &["SELECT"],
+        Clause::From => &[],
+        Clause::Limit | Clause::Offset => &[],
+    }
+}
+
+fn push_candidate(
+    candidates: &mut Vec<Candidate>,
+    label: impl Into<String>,
+    kind: CandidateKind,
+    detail: Option<String>,
+) {
+    candidates.push(Candidate {
+        label: label.into(),
+        kind,
+        detail,
+    });
+}
+
+fn finish_candidates(mut candidates: Vec<Candidate>, partial: &str) -> Vec<Candidate> {
+    candidates.retain(|candidate| matches_partial(&candidate.label, partial));
+    candidates.sort_by_key(|candidate| candidate.label.to_ascii_lowercase());
+    candidates.dedup_by(|a, b| a.label.eq_ignore_ascii_case(&b.label));
+    candidates
+}
+
+/// Produce context-aware completions for `input` at `cursor`.
 ///
-/// Pure: reads only `schema`. Returns `[]` outside the SELECT clause.
-pub fn complete(input: &str, cursor: usize, schema: &SObjectSchema) -> Vec<Candidate> {
+/// Pure: reads only `schema` and `objects`.
+pub fn complete(
+    input: &str,
+    cursor: usize,
+    schema: &SObjectSchema,
+    objects: &[String],
+) -> Vec<Candidate> {
     let o = outline(input);
-    if clause_at(&o, input, cursor) != Clause::Select {
-        return Vec::new();
+    let clause = clause_at(&o, input, cursor);
+    let partial = partial_at(input, cursor);
+    let mut candidates = Vec::new();
+
+    match clause {
+        Clause::Select | Clause::Where | Clause::OrderBy | Clause::GroupBy | Clause::Having => {
+            for field in &schema.fields {
+                push_candidate(
+                    &mut candidates,
+                    field.name.clone(),
+                    CandidateKind::Field,
+                    None,
+                );
+            }
+            for function in SOQL_FUNCTIONS {
+                push_candidate(&mut candidates, *function, CandidateKind::Function, None);
+            }
+            for keyword in keyword_candidates_for(clause) {
+                push_candidate(&mut candidates, *keyword, CandidateKind::Keyword, None);
+            }
+        }
+        Clause::From => {
+            for object in objects {
+                push_candidate(&mut candidates, object.clone(), CandidateKind::Object, None);
+            }
+        }
+        Clause::None => {
+            for keyword in keyword_candidates_for(clause) {
+                push_candidate(&mut candidates, *keyword, CandidateKind::Keyword, None);
+            }
+        }
+        Clause::Limit | Clause::Offset => {}
     }
 
-    let partial = partial_at(input, cursor);
-
-    let mut labels: Vec<String> = schema
-        .fields
-        .iter()
-        .filter(|f| {
-            f.name
-                .to_ascii_lowercase()
-                .starts_with(&partial.to_ascii_lowercase())
-        })
-        .map(|f| f.name.clone())
-        .collect();
-    labels.sort();
-    labels.dedup();
-
-    labels
-        .into_iter()
-        .map(|label| Candidate {
-            label,
-            kind: CandidateKind::Field,
-        })
-        .collect()
+    finish_candidates(candidates, partial)
 }
 
 #[cfg(test)]
@@ -166,7 +278,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT Na FROM Account";
         let cursor = "SELECT Na".len();
-        let labels: Vec<String> = complete(input, cursor, &schema)
+        let labels: Vec<String> = complete(input, cursor, &schema, &[])
             .into_iter()
             .map(|c| c.label)
             .collect();
@@ -179,7 +291,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT Na FROM Account";
         let cursor = input.len(); // inside "Account"
-        assert!(complete(input, cursor, &schema).is_empty());
+        assert!(complete(input, cursor, &schema, &[]).is_empty());
     }
 
     #[test]
@@ -187,10 +299,72 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT  FROM Account";
         let cursor = "SELECT ".len();
-        let labels: Vec<String> = complete(input, cursor, &schema)
+        let labels: Vec<String> = complete(input, cursor, &schema, &[])
             .into_iter()
             .map(|c| c.label)
             .collect();
-        assert_eq!(labels, vec!["Id", "Industry", "Name", "OwnerId"]);
+        assert!(labels.contains(&"Id".to_string()));
+        assert!(labels.contains(&"Industry".to_string()));
+        assert!(labels.contains(&"Name".to_string()));
+        assert!(labels.contains(&"OwnerId".to_string()));
+    }
+
+    #[test]
+    fn select_position_contains_field_and_function() {
+        let schema = account_schema();
+        let input = "SELECT  FROM Account";
+        let cursor = "SELECT ".len();
+        let candidates = complete(input, cursor, &schema, &[]);
+        assert!(candidates
+            .iter()
+            .any(|c| c.label == "Name" && c.kind == CandidateKind::Field && c.detail.is_none()));
+        assert!(candidates
+            .iter()
+            .any(|c| c.label == "COUNT_DISTINCT" && c.kind == CandidateKind::Function));
+    }
+
+    #[test]
+    fn completes_objects_in_from_position_by_prefix() {
+        let schema = account_schema();
+        let input = "SELECT Id FROM Acc";
+        let cursor = input.len();
+        let objects = vec!["Account".to_string(), "Contact".to_string()];
+        let labels: Vec<String> = complete(input, cursor, &schema, &objects)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"Account".to_string()));
+        assert!(!labels.contains(&"Contact".to_string()));
+    }
+
+    #[test]
+    fn prefix_filtering_is_case_insensitive() {
+        let schema = account_schema();
+        let input = "SELECT na FROM Account";
+        let cursor = "SELECT na".len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &[])
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"Name".to_string()));
+    }
+
+    #[test]
+    fn empty_objects_in_from_position_does_not_panic() {
+        let schema = account_schema();
+        let input = "SELECT Id FROM ";
+        let cursor = input.len();
+        assert!(complete(input, cursor, &schema, &[]).is_empty());
+    }
+
+    #[test]
+    fn offers_from_after_select_list() {
+        let schema = account_schema();
+        let input = "SELECT Name FR";
+        let cursor = input.len();
+        let candidates = complete(input, cursor, &schema, &[]);
+        assert!(candidates
+            .iter()
+            .any(|c| c.label == "FROM" && c.kind == CandidateKind::Keyword));
     }
 }

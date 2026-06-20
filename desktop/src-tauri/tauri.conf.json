@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "sf-toolkit-desktop",
+  "productName": "ultraforce-desktop",
   "version": "0.1.0",
-  "identifier": "com.sftoolkit.desktop",
+  "identifier": "com.ultraforce.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "SF·TOOLKIT",
+        "title": "ULTRAFORCE",
         "width": 1100,
         "height": 720,
         "minWidth": 760,

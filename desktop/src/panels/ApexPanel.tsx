@@ -15,6 +15,9 @@ import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { DebugConfigRow } from "./DebugConfigRow";
+import { useOrgs } from "../org";
+import { recordHistory } from "../history";
+import { timing } from "../metrics";
 import type { ApexOutcomeDto, CategoryLevels, DebugConfigDto } from "../types";
 import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
@@ -40,6 +43,7 @@ interface ApexViewProps {
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
 export function ApexView({ tab, onPatch }: ApexViewProps) {
   const { theme } = useTheme();
+  const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
   const [levels, setLevels] = useState<CategoryLevels | null>(null);
@@ -78,24 +82,42 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
   const run = useCallback(async () => {
     setRunning(true);
     onPatch({ error: null });
+    const source = srcRef.current;
+    const t0 = performance.now();
     try {
-      const dto = await invoke<ApexOutcomeDto>("run_apex", {
-        src: srcRef.current,
-      });
+      const dto = await invoke<ApexOutcomeDto>("run_apex", { src: source });
       onPatch({ outcome: dto });
       if (!dto.compiled) {
         toast.error(dto.compile_problem ?? "Compile failed");
       } else if (!dto.success) {
         toast.error(dto.exception_message ?? "Execution failed");
       }
+      const ms = performance.now() - t0;
+      void timing("run.apex", ms);
+      void recordHistory({
+        tool: "apex",
+        org,
+        text: source,
+        status: dto.compiled && dto.success ? "success" : "error",
+        durationMs: ms,
+      });
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
       toast.error(message);
       onPatch({ error: message, outcome: null });
+      const ms = performance.now() - t0;
+      void timing("run.apex", ms);
+      void recordHistory({
+        tool: "apex",
+        org,
+        text: source,
+        status: "error",
+        durationMs: ms,
+      });
     } finally {
       setRunning(false);
     }
-  }, [onPatch]);
+  }, [onPatch, org]);
 
   const beforeMount = (monaco: Monaco) => configureMonacoApex(monaco);
   const onMount: OnMount = (instance, monaco) => {

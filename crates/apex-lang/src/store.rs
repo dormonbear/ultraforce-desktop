@@ -44,7 +44,7 @@ impl OstStore {
                 .map(PathBuf::from)
                 .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
         };
-        base.unwrap_or_else(std::env::temp_dir).join("sf-toolkit")
+        base.unwrap_or_else(std::env::temp_dir).join("ultraforce")
     }
 
     pub fn file_path(&self, api_version: &str, source: OstSource) -> PathBuf {

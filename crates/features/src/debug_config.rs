@@ -137,7 +137,7 @@ pub struct DebugConfig {
     pub levels: CategoryLevels,
 }
 
-const DL_DEVELOPER_NAME: &str = "SF_TOOLKIT_DEBUG";
+const DL_DEVELOPER_NAME: &str = "ULTRAFORCE_DEBUG";
 
 #[derive(Deserialize)]
 struct CreateResult {

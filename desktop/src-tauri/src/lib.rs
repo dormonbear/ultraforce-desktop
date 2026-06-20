@@ -1,7 +1,9 @@
 use std::sync::Arc;
+use std::time::Instant;
 
 use sf_core::{ProcessRunner, SfInvoker};
 use tauri::State;
+use tracing_subscriber::EnvFilter;
 
 mod dto;
 use dto::{map_units, UnitDto};
@@ -30,11 +32,25 @@ struct SoqlResultDto {
 
 #[tauri::command]
 async fn run_soql(query: String, state: State<'_, AppState>) -> Result<SoqlResultDto, String> {
+    let start = Instant::now();
+    tracing::info!("run_soql start");
     let org = current_org(&state);
     let result = features::soql::run_query(&state.invoker, &query, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| {
+            tracing::warn!(
+                elapsed_ms = start.elapsed().as_millis(),
+                outcome = "err",
+                "run_soql complete"
+            );
+            format!("{e:?}")
+        })?;
     let table = result.to_table();
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = "ok",
+        "run_soql complete"
+    );
     Ok(SoqlResultDto {
         columns: table.columns,
         rows: table.rows,
@@ -59,11 +75,25 @@ struct ApexOutcomeDto {
 
 #[tauri::command]
 async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcomeDto, String> {
+    let start = Instant::now();
+    tracing::info!("run_apex start");
     let org = current_org(&state);
     let outcome = features::anon_apex::run_anon(&state.invoker, &src, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| {
+            tracing::warn!(
+                elapsed_ms = start.elapsed().as_millis(),
+                outcome = "err",
+                "run_apex complete"
+            );
+            format!("{e:?}")
+        })?;
     let r = outcome.result;
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = "ok",
+        "run_apex complete"
+    );
     Ok(ApexOutcomeDto {
         compiled: r.compiled,
         success: r.success,
@@ -170,12 +200,26 @@ async fn apex_complete(
     offset: usize,
     state: State<'_, AppState>,
 ) -> Result<Vec<dto::CandidateDto>, String> {
+    let start = Instant::now();
+    tracing::info!("apex_complete start");
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
     let cands = state
         .apex
         .complete(&state.invoker, &org, &src, offset)
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| {
+            tracing::warn!(
+                elapsed_ms = start.elapsed().as_millis(),
+                outcome = "err",
+                "apex_complete complete"
+            );
+            format!("{e:?}")
+        })?;
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = "ok",
+        "apex_complete complete"
+    );
     Ok(cands.iter().map(dto::CandidateDto::from).collect())
 }
 
@@ -184,16 +228,51 @@ async fn soql_complete(
     query: String,
     offset: usize,
     state: State<'_, AppState>,
-) -> Result<Vec<String>, String> {
+) -> Result<Vec<dto::CompletionDto>, String> {
+    let start = Instant::now();
+    tracing::info!("soql_complete start");
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
-    Ok(features::soql::complete_fields(
+    let cands = features::soql::complete_fields(
         &state.invoker,
         sf_schema::SchemaStore::default_root(),
         &org,
         &query,
         offset,
     )
-    .await)
+    .await;
+    tracing::info!(
+        elapsed_ms = start.elapsed().as_millis(),
+        outcome = "ok",
+        "soql_complete complete"
+    );
+    Ok(cands.iter().map(dto::CompletionDto::from).collect())
+}
+
+#[tauri::command]
+async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result<usize, String> {
+    let _ = &state;
+    let start = Instant::now();
+    tracing::info!(org = %org, "refresh_schema_cache start");
+    let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
+    match store.clear() {
+        Ok(removed) => {
+            tracing::info!(
+                elapsed_ms = start.elapsed().as_millis(),
+                outcome = "ok",
+                removed,
+                "refresh_schema_cache complete"
+            );
+            Ok(removed)
+        }
+        Err(e) => {
+            tracing::warn!(
+                elapsed_ms = start.elapsed().as_millis(),
+                outcome = "err",
+                "refresh_schema_cache complete"
+            );
+            Err(format!("{e:?}"))
+        }
+    }
 }
 
 #[tauri::command]
@@ -228,6 +307,7 @@ async fn apex_soql_diagnostics(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _guard = init_tracing();
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
@@ -247,9 +327,30 @@ pub fn run() {
             set_debug_config,
             apex_complete,
             soql_complete,
+            refresh_schema_cache,
             soql_diagnostics,
             apex_soql_diagnostics
         ])
+        .plugin(tauri_plugin_store::Builder::new().build())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
+    let log_dir = dirs::data_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("ultraforce")
+        .join("logs");
+    let _ = std::fs::create_dir_all(&log_dir);
+    let file_appender = tracing_appender::rolling::daily(log_dir, "ultraforce.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    let filter = std::env::var("ULTRAFORCE_LOG")
+        .ok()
+        .and_then(|value| EnvFilter::try_new(value).ok())
+        .unwrap_or_else(|| EnvFilter::new("info"));
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(non_blocking)
+        .init();
+    guard
 }

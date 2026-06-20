@@ -1,7 +1,7 @@
 //! Serde-serializable DTOs for the parsed debug-log view, plus mappers from the
 //! `log_parser` / `features` model types (which are not serde-aware).
 
-use apex_lang::complete::{Candidate, CandidateKind};
+use apex_lang::complete::{Candidate as ApexCandidate, CandidateKind as ApexCandidateKind};
 use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
 use features::debug_log::{DebugLogView, UnitView};
 use features::soql::{FieldValue, Record};
@@ -38,21 +38,50 @@ pub struct CandidateDto {
     pub kind: String,
 }
 
-fn candidate_kind_str(k: &CandidateKind) -> &'static str {
+fn candidate_kind_str(k: &ApexCandidateKind) -> &'static str {
     match k {
-        CandidateKind::Type => "type",
-        CandidateKind::Keyword => "keyword",
-        CandidateKind::LocalVar => "localVar",
-        CandidateKind::Method => "method",
-        CandidateKind::Property => "property",
+        ApexCandidateKind::Type => "type",
+        ApexCandidateKind::Keyword => "keyword",
+        ApexCandidateKind::LocalVar => "localVar",
+        ApexCandidateKind::Method => "method",
+        ApexCandidateKind::Property => "property",
     }
 }
 
-impl From<&Candidate> for CandidateDto {
-    fn from(c: &Candidate) -> Self {
+impl From<&ApexCandidate> for CandidateDto {
+    fn from(c: &ApexCandidate) -> Self {
         CandidateDto {
             label: c.label.clone(),
             kind: candidate_kind_str(&c.kind).to_string(),
+        }
+    }
+}
+
+/// One SOQL completion candidate for the React/Monaco side.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompletionDto {
+    pub label: String,
+    pub kind: String,
+    pub detail: Option<String>,
+}
+
+fn soql_candidate_kind_str(k: &soql_lang::CandidateKind) -> &'static str {
+    match k {
+        soql_lang::CandidateKind::Field => "field",
+        soql_lang::CandidateKind::Object => "object",
+        soql_lang::CandidateKind::Keyword => "keyword",
+        soql_lang::CandidateKind::Function => "function",
+        soql_lang::CandidateKind::Relationship => "relationship",
+    }
+}
+
+impl From<&soql_lang::Candidate> for CompletionDto {
+    fn from(c: &soql_lang::Candidate) -> Self {
+        CompletionDto {
+            label: c.label.clone(),
+            kind: soql_candidate_kind_str(&c.kind).to_string(),
+            detail: c.detail.clone(),
         }
     }
 }

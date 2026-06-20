@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    sf_toolkit_desktop_lib::run()
+    ultraforce_desktop_lib::run()
 }

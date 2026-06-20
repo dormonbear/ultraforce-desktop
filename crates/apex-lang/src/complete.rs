@@ -22,11 +22,20 @@ pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
     match context_at(input, cursor) {
         CursorContext::TopLevel { prefix } => {
             let mut candidates = Vec::new();
+            if prefix.starts_with('@') {
+                for annotation in ANNOTATIONS {
+                    push_if_matches(&mut candidates, &prefix, annotation, CandidateKind::Keyword);
+                }
+                return sort_and_dedupe(candidates);
+            }
             for ty in all_types(ost) {
                 push_if_matches(&mut candidates, &prefix, &ty.name, CandidateKind::Type);
             }
             for keyword in KEYWORDS {
                 push_if_matches(&mut candidates, &prefix, keyword, CandidateKind::Keyword);
+            }
+            for primitive in PRIMITIVES {
+                push_if_matches(&mut candidates, &prefix, primitive, CandidateKind::Type);
             }
             for local in &outline.locals {
                 push_if_matches(
@@ -54,7 +63,81 @@ pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
 }
 
 const KEYWORDS: &[&str] = &[
-    "class", "for", "if", "new", "private", "public", "return", "static", "void", "while",
+    "abstract",
+    "break",
+    "catch",
+    "class",
+    "continue",
+    "do",
+    "else",
+    "enum",
+    "extends",
+    "final",
+    "finally",
+    "for",
+    "global",
+    "if",
+    "implements",
+    "instanceof",
+    "interface",
+    "new",
+    "override",
+    "private",
+    "protected",
+    "public",
+    "return",
+    "static",
+    "super",
+    "switch on",
+    "this",
+    "throw",
+    "transient",
+    "trigger",
+    "try",
+    "virtual",
+    "void",
+    "webservice",
+    "while",
+    "with sharing",
+    "without sharing",
+    "inherited sharing",
+    "when",
+    "insert",
+    "update",
+    "delete",
+    "upsert",
+    "merge",
+    "undelete",
+    "select",
+    "null",
+    "true",
+    "false",
+];
+
+const PRIMITIVES: &[&str] = &[
+    "Blob", "Boolean", "Date", "Datetime", "Decimal", "Double", "Id", "Integer", "Long", "Object",
+    "String", "Time",
+];
+
+const ANNOTATIONS: &[&str] = &[
+    "@AuraEnabled",
+    "@Deprecated",
+    "@Future",
+    "@HttpDelete",
+    "@HttpGet",
+    "@HttpPatch",
+    "@HttpPost",
+    "@HttpPut",
+    "@InvocableMethod",
+    "@InvocableVariable",
+    "@IsTest",
+    "@JsonAccess",
+    "@NamespaceAccessible",
+    "@ReadOnly",
+    "@RemoteAction",
+    "@SuppressWarnings",
+    "@TestSetup",
+    "@TestVisible",
 ];
 
 fn all_types(ost: &Ost) -> Vec<&ApexType> {
@@ -189,6 +272,66 @@ mod tests {
             .any(|candidate| candidate.label == "save" && candidate.kind == CandidateKind::Method));
 
         assert_eq!(complete(" ", 1, &ost), Vec::new());
+    }
+
+    #[test]
+    fn completes_annotations_from_at_prefix() {
+        let ost = ost();
+
+        let got = complete("@Aura", "@Aura".len(), &ost);
+
+        assert!(
+            got.iter().any(|candidate| candidate.label == "@AuraEnabled"
+                && candidate.kind == CandidateKind::Keyword),
+            "{got:?}"
+        );
+        assert!(got.iter().all(|candidate| candidate.label.starts_with('@')));
+    }
+
+    #[test]
+    fn completes_primitives_at_top_level() {
+        let ost = ost();
+
+        let got = complete("Inte", "Inte".len(), &ost);
+
+        assert!(
+            got.iter()
+                .any(|candidate| candidate.label == "Integer"
+                    && candidate.kind == CandidateKind::Type),
+            "{got:?}"
+        );
+    }
+
+    #[test]
+    fn completes_extended_keywords_at_top_level() {
+        let ost = ost();
+
+        let got = complete("glo", "glo".len(), &ost);
+
+        assert!(
+            got.iter()
+                .any(|candidate| candidate.label == "global"
+                    && candidate.kind == CandidateKind::Keyword),
+            "{got:?}"
+        );
+    }
+
+    #[test]
+    fn member_context_does_not_include_keywords() {
+        let ost = ost();
+        let input = "AccountService svc; svc.s";
+
+        let got = complete(input, input.len(), &ost);
+
+        assert!(
+            got.iter()
+                .any(|candidate| candidate.label == "save"
+                    && candidate.kind == CandidateKind::Method),
+            "{got:?}"
+        );
+        assert!(got
+            .iter()
+            .all(|candidate| candidate.kind != CandidateKind::Keyword));
     }
 
     #[test]

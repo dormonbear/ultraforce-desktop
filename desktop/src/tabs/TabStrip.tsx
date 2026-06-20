@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import type { TabBase } from "./types";
 
@@ -8,6 +9,8 @@ interface TabStripProps {
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onAdd: () => void;
+  /** Commit a new title for a tab (double-click to start editing). */
+  onRename?: (id: string, title: string) => void;
 }
 
 /** Presentational tablist mirroring the activity-rail accent treatment. */
@@ -18,8 +21,26 @@ export function TabStrip({
   onSelect,
   onClose,
   onAdd,
+  onRename,
 }: TabStripProps) {
   const lone = tabs.length === 1;
+  const [editing, setEditing] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select();
+  }, [editing]);
+
+  const startEdit = (t: TabBase) => {
+    if (!onRename) return;
+    setDraft(t.title);
+    setEditing(t.id);
+  };
+  const commit = () => {
+    if (editing && onRename) onRename(editing, draft);
+    setEditing(null);
+  };
 
   const onKeyDown = (e: React.KeyboardEvent, id: string, idx: number) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -59,7 +80,32 @@ export function TabStrip({
             {active && (
               <span className="absolute inset-x-1 -bottom-px h-0.5 rounded bg-primary" />
             )}
-            <span className="tnum whitespace-nowrap">{t.title}</span>
+            {editing === t.id ? (
+              <input
+                ref={inputRef}
+                value={draft}
+                aria-label={`Rename ${t.title}`}
+                onChange={(e) => setDraft(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter") commit();
+                  else if (e.key === "Escape") setEditing(null);
+                }}
+                className="tnum w-28 rounded-[2px] bg-transparent text-[12px] text-foreground outline-none ring-1 ring-primary/60"
+              />
+            ) : (
+              <span
+                className="tnum whitespace-nowrap"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  startEdit(t);
+                }}
+              >
+                {t.title}
+              </span>
+            )}
             <button
               type="button"
               aria-label={`Close ${t.title}`}

@@ -105,3 +105,10 @@ export interface ApexCandidateDto {
   label: string;
   kind: string;
 }
+
+/** A structured SOQL/Apex completion item (label + kind for the icon + optional detail). */
+export interface CompletionItemDto {
+  label: string;
+  kind: string;
+  detail?: string | null;
+}

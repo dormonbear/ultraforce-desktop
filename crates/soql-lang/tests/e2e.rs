@@ -17,7 +17,7 @@ async fn completion_and_diagnostics_against_real_account() {
 
     let input = "SELECT Nam FROM Account";
     let cursor = "SELECT Nam".len();
-    let labels: Vec<String> = complete(input, cursor, &schema)
+    let labels: Vec<String> = complete(input, cursor, &schema, &[])
         .into_iter()
         .map(|c| c.label)
         .collect();

@@ -10,6 +10,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SoqlEditor } from "../components/SoqlEditor";
 import { ResultTable } from "../components/ResultTable";
 import { RecordTree } from "../components/RecordTree";
+import { useOrgs } from "../org";
+import { recordHistory } from "../history";
+import { timing } from "../metrics";
 import type { SoqlResultDto } from "../types";
 import type { SoqlTab } from "../tabs/types";
 
@@ -22,21 +25,42 @@ interface SoqlViewProps {
 export function SoqlView({ tab, onPatch }: SoqlViewProps) {
   const { query, result, error, view } = tab;
   const [running, setRunning] = useState(false);
+  const { selected: org } = useOrgs();
 
   const run = useCallback(async () => {
     setRunning(true);
     onPatch({ error: null });
+    const t0 = performance.now();
     try {
       const dto = await invoke<SoqlResultDto>("run_soql", { query });
       onPatch({ result: dto });
+      const ms = performance.now() - t0;
+      void timing("run.soql", ms);
+      void recordHistory({
+        tool: "soql",
+        org,
+        text: query,
+        status: "success",
+        durationMs: ms,
+        rowCount: dto.total_size,
+      });
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
       toast.error(message);
       onPatch({ error: message });
+      const ms = performance.now() - t0;
+      void timing("run.soql", ms);
+      void recordHistory({
+        tool: "soql",
+        org,
+        text: query,
+        status: "error",
+        durationMs: ms,
+      });
     } finally {
       setRunning(false);
     }
-  }, [query, onPatch]);
+  }, [query, onPatch, org]);
 
   const status = running
     ? "Executing…"

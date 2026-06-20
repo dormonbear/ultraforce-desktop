@@ -314,7 +314,7 @@ fn extract_chain(non_ws: &[&Token]) -> Vec<Segment> {
 }
 
 fn is_ident_continue(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || byte == b'_'
+    byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'@'
 }
 
 fn is_type_shaped(text: &str) -> bool {

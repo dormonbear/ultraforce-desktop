@@ -3,6 +3,8 @@ import type { SoqlResultDto, ApexOutcomeDto } from "../types";
 export interface TabBase {
   id: string;
   title: string;
+  /** True once the user has manually renamed the tab (stops auto-numbering). */
+  renamed?: boolean;
 }
 
 export interface SoqlTab extends TabBase {

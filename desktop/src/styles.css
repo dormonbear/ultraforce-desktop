@@ -5,7 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * SF·TOOLKIT — Cursor editorial system, bridged to shadcn semantic tokens.
+ * ULTRAFORCE — Cursor editorial system, bridged to shadcn semantic tokens.
  * Both the shadcn names (--background/--primary/…) and the kept Cursor names
  * (--color-bg/surface/hair/…) resolve to ONE palette, so migrated shadcn
  * components and un-migrated bespoke components stay visually identical.
