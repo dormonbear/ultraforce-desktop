@@ -19,6 +19,7 @@
     "cmdk": "^1.1.1",
     "lucide-react": "^0.544.0",
     "monaco-editor": "^0.54.0",
+    "radix-ui": "^1.6.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-resizable-panels": "^3.0.6",

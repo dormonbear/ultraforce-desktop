@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { RefreshCw, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { LogView } from "../components/LogView";
 import type {
   ExecNodeDto,
@@ -197,13 +198,12 @@ export function LogsPanel() {
                     <span className="min-w-0 flex-1 truncate text-[12px] text-text">
                       {log.operation}
                     </span>
-                    <span
-                      className={`shrink-0 text-[10px] font-bold uppercase tracking-wide ${
-                        ok ? "text-success" : "text-red"
-                      }`}
+                    <Badge
+                      variant={ok ? "success" : "destructive"}
+                      className="shrink-0 rounded-[3px] px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide"
                     >
                       {log.status}
-                    </span>
+                    </Badge>
                   </button>
                 );
               })

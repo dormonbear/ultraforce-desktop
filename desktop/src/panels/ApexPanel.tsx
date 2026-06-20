@@ -4,6 +4,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
@@ -29,18 +30,17 @@ const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
 /** A COMPILED / SUCCESS chip: success-green when true, red when false. */
 function StatusChip({ label, ok }: { label: string; ok: boolean }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-[3px] border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
-        ok
-          ? "border-success/40 text-success"
-          : "border-red/40 text-red"
-      }`}
+    <Badge
+      variant={ok ? "success" : "destructive"}
+      className="rounded-[3px] border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-success" : "bg-red"}`}
+        className={`h-1.5 w-1.5 rounded-full ${
+          ok ? "bg-success" : "bg-destructive"
+        }`}
       />
       {label}
-    </span>
+    </Badge>
   );
 }
 

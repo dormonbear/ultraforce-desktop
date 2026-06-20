@@ -1,4 +1,5 @@
 import { Play, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   onRun: () => void;
@@ -17,11 +18,11 @@ export function RunButton({
   runningLabel = "RUNNING",
 }: Props) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onRun}
       disabled={running}
-      className="focus-accent ml-3 inline-flex h-8 items-center gap-1.5 rounded-[3px] bg-primary px-3 text-[12px] font-bold uppercase tracking-wide text-bg transition-transform duration-150 ease-out hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+      className="focus-accent ml-3 h-8 gap-1.5 rounded-[3px] px-3 text-[12px] font-bold uppercase tracking-wide text-bg transition-transform duration-150 ease-out hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
     >
       {running ? (
         <Loader2 size={14} className="spin" />
@@ -29,6 +30,6 @@ export function RunButton({
         <Play size={14} fill="currentColor" />
       )}
       {running ? runningLabel : label}
-    </button>
+    </Button>
   );
 }
