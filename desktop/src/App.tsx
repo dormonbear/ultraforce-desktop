@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Database,
   Terminal,
@@ -11,6 +11,7 @@ import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
+import { CommandPalette } from "./components/CommandPalette";
 import { useTheme } from "./theme";
 import {
   Tooltip,
@@ -30,8 +31,20 @@ const RAIL = [
 
 export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
+  const [cmdOpen, setCmdOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const themeTitle = theme === "dark" ? "Switch to light" : "Switch to dark";
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setCmdOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <TooltipProvider>
@@ -106,6 +119,11 @@ export default function App() {
           {active === "logs" && <LogsPanel />}
         </main>
       </div>
+      <CommandPalette
+        open={cmdOpen}
+        onOpenChange={setCmdOpen}
+        onSelectPanel={setActive}
+      />
     </div>
     </TooltipProvider>
   );

@@ -1,0 +1,108 @@
+import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { Database, Moon, ScrollText, Terminal } from "lucide-react";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+import { useTheme } from "../theme";
+import type { OrgDto } from "../types";
+
+type PanelId = "soql" | "apex" | "logs";
+
+interface CommandPaletteProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelectPanel: (panel: PanelId) => void;
+}
+
+const PANELS: Array<{ id: PanelId; label: string; icon: typeof Database }> = [
+  { id: "soql", label: "Go to SOQL", icon: Database },
+  { id: "apex", label: "Go to Apex", icon: Terminal },
+  { id: "logs", label: "Go to Logs", icon: ScrollText },
+];
+
+export function CommandPalette({
+  open,
+  onOpenChange,
+  onSelectPanel,
+}: CommandPaletteProps) {
+  const { toggle } = useTheme();
+  const [orgs, setOrgs] = useState<OrgDto[]>([]);
+  const [orgError, setOrgError] = useState<string | null>(null);
+  const loadedOrgs = useRef(false);
+
+  useEffect(() => {
+    if (!open || loadedOrgs.current) return;
+    loadedOrgs.current = true;
+    invoke<OrgDto[]>("list_orgs")
+      .then(setOrgs)
+      .catch((e) => setOrgError(typeof e === "string" ? e : String(e)));
+  }, [open]);
+
+  const close = () => onOpenChange(false);
+
+  const selectPanel = (panel: PanelId) => {
+    onSelectPanel(panel);
+    close();
+  };
+
+  const selectOrg = (username: string) => {
+    void invoke("set_target_org", { username });
+    close();
+  };
+
+  return (
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="rounded-[6px] border-hair bg-surface shadow-xl"
+    >
+      <CommandInput placeholder="Search commands..." />
+      <CommandList>
+        <CommandEmpty>No command found.</CommandEmpty>
+        <CommandGroup heading="Panels">
+          {PANELS.map(({ id, label, icon: Icon }) => (
+            <CommandItem key={id} onSelect={() => selectPanel(id)}>
+              <Icon size={14} />
+              {label}
+            </CommandItem>
+          ))}
+        </CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading="Theme">
+          <CommandItem
+            onSelect={() => {
+              toggle();
+              close();
+            }}
+          >
+            <Moon size={14} />
+            Toggle light/dark
+          </CommandItem>
+        </CommandGroup>
+        <CommandSeparator />
+        <CommandGroup heading="Orgs">
+          {orgError && <CommandItem disabled>{orgError}</CommandItem>}
+          {!orgError && orgs.length === 0 && <CommandItem disabled>No orgs</CommandItem>}
+          {orgs.map((org) => (
+            <CommandItem
+              key={org.username}
+              onSelect={() => selectOrg(org.username)}
+            >
+              <span className="truncate">
+                {org.alias ? `${org.alias} · ` : ""}
+                {org.username}
+              </span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </CommandDialog>
+  );
+}
