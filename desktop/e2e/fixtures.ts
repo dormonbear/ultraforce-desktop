@@ -103,6 +103,7 @@ const RESP: Record<string, unknown> = {
   ],
   soql_diagnostics: [],
   apex_soql_diagnostics: [],
+  apex_diagnostics: [],
 };
 
 /** Installs the mocked IPC before app scripts run. */
