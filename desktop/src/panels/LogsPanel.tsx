@@ -44,8 +44,19 @@ function TreeNode({ node, depth }: { node: ExecNodeDto; depth: number }) {
             {node.detail}
           </span>
         )}
+        {node.self_ns != null && node.self_ns !== node.dur_ns && (
+          <span
+            className="tnum ml-auto shrink-0 text-text-dim/70"
+            title="self time (excludes children)"
+          >
+            self {formatMs(node.self_ns)}
+          </span>
+        )}
         {node.dur_ns != null && (
-          <span className="tnum ml-auto shrink-0 text-text-dim">
+          <span
+            className={`tnum shrink-0 text-text-dim ${node.self_ns != null && node.self_ns !== node.dur_ns ? "" : "ml-auto"}`}
+            title="total time"
+          >
             {formatMs(node.dur_ns)}
           </span>
         )}

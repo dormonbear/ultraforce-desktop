@@ -243,6 +243,7 @@ pub struct ExecNodeDto {
     pub label: String,
     pub detail: String,
     pub dur_ns: Option<u64>,
+    pub self_ns: Option<u64>,
     pub children: Vec<ExecNodeDto>,
 }
 
@@ -316,6 +317,7 @@ fn map_node(node: &ExecNode) -> ExecNodeDto {
         label: event_label(&node.entry.event).to_string(),
         detail: detail_of(&node.entry.params),
         dur_ns: node.dur_ns,
+        self_ns: node.self_ns,
         children: node.children.iter().map(map_node).collect(),
     }
 }
@@ -371,6 +373,7 @@ mod tests {
             entry: entry(event, params),
             children,
             dur_ns,
+            self_ns: dur_ns,
         }
     }
 

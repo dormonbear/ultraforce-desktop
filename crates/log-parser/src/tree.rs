@@ -7,7 +7,19 @@ use crate::parse::ExecUnit;
 pub struct ExecNode {
     pub entry: LogEntry,
     pub children: Vec<ExecNode>,
+    /// Total elapsed time for this scope (`end - start`), or `None` for a leaf /
+    /// unclosed scope.
     pub dur_ns: Option<u64>,
+    /// Self time: `dur_ns` minus the total time of direct children — the time
+    /// spent in this frame itself, the key signal for finding hotspots.
+    pub self_ns: Option<u64>,
+}
+
+/// Self time = total minus the summed duration of direct children.
+fn self_time(dur_ns: Option<u64>, children: &[ExecNode]) -> Option<u64> {
+    let dur = dur_ns?;
+    let child_sum: u64 = children.iter().filter_map(|c| c.dur_ns).sum();
+    Some(dur.saturating_sub(child_sum))
 }
 
 /// Build a nested tree from a flat unit by pairing scope start/end events.
@@ -22,11 +34,13 @@ pub fn build_tree(unit: &ExecUnit) -> Vec<ExecNode> {
                     entry: entry.clone(),
                     children: Vec::new(),
                     dur_ns: None,
+                    self_ns: None,
                 });
             }
             ScopeKind::End => {
                 if let Some(mut node) = stack.pop() {
                     node.dur_ns = Some(entry.nanos.saturating_sub(node.entry.nanos));
+                    node.self_ns = self_time(node.dur_ns, &node.children);
                     attach(&mut roots, &mut stack, node);
                 } else {
                     attach(
@@ -36,6 +50,7 @@ pub fn build_tree(unit: &ExecUnit) -> Vec<ExecNode> {
                             entry: entry.clone(),
                             children: Vec::new(),
                             dur_ns: None,
+                            self_ns: None,
                         },
                     );
                 }
@@ -48,6 +63,7 @@ pub fn build_tree(unit: &ExecUnit) -> Vec<ExecNode> {
                         entry: entry.clone(),
                         children: Vec::new(),
                         dur_ns: None,
+                        self_ns: None,
                     },
                 );
             }
@@ -85,8 +101,10 @@ mod tests {
         let roots = build_tree(&log.units[0]);
         assert_eq!(roots.len(), 1);
         assert_eq!(roots[0].dur_ns, Some(40)); // 50 - 10
+        assert_eq!(roots[0].self_ns, Some(20)); // 40 total - 20 in the child
         assert_eq!(roots[0].children.len(), 1); // CODE_UNIT
         assert_eq!(roots[0].children[0].dur_ns, Some(20)); // 40 - 20
+        assert_eq!(roots[0].children[0].self_ns, Some(20)); // 20 total - 0 (leaf has no dur)
         assert_eq!(roots[0].children[0].children.len(), 1); // USER_DEBUG leaf
     }
 

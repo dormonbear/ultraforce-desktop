@@ -57,6 +57,7 @@ export interface ExecNodeDto {
   label: string;
   detail: string;
   dur_ns: number | null;
+  self_ns: number | null;
   children: ExecNodeDto[];
 }
 
