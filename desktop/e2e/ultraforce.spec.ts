@@ -102,6 +102,23 @@ test("Tooling API toggle threads use_tooling_api to run_soql", async ({
   expect(args?.useToolingApi).toBe(true);
 });
 
+test("Explain shows the query plan with the leading operation and cost", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+
+  await page.getByRole("button", { name: "Explain" }).click();
+  await expect(page.getByText("Query plan (EXPLAIN)")).toBeVisible();
+  await expect(page.getByText("TableScan")).toBeVisible();
+  await expect(page.getByText("2.80")).toBeVisible();
+  await expect(page.getByText("not selective")).toBeVisible();
+
+  // Closing the plan returns to the results area.
+  await page.getByRole("button", { name: "Close plan" }).click();
+  await expect(page.getByText("Query plan (EXPLAIN)")).toHaveCount(0);
+});
+
 test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Reindex org" }).click();

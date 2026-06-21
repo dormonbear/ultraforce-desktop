@@ -20,6 +20,27 @@ export interface SoqlResultDto {
   tree: RecordDto[];
 }
 
+export interface PlanNoteDto {
+  description: string;
+  fields: string[];
+  table_enum_or_id: string;
+}
+
+export interface PlanRowDto {
+  cardinality: number;
+  leading_operation_type: string;
+  relative_cost: number;
+  sobject_cardinality: number;
+  sobject_type: string;
+  fields: string[];
+  notes: PlanNoteDto[];
+}
+
+export interface QueryPlanDto {
+  plans: PlanRowDto[];
+  source_query: string;
+}
+
 export interface SoqlDiagnosticDto {
   message: string;
   start: number;

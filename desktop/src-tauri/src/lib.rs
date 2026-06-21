@@ -89,6 +89,18 @@ async fn run_soql(
     })
 }
 
+/// Fetch the SOQL query plan (EXPLAIN): cost / cardinality / leading operation.
+#[tauri::command]
+async fn query_plan(
+    query: String,
+    state: State<'_, AppState>,
+) -> Result<features::query_plan::QueryPlan, String> {
+    let org = current_org(&state);
+    features::query_plan::query_plan(&state.invoker, &query, org.as_deref())
+        .await
+        .map_err(|e| format!("{e:?}"))
+}
+
 /// Result of one anonymous-Apex run, flattened for the frontend.
 #[derive(serde::Serialize)]
 struct ApexOutcomeDto {
@@ -495,7 +507,8 @@ pub fn run() {
             reindex_org,
             soql_diagnostics,
             apex_soql_diagnostics,
-            apex_diagnostics
+            apex_diagnostics,
+            query_plan
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())

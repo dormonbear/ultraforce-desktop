@@ -12,11 +12,12 @@ import { SoqlEditor } from "../components/SoqlEditor";
 import type { Reveal } from "../monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
 import { RecordTree } from "../components/RecordTree";
+import { QueryPlanView } from "../components/QueryPlanView";
 import { useOrgs } from "../org";
 import { recordHistory } from "../history";
 import { timing } from "../metrics";
 import { parseSfError } from "../errorFormat";
-import type { SoqlResultDto } from "../types";
+import type { SoqlResultDto, QueryPlanDto } from "../types";
 import type { SoqlTab } from "../tabs/types";
 
 interface SoqlViewProps {
@@ -27,7 +28,7 @@ interface SoqlViewProps {
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
 export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
-  const { query, result, error, view, useToolingApi } = tab;
+  const { query, result, error, view, useToolingApi, plan } = tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
   // Persist the editor/results split to localStorage; restored on next launch.
@@ -75,6 +76,16 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
       setRunning(false);
     }
   }, [query, onPatch, org, useToolingApi]);
+
+  const explain = useCallback(async () => {
+    try {
+      const dto = await invoke<QueryPlanDto>("query_plan", { query });
+      onPatch({ plan: dto });
+    } catch (e) {
+      const message = typeof e === "string" ? e : String(e);
+      toast.error(parseSfError(message).detail);
+    }
+  }, [query, onPatch]);
 
   const status = running
     ? "Executing…"
@@ -134,11 +145,21 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
                 />
                 Tooling API
               </label>
+              <button
+                type="button"
+                onClick={() => void explain()}
+                title="EXPLAIN: show the query plan (cost, cardinality, leading operation)"
+                className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground"
+              >
+                Explain
+              </button>
             </div>
             <span className="tnum text-[11px] text-text-dim">{status}</span>
           </div>
           <div className="min-h-0 flex-1">
-            {error ? (
+            {plan ? (
+              <QueryPlanView plan={plan} onClose={() => onPatch({ plan: null })} />
+            ) : error ? (
               (() => {
                 const e = parseSfError(error);
                 return (
