@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useOrgs } from "../org";
+import { getNamespacePolicy } from "../indexSettings";
 
 /**
  * Rebuilds the cached offline sObject schema for the active org. The schema
@@ -26,7 +27,7 @@ export function SchemaRefresh() {
     }
     setBusy(true);
     try {
-      await invoke("reindex_org", { org });
+      await invoke("reindex_org", { org, namespaces: await getNamespacePolicy() });
       toast.success("Reindexing org...");
     } catch (e) {
       toast.error(`Schema refresh failed: ${typeof e === "string" ? e : String(e)}`);

@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 import { getRoot, setRootOverride, type Tool } from "../fs/workspace";
+import { getNamespacePolicy, setNamespacePolicy } from "../indexSettings";
+import { useOrgs } from "../org";
 import { Button } from "@/components/ui/button";
 
 interface Props {
@@ -11,16 +15,32 @@ interface Props {
 
 /** Per-tool workspace root: show current path, pick a new folder, or reset. */
 export function WorkspaceSettings({ onChanged }: Props) {
+  const { selected: org } = useOrgs();
   const [panelOpen, setPanelOpen] = useState(false);
   const [roots, setRoots] = useState<Record<Tool, string>>({ soql: "", apex: "" });
+  const [ns, setNs] = useState<string>("all");
 
-  const reload = () =>
+  const reload = () => {
     void Promise.all([getRoot("soql"), getRoot("apex")]).then(([soql, apex]) =>
       setRoots({ soql, apex }),
     );
+    void getNamespacePolicy().then(setNs);
+  };
   useEffect(() => {
     if (panelOpen) reload();
   }, [panelOpen]);
+
+  // Change the index namespace scope and reindex the active org so it takes effect.
+  const changeNs = async (value: string) => {
+    setNs(value);
+    await setNamespacePolicy(value);
+    if (org) {
+      await invoke("reindex_org", { org, namespaces: value }).catch((e) =>
+        toast.error(`Reindex failed: ${typeof e === "string" ? e : String(e)}`),
+      );
+      toast.success("Reindexing org…");
+    }
+  };
 
   const pick = async (tool: Tool) => {
     const dir = await open({ directory: true, multiple: false });
@@ -81,6 +101,20 @@ export function WorkspaceSettings({ onChanged }: Props) {
                   </div>
                 </div>
               ))}
+              <div className="flex flex-col gap-1 border-t border-border pt-2">
+                <span className="uppercase tracking-wide text-text-dim">
+                  index scope
+                </span>
+                <select
+                  value={ns}
+                  onChange={(e) => void changeNs(e.target.value)}
+                  className="cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground"
+                  aria-label="Index namespace scope"
+                >
+                  <option value="all">All objects</option>
+                  <option value="unmanaged">Unmanaged only (skip managed packages)</option>
+                </select>
+              </div>
             </div>
           </div>
         </>

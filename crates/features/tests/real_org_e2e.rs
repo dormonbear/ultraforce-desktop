@@ -303,11 +303,17 @@ async fn e2e_index_org_offline() {
     let _ = std::fs::remove_dir_all(&root);
 
     let mut phases: Vec<&'static str> = vec![];
-    let ost = features::index::index_org(&inv, root.clone(), &o, &mut |p| {
-        if phases.last() != Some(&p.phase) {
-            phases.push(p.phase);
-        }
-    })
+    let ost = features::index::index_org(
+        &inv,
+        root.clone(),
+        &o,
+        &features::index::NamespacePolicy::All,
+        &mut |p| {
+            if phases.last() != Some(&p.phase) {
+                phases.push(p.phase);
+            }
+        },
+    )
     .await
     .expect("index_org against live org");
 
@@ -397,9 +403,14 @@ async fn e2e_sync_org_noop() {
     };
     apex_lang::save_snapshot(&root, &seeded, &m).unwrap();
 
-    let (outcome, ost) = features::index::sync_org(&inv, root.clone(), &o)
-        .await
-        .expect("delta sync against live org");
+    let (outcome, ost) = features::index::sync_org(
+        &inv,
+        root.clone(),
+        &o,
+        &features::index::NamespacePolicy::All,
+    )
+    .await
+    .expect("delta sync against live org");
 
     assert_eq!(outcome.added, 0, "no adds with a future watermark");
     assert_eq!(outcome.updated, 0, "no updates with a future watermark");

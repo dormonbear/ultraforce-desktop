@@ -1,8 +1,7 @@
 # Namespace / managed-package index scoping — Design
 
-> Date: 2026-06-21 · Status: Spec (implementation deferred) · Crates: features, desktop
-> Roadmap item #3. Reclassified from implement → spec: it spans indexer + settings + UI and
-> serves a niche need (most users want the full index). Implement on demand.
+> Date: 2026-06-21 · Status: IMPLEMENTED · Crates: features, desktop
+> Roadmap item #3.
 
 ## Problem
 
@@ -24,13 +23,22 @@ users want completion scoped to their own namespace (or a chosen allow-list).
 
 3. **UI** (`desktop`): a Settings control to pick the policy; changing it triggers a `reindex_org`.
 
-## Testing (when implemented)
+## As built
 
-- features unit: a fixture mix of standard + `ns__` names → `"unmanaged"` drops the namespaced
-  ones, `"all"` keeps them, an allow-list keeps only the listed prefixes.
-- desktop: setting persists; switching it reindexes.
+- `features::index::NamespacePolicy` (`All` | `Unmanaged` | `Allow(Vec<String>)`) with
+  `namespace_of` (strip a known custom suffix, then a remaining `__` marks the namespace) and
+  `parse("all"|"unmanaged"|"ns1,ns2")`. Threaded into `index_org` / `sync_org`; both filter
+  sObject names by the policy.
+- **sObjects only.** Apex class names from `ApexClass.Name` carry no namespace prefix
+  (`NamespacePrefix` isn't queried), so managed classes aren't filtered (documented `ponytail:`
+  note in `index.rs`). Filtering them would need an extra query — out of scope.
+- desktop: `index_org`/`reindex_org` commands take a `namespaces` arg; `org.tsx` and
+  `SchemaRefresh` pass the saved policy; `WorkspaceSettings` exposes an "Index scope" select
+  (All / Unmanaged only) that persists and reindexes the active org. Default `all` (no behaviour
+  change).
 
-## Why deferred
+## Testing
 
-Niche demand; correctness of the full-index path matters more. No code change until a user needs
-scoping.
+- features unit: `namespace_of`, `NamespacePolicy::permits`, `NamespacePolicy::parse`.
+- Existing index/sync tests pass `NamespacePolicy::All` (parity).
+- desktop: tsc + vitest + Playwright e2e green.
