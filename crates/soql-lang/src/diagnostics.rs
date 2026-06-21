@@ -199,6 +199,73 @@ pub fn diagnostics<'a>(
     diags
 }
 
+/// Aggregate functions whose presence makes a row-limiting `LIMIT` unnecessary.
+fn is_aggregate_fn(name: &str) -> bool {
+    matches!(
+        name.to_ascii_uppercase().as_str(),
+        "COUNT" | "COUNT_DISTINCT" | "SUM" | "AVG" | "MIN" | "MAX"
+    )
+}
+
+/// Warn when a query has a FROM object but no `LIMIT` clause and is not an
+/// aggregate / GROUP BY query — an unbounded result set risks governor limits.
+///
+/// Schema-free (token-only), so it fires even when the org/describe is
+/// unavailable. Conservative: a `LIMIT` anywhere (including in a subquery)
+/// suppresses the warning rather than risk a false positive.
+pub fn missing_limit(input: &str) -> Option<Diagnostic> {
+    use crate::lexer::TokenKind;
+
+    let tokens = crate::lexer::lex(input);
+    let non_ws: Vec<&crate::lexer::Token> = tokens
+        .iter()
+        .filter(|t| t.kind != TokenKind::Whitespace)
+        .collect();
+
+    let mut from_obj_span: Option<(usize, usize)> = None;
+    let mut has_limit = false;
+    let mut has_aggregate = false;
+    let mut expect_from = false;
+    let mut depth: i32 = 0;
+
+    for (i, t) in non_ws.iter().enumerate() {
+        match t.kind {
+            TokenKind::LParen => depth += 1,
+            TokenKind::RParen => depth -= 1,
+            TokenKind::Keyword if t.text.eq_ignore_ascii_case("LIMIT") => has_limit = true,
+            TokenKind::Keyword if t.text.eq_ignore_ascii_case("GROUP") => has_aggregate = true,
+            // Only the outer (depth-0) FROM object anchors the warning span.
+            TokenKind::Keyword if t.text.eq_ignore_ascii_case("FROM") && depth == 0 => {
+                expect_from = true
+            }
+            TokenKind::Ident if expect_from => {
+                from_obj_span = Some((t.start, t.end));
+                expect_from = false;
+            }
+            TokenKind::Ident
+                if is_aggregate_fn(&t.text)
+                    && non_ws.get(i + 1).map(|n| n.kind) == Some(TokenKind::LParen) =>
+            {
+                has_aggregate = true;
+            }
+            _ => {}
+        }
+    }
+
+    let (start, end) = from_obj_span?;
+    if has_limit || has_aggregate {
+        return None;
+    }
+    Some(Diagnostic {
+        message:
+            "Query has no LIMIT clause and may return a large result set. Add a LIMIT to bound it."
+                .to_string(),
+        start,
+        end,
+        severity: Severity::Warning,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,5 +495,48 @@ mod tests {
         };
         let diags = diagnostics("SELECT Who.Nope FROM Account", &schema, &resolve);
         assert_eq!(diags.len(), 1, "{diags:?}");
+    }
+
+    #[test]
+    fn missing_limit_warns_on_unbounded_query() {
+        let d = missing_limit("SELECT Id, Name FROM Account").expect("should warn");
+        assert_eq!(d.severity, Severity::Warning);
+        // Span points at the FROM object.
+        assert_eq!(&"SELECT Id, Name FROM Account"[d.start..d.end], "Account");
+    }
+
+    #[test]
+    fn missing_limit_silent_when_limit_present() {
+        assert!(missing_limit("SELECT Id FROM Account LIMIT 100").is_none());
+        assert!(missing_limit("SELECT Id FROM Account limit 5").is_none());
+    }
+
+    #[test]
+    fn missing_limit_silent_for_aggregates_and_group_by() {
+        assert!(missing_limit("SELECT COUNT() FROM Account").is_none());
+        assert!(missing_limit("SELECT MAX(CreatedDate) FROM Account").is_none());
+        assert!(
+            missing_limit("SELECT Industry, COUNT(Id) FROM Account GROUP BY Industry").is_none()
+        );
+    }
+
+    #[test]
+    fn missing_limit_silent_without_from() {
+        assert!(missing_limit("SELECT Id").is_none());
+        assert!(missing_limit("").is_none());
+    }
+
+    #[test]
+    fn missing_limit_targets_outer_object_with_subquery() {
+        // First FROM (outer) object is the span; subquery LIMIT suppresses the warning.
+        assert!(
+            missing_limit("SELECT Id, (SELECT Id FROM Contacts LIMIT 5) FROM Account").is_none()
+        );
+        let d = missing_limit("SELECT Id, (SELECT Id FROM Contacts) FROM Account").expect("warn");
+        assert_eq!(
+            &"SELECT Id, (SELECT Id FROM Contacts) FROM Account"[d.start..d.end],
+            "Account",
+            "span is the outer (depth-0) FROM object"
+        );
     }
 }
