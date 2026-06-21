@@ -11,6 +11,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
+import { useOrgs } from "../org";
 import type {
   ExecNodeDto,
   LogRefDto,
@@ -107,6 +108,7 @@ function LimitsView({ units }: { units: UnitDto[] }) {
 
 /** Debug Logs: a refreshable list on the left, selected log's raw view right. */
 export function LogsPanel() {
+  const { selected: org } = useOrgs();
   const [logs, setLogs] = useState<LogRefDto[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
@@ -130,9 +132,14 @@ export function LogsPanel() {
     }
   }, []);
 
+  // Reload the list whenever the active org changes (and on mount), and drop
+  // any selection from the previous org.
   useEffect(() => {
+    setSelectedId(null);
+    setView(null);
+    setViewError(null);
     void refresh();
-  }, [refresh]);
+  }, [refresh, org]);
 
   const select = useCallback(async (id: string) => {
     setSelectedId(id);
