@@ -87,6 +87,10 @@ pub enum Clause {
     Having,
     Limit,
     Offset,
+    /// Inside a polymorphic `TYPEOF … WHEN <here>` — expects an sObject type.
+    TypeofWhen,
+    /// Inside `TYPEOF … WHEN X THEN <here>` / `ELSE <here>` — expects fields of `X`.
+    TypeofThen,
     None,
 }
 
@@ -161,12 +165,38 @@ pub fn clause_at(_outline: &SoqlOutline, input: &str, cursor: usize) -> Clause {
             Clause::Limit
         } else if token.text.eq_ignore_ascii_case("OFFSET") {
             Clause::Offset
+        } else if token.text.eq_ignore_ascii_case("WHEN") {
+            Clause::TypeofWhen
+        } else if token.text.eq_ignore_ascii_case("THEN") || token.text.eq_ignore_ascii_case("ELSE")
+        {
+            Clause::TypeofThen
+        } else if token.text.eq_ignore_ascii_case("END") {
+            // TYPEOF finished → back to the SELECT field list.
+            Clause::Select
         } else {
             clause
         };
     }
 
     clause
+}
+
+/// The sObject type named by the nearest preceding `WHEN <Type>` before `cursor`
+/// (for `TYPEOF … WHEN X THEN …` field completion). `None` if not in such a clause.
+fn typeof_when_type(input: &str, cursor: usize) -> Option<String> {
+    use crate::lexer::{lex, TokenKind};
+    let tokens: Vec<_> = lex(input)
+        .into_iter()
+        .filter(|t| t.kind != TokenKind::Whitespace && t.start < cursor)
+        .collect();
+    // Find the last WHEN keyword; the Ident immediately after it is the type.
+    let when_idx = tokens
+        .iter()
+        .rposition(|t| t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case("WHEN"))?;
+    tokens
+        .get(when_idx + 1)
+        .filter(|t| t.kind == TokenKind::Ident)
+        .map(|t| t.text.clone())
 }
 
 /// Walk backwards from `cursor` over identifier characters to get the partial.
@@ -261,6 +291,10 @@ fn keyword_candidates_for(clause: Clause) -> &'static [&'static str] {
         Clause::None => &["SELECT"],
         Clause::From => &[],
         Clause::Limit | Clause::Offset => &[],
+        // After a WHEN type's fields, `THEN` follows; after THEN/ELSE fields,
+        // `ELSE`/`END` follow. Offered alongside the field/object candidates.
+        Clause::TypeofWhen => &[],
+        Clause::TypeofThen => &["ELSE", "END"],
     }
 }
 
@@ -476,6 +510,22 @@ pub fn complete<'a>(
             }
         }
         Clause::None => {
+            for keyword in keyword_candidates_for(clause) {
+                push_candidate(&mut candidates, *keyword, CandidateKind::Keyword, None);
+            }
+        }
+        Clause::TypeofWhen => {
+            // `TYPEOF rel WHEN <here>` → an sObject type.
+            for object in objects {
+                push_candidate(&mut candidates, object.clone(), CandidateKind::Object, None);
+            }
+        }
+        Clause::TypeofThen => {
+            // `WHEN X THEN <here>` / `ELSE <here>` → fields of X (else base schema).
+            let target = typeof_when_type(input, cursor)
+                .and_then(|t| resolve(&t))
+                .unwrap_or(schema);
+            push_fields_and_relationships(&mut candidates, target);
             for keyword in keyword_candidates_for(clause) {
                 push_candidate(&mut candidates, *keyword, CandidateKind::Keyword, None);
             }
@@ -902,5 +952,45 @@ mod tests {
             .collect();
         assert!(labels.contains(&"LAST_N_DAYS:".to_string()), "{labels:?}");
         assert!(!labels.contains(&"TODAY".to_string()), "{labels:?}");
+    }
+
+    #[test]
+    fn typeof_when_offers_object_types() {
+        let base = account_schema();
+        let objects = vec!["Account".to_string(), "Opportunity".to_string()];
+        let input = "SELECT TYPEOF What WHEN Acc FROM Event";
+        let cursor = "SELECT TYPEOF What WHEN Acc".len();
+        let labels: Vec<String> = complete(input, cursor, &base, &objects, &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"Account".to_string()), "{labels:?}");
+    }
+
+    #[test]
+    fn typeof_then_offers_when_type_fields() {
+        let base = account_schema(); // stands in for Event
+        let mut map = std::collections::HashMap::new();
+        map.insert("Account".to_string(), account_schema());
+        let resolve = |n: &str| map.get(n);
+        let input = "SELECT TYPEOF What WHEN Account THEN Indu FROM Event";
+        let cursor = "SELECT TYPEOF What WHEN Account THEN Indu".len();
+        let labels: Vec<String> = complete(input, cursor, &base, &[], &resolve)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"Industry".to_string()), "{labels:?}");
+    }
+
+    #[test]
+    fn typeof_then_falls_back_to_base_when_type_unresolved() {
+        let base = account_schema();
+        let input = "SELECT TYPEOF What WHEN Unknown THEN Na FROM Event";
+        let cursor = "SELECT TYPEOF What WHEN Unknown THEN Na".len();
+        let labels: Vec<String> = complete(input, cursor, &base, &[], &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"Name".to_string()), "{labels:?}");
     }
 }
