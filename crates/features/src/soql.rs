@@ -247,6 +247,37 @@ pub async fn run_query_table(
 /// keystroke completion never blocks on a live `sf sobject list` (a multi-second call). Field
 /// completion still resolves the FROM object's describe (disk-cached) and falls back to keyword/
 /// function candidates when describe fails.
+/// Follow `chain` from `root`, fetching each hop's target object schema into a
+/// map keyed by object name. Stops at the first hop that cannot be resolved.
+async fn resolve_related(
+    store: &mut sf_schema::SchemaStore,
+    invoker: &SfInvoker,
+    api: &str,
+    root: &sf_schema::SObjectSchema,
+    chain: &[String],
+) -> std::collections::HashMap<String, sf_schema::SObjectSchema> {
+    let mut map = std::collections::HashMap::new();
+    let mut cur = root.clone();
+    for seg in chain {
+        let Some(field) = cur.fields.iter().find(|f| {
+            f.relationship_name
+                .as_deref()
+                .is_some_and(|r| r.eq_ignore_ascii_case(seg))
+        }) else {
+            break;
+        };
+        let Some(target) = field.reference_to.first().cloned() else {
+            break;
+        };
+        let Ok(schema) = store.get_or_fetch(invoker, api, &target).await else {
+            break;
+        };
+        map.insert(target, schema.clone());
+        cur = schema;
+    }
+    map
+}
+
 pub async fn complete_fields(
     invoker: &SfInvoker,
     root: impl Into<PathBuf>,
@@ -257,16 +288,17 @@ pub async fn complete_fields(
 ) -> Vec<soql_lang::Candidate> {
     let object = soql_lang::outline(query).from_object;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
-    let schema = if let Some(object) = object {
-        let api = crate::api_version::api_version_for(invoker, org_id).await;
-        store
-            .get_or_fetch(invoker, &api, &object)
-            .await
-            .unwrap_or_else(|_| empty_schema())
-    } else {
-        empty_schema()
+    let Some(object) = object else {
+        return soql_lang::complete(query, cursor, &empty_schema(), objects, &|_| None);
     };
-    soql_lang::complete(query, cursor, &schema, objects)
+    let api = crate::api_version::api_version_for(invoker, org_id).await;
+    let root_schema = store
+        .get_or_fetch(invoker, &api, &object)
+        .await
+        .unwrap_or_else(|_| empty_schema());
+    let chain = soql_lang::relationship_chain_at(query, cursor);
+    let map = resolve_related(&mut store, invoker, &api, &root_schema, &chain).await;
+    soql_lang::complete(query, cursor, &root_schema, objects, &|name| map.get(name))
 }
 
 /// Best-effort object-name list for FROM completion.
@@ -311,13 +343,40 @@ async fn soql_query_diagnostics(
     api: &str,
     query: &str,
 ) -> Vec<soql_lang::Diagnostic> {
-    let Some(object) = soql_lang::outline(query).from_object else {
+    let outline = soql_lang::outline(query);
+    let Some(object) = outline.from_object else {
         return Vec::new();
     };
-    let Ok(schema) = store.get_or_fetch(invoker, api, &object).await else {
+    let Ok(root_schema) = store.get_or_fetch(invoker, api, &object).await else {
         return Vec::new();
     };
-    soql_lang::diagnostics(query, &schema)
+
+    // Collect dotted paths (SELECT + WHERE) and fetch their relationship targets.
+    let mut paths: Vec<String> = outline
+        .select_fields
+        .iter()
+        .map(|f| f.name.clone())
+        .collect();
+    paths.extend(
+        soql_lang::where_conditions(query)
+            .into_iter()
+            .map(|c| c.field.name),
+    );
+    let mut map: std::collections::HashMap<String, sf_schema::SObjectSchema> =
+        std::collections::HashMap::new();
+    for path in paths {
+        let segs: Vec<&str> = path.split('.').collect();
+        if segs.len() < 2 {
+            continue;
+        }
+        let chain: Vec<String> = segs[..segs.len() - 1]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let hop = resolve_related(store, invoker, api, &root_schema, &chain).await;
+        map.extend(hop);
+    }
+    soql_lang::diagnostics(query, &root_schema, &|name| map.get(name))
 }
 
 fn to_dto(d: soql_lang::Diagnostic, offset: usize) -> SoqlDiagnostic {
@@ -523,6 +582,53 @@ mod tests {
         assert!(got
             .iter()
             .any(|c| c.label == "Name" && c.kind == soql_lang::CandidateKind::Field));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn complete_fields_traverses_relationship() {
+        // Account.OwnerId → User; cursor after `Owner.` completes User's fields.
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            let body = if args.iter().any(|a| a == "User") {
+                r#"{"status":0,"result":{"name":"User","fields":[{"name":"Email","type":"string"}]}}"#
+            } else {
+                r#"{"status":0,"result":{"name":"Account","fields":[{"name":"OwnerId","type":"reference","referenceTo":["User"],"relationshipName":"Owner"}]}}"#
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-rel-complete-{}", std::process::id()));
+        let q = "SELECT Owner.Em FROM Account";
+        let cursor = "SELECT Owner.Em".len();
+        let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
+        let labels: Vec<String> = got.into_iter().map(|c| c.label).collect();
+        assert!(labels.contains(&"Email".to_string()), "{labels:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn diagnose_flags_unknown_dotted_field() {
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            let body = if args.iter().any(|a| a == "User") {
+                r#"{"status":0,"result":{"name":"User","fields":[{"name":"Email","type":"string"}]}}"#
+            } else {
+                r#"{"status":0,"result":{"name":"Account","fields":[{"name":"OwnerId","type":"reference","referenceTo":["User"],"relationshipName":"Owner"}]}}"#
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-rel-diag-{}", std::process::id()));
+        let diags = diagnose(&invoker, &dir, "myorg", "SELECT Owner.Bogus FROM Account").await;
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert!(diags[0].message.contains("Bogus"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
