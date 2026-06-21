@@ -113,6 +113,88 @@ pub async fn fetch_apex_class(
     Ok(env.records)
 }
 
+/// Apex classes modified since `since` (RFC3339 UTC), with full `SymbolTable`.
+/// Feed the returned records to [`parse_org_types`].
+pub async fn fetch_changed_apex_classes(
+    invoker: &SfInvoker,
+    org: &str,
+    since: &str,
+) -> Result<Vec<serde_json::Value>, SfError> {
+    #[derive(Deserialize)]
+    struct QueryEnvelope {
+        records: Vec<serde_json::Value>,
+    }
+    // `since` is our own machine-generated ISO8601 — no SOQL-injection surface.
+    let q = format!("SELECT Name, SymbolTable FROM ApexClass WHERE LastModifiedDate > {since}");
+    let args = with_target(
+        vec!["data", "query", "--query", &q, "--use-tooling-api"],
+        org,
+    );
+    let env: QueryEnvelope = invoker.run_json(&args).await?;
+    Ok(env.records)
+}
+
+/// Entities (objects) whose definition or any custom field changed since
+/// `since`. Returns the distinct `QualifiedApiName` set (re-describe each).
+pub async fn fetch_changed_entities(
+    invoker: &SfInvoker,
+    org: &str,
+    since: &str,
+) -> Result<Vec<String>, SfError> {
+    #[derive(Deserialize)]
+    struct EntityRec {
+        #[serde(rename = "QualifiedApiName")]
+        name: String,
+    }
+    #[derive(Deserialize)]
+    struct EntityEnv {
+        records: Vec<EntityRec>,
+    }
+    #[derive(Deserialize)]
+    struct FieldParent {
+        #[serde(rename = "QualifiedApiName")]
+        name: String,
+    }
+    #[derive(Deserialize)]
+    struct FieldRec {
+        #[serde(rename = "EntityDefinition")]
+        entity: Option<FieldParent>,
+    }
+    #[derive(Deserialize)]
+    struct FieldEnv {
+        records: Vec<FieldRec>,
+    }
+
+    let mut out = std::collections::BTreeSet::new();
+
+    let eq =
+        format!("SELECT QualifiedApiName FROM EntityDefinition WHERE LastModifiedDate > {since}");
+    let env: EntityEnv = invoker
+        .run_json(&with_target(
+            vec!["data", "query", "--query", &eq, "--use-tooling-api"],
+            org,
+        ))
+        .await?;
+    out.extend(env.records.into_iter().map(|r| r.name));
+
+    let fq = format!(
+        "SELECT EntityDefinition.QualifiedApiName FROM CustomField WHERE LastModifiedDate > {since}"
+    );
+    let fenv: FieldEnv = invoker
+        .run_json(&with_target(
+            vec!["data", "query", "--query", &fq, "--use-tooling-api"],
+            org,
+        ))
+        .await?;
+    out.extend(
+        fenv.records
+            .into_iter()
+            .filter_map(|r| r.entity.map(|e| e.name)),
+    );
+
+    Ok(out.into_iter().collect())
+}
+
 pub fn parse_stdlib(raw: &serde_json::Value) -> Vec<Namespace> {
     let Some(namespaces) = raw.get("publicDeclarations").and_then(Value::as_object) else {
         return Vec::new();
@@ -567,6 +649,59 @@ mod tests {
         assert!(
             invoice.methods.iter().any(|m| m.name == "pay"),
             "interface method"
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_changed_classes_filters_by_watermark() {
+        let inv = SfInvoker::new(Arc::new(MockRunner::new(|_p, args| {
+            let a = args.join(" ");
+            assert!(
+                a.contains("LastModifiedDate >"),
+                "watermark clause missing: {a}"
+            );
+            assert!(
+                a.contains("2026-06-21T00:00:00Z"),
+                "since not interpolated: {a}"
+            );
+            Ok(RawOutput {
+                status: 0,
+                stdout: r#"{"status":0,"result":{"records":[{"Name":"Foo","SymbolTable":{"name":"Foo","methods":[],"properties":[]}}],"totalSize":1,"done":true}}"#.into(),
+                stderr: String::new(),
+            })
+        })));
+        let recs = fetch_changed_apex_classes(&inv, "myorg", "2026-06-21T00:00:00Z")
+            .await
+            .unwrap();
+        assert_eq!(recs.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn fetch_changed_entities_unions_and_dedups() {
+        let inv = SfInvoker::new(Arc::new(MockRunner::new(|_p, args| {
+            let a = args.join(" ");
+            let body = if a.contains("FROM EntityDefinition") {
+                r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"},{"QualifiedApiName":"My__c"}]}}"#
+            } else {
+                r#"{"status":0,"result":{"records":[{"EntityDefinition":{"QualifiedApiName":"My__c"}},{"EntityDefinition":{"QualifiedApiName":"Other__c"}}]}}"#
+            };
+            Ok(RawOutput {
+                status: 0,
+                stdout: body.into(),
+                stderr: String::new(),
+            })
+        })));
+        let mut names = fetch_changed_entities(&inv, "myorg", "2026-06-21T00:00:00Z")
+            .await
+            .unwrap();
+        names.sort();
+        assert_eq!(
+            names,
+            vec![
+                "Account".to_string(),
+                "My__c".to_string(),
+                "Other__c".to_string()
+            ]
         );
     }
 }
