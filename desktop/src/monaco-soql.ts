@@ -126,6 +126,27 @@ export function registerSoqlQuickfix(monaco: Monaco): void {
   });
 }
 
+let soqlFormatRegistered = false;
+
+/** Register Format Document (Shift+Alt+F) for SOQL, backed by `format_soql`. */
+export function registerSoqlFormatter(monaco: Monaco): void {
+  if (soqlFormatRegistered) return;
+  soqlFormatRegistered = true;
+  monaco.languages.registerDocumentFormattingEditProvider("soql", {
+    provideDocumentFormattingEdits: async (model) => {
+      let formatted: string;
+      try {
+        formatted = await invoke<string>("format_soql", {
+          query: model.getValue(),
+        });
+      } catch {
+        return [];
+      }
+      return [{ range: model.getFullModelRange(), text: formatted }];
+    },
+  });
+}
+
 /** Register the `sf` editor theme and a minimal `soql` language once. */
 export function configureMonaco(monaco: Monaco): void {
   // Catppuccin Latte (light): mauve keywords, green strings, peach numbers.
@@ -210,4 +231,5 @@ export function configureMonaco(monaco: Monaco): void {
 
   registerSoqlCompletion(monaco);
   registerSoqlQuickfix(monaco);
+  registerSoqlFormatter(monaco);
 }
