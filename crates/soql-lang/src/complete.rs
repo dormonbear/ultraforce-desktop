@@ -32,6 +32,50 @@ const SOQL_FUNCTIONS: &[&str] = &[
     "FIELDS",
 ];
 
+/// SOQL date-literal constants, valid as WHERE/HAVING values against date fields
+/// (e.g. `WHERE CreatedDate = LAST_N_DAYS:7`). The `:`-suffixed ones take an
+/// integer argument the user types after the colon.
+const SOQL_DATE_LITERALS: &[&str] = &[
+    "YESTERDAY",
+    "TODAY",
+    "TOMORROW",
+    "LAST_WEEK",
+    "THIS_WEEK",
+    "NEXT_WEEK",
+    "LAST_MONTH",
+    "THIS_MONTH",
+    "NEXT_MONTH",
+    "LAST_90_DAYS",
+    "NEXT_90_DAYS",
+    "THIS_QUARTER",
+    "LAST_QUARTER",
+    "NEXT_QUARTER",
+    "THIS_YEAR",
+    "LAST_YEAR",
+    "NEXT_YEAR",
+    "THIS_FISCAL_QUARTER",
+    "LAST_FISCAL_QUARTER",
+    "NEXT_FISCAL_QUARTER",
+    "THIS_FISCAL_YEAR",
+    "LAST_FISCAL_YEAR",
+    "NEXT_FISCAL_YEAR",
+    "LAST_N_DAYS:",
+    "NEXT_N_DAYS:",
+    "N_DAYS_AGO:",
+    "LAST_N_WEEKS:",
+    "NEXT_N_WEEKS:",
+    "LAST_N_MONTHS:",
+    "NEXT_N_MONTHS:",
+    "LAST_N_QUARTERS:",
+    "NEXT_N_QUARTERS:",
+    "LAST_N_YEARS:",
+    "NEXT_N_YEARS:",
+    "LAST_N_FISCAL_QUARTERS:",
+    "NEXT_N_FISCAL_QUARTERS:",
+    "LAST_N_FISCAL_YEARS:",
+    "NEXT_N_FISCAL_YEARS:",
+];
+
 /// Which clause region a cursor sits in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Clause {
@@ -408,6 +452,12 @@ pub fn complete<'a>(
             push_fields_and_relationships(&mut candidates, schema);
             for function in SOQL_FUNCTIONS {
                 push_candidate(&mut candidates, *function, CandidateKind::Function, None);
+            }
+            // Date literals are WHERE/HAVING values (e.g. CreatedDate = TODAY).
+            if matches!(clause, Clause::Where | Clause::Having) {
+                for literal in SOQL_DATE_LITERALS {
+                    push_candidate(&mut candidates, *literal, CandidateKind::Keyword, None);
+                }
             }
             for keyword in keyword_candidates_for(clause) {
                 push_candidate(&mut candidates, *keyword, CandidateKind::Keyword, None);
@@ -814,5 +864,43 @@ mod tests {
         assert!(candidates
             .iter()
             .any(|c| c.label == "FROM" && c.kind == CandidateKind::Keyword));
+    }
+
+    #[test]
+    fn offers_date_literals_in_where() {
+        let schema = account_schema();
+        let input = "SELECT Id FROM Account WHERE CreatedDate = ";
+        let cursor = input.len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"TODAY".to_string()), "{labels:?}");
+        assert!(labels.contains(&"LAST_N_DAYS:".to_string()), "{labels:?}");
+    }
+
+    #[test]
+    fn no_date_literals_in_select() {
+        let schema = account_schema();
+        let input = "SELECT  FROM Account";
+        let cursor = "SELECT ".len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(!labels.contains(&"TODAY".to_string()), "{labels:?}");
+    }
+
+    #[test]
+    fn partial_date_literal_filters_to_matching() {
+        let schema = account_schema();
+        let input = "SELECT Id FROM Account WHERE CreatedDate = LAST_N";
+        let cursor = input.len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"LAST_N_DAYS:".to_string()), "{labels:?}");
+        assert!(!labels.contains(&"TODAY".to_string()), "{labels:?}");
     }
 }
