@@ -172,11 +172,11 @@ Create `crates/features/src/index.rs` test module. The mock runner returns: stdl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sf_core::{runner::MockRunner, RawOutput, SfInvoker};
+    use sf_core::{runner::MockRunner, RawOutput, SfError, SfInvoker};
     use std::sync::Arc;
 
-    fn ok(stdout: &str) -> std::io::Result<RawOutput> {
-        Ok(RawOutput { status: 0, stdout: stdout.to_string() })
+    fn ok(stdout: &str) -> Result<RawOutput, SfError> {
+        Ok(RawOutput { status: 0, stdout: stdout.to_string(), stderr: String::new() })
     }
 
     #[tokio::test]
@@ -340,13 +340,13 @@ Add to the `apex_complete.rs` test module: build an index in-memory, install it,
 ```rust
 #[tokio::test]
 async fn indexed_completion_makes_no_sf_calls() {
-    use apex_lang::symbols::{ApexType, Member, Ost};
+    use apex_lang::symbols::{ApexType, Property, Ost};
     let dir = std::env::temp_dir().join(format!("idx-off-{}", std::process::id()));
     let completer = ApexCompleter::new(dir.clone());
     // Full type so resolve() finds a non-stub.
     let acct = ApexType {
         name: "Account".into(),
-        properties: vec![Member { name: "Name".into(), ..Default::default() }],
+        properties: vec![Property { name: "Name".into(), ..Default::default() }],
         ..Default::default()
     };
     completer.install_index("myorg", Ost { namespaces: vec![], org_types: vec![acct] });
@@ -360,7 +360,7 @@ async fn indexed_completion_makes_no_sf_calls() {
 }
 ```
 
-(Match `Member`/`ApexType` field names to `apex-lang/src/symbols.rs`; use `..Default::default()`.)
+(`ApexType { name, kind, methods, properties, enum_values }`, `Property { name, prop_type, is_static }` — `Member` is a borrow enum, not constructible; use `Property` + `..Default::default()`.)
 
 - [ ] **Step 2: Run, verify fail**
 
