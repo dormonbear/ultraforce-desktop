@@ -130,7 +130,11 @@ async function installMocks(page: Page): Promise<void> {
     // backend-emitted events via `window.__ufEmit(event, payload)`.
     const handlers: Record<string, ((e: unknown) => void)[]> = {};
 
-    const invoke = (cmd: string, args: Record<string, unknown> = {}) => {
+    const invoke = (
+      cmd: string,
+      args: Record<string, unknown> = {},
+      opts?: { headers?: Record<string, string> },
+    ) => {
       if (cmd.startsWith("plugin:store|")) {
         const op = cmd.split("|")[1];
         const store = readStore();
@@ -185,11 +189,20 @@ async function installMocks(page: Page): Promise<void> {
         return Promise.resolve(Array.from(new TextEncoder().encode(text)));
       }
       if (cmd === "plugin:fs|write_text_file" || cmd === "plugin:fs|write_file") {
-        const data = args.data as string | undefined;
-        if (data != null) files[args.path as string] = data;
+        // plugin-fs v2 sends the bytes as the payload and the path in headers.
+        const header = opts?.headers?.path;
+        const path = header ? decodeURIComponent(header) : (args.path as string);
+        const text =
+          args instanceof Uint8Array || Array.isArray(args)
+            ? new TextDecoder().decode(new Uint8Array(args as ArrayLike<number>))
+            : ((args.data as string | undefined) ?? "");
+        if (path) files[path] = text;
         return Promise.resolve(null);
       }
       if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
+      // Save dialog: return a fixed fake path so export flows can proceed.
+      if (cmd === "plugin:dialog|save") return Promise.resolve("/ws/export.csv");
+      if (cmd.startsWith("plugin:dialog|")) return Promise.resolve(null);
       return Promise.resolve(cmd in resp ? resp[cmd] : null);
     };
 
@@ -205,6 +218,8 @@ async function installMocks(page: Page): Promise<void> {
     // @ts-expect-error — test-only hook to deliver a backend event.
     window.__ufEmit = (event: string, payload: unknown) =>
       (handlers[event] ?? []).forEach((h) => h({ event, id: 0, payload }));
+    // @ts-expect-error — test-only hook to read a file the app wrote.
+    window.__ufReadFile = (path: string) => files[path] ?? null;
     },
     { resp: RESP, dirs: FAKE_DIRS, files: FAKE_FILES },
   );
