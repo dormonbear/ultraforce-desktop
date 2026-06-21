@@ -1,5 +1,6 @@
 //! Wire apex-lang completion into a stateful, org-keyed in-memory OST cache.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -32,6 +33,7 @@ const SOBJECT_METHODS: &[(&str, &str)] = &[
 pub struct ApexCompleter {
     root: PathBuf,
     cache: Mutex<Option<(String, Arc<Ost>)>>,
+    indexed: Mutex<HashSet<String>>,
 }
 
 impl ApexCompleter {
@@ -39,6 +41,7 @@ impl ApexCompleter {
         Self {
             root: root.into(),
             cache: Mutex::new(None),
+            indexed: Mutex::new(Default::default()),
         }
     }
 
@@ -53,6 +56,17 @@ impl ApexCompleter {
             Some((id, ost)) if id == org_id => Some(ost.clone()),
             _ => None,
         }
+    }
+
+    /// True once a full snapshot has been installed/loaded for `org_id`.
+    fn is_indexed(&self, org_id: &str) -> bool {
+        self.indexed.lock().unwrap().contains(org_id)
+    }
+
+    /// Store a freshly-built full index and mark the org indexed.
+    pub fn install_index(&self, org_id: &str, ost: Ost) {
+        *self.cache.lock().unwrap() = Some((org_id.to_string(), Arc::new(ost)));
+        self.indexed.lock().unwrap().insert(org_id.to_string());
     }
 
     /// Build (or reuse) the OST for `org_id`, then complete at `cursor`.
@@ -74,18 +88,21 @@ impl ApexCompleter {
         // lacks, fetch JUST that type — an sObject describe first, then a single
         // Apex class. Both are bounded to one type, so this scales to large orgs
         // (we never bulk-fetch every class).
-        if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
-            // Fetch when the type is unknown OR is a members-less stub (so a
-            // top-level-named org class upgrades to its full SymbolTable here).
-            if resolve_type(&ost, &type_name).is_none_or(is_stub_type) {
-                if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await {
-                    let augmented = self.augment_types(org_id, vec![apex_ty]);
-                    return Ok(ost_complete(src, cursor, &augmented));
-                }
-                let classes = self.fetch_org_class(invoker, org_id, &type_name).await;
-                if !classes.is_empty() {
-                    let augmented = self.augment_types(org_id, classes);
-                    return Ok(ost_complete(src, cursor, &augmented));
+        if !self.is_indexed(org_id) {
+            if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
+                // Fetch when the type is unknown OR is a members-less stub (so a
+                // top-level-named org class upgrades to its full SymbolTable here).
+                if resolve_type(&ost, &type_name).is_none_or(is_stub_type) {
+                    if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await
+                    {
+                        let augmented = self.augment_types(org_id, vec![apex_ty]);
+                        return Ok(ost_complete(src, cursor, &augmented));
+                    }
+                    let classes = self.fetch_org_class(invoker, org_id, &type_name).await;
+                    if !classes.is_empty() {
+                        let augmented = self.augment_types(org_id, classes);
+                        return Ok(ost_complete(src, cursor, &augmented));
+                    }
                 }
             }
         }
@@ -127,6 +144,13 @@ impl ApexCompleter {
     async fn ensure_base(&self, invoker: &SfInvoker, org_id: &str) -> Result<Arc<Ost>, SfError> {
         if let Some(ost) = self.cached(org_id) {
             return Ok(ost);
+        }
+        let api = crate::api_version::api_version_for(invoker, org_id).await;
+        if let Some((ost, _)) = apex_lang::load_snapshot(&self.root, org_id, &api) {
+            let arc = Arc::new(ost);
+            *self.cache.lock().unwrap() = Some((org_id.to_string(), arc.clone()));
+            self.indexed.lock().unwrap().insert(org_id.to_string());
+            return Ok(arc);
         }
         let ost = Arc::new(self.build(invoker, org_id).await?);
         *self.cache.lock().unwrap() = Some((org_id.to_string(), ost.clone()));
@@ -400,6 +424,42 @@ mod tests {
             .unwrap();
         assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn indexed_completion_makes_no_sf_calls() {
+        use apex_lang::symbols::{ApexType, Ost, Property};
+        let dir = std::env::temp_dir().join(format!("idx-off-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+        let acct = ApexType {
+            name: "Account".into(),
+            properties: vec![Property {
+                name: "Name".into(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        completer.install_index(
+            "myorg",
+            Ost {
+                namespaces: vec![],
+                org_types: vec![acct],
+            },
+        );
+
+        let panicking =
+            sf_core::runner::MockRunner::new(|_p, _a| panic!("no SF call when indexed"));
+        let invoker = SfInvoker::new(std::sync::Arc::new(panicking));
+        let src = "Account a; a.";
+        let got = completer
+            .complete(&invoker, "myorg", src, src.len())
+            .await
+            .unwrap();
+        assert!(
+            got.iter().any(|c| c.label == "Name"),
+            "offline member completion: {got:?}"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 
