@@ -52,10 +52,17 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
             .as_ref()
             .map(|e| infer(e, &ctx))
             .unwrap_or(Type::Unknown);
-        return finish(members_of(&ty, ost, static_ctx), partial);
+        // The class being edited isn't in the OST — complete its own members from
+        // the AST (covers `this.`, `ClassName.`, and a self-typed value).
+        let mems = if matches!(&ty, Type::Named(n) if n.eq_ignore_ascii_case(&class.name)) {
+            own_members(class, static_ctx)
+        } else {
+            members_of(&ty, ost, static_ctx)
+        };
+        return finish(mems, partial);
     }
 
-    // Bare position — in-scope names (nearest binding per name wins).
+    // Bare position — in-scope names + the class's own methods (callable unqualified).
     let mut seen = std::collections::HashSet::new();
     let mut cands = Vec::new();
     for b in bindings.iter().rev() {
@@ -67,7 +74,42 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
             });
         }
     }
+    cands.extend(own_members(class, false));
+    cands.extend(own_members(class, true));
     finish(cands, partial)
+}
+
+/// Members declared on `class` itself (the file being edited), filtered by
+/// static-ness. Constructors are excluded.
+fn own_members(class: &TypeDecl, want_static: bool) -> Vec<Candidate> {
+    let is_static = |mods: &[String]| mods.iter().any(|m| m.eq_ignore_ascii_case("static"));
+    let mut out = Vec::new();
+    for m in &class.members {
+        match m {
+            Member::Field(f) if is_static(&f.modifiers) == want_static => out.push(Candidate {
+                label: f.name.clone(),
+                kind: CandidateKind::Field,
+                detail: Some(f.ty.clone()),
+            }),
+            Member::Property(p) if is_static(&p.modifiers) == want_static => out.push(Candidate {
+                label: p.name.clone(),
+                kind: CandidateKind::Field,
+                detail: Some(p.ty.clone()),
+            }),
+            Member::Method(me)
+                if is_static(&me.modifiers) == want_static
+                    && !me.name.eq_ignore_ascii_case(&class.name) =>
+            {
+                out.push(Candidate {
+                    label: me.name.clone(),
+                    kind: CandidateKind::Method,
+                    detail: me.return_type.clone(),
+                })
+            }
+            _ => {}
+        }
+    }
+    out
 }
 
 fn enclosing_method(cu: &CompilationUnit, cursor: usize) -> Option<(&TypeDecl, &MethodDecl)> {
@@ -466,5 +508,33 @@ mod tests {
         let c = at("class C { void m() { Color.| } }");
         assert!(labels(&c).contains(&"RED"));
         assert!(labels(&c).contains(&"GREEN"));
+    }
+
+    #[test]
+    fn this_completes_own_class_members() {
+        let c = at("class C { Integer count; void doIt() {} void m() { this.| } }");
+        assert!(labels(&c).contains(&"count"), "own field: {:?}", labels(&c));
+        assert!(labels(&c).contains(&"doIt"), "own method: {:?}", labels(&c));
+    }
+
+    #[test]
+    fn bare_position_includes_own_methods() {
+        let c = at("class C { void helper() {} void m() { hel| } }");
+        assert_eq!(labels(&c), vec!["helper"]);
+    }
+
+    #[test]
+    fn own_class_static_members_via_class_name() {
+        let c = at("class C { static Integer total; Integer inst; void m() { C.| } }");
+        assert!(
+            labels(&c).contains(&"total"),
+            "static field: {:?}",
+            labels(&c)
+        );
+        assert!(
+            !labels(&c).contains(&"inst"),
+            "instance field must not show in static context: {:?}",
+            labels(&c)
+        );
     }
 }
