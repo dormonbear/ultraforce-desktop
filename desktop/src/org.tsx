@@ -80,6 +80,19 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Background delta-sync: while an org is selected, poll for schema/class
+  // changes. `index_org` on an existing snapshot only delta-syncs and emits a
+  // sync-result toast when something changed (no progress bar).
+  // ponytail: fixed 5-min poll; make configurable if users ask.
+  useEffect(() => {
+    if (!selected) return;
+    const POLL_MS = 5 * 60_000;
+    const id = setInterval(() => {
+      void invoke("index_org", { org: selected }).catch(() => {});
+    }, POLL_MS);
+    return () => clearInterval(id);
+  }, [selected]);
+
   return (
     <OrgCtx.Provider value={{ orgs, selected, loading, error, select }}>
       {children}
