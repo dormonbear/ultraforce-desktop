@@ -42,6 +42,14 @@ struct IndexProgressDto {
     total: usize,
 }
 
+#[derive(Clone, serde::Serialize)]
+struct SyncResultDto {
+    org: String,
+    added: usize,
+    updated: usize,
+    removed: usize,
+}
+
 #[tauri::command]
 async fn run_soql(query: String, state: State<'_, AppState>) -> Result<SoqlResultDto, String> {
     let start = Instant::now();
@@ -335,6 +343,37 @@ async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result
 #[tauri::command]
 async fn index_org(org: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let root = features::apex_complete::default_index_root();
+    let api = features::api_version::api_version_for(&state.invoker, &org).await;
+
+    // Already indexed → install the snapshot instantly (completion ready), then
+    // delta-sync in the same command and emit a result if anything changed.
+    if let Some((ost, _)) = apex_lang::load_snapshot(&root, &org, &api) {
+        state.apex.install_index(&org, ost);
+        if let Ok((outcome, patched)) = features::index::sync_org(&state.invoker, root, &org).await
+        {
+            state.apex.install_index(&org, patched);
+            if outcome.changed() {
+                let _ = app.emit(
+                    "sync-result",
+                    SyncResultDto {
+                        org: org.clone(),
+                        added: outcome.added,
+                        updated: outcome.updated,
+                        removed: outcome.removed,
+                    },
+                );
+            }
+        }
+        let names = features::soql::list_sobject_names(&state.invoker, &org).await;
+        state
+            .sobjects
+            .lock()
+            .unwrap()
+            .insert(org.clone(), Arc::new(names));
+        return Ok(());
+    }
+
+    // Not indexed → full first index (Phase-1 path).
     let mut on_progress = |p: features::index::IndexProgress| {
         let _ = app.emit(
             "index-progress",
