@@ -49,7 +49,8 @@
    `QueryOptions { all_rows }` (refactored away the 2-bool param smell). Unit + e2e.
 7. **Date-literal completion** — ✅ DONE. `SOQL_DATE_LITERALS` offered in
    WHERE/HAVING (TODAY, LAST_N_DAYS:, …). Functions already covered.
-   Remaining SOQL polish: TYPEOF + bind-variable (`:apexVar`) completion (niche).
+   Bind-variable (`:apexVar`) completion — ✅ DONE. Inside Apex `[SELECT … :x]`,
+   completing after `:` offers in-scope Apex vars (`scope_names_at`). Remaining: TYPEOF (very niche).
 
 ### Anonymous Apex
 1. Run-history panel — ✅ DONE (already implemented). `ApexPanel` records
