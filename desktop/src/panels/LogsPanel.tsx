@@ -14,6 +14,7 @@ import { LogView } from "../components/LogView";
 import { useOrgs } from "../org";
 import type {
   ExecNodeDto,
+  HotspotDto,
   LogRefDto,
   LogViewDto,
   UnitDto,
@@ -23,7 +24,7 @@ function isSuccess(status: string): boolean {
   return status.toLowerCase() === "success";
 }
 
-type DetailTab = "tree" | "limits" | "raw";
+type DetailTab = "tree" | "hotspots" | "limits" | "raw";
 
 /** Format a nanosecond duration as a compact millisecond string. */
 function formatMs(durNs: number): string {
@@ -114,6 +115,60 @@ function LimitsView({ units }: { units: UnitDto[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+/** Aggregate hotspots: top method/unit frames by self time across the log. */
+function HotspotsView({ units }: { units: UnitDto[] }) {
+  const all = units.flatMap((u) => u.hotspots);
+  if (all.length === 0) {
+    return (
+      <div className="py-4 text-center text-[13px] text-muted-foreground">
+        — no method frames —
+      </div>
+    );
+  }
+  // Merge by signature across units, then sort by self time descending.
+  const merged = new Map<string, HotspotDto>();
+  for (const h of all) {
+    const m = merged.get(h.signature);
+    if (m) {
+      m.self_ns += h.self_ns;
+      m.total_ns += h.total_ns;
+      m.count += h.count;
+    } else {
+      merged.set(h.signature, { ...h });
+    }
+  }
+  const rows = [...merged.values()].sort((a, b) => b.self_ns - a.self_ns);
+  return (
+    <table className="w-full text-[12px]">
+      <thead>
+        <tr className="text-muted-foreground">
+          <th className="py-1 text-left font-normal">METHOD</th>
+          <th className="py-1 text-right font-normal">SELF</th>
+          <th className="py-1 text-right font-normal">TOTAL</th>
+          <th className="py-1 text-right font-normal">CALLS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((h, i) => (
+          <tr key={i} className="border-t border-border/50 text-text-dim">
+            <td
+              className="max-w-0 truncate py-0.5 pr-2 text-foreground"
+              title={h.signature}
+            >
+              {h.signature}
+            </td>
+            <td className="tnum py-0.5 text-right text-foreground">
+              {formatMs(h.self_ns)}
+            </td>
+            <td className="tnum py-0.5 text-right">{formatMs(h.total_ns)}</td>
+            <td className="tnum py-0.5 text-right">{h.count}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -270,7 +325,7 @@ export function LogsPanel() {
                   }}
                   className="gap-1"
                 >
-                  {(["tree", "limits", "raw"] as DetailTab[]).map((t) => (
+                  {(["tree", "hotspots", "limits", "raw"] as DetailTab[]).map((t) => (
                     <ToggleGroupItem
                       key={t}
                       value={t}
@@ -309,6 +364,8 @@ export function LogsPanel() {
                         </div>
                       ))
                     )
+                  ) : tab === "hotspots" ? (
+                    <HotspotsView units={view.units} />
                   ) : (
                     <LimitsView units={view.units} />
                   )}

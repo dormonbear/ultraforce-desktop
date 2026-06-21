@@ -18,8 +18,8 @@
 ### Log analysis (largest gap, highest analytical value)
 1. **Self vs total duration** — ✅ DONE. `ExecNode.self_ns` (total − children), surfaced in the
    Tree view.
-2. **Aggregate hotspots** — group method frames by signature across the tree; sum self-time +
-   call count; a sortable "top methods" table. (next)
+2. **Aggregate hotspots** — ✅ DONE. `profile::hotspots` groups method/unit frames by
+   signature, sums self/total time + call count; a "Hotspots" tab shows top methods by self time.
 3. **Heap allocation tracking** — parse `HEAP_ALLOCATE`; per-frame self/total heap + per-unit total.
 4. **SOQL/DML detail + row counts** — extract query text, `SOQL_ROWS`/`DML_ROWS`; aggregate per
    unit (spot N+1 / bulkification).

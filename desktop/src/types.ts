@@ -72,8 +72,16 @@ export interface LimitRollupDto {
   entries: LimitEntryDto[];
 }
 
+export interface HotspotDto {
+  signature: string;
+  self_ns: number;
+  total_ns: number;
+  count: number;
+}
+
 export interface UnitDto {
   tree: ExecNodeDto[];
+  hotspots: HotspotDto[];
   limits: LimitRollupDto[];
 }
 

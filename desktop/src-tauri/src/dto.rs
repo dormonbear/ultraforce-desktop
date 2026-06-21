@@ -262,10 +262,20 @@ pub struct LimitRollupDto {
     pub entries: Vec<LimitEntryDto>,
 }
 
-/// One execution unit: its tree and its limit rollups.
+/// One aggregated method/unit hotspot.
+#[derive(serde::Serialize)]
+pub struct HotspotDto {
+    pub signature: String,
+    pub self_ns: u64,
+    pub total_ns: u64,
+    pub count: usize,
+}
+
+/// One execution unit: its tree, hotspots, and limit rollups.
 #[derive(serde::Serialize)]
 pub struct UnitDto {
     pub tree: Vec<ExecNodeDto>,
+    pub hotspots: Vec<HotspotDto>,
     pub limits: Vec<LimitRollupDto>,
 }
 
@@ -340,6 +350,15 @@ fn map_rollup(rollup: &LimitRollup) -> LimitRollupDto {
 fn map_unit(unit: &UnitView) -> UnitDto {
     UnitDto {
         tree: unit.tree.iter().map(map_node).collect(),
+        hotspots: log_parser::profile::hotspots(&unit.tree)
+            .into_iter()
+            .map(|h| HotspotDto {
+                signature: h.signature,
+                self_ns: h.self_ns,
+                total_ns: h.total_ns,
+                count: h.count,
+            })
+            .collect(),
         limits: unit.limits.iter().map(map_rollup).collect(),
     }
 }
