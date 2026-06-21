@@ -8,7 +8,7 @@ use std::sync::Arc;
 #[tokio::test]
 async fn describe_account_against_live_org() {
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
-    let schema = describe_object(&invoker, "Account")
+    let schema = describe_object(&invoker, "default", "Account")
         .await
         .expect("describe Account");
 

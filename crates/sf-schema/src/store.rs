@@ -90,7 +90,7 @@ impl SchemaStore {
         if let Some(s) = self.load_disk(api_version, object)? {
             return Ok(s);
         }
-        let schema = describe_object(invoker, object).await?;
+        let schema = describe_object(invoker, &self.org_id, object).await?;
         self.persist(api_version, object, &schema)?;
         self.mem
             .insert(Self::key(api_version, object), schema.clone());
