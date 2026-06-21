@@ -23,6 +23,73 @@ pub struct IndexProgress {
     pub total: usize,
 }
 
+/// Managed-package namespace filtering for the org index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NamespacePolicy {
+    /// Index everything (default).
+    All,
+    /// Drop anything carrying a managed-package namespace prefix.
+    Unmanaged,
+    /// Keep unmanaged names plus the listed namespace prefixes.
+    Allow(Vec<String>),
+}
+
+/// Salesforce custom-object/field API suffixes — these are not namespace prefixes.
+const CUSTOM_SUFFIXES: &[&str] = &[
+    "__c",
+    "__r",
+    "__e",
+    "__b",
+    "__x",
+    "__mdt",
+    "__Share",
+    "__Tag",
+    "__History",
+    "__Feed",
+    "__ChangeEvent",
+    "__kav",
+    "__pc",
+];
+
+/// The managed-package namespace of an sObject API name, or `None` for standard /
+/// unmanaged names. `ns__Obj__c` → `Some("ns")`; `Obj__c` and `Account` → `None`.
+fn namespace_of(name: &str) -> Option<&str> {
+    let stem = CUSTOM_SUFFIXES
+        .iter()
+        .find_map(|s| name.strip_suffix(s))
+        .unwrap_or(name);
+    stem.split_once("__").map(|(ns, _)| ns)
+}
+
+impl NamespacePolicy {
+    /// Whether `name` is kept under this policy.
+    pub fn permits(&self, name: &str) -> bool {
+        match self {
+            NamespacePolicy::All => true,
+            NamespacePolicy::Unmanaged => namespace_of(name).is_none(),
+            NamespacePolicy::Allow(list) => match namespace_of(name) {
+                None => true,
+                Some(ns) => list.iter().any(|a| a.eq_ignore_ascii_case(ns)),
+            },
+        }
+    }
+
+    /// Parse the desktop setting: `"all"` | `"unmanaged"` | `"ns1,ns2,…"`.
+    pub fn parse(s: &str) -> NamespacePolicy {
+        match s.trim() {
+            "" | "all" => NamespacePolicy::All,
+            "unmanaged" => NamespacePolicy::Unmanaged,
+            other => NamespacePolicy::Allow(
+                other
+                    .split(',')
+                    .map(|p| p.trim().to_string())
+                    .filter(|p| !p.is_empty())
+                    .collect(),
+            ),
+        }
+    }
+}
+
 /// Full index: stdlib + every org Apex class + every sObject. Persists a
 /// snapshot and returns the assembled OST. `on_progress` is called per phase
 /// and per sObject described.
@@ -30,6 +97,7 @@ pub async fn index_org(
     invoker: &SfInvoker,
     root: PathBuf,
     org_id: &str,
+    policy: &NamespacePolicy,
     on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
     let api = api_version_for(invoker, org_id).await;
@@ -76,7 +144,15 @@ pub async fn index_org(
         total: class_count,
     });
 
-    let names = list_sobject_names(invoker, org_id).await;
+    // Namespace policy filters sObjects (their API names carry the `ns__` prefix).
+    // ponytail: sObjects only — Apex class names lack the namespace prefix
+    // (ApexClass.NamespacePrefix isn't queried), so managed classes can't be
+    // filtered here without an extra query.
+    let names: Vec<String> = list_sobject_names(invoker, org_id)
+        .await
+        .into_iter()
+        .filter(|n| policy.permits(n))
+        .collect();
     let total = names.len();
     // Describe all sObjects via batched Composite REST (25 per call, up to 4
     // calls concurrently) instead of one `sf` process per object — the latter
@@ -153,6 +229,7 @@ pub async fn sync_org(
     invoker: &SfInvoker,
     root: PathBuf,
     org_id: &str,
+    policy: &NamespacePolicy,
 ) -> Result<(SyncOutcome, Ost), SfError> {
     let api = api_version_for(invoker, org_id).await;
     let Some((mut ost, manifest)) = apex_lang::load_snapshot(&root, org_id, &api) else {
@@ -173,7 +250,11 @@ pub async fn sync_org(
     }
 
     // Changed sObjects → evict stale describes, then batch re-describe + upsert.
-    let entities = fetch_changed_entities(invoker, org_id, &since).await?;
+    let entities: Vec<String> = fetch_changed_entities(invoker, org_id, &since)
+        .await?
+        .into_iter()
+        .filter(|n| policy.permits(n))
+        .collect();
     let mut schema_store = SchemaStore::new(root.clone(), org_id);
     for name in &entities {
         let _ = schema_store.invalidate(&api, name);
@@ -258,6 +339,43 @@ mod tests {
     use sf_core::{runner::MockRunner, RawOutput, SfError, SfInvoker};
     use std::sync::Arc;
 
+    #[test]
+    fn namespace_of_detects_managed_names() {
+        assert_eq!(namespace_of("Account"), None);
+        assert_eq!(namespace_of("Obj__c"), None); // unmanaged custom
+        assert_eq!(namespace_of("ns__Obj__c"), Some("ns")); // managed custom
+        assert_eq!(namespace_of("ns__MyClass"), Some("ns")); // managed apex/name
+        assert_eq!(namespace_of("My_Object__c"), None); // underscore in base name
+    }
+
+    #[test]
+    fn policy_permits() {
+        let all = NamespacePolicy::All;
+        let unmanaged = NamespacePolicy::Unmanaged;
+        let allow = NamespacePolicy::Allow(vec!["keepme".to_string()]);
+        assert!(all.permits("ns__Obj__c"));
+        assert!(unmanaged.permits("Account"));
+        assert!(unmanaged.permits("Obj__c"));
+        assert!(!unmanaged.permits("ns__Obj__c"));
+        assert!(allow.permits("Account")); // unmanaged always kept
+        assert!(allow.permits("KeepMe__Obj__c")); // case-insensitive
+        assert!(!allow.permits("other__Obj__c"));
+    }
+
+    #[test]
+    fn policy_parse() {
+        assert_eq!(NamespacePolicy::parse("all"), NamespacePolicy::All);
+        assert_eq!(NamespacePolicy::parse(""), NamespacePolicy::All);
+        assert_eq!(
+            NamespacePolicy::parse("unmanaged"),
+            NamespacePolicy::Unmanaged
+        );
+        assert_eq!(
+            NamespacePolicy::parse("a, b ,c"),
+            NamespacePolicy::Allow(vec!["a".to_string(), "b".to_string(), "c".to_string()])
+        );
+    }
+
     fn ok(stdout: &str) -> Result<RawOutput, SfError> {
         Ok(RawOutput {
             status: 0,
@@ -320,7 +438,9 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_up").await.unwrap();
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_up", &NamespacePolicy::All)
+            .await
+            .unwrap();
 
         let foo = ost
             .org_types
@@ -372,7 +492,9 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_comp").await.unwrap();
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_comp", &NamespacePolicy::All)
+            .await
+            .unwrap();
 
         let account = ost
             .org_types
@@ -426,7 +548,9 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_del").await.unwrap();
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_del", &NamespacePolicy::All)
+            .await
+            .unwrap();
         assert!(
             ost.org_types.iter().any(|t| t.name == "Keeper"),
             "Keeper kept"
@@ -472,7 +596,9 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_guard").await.unwrap();
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_guard", &NamespacePolicy::All)
+            .await
+            .unwrap();
         assert!(
             ost.org_types.iter().any(|t| t.name == "Account"),
             "Account NOT wiped"
@@ -510,9 +636,13 @@ mod tests {
         let invoker = SfInvoker::new(Arc::new(runner));
         let root = std::env::temp_dir().join(format!("idx-{}", std::process::id()));
         let mut phases = vec![];
-        let ost = index_org(&invoker, root.clone(), "myorg", &mut |p| {
-            phases.push(p.phase)
-        })
+        let ost = index_org(
+            &invoker,
+            root.clone(),
+            "myorg",
+            &NamespacePolicy::All,
+            &mut |p| phases.push(p.phase),
+        )
         .await
         .unwrap();
 

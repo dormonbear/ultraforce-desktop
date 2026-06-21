@@ -9,7 +9,15 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { getJson, setJson } from "./store";
+import { getNamespacePolicy } from "./indexSettings";
 import type { OrgDto } from "./types";
+
+/** Fire-and-forget index/delta-sync for `org`, scoped by the saved namespace policy. */
+function triggerIndex(org: string) {
+  void getNamespacePolicy().then((namespaces) =>
+    invoke("index_org", { org, namespaces }).catch(() => {}),
+  );
+}
 
 /** Store key for the last selected org username. */
 const ORG_KEY = "settings.org";
@@ -45,7 +53,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     invoke("set_target_org", { username }).catch((e) => {
       toast.error(`Failed to switch org: ${typeof e === "string" ? e : String(e)}`);
     });
-    void invoke("index_org", { org: username }).catch(() => {});
+    triggerIndex(username);
   }, []);
 
   useEffect(() => {
@@ -63,7 +71,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         if (def) {
           setSelected(def.username);
           void invoke("set_target_org", { username: def.username });
-          void invoke("index_org", { org: def.username }).catch(() => {});
+          triggerIndex(def.username);
         }
       })
       .catch((e) => {
@@ -87,9 +95,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!selected) return;
     const POLL_MS = 5 * 60_000;
-    const id = setInterval(() => {
-      void invoke("index_org", { org: selected }).catch(() => {});
-    }, POLL_MS);
+    const id = setInterval(() => triggerIndex(selected), POLL_MS);
     return () => clearInterval(id);
   }, [selected]);
 

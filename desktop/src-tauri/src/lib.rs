@@ -341,15 +341,22 @@ async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result
 }
 
 #[tauri::command]
-async fn index_org(org: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+async fn index_org(
+    org: String,
+    namespaces: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
     let root = features::apex_complete::default_index_root();
     let api = features::api_version::api_version_for(&state.invoker, &org).await;
+    let policy = features::index::NamespacePolicy::parse(namespaces.as_deref().unwrap_or("all"));
 
     // Already indexed → install the snapshot instantly (completion ready), then
     // delta-sync in the same command and emit a result if anything changed.
     if let Some((ost, _)) = apex_lang::load_snapshot(&root, &org, &api) {
         state.apex.install_index(&org, ost);
-        if let Ok((outcome, patched)) = features::index::sync_org(&state.invoker, root, &org).await
+        if let Ok((outcome, patched)) =
+            features::index::sync_org(&state.invoker, root, &org, &policy).await
         {
             state.apex.install_index(&org, patched);
             if outcome.changed() {
@@ -385,7 +392,7 @@ async fn index_org(org: String, app: AppHandle, state: State<'_, AppState>) -> R
             },
         );
     };
-    let ost = features::index::index_org(&state.invoker, root, &org, &mut on_progress)
+    let ost = features::index::index_org(&state.invoker, root, &org, &policy, &mut on_progress)
         .await
         .map_err(|e| e.to_string())?;
     state.apex.install_index(&org, ost);
@@ -401,12 +408,13 @@ async fn index_org(org: String, app: AppHandle, state: State<'_, AppState>) -> R
 #[tauri::command]
 async fn reindex_org(
     org: String,
+    namespaces: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
     let _ = store.clear();
-    index_org(org, app, state).await
+    index_org(org, namespaces, app, state).await
 }
 
 #[tauri::command]
