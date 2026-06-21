@@ -28,7 +28,8 @@
 6. **Open local `.log` / save downloaded log.**
 
 ### SOQL (operational power features)
-1. **CSV export of results** (save dialog; serialize the table model).
+1. **CSV export of results** — ✅ DONE. `csv::toCsv` (RFC 4180) + Export button in
+   `ResultTable` → native save dialog → `writeTextFile`. Unit + e2e covered.
 2. **Tooling API toggle** (query ApexClass etc. via `--use-tooling-api`).
 3. **Query EXPLAIN / plan** (cost, cardinality, leading operation).
 4. **Governor/result-set validations + add-LIMIT quickfix.**
