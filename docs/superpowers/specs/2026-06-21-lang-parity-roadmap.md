@@ -47,7 +47,9 @@
    depth-aware) wired to Monaco Format Document.
 6. **queryAll / `--all-rows` toggle** — ✅ DONE. Per-tab "All rows" checkbox →
    `QueryOptions { all_rows }` (refactored away the 2-bool param smell). Unit + e2e.
-7. Remaining SOQL polish: TYPEOF / function / bind-variable completion (niche).
+7. **Date-literal completion** — ✅ DONE. `SOQL_DATE_LITERALS` offered in
+   WHERE/HAVING (TODAY, LAST_N_DAYS:, …). Functions already covered.
+   Remaining SOQL polish: TYPEOF + bind-variable (`:apexVar`) completion (niche).
 
 ### Anonymous Apex
 1. Run-history panel — ✅ DONE (already implemented). `ApexPanel` records
