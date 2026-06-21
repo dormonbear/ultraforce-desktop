@@ -85,6 +85,23 @@ test("exporting query results writes a CSV file", async ({ page }) => {
   expect((csv ?? "").trimEnd().split("\r\n")).toHaveLength(13); // header + 12 rows
 });
 
+test("Tooling API toggle threads use_tooling_api to run_soql", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+
+  await page.getByRole("checkbox", { name: "Tooling API" }).check();
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  const args = await page.evaluate(() => {
+    const calls = (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] }).__ufCalls ?? [];
+    return calls.filter((c) => c.cmd === "run_soql").at(-1)?.args;
+  });
+  expect(args?.useToolingApi).toBe(true);
+});
+
 test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Reindex org" }).click();

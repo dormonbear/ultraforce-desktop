@@ -22,6 +22,7 @@ const makeSoqlTab = (path: string, content: string): SoqlTab => ({
   result: null,
   error: null,
   view: "table",
+  useToolingApi: false,
 });
 
 export function SoqlTabs() {

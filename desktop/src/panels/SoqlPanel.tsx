@@ -27,7 +27,7 @@ interface SoqlViewProps {
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
 export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
-  const { query, result, error, view } = tab;
+  const { query, result, error, view, useToolingApi } = tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
   // Persist the editor/results split to localStorage; restored on next launch.
@@ -43,7 +43,10 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
     onPatch({ error: null });
     const t0 = performance.now();
     try {
-      const dto = await invoke<SoqlResultDto>("run_soql", { query });
+      const dto = await invoke<SoqlResultDto>("run_soql", {
+        query,
+        useToolingApi,
+      });
       onPatch({ result: dto });
       const ms = performance.now() - t0;
       void timing("run.soql", ms);
@@ -71,7 +74,7 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
     } finally {
       setRunning(false);
     }
-  }, [query, onPatch, org]);
+  }, [query, onPatch, org, useToolingApi]);
 
   const status = running
     ? "Executing…"
@@ -100,24 +103,38 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
       <ResizablePanel id="results" minSize="160px">
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
-            <ToggleGroup
-              type="single"
-              value={view}
-              onValueChange={(next) => {
-                if (next) onPatch({ view: next as typeof view });
-              }}
-              className="gap-1"
-            >
-              {(["table", "tree"] as const).map((v) => (
-                <ToggleGroupItem
-                  key={v}
-                  value={v}
-                  className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
-                >
-                  {v}
-                </ToggleGroupItem>
-              ))}
-            </ToggleGroup>
+            <div className="flex items-center gap-3">
+              <ToggleGroup
+                type="single"
+                value={view}
+                onValueChange={(next) => {
+                  if (next) onPatch({ view: next as typeof view });
+                }}
+                className="gap-1"
+              >
+                {(["table", "tree"] as const).map((v) => (
+                  <ToggleGroupItem
+                    key={v}
+                    value={v}
+                    className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                  >
+                    {v}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground"
+                title="Query Tooling API objects (ApexClass, ApexTrigger, …)"
+              >
+                <input
+                  type="checkbox"
+                  checked={useToolingApi}
+                  onChange={(e) => onPatch({ useToolingApi: e.target.checked })}
+                  className="size-3 cursor-pointer accent-primary"
+                />
+                Tooling API
+              </label>
+            </div>
             <span className="tnum text-[11px] text-text-dim">{status}</span>
           </div>
           <div className="min-h-0 flex-1">

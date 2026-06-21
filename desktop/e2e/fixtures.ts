@@ -135,6 +135,13 @@ async function installMocks(page: Page): Promise<void> {
       args: Record<string, unknown> = {},
       opts?: { headers?: Record<string, string> },
     ) => {
+      // Record non-plugin command calls so tests can assert the args reaching IPC.
+      if (!cmd.startsWith("plugin:")) {
+        ((window as unknown as { __ufCalls: unknown[] }).__ufCalls ??= []).push({
+          cmd,
+          args,
+        });
+      }
       if (cmd.startsWith("plugin:store|")) {
         const op = cmd.split("|")[1];
         const store = readStore();
