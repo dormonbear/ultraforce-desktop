@@ -398,7 +398,12 @@ fn parse_stdlib_properties(raw_type: &Value) -> Vec<Property> {
                     Some(Property {
                         name: name.to_string(),
                         prop_type: String::new(),
-                        is_static: false,
+                        // ponytail: the completions payload gives properties only a
+                        // `name` (no type, no static flag); stdlib properties are
+                        // overwhelmingly static constants / enum values accessed as
+                        // `Type.CONST` (e.g. LoggingLevel.DEBUG, Math.PI), so mark
+                        // them static so static-context completion offers them.
+                        is_static: true,
                     })
                 })
                 .collect()
@@ -591,6 +596,24 @@ mod tests {
 
         let system = namespaces.iter().find(|ns| ns.name == "System").unwrap();
         assert!(system.types.iter().any(|ty| ty.name == "String"));
+    }
+
+    #[test]
+    fn stdlib_constants_are_marked_static() {
+        // `LoggingLevel.DEBUG` etc. — the payload gives properties only a name, so
+        // they must be treated as static for `Type.CONST` completion to offer them.
+        let raw: serde_json::Value = serde_json::from_str(COMPLETIONS).unwrap();
+        let ll = parse_stdlib(&raw)
+            .into_iter()
+            .flat_map(|ns| ns.types)
+            .find(|t| t.name == "LoggingLevel")
+            .expect("LoggingLevel type");
+        let debug = ll
+            .properties
+            .iter()
+            .find(|p| p.name == "DEBUG")
+            .expect("DEBUG constant");
+        assert!(debug.is_static, "stdlib constants must be static");
     }
 
     #[test]
