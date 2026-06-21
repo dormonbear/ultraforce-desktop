@@ -118,6 +118,35 @@ impl ApexCompleter {
         ))
     }
 
+    /// AST-based diagnostics for `src` (duplicate variables + unknown field access
+    /// on populated org types). Non-blocking: uses the in-memory OST if the org is
+    /// indexed, else an empty OST (duplicate-variable checks still run).
+    pub fn diagnostics(&self, org_id: &str, src: &str) -> Vec<ApexDiagnostic> {
+        let ost = self
+            .cached(org_id)
+            .map(|a| (*a).clone())
+            .unwrap_or_default();
+        let cu = apex_lang::ast::parser::parse(src);
+        let mut classes: Vec<&apex_lang::ast::tree::TypeDecl> = Vec::new();
+        collect_types(&cu.types, &mut classes);
+        let mut out = Vec::new();
+        for class in classes {
+            for d in apex_lang::ast::diagnostics::diagnose(class, &ost) {
+                out.push(ApexDiagnostic {
+                    message: d.message,
+                    start: d.span.start,
+                    end: d.span.end,
+                    severity: match d.severity {
+                        apex_lang::ast::diagnostics::Severity::Warning => "warning",
+                        apex_lang::ast::diagnostics::Severity::Error => "error",
+                    }
+                    .to_string(),
+                });
+            }
+        }
+        out
+    }
+
     /// SOQL field completion inside an Apex `[SELECT …]` literal. Empty when there is no FROM object
     /// or its describe fails (benign).
     async fn complete_soql(
@@ -263,6 +292,32 @@ fn stub_type(name: String) -> ApexType {
 /// True for a stub (no members yet) — i.e. it still needs an on-demand fetch.
 fn is_stub_type(ty: &ApexType) -> bool {
     ty.methods.is_empty() && ty.properties.is_empty() && ty.enum_values.is_empty()
+}
+
+/// One AST diagnostic for the editor (byte offsets into the source; severity as a
+/// lowercase string). Same JSON shape as the SOQL diagnostic DTO.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexDiagnostic {
+    pub message: String,
+    pub start: usize,
+    pub end: usize,
+    pub severity: String,
+}
+
+/// Flatten top-level + nested type declarations.
+fn collect_types<'a>(
+    types: &'a [apex_lang::ast::tree::TypeDecl],
+    out: &mut Vec<&'a apex_lang::ast::tree::TypeDecl>,
+) {
+    for t in types {
+        out.push(t);
+        for m in &t.members {
+            if let apex_lang::ast::tree::Member::Nested(n) = m {
+                collect_types(std::slice::from_ref(n), out);
+            }
+        }
+    }
 }
 
 /// Merge the AST engine's type-aware candidates into the heuristic results
@@ -494,6 +549,42 @@ mod tests {
         assert!(
             got.iter().any(|c| c.label == "Name"),
             "offline member completion: {got:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn apex_diagnostics_flags_duplicate_and_unknown_field() {
+        use apex_lang::symbols::{ApexType, Ost, Property};
+        let dir = std::env::temp_dir().join(format!("apex-diag-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+        completer.install_index(
+            "myorg",
+            Ost {
+                namespaces: vec![],
+                org_types: vec![ApexType {
+                    name: "Account".into(),
+                    properties: vec![Property {
+                        name: "Name".into(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+            },
+        );
+        let src = "class C { void m(Account a) { Integer x = 1; String x = a.Bogus; } }";
+        let diags = completer.diagnostics("myorg", src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("Duplicate variable")),
+            "{diags:?}"
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.message.contains("Unknown member 'Bogus'")),
+            "{diags:?}"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }

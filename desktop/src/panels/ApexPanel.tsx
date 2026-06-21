@@ -141,17 +141,7 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
     const model = instance.getModel();
     if (!model) return;
     const handle = setTimeout(async () => {
-      let diags: SoqlDiagnosticDto[];
-      try {
-        diags = await invoke<SoqlDiagnosticDto[]>("apex_soql_diagnostics", {
-          src,
-        });
-      } catch {
-        return;
-      }
-      monaco.editor.setModelMarkers(
-        model,
-        "apex-soql",
+      const toMarkers = (diags: SoqlDiagnosticDto[]) =>
         diags.map((d) => {
           const s = model.getPositionAt(d.start);
           const e = model.getPositionAt(d.end);
@@ -166,8 +156,25 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
             endLineNumber: e.lineNumber,
             endColumn: e.column,
           } as editor.IMarkerData;
-        })
-      );
+        });
+      // SOQL-in-Apex diagnostics + AST diagnostics (duplicate vars, unknown
+      // fields) as separate marker owners so each refreshes independently.
+      try {
+        const soql = await invoke<SoqlDiagnosticDto[]>("apex_soql_diagnostics", {
+          src,
+        });
+        monaco.editor.setModelMarkers(model, "apex-soql", toMarkers(soql));
+      } catch {
+        /* ignore */
+      }
+      try {
+        const ast = await invoke<SoqlDiagnosticDto[]>("apex_diagnostics", {
+          src,
+        });
+        monaco.editor.setModelMarkers(model, "apex-ast", toMarkers(ast));
+      } catch {
+        /* ignore */
+      }
     }, 350);
     return () => clearTimeout(handle);
   }, [src]);

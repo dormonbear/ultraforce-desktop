@@ -447,6 +447,15 @@ async fn apex_soql_diagnostics(
     .await)
 }
 
+#[tauri::command]
+async fn apex_diagnostics(
+    src: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<features::apex_complete::ApexDiagnostic>, String> {
+    let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    Ok(state.apex.diagnostics(&org, &src))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _guard = init_tracing();
@@ -476,7 +485,8 @@ pub fn run() {
             index_org,
             reindex_org,
             soql_diagnostics,
-            apex_soql_diagnostics
+            apex_soql_diagnostics,
+            apex_diagnostics
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
