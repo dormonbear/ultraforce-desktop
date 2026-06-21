@@ -15,6 +15,7 @@ import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
+import { SyncToast } from "./components/SyncToast";
 import { SchemaRefresh } from "./components/SchemaRefresh";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { onOpenTabRequest } from "./openTab";
@@ -158,6 +159,7 @@ export default function App() {
         onOpenHistory={() => setHistOpen(true)}
       />
       <HistoryDrawer open={histOpen} onOpenChange={setHistOpen} />
+      <SyncToast />
       <Toaster theme={theme} />
     </div>
     </TooltipProvider>
