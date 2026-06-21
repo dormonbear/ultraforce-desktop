@@ -141,6 +141,13 @@ test("opening a local .log file parses and renders it", async ({ page }) => {
   // parse_log (mocked) returns a unit with a CODE_UNIT_STARTED tree node.
   await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
   await expect(page.getByText("MyClass.run")).toBeVisible();
+
+  // Tree event filter: a non-matching query empties the tree, matching restores it.
+  const filter = page.getByPlaceholder(/Filter events/);
+  await filter.fill("zzz-no-match");
+  await expect(page.getByText("— no matching events —")).toBeVisible();
+  await filter.fill("CODE_UNIT");
+  await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
 });
 
 test("reindex org shows a success toast", async ({ page }) => {
