@@ -43,10 +43,16 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
             ost,
             this_type: &class.name,
         };
-        let ty = parse_expression(&receiver)
-            .map(|e| infer(&e, &ctx))
+        let recv_expr = parse_expression(&receiver);
+        // Static context: the receiver is a bare type name, not a value/variable.
+        let static_ctx = matches!(&recv_expr, Some(Expr::Name(n, _))
+            if super::scope::resolve(&bindings, n).is_none()
+                && type_name_known(n, ost, &class.name));
+        let ty = recv_expr
+            .as_ref()
+            .map(|e| infer(e, &ctx))
             .unwrap_or(Type::Unknown);
-        return finish(members_of(&ty, ost), partial);
+        return finish(members_of(&ty, ost, static_ctx), partial);
     }
 
     // Bare position — in-scope names (nearest binding per name wins).
@@ -166,45 +172,62 @@ fn receiver_before_dot(src: &str, cursor: usize, partial_len: usize) -> Option<S
     }
 }
 
-/// The members offered on a receiver of type `ty`.
-fn members_of(ty: &Type, ost: &Ost) -> Vec<Candidate> {
+/// Whether `n` names a known type (for static-access detection).
+fn type_name_known(n: &str, ost: &Ost, this: &str) -> bool {
+    matches!(Type::parse(n), Type::Primitive(_))
+        || n.eq_ignore_ascii_case(this)
+        || ost.org_type(n).is_some()
+        || ost.type_in("System", n).is_some()
+}
+
+/// The members offered on a receiver of type `ty`. `static_ctx` selects static
+/// members + enum constants (a `TypeName.` receiver) vs instance members.
+fn members_of(ty: &Type, ost: &Ost, static_ctx: bool) -> Vec<Candidate> {
     match ty {
         Type::Named(n) => ost
             .org_type(n)
             .or_else(|| ost.type_in("System", n))
-            .map(apex_type_members)
+            .map(|at| apex_type_members(at, static_ctx))
             .unwrap_or_default(),
         Type::Primitive(p) => ost
             .type_in("System", p.name())
-            .map(apex_type_members)
+            .map(|at| apex_type_members(at, static_ctx))
             .unwrap_or_default(),
-        Type::List(_) | Type::Set(_) | Type::Map(_, _) => collection_members(ty),
+        // Collections expose only instance members.
+        Type::List(_) | Type::Set(_) | Type::Map(_, _) if !static_ctx => collection_members(ty),
         _ => Vec::new(),
     }
 }
 
-fn apex_type_members(at: &ApexType) -> Vec<Candidate> {
+fn apex_type_members(at: &ApexType, want_static: bool) -> Vec<Candidate> {
     let mut out = Vec::new();
     for m in &at.methods {
-        out.push(Candidate {
-            label: m.name.clone(),
-            kind: CandidateKind::Method,
-            detail: Some(m.return_type.clone()),
-        });
+        if m.is_static == want_static {
+            out.push(Candidate {
+                label: m.name.clone(),
+                kind: CandidateKind::Method,
+                detail: Some(m.return_type.clone()),
+            });
+        }
     }
     for p in &at.properties {
-        out.push(Candidate {
-            label: p.name.clone(),
-            kind: CandidateKind::Field,
-            detail: Some(p.prop_type.clone()),
-        });
+        if p.is_static == want_static {
+            out.push(Candidate {
+                label: p.name.clone(),
+                kind: CandidateKind::Field,
+                detail: Some(p.prop_type.clone()),
+            });
+        }
     }
-    for v in &at.enum_values {
-        out.push(Candidate {
-            label: v.clone(),
-            kind: CandidateKind::Field,
-            detail: Some(at.name.clone()),
-        });
+    // Enum constants are static (`Color.RED`).
+    if want_static {
+        for v in &at.enum_values {
+            out.push(Candidate {
+                label: v.clone(),
+                kind: CandidateKind::Field,
+                detail: Some(at.name.clone()),
+            });
+        }
     }
     out
 }
@@ -299,12 +322,39 @@ mod tests {
             }],
             enum_values: vec![],
         };
+        let string_ty = ApexType {
+            name: "String".to_string(),
+            kind: TypeKind::Class,
+            methods: vec![
+                Method {
+                    name: "valueOf".to_string(),
+                    return_type: "String".to_string(),
+                    params: vec!["Object".to_string()],
+                    is_static: true,
+                },
+                Method {
+                    name: "length".to_string(),
+                    return_type: "Integer".to_string(),
+                    params: vec![],
+                    is_static: false,
+                },
+            ],
+            properties: vec![],
+            enum_values: vec![],
+        };
+        let color = ApexType {
+            name: "Color".to_string(),
+            kind: TypeKind::Enum,
+            methods: vec![],
+            properties: vec![],
+            enum_values: vec!["RED".to_string(), "GREEN".to_string()],
+        };
         Ost {
             namespaces: vec![Namespace {
                 name: "System".to_string(),
-                types: vec![],
+                types: vec![string_ty],
             }],
-            org_types: vec![account, user],
+            org_types: vec![account, user, color],
         }
     }
 
@@ -381,5 +431,40 @@ mod tests {
     #[test]
     fn outside_method_is_empty() {
         assert!(complete("class C { Integer x; }", 5, &ost()).is_empty());
+    }
+
+    #[test]
+    fn static_context_lists_static_members_only() {
+        // `String.` (a type name, not a variable) → static members only.
+        let c = at("class C { void m() { String.| } }");
+        assert!(
+            labels(&c).contains(&"valueOf"),
+            "static method: {:?}",
+            labels(&c)
+        );
+        assert!(
+            !labels(&c).contains(&"length"),
+            "instance method must not show in static context: {:?}",
+            labels(&c)
+        );
+    }
+
+    #[test]
+    fn instance_context_lists_instance_members_only() {
+        // A String *variable* → instance members only.
+        let c = at("class C { void m(String s) { s.| } }");
+        assert!(labels(&c).contains(&"length"));
+        assert!(
+            !labels(&c).contains(&"valueOf"),
+            "static must not show: {:?}",
+            labels(&c)
+        );
+    }
+
+    #[test]
+    fn enum_constants_complete_on_the_type() {
+        let c = at("class C { void m() { Color.| } }");
+        assert!(labels(&c).contains(&"RED"));
+        assert!(labels(&c).contains(&"GREEN"));
     }
 }
