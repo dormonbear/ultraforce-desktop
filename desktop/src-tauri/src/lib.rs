@@ -193,18 +193,30 @@ struct LogViewDto {
     units: Vec<UnitDto>,
 }
 
+/// Parse a raw debug-log body into the view DTO (execution tree + limits + raw).
+fn build_log_view(body: String) -> LogViewDto {
+    let view = features::debug_log::DebugLogView::from_log(&body);
+    LogViewDto {
+        api_version: view.header.as_ref().map(|h| h.api_version.clone()),
+        units: map_units(&view),
+        raw: body,
+    }
+}
+
 #[tauri::command]
 async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, String> {
     let org = current_org(&state);
     let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
-    let view = features::debug_log::DebugLogView::from_log(&body);
-    Ok(LogViewDto {
-        api_version: view.header.as_ref().map(|h| h.api_version.clone()),
-        units: map_units(&view),
-        raw: body,
-    })
+    Ok(build_log_view(body))
+}
+
+/// Parse a raw debug-log body supplied by the caller (e.g. an opened local
+/// `.log` file) — same view as `get_log` without the org fetch.
+#[tauri::command]
+fn parse_log(body: String) -> LogViewDto {
+    build_log_view(body)
 }
 
 /// List the available Salesforce orgs via `sf org list`.
@@ -519,7 +531,8 @@ pub fn run() {
             apex_soql_diagnostics,
             apex_diagnostics,
             query_plan,
-            format_soql
+            format_soql,
+            parse_log
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())

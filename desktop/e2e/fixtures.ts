@@ -101,6 +101,26 @@ const RESP: Record<string, unknown> = {
     source_query: "SELECT Id FROM Account",
   },
   list_logs: [],
+  parse_log: {
+    raw: "minimal opened log body",
+    api_version: "60.0",
+    units: [
+      {
+        tree: [
+          {
+            label: "CODE_UNIT_STARTED",
+            detail: "MyClass.run",
+            dur_ns: 2_000_000,
+            self_ns: 2_000_000,
+            children: [],
+          },
+        ],
+        hotspots: [],
+        statements: [],
+        limits: [],
+      },
+    ],
+  },
   refresh_schema_cache: 42,
   index_org: null,
   reindex_org: null,
@@ -225,6 +245,8 @@ async function installMocks(page: Page): Promise<void> {
       if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
       // Save dialog: return a fixed fake path so export flows can proceed.
       if (cmd === "plugin:dialog|save") return Promise.resolve("/ws/export.csv");
+      // Open dialog: return a fixed fake .log path so open flows can proceed.
+      if (cmd === "plugin:dialog|open") return Promise.resolve("/ws/sample.log");
       if (cmd.startsWith("plugin:dialog|")) return Promise.resolve(null);
       return Promise.resolve(cmd in resp ? resp[cmd] : null);
     };
