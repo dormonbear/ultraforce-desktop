@@ -1,22 +1,51 @@
 import { readTextFile } from "@tauri-apps/plugin-fs";
 import type { TreeNode } from "./tree";
 
-/** Prune the tree to files whose name matches `query`, keeping ancestor dirs. */
-export function filterTree(nodes: TreeNode[], query: string): TreeNode[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return nodes;
-  const out: TreeNode[] = [];
-  for (const n of nodes) {
-    if (n.kind === "dir") {
-      const kids = filterTree(n.children ?? [], q);
-      if (kids.length) out.push({ ...n, children: kids });
-      else if (n.name.toLowerCase().includes(q))
-        out.push({ ...n, children: [] });
-    } else if (n.name.toLowerCase().includes(q)) {
-      out.push(n);
+export interface SearchOpts {
+  caseSensitive?: boolean;
+  regex?: boolean;
+}
+
+/** Build a line/name predicate for `query`. Invalid regex never matches. */
+export function makeMatcher(
+  query: string,
+  opts: SearchOpts = {},
+): (s: string) => boolean {
+  if (opts.regex) {
+    let re: RegExp;
+    try {
+      re = new RegExp(query, opts.caseSensitive ? "" : "i");
+    } catch {
+      return () => false;
     }
+    return (s) => re.test(s);
   }
-  return out;
+  const q = opts.caseSensitive ? query : query.toLowerCase();
+  return (s) => (opts.caseSensitive ? s : s.toLowerCase()).includes(q);
+}
+
+/** Prune the tree to files whose name matches `query`, keeping ancestor dirs. */
+export function filterTree(
+  nodes: TreeNode[],
+  query: string,
+  opts?: SearchOpts,
+): TreeNode[] {
+  if (!query.trim()) return nodes;
+  const match = makeMatcher(query.trim(), opts);
+  const walk = (ns: TreeNode[]): TreeNode[] => {
+    const out: TreeNode[] = [];
+    for (const n of ns) {
+      if (n.kind === "dir") {
+        const kids = walk(n.children ?? []);
+        if (kids.length) out.push({ ...n, children: kids });
+        else if (match(n.name)) out.push({ ...n, children: [] });
+      } else if (match(n.name)) {
+        out.push(n);
+      }
+    }
+    return out;
+  };
+  return walk(nodes);
 }
 
 export interface LineMatch {
@@ -24,13 +53,17 @@ export interface LineMatch {
   text: string;
 }
 
-/** Lines (1-based) of `content` containing `query`, trimmed. */
-export function findMatches(content: string, query: string): LineMatch[] {
-  const q = query.toLowerCase();
-  if (!q) return [];
+/** Lines (1-based) of `content` matching `query`, trimmed. */
+export function findMatches(
+  content: string,
+  query: string,
+  opts?: SearchOpts,
+): LineMatch[] {
+  if (!query) return [];
+  const match = makeMatcher(query, opts);
   const out: LineMatch[] = [];
   content.split("\n").forEach((text, i) => {
-    if (text.toLowerCase().includes(q)) out.push({ line: i + 1, text: text.trim() });
+    if (match(text)) out.push({ line: i + 1, text: text.trim() });
   });
   return out;
 }
@@ -45,9 +78,9 @@ export interface FileHit {
 export async function searchContent(
   nodes: TreeNode[],
   query: string,
+  opts?: SearchOpts,
 ): Promise<FileHit[]> {
-  const q = query.trim();
-  if (!q) return [];
+  if (!query.trim()) return [];
   const files: TreeNode[] = [];
   const collect = (ns: TreeNode[]) =>
     ns.forEach((n) =>
@@ -57,7 +90,7 @@ export async function searchContent(
   const hits: FileHit[] = [];
   for (const f of files) {
     try {
-      const matches = findMatches(await readTextFile(f.path), q);
+      const matches = findMatches(await readTextFile(f.path), query, opts);
       if (matches.length) hits.push({ path: f.path, name: f.name, matches });
     } catch {
       /* unreadable file — skip */

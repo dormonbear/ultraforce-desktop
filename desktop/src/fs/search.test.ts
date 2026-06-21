@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filterTree, findMatches } from "./search";
+import { filterTree, findMatches, makeMatcher } from "./search";
 import type { TreeNode } from "./tree";
 
 const tree: TreeNode[] = [
@@ -38,5 +38,28 @@ describe("findMatches", () => {
   });
   it("returns nothing for an empty query", () => {
     expect(findMatches("anything", "")).toEqual([]);
+  });
+});
+
+describe("makeMatcher", () => {
+  it("is case-insensitive by default", () => {
+    expect(makeMatcher("name")("FROM Name")).toBe(true);
+  });
+  it("respects caseSensitive", () => {
+    expect(makeMatcher("Name", { caseSensitive: true })("name")).toBe(false);
+    expect(makeMatcher("Name", { caseSensitive: true })("Name")).toBe(true);
+  });
+  it("supports regex", () => {
+    expect(makeMatcher("Acc.*t", { regex: true })("Account")).toBe(true);
+  });
+  it("invalid regex never matches", () => {
+    expect(makeMatcher("(", { regex: true })("anything")).toBe(false);
+  });
+});
+
+describe("findMatches with options", () => {
+  it("regex matches whole-word via anchors", () => {
+    const out = findMatches("Id\nName\nAccountName", "\\bName\\b", { regex: true });
+    expect(out.map((m) => m.line)).toEqual([2]);
   });
 });

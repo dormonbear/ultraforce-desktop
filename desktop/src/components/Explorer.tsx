@@ -9,7 +9,12 @@ import {
   moveNode,
   type TreeNode as Node,
 } from "../fs/tree";
-import { filterTree, searchContent, type FileHit } from "../fs/search";
+import {
+  filterTree,
+  searchContent,
+  type FileHit,
+  type SearchOpts,
+} from "../fs/search";
 import { dirname } from "../fs/paths";
 import { TreeNode } from "./TreeNode";
 
@@ -42,6 +47,7 @@ export function Explorer({
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"name" | "content">("name");
   const [hits, setHits] = useState<FileHit[] | null>(null);
+  const [opts, setOpts] = useState<SearchOpts>({});
 
   const refresh = useCallback(() => {
     void readTree(root).then(setTree);
@@ -108,7 +114,7 @@ export function Explorer({
 
   // Name-filter the tree live; when active, dirs auto-expand to reveal hits.
   const nameFilter = mode === "name" ? query.trim() : "";
-  const shown = nameFilter ? filterTree(tree, nameFilter) : tree;
+  const shown = nameFilter ? filterTree(tree, nameFilter, opts) : tree;
   const forceExpand = nameFilter.length > 0;
 
   const runContentSearch = () => {
@@ -117,8 +123,14 @@ export function Explorer({
       setHits(null);
       return;
     }
-    void searchContent(tree, q).then(setHits);
+    void searchContent(tree, q, opts).then(setHits);
   };
+
+  // Re-run an active content search when the match options change.
+  useEffect(() => {
+    if (mode === "content" && query.trim()) runContentSearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opts]);
 
   const rows: ReactElement[] = [];
   const walk = (nodes: Node[], depth: number) => {
@@ -197,7 +209,33 @@ export function Explorer({
               : "text-text-dim hover:text-foreground"
           }`}
         >
-          {mode === "name" ? "Aa" : "Txt"}
+          {mode === "name" ? "Name" : "Txt"}
+        </button>
+        <button
+          type="button"
+          aria-label="Match case"
+          title="Match case"
+          onClick={() => setOpts((o) => ({ ...o, caseSensitive: !o.caseSensitive }))}
+          className={`shrink-0 rounded px-1 text-[10px] font-medium ${
+            opts.caseSensitive
+              ? "bg-primary/15 text-primary"
+              : "text-text-dim hover:text-foreground"
+          }`}
+        >
+          Aa
+        </button>
+        <button
+          type="button"
+          aria-label="Use regular expression"
+          title="Use regular expression"
+          onClick={() => setOpts((o) => ({ ...o, regex: !o.regex }))}
+          className={`shrink-0 rounded px-1 text-[10px] font-medium ${
+            opts.regex
+              ? "bg-primary/15 text-primary"
+              : "text-text-dim hover:text-foreground"
+          }`}
+        >
+          .*
         </button>
       </div>
       <div className="flex h-9 items-center justify-end gap-1 border-b border-border px-2">
