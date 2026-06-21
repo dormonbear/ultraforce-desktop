@@ -110,7 +110,12 @@ impl ApexCompleter {
                 }
             }
         }
-        Ok(ost_complete(src, cursor, &ost))
+        Ok(merge_ast(
+            src,
+            cursor,
+            &ost,
+            ost_complete(src, cursor, &ost),
+        ))
     }
 
     /// SOQL field completion inside an Apex `[SELECT …]` literal. Empty when there is no FROM object
@@ -258,6 +263,32 @@ fn stub_type(name: String) -> ApexType {
 /// True for a stub (no members yet) — i.e. it still needs an on-demand fetch.
 fn is_stub_type(ty: &ApexType) -> bool {
     ty.methods.is_empty() && ty.properties.is_empty() && ty.enum_values.is_empty()
+}
+
+/// Merge the AST engine's type-aware candidates into the heuristic results
+/// (additive — the heuristic wins on label collisions). The heuristic stays the
+/// baseline; the AST adds chain/collection-aware members it can't reach (e.g.
+/// `list.get(0).Owner.`). Requires full-source input with the cursor inside a
+/// method body, which is what the editor sends; for bare snippets the AST engine
+/// finds no enclosing method and contributes nothing.
+fn merge_ast(src: &str, cursor: usize, ost: &Ost, mut base: Vec<Candidate>) -> Vec<Candidate> {
+    use apex_lang::ast::complete::{complete as ast_complete, CandidateKind as AstKind};
+    let mut seen: std::collections::HashSet<String> =
+        base.iter().map(|c| c.label.to_ascii_lowercase()).collect();
+    for a in ast_complete(src, cursor, ost) {
+        if seen.insert(a.label.to_ascii_lowercase()) {
+            let kind = match a.kind {
+                AstKind::Field => CandidateKind::Property,
+                AstKind::Method => CandidateKind::Method,
+                AstKind::Variable => CandidateKind::LocalVar,
+            };
+            base.push(Candidate {
+                label: a.label,
+                kind,
+            });
+        }
+    }
+    base
 }
 
 /// Salesforce describe `field.type` -> the Apex type name used in completion.
@@ -463,6 +494,60 @@ mod tests {
         assert!(
             got.iter().any(|c| c.label == "Name"),
             "offline member completion: {got:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn ast_engine_adds_collection_chain_member_completion() {
+        // The AST engine resolves `ls.get(0).Owner.` through a collection element +
+        // relationship chain — something the heuristic alone can't infer. Full-source
+        // input (as the editor sends) with the cursor inside a method body.
+        use apex_lang::symbols::{ApexType, Method, Ost, Property};
+        let dir = std::env::temp_dir().join(format!("ast-chain-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+        let account = ApexType {
+            name: "Account".into(),
+            properties: vec![Property {
+                name: "Owner".into(),
+                prop_type: "User".into(),
+                is_static: false,
+            }],
+            ..Default::default()
+        };
+        let user = ApexType {
+            name: "User".into(),
+            methods: vec![Method {
+                name: "getName".into(),
+                return_type: "String".into(),
+                ..Default::default()
+            }],
+            properties: vec![Property {
+                name: "Email".into(),
+                prop_type: "String".into(),
+                is_static: false,
+            }],
+            ..Default::default()
+        };
+        completer.install_index(
+            "myorg",
+            Ost {
+                namespaces: vec![],
+                org_types: vec![account, user],
+            },
+        );
+        let invoker = SfInvoker::new(std::sync::Arc::new(MockRunner::new(|_p, _a| {
+            panic!("no SF call when indexed")
+        })));
+        let src = "class C { void m(List<Account> ls) { ls.get(0).Owner.Em } }";
+        let cursor = src.find("Em }").unwrap() + 2;
+        let got = completer
+            .complete(&invoker, "myorg", src, cursor)
+            .await
+            .unwrap();
+        assert!(
+            got.iter().any(|c| c.label == "Email"),
+            "AST collection-chain completion: {got:?}"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
