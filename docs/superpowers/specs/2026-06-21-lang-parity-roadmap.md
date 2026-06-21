@@ -24,7 +24,9 @@
    aggregated into hotspots (HEAP column), mirroring that plugin's Self Heap.
 4. **SOQL/DML detail + row counts** — ✅ DONE. `statements::statements` extracts SOQL/DML
    text + rows + duration; a "Queries" tab groups by text (count + rows) and flags repeats (N+1).
-5. **Broader event coverage** (toward that plugin's ~140) + sortable/event-filterable tree-table.
+5. **Event-filterable tree** — ✅ DONE. `filterTree` prunes the execution tree
+   to matching events (label/detail); filter box on the tree tab. Unit + e2e.
+   (Remaining: broader event-name coverage toward that plugin's ~140 — low-value mechanical.)
 6. **Open local `.log` / save downloaded log** — ✅ DONE. `parse_log` command
    (shares `build_log_view` with `get_log`, no org fetch); LogsPanel OPEN/SAVE
    buttons via dialog + fs. Unit-covered parsing + e2e for the open flow.
