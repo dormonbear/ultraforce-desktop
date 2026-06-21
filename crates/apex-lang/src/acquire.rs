@@ -428,18 +428,28 @@ fn parse_org_methods(symbol_table: &Value) -> Vec<Method> {
 }
 
 fn parse_org_properties(symbol_table: &Value) -> Vec<Property> {
+    // The Tooling SymbolTable splits get/set `properties` from member `variables`
+    // (plain fields + static constants). Both complete as field access — that plugin does
+    // the same — so merge them into one list.
+    let mut out = parse_symbol_fields(symbol_table, "properties");
+    out.extend(parse_symbol_fields(symbol_table, "variables"));
+    out
+}
+
+/// Parse a SymbolTable array of name/type/modifiers symbols into [`Property`]s.
+fn parse_symbol_fields(symbol_table: &Value, key: &str) -> Vec<Property> {
     symbol_table
-        .get("properties")
+        .get(key)
         .and_then(Value::as_array)
-        .map(|properties| {
-            properties
+        .map(|fields| {
+            fields
                 .iter()
-                .filter_map(|property| {
-                    let name = property.get("name")?.as_str()?;
+                .filter_map(|field| {
+                    let name = field.get("name")?.as_str()?;
                     Some(Property {
                         name: name.to_string(),
-                        prop_type: string_field(property, "type"),
-                        is_static: modifiers_contain(property, "static"),
+                        prop_type: string_field(field, "type"),
+                        is_static: modifiers_contain(field, "static"),
                     })
                 })
                 .collect()
@@ -619,6 +629,37 @@ mod tests {
             premium.methods.iter().any(|method| method.name == "save"),
             "inherited from AccountService"
         );
+    }
+
+    #[test]
+    fn parse_org_types_captures_variables_as_fields() {
+        // Tooling puts plain fields / constants in `variables` (not `properties`).
+        let records = vec![serde_json::json!({
+            "Name": "Foo",
+            "SymbolTable": {
+                "name": "Foo",
+                "methods": [],
+                "properties": [{ "name": "prop", "type": "String", "modifiers": [] }],
+                "variables": [
+                    { "name": "count", "type": "Integer", "modifiers": [] },
+                    { "name": "LIMIT", "type": "Integer", "modifiers": ["static", "final"] }
+                ]
+            }
+        })];
+        let types = parse_org_types(&records);
+        let foo = types.iter().find(|t| t.name == "Foo").unwrap();
+        assert!(
+            foo.properties.iter().any(|p| p.name == "prop"),
+            "{:?}",
+            foo.properties
+        );
+        assert!(
+            foo.properties.iter().any(|p| p.name == "count"),
+            "field from variables: {:?}",
+            foo.properties
+        );
+        let limit = foo.properties.iter().find(|p| p.name == "LIMIT").unwrap();
+        assert!(limit.is_static, "static modifier on a variable");
     }
 
     #[test]
