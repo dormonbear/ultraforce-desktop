@@ -107,7 +107,7 @@ impl SchemaStore {
         invoker: &SfInvoker,
         api_version: &str,
         names: &[String],
-        on_progress: &mut dyn FnMut(usize, usize),
+        on_progress: &mut (dyn FnMut(usize, usize) + Send),
     ) -> Vec<(String, SObjectSchema)> {
         let total = names.len();
         let mut out: Vec<(String, SObjectSchema)> = Vec::new();
@@ -361,10 +361,15 @@ mod tests {
         // First call: Account is a miss → one composite call, persisted.
         let mut seen = 0usize;
         let out = store
-            .get_or_fetch_many(&invoker, API, &["Account".to_string()], &mut |done, total| {
-                seen = total;
-                let _ = done;
-            })
+            .get_or_fetch_many(
+                &invoker,
+                API,
+                &["Account".to_string()],
+                &mut |done, total| {
+                    seen = total;
+                    let _ = done;
+                },
+            )
             .await;
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].0, "Account");

@@ -172,17 +172,20 @@ pub async fn sync_org(
         }
     }
 
-    // Changed sObjects → evict stale describe, re-describe, upsert.
+    // Changed sObjects → evict stale describes, then batch re-describe + upsert.
     let entities = fetch_changed_entities(invoker, org_id, &since).await?;
     let mut schema_store = SchemaStore::new(root.clone(), org_id);
-    for name in entities {
-        let _ = schema_store.invalidate(&api, &name);
-        if let Ok(schema) = schema_store.get_or_fetch(invoker, &api, &name).await {
-            if upsert(&mut ost.org_types, schema_to_apex_type(&schema)) {
-                outcome.updated += 1;
-            } else {
-                outcome.added += 1;
-            }
+    for name in &entities {
+        let _ = schema_store.invalidate(&api, name);
+    }
+    let described = schema_store
+        .get_or_fetch_many(invoker, &api, &entities, &mut |_, _| {})
+        .await;
+    for (_name, schema) in &described {
+        if upsert(&mut ost.org_types, schema_to_apex_type(schema)) {
+            outcome.updated += 1;
+        } else {
+            outcome.added += 1;
         }
     }
 
@@ -331,6 +334,56 @@ mod tests {
         assert_eq!(outcome.updated, 1, "Foo counted as updated");
         let (_, m) = apex_lang::load_snapshot(&root, "uorg_up", "60.0").unwrap();
         assert_ne!(m.indexed_at, "2026-01-01T00:00:00Z", "watermark advanced");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn sync_describes_changed_entity_via_composite() {
+        let root = std::env::temp_dir().join(format!("sync-comp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let seeded = Ost {
+            namespaces: vec![],
+            org_types: vec![ApexType {
+                name: "Account".into(),
+                ..Default::default()
+            }],
+        };
+        seed_snapshot(&root, "uorg_comp", "60.0", &seeded);
+        let runner = MockRunner::new(|_p, args: &[String]| {
+            let a = args.join(" ");
+            if a.contains("org display") {
+                ok(r#"{"status":0,"result":{"apiVersion":"60.0"}}"#)
+            } else if a.contains("FROM ApexClass") && a.contains("LastModifiedDate") {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            } else if a.contains("FROM EntityDefinition") {
+                ok(r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}]}}"#)
+            } else if a.contains("FROM CustomField") {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            } else if a.contains("composite") {
+                ok(
+                    r#"{"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"Account","fields":[{"name":"Name","type":"string","relationshipName":null,"referenceTo":[]}],"childRelationships":[]}}]}"#,
+                )
+            } else if a.contains("SELECT Name FROM ApexClass") {
+                ok(r#"{"status":0,"result":{"records":[{"Name":"Foo"}]}}"#)
+            } else if a.contains("sobject list") {
+                ok(r#"{"status":0,"result":["Account"]}"#)
+            } else {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            }
+        });
+        let inv = SfInvoker::new(Arc::new(runner));
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_comp").await.unwrap();
+
+        let account = ost
+            .org_types
+            .iter()
+            .find(|t| t.name == "Account")
+            .expect("Account present");
+        assert!(
+            account.properties.iter().any(|p| p.name == "Name"),
+            "Account re-described with Name field"
+        );
+        assert_eq!(outcome.updated, 1, "Account counted as updated");
         let _ = std::fs::remove_dir_all(&root);
     }
 
