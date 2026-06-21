@@ -44,6 +44,16 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
             this_type: &class.name,
         };
         let recv_expr = parse_expression(&receiver);
+        // `super.` → the superclass's members (the OST already flattens the
+        // parent's own inheritance, mirroring that plugin's resolved member set).
+        if matches!(&recv_expr, Some(Expr::Super(_))) {
+            let mems = class
+                .extends
+                .as_deref()
+                .map(|p| members_of(&Type::Named(p.to_string()), ost, false))
+                .unwrap_or_default();
+            return finish(mems, partial);
+        }
         // Static context: the receiver is a bare type name, not a value/variable.
         let static_ctx = matches!(&recv_expr, Some(Expr::Name(n, _))
             if super::scope::resolve(&bindings, n).is_none()
@@ -53,9 +63,13 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
             .map(|e| infer(e, &ctx))
             .unwrap_or(Type::Unknown);
         // The class being edited isn't in the OST — complete its own members from
-        // the AST (covers `this.`, `ClassName.`, and a self-typed value).
+        // the AST, plus members inherited from its `extends` (resolved via OST).
         let mems = if matches!(&ty, Type::Named(n) if n.eq_ignore_ascii_case(&class.name)) {
-            own_members(class, static_ctx)
+            let mut m = own_members(class, static_ctx);
+            if let Some(parent) = &class.extends {
+                m.extend(members_of(&Type::Named(parent.clone()), ost, static_ctx));
+            }
+            m
         } else {
             members_of(&ty, ost, static_ctx)
         };
@@ -76,6 +90,10 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
     }
     cands.extend(own_members(class, false));
     cands.extend(own_members(class, true));
+    // Inherited instance members are callable unqualified too.
+    if let Some(parent) = &class.extends {
+        cands.extend(members_of(&Type::Named(parent.clone()), ost, false));
+    }
     finish(cands, partial)
 }
 
@@ -391,12 +409,29 @@ mod tests {
             properties: vec![],
             enum_values: vec!["RED".to_string(), "GREEN".to_string()],
         };
+        // A base class (the OST already flattens its own inheritance at index time).
+        let base = ApexType {
+            name: "Base".to_string(),
+            kind: TypeKind::Class,
+            methods: vec![Method {
+                name: "baseMethod".to_string(),
+                return_type: "Integer".to_string(),
+                params: vec![],
+                is_static: false,
+            }],
+            properties: vec![Property {
+                name: "baseField".to_string(),
+                prop_type: "String".to_string(),
+                is_static: false,
+            }],
+            enum_values: vec![],
+        };
         Ost {
             namespaces: vec![Namespace {
                 name: "System".to_string(),
                 types: vec![string_ty],
             }],
-            org_types: vec![account, user, color],
+            org_types: vec![account, user, color, base],
         }
     }
 
@@ -521,6 +556,29 @@ mod tests {
     fn bare_position_includes_own_methods() {
         let c = at("class C { void helper() {} void m() { hel| } }");
         assert_eq!(labels(&c), vec!["helper"]);
+    }
+
+    #[test]
+    fn super_completes_superclass_members() {
+        let c = at("class C extends Base { void m() { super.| } }");
+        assert!(labels(&c).contains(&"baseMethod"), "{:?}", labels(&c));
+        assert!(labels(&c).contains(&"baseField"));
+    }
+
+    #[test]
+    fn this_includes_inherited_members() {
+        let c = at("class C extends Base { Integer own; void m() { this.| } }");
+        let l = labels(&c);
+        assert!(l.contains(&"own"), "own member: {l:?}");
+        assert!(l.contains(&"baseMethod"), "inherited member: {l:?}");
+    }
+
+    #[test]
+    fn bare_position_includes_inherited_members() {
+        let c = at("class C extends Base { void m() { base| } }");
+        let l = labels(&c);
+        assert!(l.contains(&"baseMethod"));
+        assert!(l.contains(&"baseField"));
     }
 
     #[test]
