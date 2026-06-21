@@ -20,7 +20,8 @@
    Tree view.
 2. **Aggregate hotspots** — ✅ DONE. `profile::hotspots` groups method/unit frames by
    signature, sums self/total time + call count; a "Hotspots" tab shows top methods by self time.
-3. **Heap allocation tracking** — parse `HEAP_ALLOCATE`; per-frame self/total heap + per-unit total.
+3. **Heap allocation tracking** — ✅ DONE. `HEAP_ALLOCATE` recognized; per-frame self heap
+   aggregated into hotspots (HEAP column), mirroring that plugin's Self Heap.
 4. **SOQL/DML detail + row counts** — ✅ DONE. `statements::statements` extracts SOQL/DML
    text + rows + duration; a "Queries" tab groups by text (count + rows) and flags repeats (N+1).
 5. **Broader event coverage** (toward that plugin's ~140) + sortable/event-filterable tree-table.
