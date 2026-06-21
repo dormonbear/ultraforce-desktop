@@ -130,6 +130,20 @@ fn own_members(class: &TypeDecl, want_static: bool) -> Vec<Candidate> {
     out
 }
 
+/// Names of all bindings (class fields, params, locals) in scope at `cursor`.
+/// Powers SOQL bind-variable (`:var`) completion inside `[ … ]` literals.
+/// Empty when the cursor is not inside a method body.
+pub fn scope_names_at(src: &str, cursor: usize) -> Vec<String> {
+    let cu = parse(src);
+    let Some((class, method)) = enclosing_method(&cu, cursor) else {
+        return Vec::new();
+    };
+    bindings_at(class, method, cursor)
+        .into_iter()
+        .map(|b| b.name)
+        .collect()
+}
+
 fn enclosing_method(cu: &CompilationUnit, cursor: usize) -> Option<(&TypeDecl, &MethodDecl)> {
     fn in_type(t: &TypeDecl, cursor: usize) -> Option<(&TypeDecl, &MethodDecl)> {
         for m in &t.members {
@@ -594,5 +608,16 @@ mod tests {
             "instance field must not show in static context: {:?}",
             labels(&c)
         );
+    }
+
+    #[test]
+    fn scope_names_at_lists_fields_params_and_locals() {
+        let src = "class C { Integer field1; void m(Id pId) { Integer localX; | } }";
+        let cursor = src.find('|').unwrap();
+        let cleaned = src.replacen('|', "", 1);
+        let names = scope_names_at(&cleaned, cursor);
+        assert!(names.contains(&"field1".to_string()), "{names:?}");
+        assert!(names.contains(&"pId".to_string()), "{names:?}");
+        assert!(names.contains(&"localX".to_string()), "{names:?}");
     }
 }
