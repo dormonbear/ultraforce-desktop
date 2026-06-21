@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use sf_core::{ProcessRunner, SfInvoker};
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 use tracing_subscriber::EnvFilter;
 
 mod dto;
@@ -32,6 +32,14 @@ struct SoqlResultDto {
     total_size: u64,
     done: bool,
     tree: Vec<dto::RecordDto>,
+}
+
+#[derive(Clone, serde::Serialize)]
+struct IndexProgressDto {
+    org: String,
+    phase: String,
+    done: usize,
+    total: usize,
 }
 
 #[tauri::command]
@@ -325,6 +333,44 @@ async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result
 }
 
 #[tauri::command]
+async fn index_org(org: String, app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
+    let root = features::apex_complete::default_index_root();
+    let mut on_progress = |p: features::index::IndexProgress| {
+        let _ = app.emit(
+            "index-progress",
+            IndexProgressDto {
+                org: org.clone(),
+                phase: p.phase.to_string(),
+                done: p.done,
+                total: p.total,
+            },
+        );
+    };
+    let ost = features::index::index_org(&state.invoker, root, &org, &mut on_progress)
+        .await
+        .map_err(|e| e.to_string())?;
+    state.apex.install_index(&org, ost);
+    let names = features::soql::list_sobject_names(&state.invoker, &org).await;
+    state
+        .sobjects
+        .lock()
+        .unwrap()
+        .insert(org.clone(), Arc::new(names));
+    Ok(())
+}
+
+#[tauri::command]
+async fn reindex_org(
+    org: String,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
+    let _ = store.clear();
+    index_org(org, app, state).await
+}
+
+#[tauri::command]
 async fn soql_diagnostics(
     query: String,
     state: State<'_, AppState>,
@@ -380,6 +426,8 @@ pub fn run() {
             warm_apex,
             warm_schema,
             refresh_schema_cache,
+            index_org,
+            reindex_org,
             soql_diagnostics,
             apex_soql_diagnostics
         ])

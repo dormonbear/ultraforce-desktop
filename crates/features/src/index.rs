@@ -26,7 +26,7 @@ pub async fn index_org(
     invoker: &SfInvoker,
     root: PathBuf,
     org_id: &str,
-    on_progress: &mut dyn FnMut(IndexProgress),
+    on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
     let api = api_version_for(invoker, org_id).await;
 

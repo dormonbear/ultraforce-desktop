@@ -12,6 +12,10 @@ use apex_lang::symbols::{ApexType, Method, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};
 use sf_schema::{SObjectSchema, SchemaStore};
 
+pub fn default_index_root() -> PathBuf {
+    OstStore::default_root()
+}
+
 /// Common Apex SObject instance methods (name, return type). Curated subset -- not exhaustive.
 /// ponytail: extend the list if a needed builtin is missing; not worth modelling the full surface.
 const SOBJECT_METHODS: &[(&str, &str)] = &[
