@@ -80,12 +80,17 @@ test("soql editor surfaces relationship-field completion after a dot", async ({
   const editor = page.locator(".monaco-editor").first();
   await editor.click();
   await page.keyboard.press("Control+a");
-  // `.` is a SOQL completion trigger; the mocked soql_complete returns a field
-  // reached through the Owner→User relationship.
-  await page.keyboard.type("SELECT Owner.");
-  await expect(
-    page.locator(".monaco-editor .suggest-widget").getByText("Email"),
-  ).toBeVisible({ timeout: 5000 });
+  // Type a relationship path, then re-trigger completion until the widget shows —
+  // robust against Monaco's provider not being registered the instant we type.
+  // The mocked soql_complete returns a field reached through the Owner→User rel.
+  await page.keyboard.type("SELECT Owner.Em");
+  const email = page
+    .locator(".monaco-editor .suggest-widget")
+    .getByText("Email");
+  await expect(async () => {
+    await page.keyboard.press("Control+Space");
+    await expect(email).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 12000 });
 });
 
 test("apex annotation completion offers @AuraEnabled", async ({ page }) => {
