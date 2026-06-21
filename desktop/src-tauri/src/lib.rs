@@ -89,6 +89,12 @@ async fn run_soql(
     })
 }
 
+/// Pretty-print a SOQL query (one top-level clause per line). Pure, no IO.
+#[tauri::command]
+fn format_soql(query: String) -> String {
+    soql_lang::format_soql(&query)
+}
+
 /// Fetch the SOQL query plan (EXPLAIN): cost / cardinality / leading operation.
 #[tauri::command]
 async fn query_plan(
@@ -508,7 +514,8 @@ pub fn run() {
             soql_diagnostics,
             apex_soql_diagnostics,
             apex_diagnostics,
-            query_plan
+            query_plan,
+            format_soql
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
