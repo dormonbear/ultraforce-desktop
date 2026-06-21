@@ -105,11 +105,7 @@ pub fn diagnostics<'a>(
             };
             if obj.field(segs[segs.len() - 1]).is_none() {
                 diags.push(Diagnostic {
-                    message: format!(
-                        "Unknown field '{}' on {}",
-                        segs[segs.len() - 1],
-                        obj.name
-                    ),
+                    message: format!("Unknown field '{}' on {}", segs[segs.len() - 1], obj.name),
                     start: f.start,
                     end: f.end,
                     severity: Severity::Error,
@@ -264,15 +260,20 @@ mod tests {
         let resolve = |n: &str| (n == "User").then_some(&user);
         let input = "SELECT Id FROM Account WHERE Owner.Age LIKE 'x'";
         let diags = diagnostics(input, &schema, &resolve);
-        assert!(diags.iter().any(|d| d.message.contains("LIKE")), "{diags:?}");
+        assert!(
+            diags.iter().any(|d| d.message.contains("LIKE")),
+            "{diags:?}"
+        );
     }
 
     #[test]
     fn like_on_string_clean() {
         let schema = account_schema();
-        assert!(
-            diagnostics("SELECT Id FROM Account WHERE Name LIKE 'a%'", &schema, &|_| None)
-                .is_empty()
-        );
+        assert!(diagnostics(
+            "SELECT Id FROM Account WHERE Name LIKE 'a%'",
+            &schema,
+            &|_| None
+        )
+        .is_empty());
     }
 }

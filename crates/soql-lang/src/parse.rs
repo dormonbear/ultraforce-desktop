@@ -158,19 +158,12 @@ pub fn where_conditions(input: &str) -> Vec<Condition> {
             break;
         }
         let t = &toks[i];
-        if t.kind == TokenKind::Keyword
-            && (t.text.eq_ignore_ascii_case("LIKE") || t.text.eq_ignore_ascii_case("IN"))
-        {
-            out.push(Condition {
-                field,
-                op: t.text.to_ascii_uppercase(),
-                op_start: t.start,
-                op_end: t.end,
-            });
-            i += 1;
-        } else if t.kind == TokenKind::Ident
-            && (t.text.eq_ignore_ascii_case("INCLUDES") || t.text.eq_ignore_ascii_case("EXCLUDES"))
-        {
+        let word_op = (t.kind == TokenKind::Keyword
+            && (t.text.eq_ignore_ascii_case("LIKE") || t.text.eq_ignore_ascii_case("IN")))
+            || (t.kind == TokenKind::Ident
+                && (t.text.eq_ignore_ascii_case("INCLUDES")
+                    || t.text.eq_ignore_ascii_case("EXCLUDES")));
+        if word_op {
             out.push(Condition {
                 field,
                 op: t.text.to_ascii_uppercase(),
