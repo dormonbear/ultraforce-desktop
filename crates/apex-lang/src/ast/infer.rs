@@ -74,6 +74,10 @@ fn name_type(name: &str, ctx: &InferCtx) -> Type {
     if let Some(t) = super::scope::resolve(ctx.bindings, name) {
         return t.clone();
     }
+    // The class being edited, used statically (`ClassName.staticMember`).
+    if name.eq_ignore_ascii_case(ctx.this_type) {
+        return Type::Named(name.to_string());
+    }
     // A type name used statically (`String.valueOf`, `Math`, an org type).
     if matches!(Type::parse(name), Type::Primitive(_))
         || ctx.ost.org_type(name).is_some()
