@@ -97,6 +97,71 @@ impl SchemaStore {
         Ok(schema)
     }
 
+    /// Batch variant: describe the cache-miss `names` via the Composite REST
+    /// API (25 per call, up to 4 calls concurrently), persist each, and return
+    /// every `(name, schema)` (cached + freshly described). `on_progress` is
+    /// called with `(done, total)` after the initial cache scan and after each
+    /// completed composite call. Objects that fail to describe are dropped.
+    pub async fn get_or_fetch_many(
+        &mut self,
+        invoker: &SfInvoker,
+        api_version: &str,
+        names: &[String],
+        on_progress: &mut dyn FnMut(usize, usize),
+    ) -> Vec<(String, SObjectSchema)> {
+        let total = names.len();
+        let mut out: Vec<(String, SObjectSchema)> = Vec::new();
+        let mut missing: Vec<String> = Vec::new();
+
+        for name in names {
+            if let Some(s) = self.get(api_version, name) {
+                out.push((name.clone(), s.clone()));
+            } else if let Ok(Some(s)) = self.load_disk(api_version, name) {
+                out.push((name.clone(), s));
+            } else {
+                missing.push(name.clone());
+            }
+        }
+        let mut done = out.len();
+        on_progress(done, total);
+
+        // Describe misses in waves of COMPOSITE_CONCURRENCY composite calls,
+        // each describing up to COMPOSITE_MAX objects.
+        const COMPOSITE_MAX: usize = 25;
+        const COMPOSITE_CONCURRENCY: usize = 4;
+        let wave = COMPOSITE_MAX * COMPOSITE_CONCURRENCY;
+        for super_chunk in missing.chunks(wave) {
+            let mut set: tokio::task::JoinSet<(usize, Vec<SObjectSchema>)> =
+                tokio::task::JoinSet::new();
+            for batch in super_chunk.chunks(COMPOSITE_MAX) {
+                let invoker = invoker.clone();
+                let org = self.org_id.clone();
+                let api = api_version.to_string();
+                let batch = batch.to_vec();
+                set.spawn(async move {
+                    let attempted = batch.len();
+                    let schemas = crate::puller::describe_objects(&invoker, &org, &api, &batch)
+                        .await
+                        .unwrap_or_default();
+                    (attempted, schemas)
+                });
+            }
+            while let Some(res) = set.join_next().await {
+                let (attempted, schemas) = res.unwrap_or_default();
+                for schema in schemas {
+                    let name = schema.name.clone();
+                    let _ = self.persist(api_version, &name, &schema);
+                    self.mem
+                        .insert(Self::key(api_version, &name), schema.clone());
+                    out.push((name, schema));
+                }
+                done += attempted;
+                on_progress(done, total);
+            }
+        }
+        out
+    }
+
     /// Remove from memory and delete the on-disk file (NotFound is ignored).
     pub fn invalidate(&mut self, api_version: &str, object: &str) -> Result<(), SfError> {
         self.mem.remove(&Self::key(api_version, object));
@@ -269,6 +334,50 @@ mod tests {
         assert!(removed >= 1, "removed {removed}");
         assert!(!org_dir.exists());
         assert!(store.get(API, "Account").is_none());
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    fn composite_counting_invoker() -> (SfInvoker, Arc<AtomicUsize>) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let c = calls.clone();
+        // Any composite call returns one Account subresponse; counts each call.
+        let runner = MockRunner::new(move |_, _| {
+            c.fetch_add(1, Ordering::SeqCst);
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: r#"{"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"Account","fields":[],"childRelationships":[]}}]}"#.to_string(),
+                stderr: String::new(),
+            })
+        });
+        (SfInvoker::new(Arc::new(runner)), calls)
+    }
+
+    #[tokio::test]
+    async fn get_or_fetch_many_describes_misses_and_skips_cached() {
+        let root = unique_root();
+        let (invoker, calls) = composite_counting_invoker();
+        let mut store = SchemaStore::new(&root, "00Dorg");
+
+        // First call: Account is a miss → one composite call, persisted.
+        let mut seen = 0usize;
+        let out = store
+            .get_or_fetch_many(&invoker, API, &["Account".to_string()], &mut |done, total| {
+                seen = total;
+                let _ = done;
+            })
+            .await;
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].0, "Account");
+        assert_eq!(seen, 1, "progress total reflects requested names");
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "one composite call");
+        assert!(root.join("00Dorg/60.0/Account.json").exists(), "persisted");
+
+        // Second call: Account now cached in memory → no further composite call.
+        let out2 = store
+            .get_or_fetch_many(&invoker, API, &["Account".to_string()], &mut |_, _| {})
+            .await;
+        assert_eq!(out2.len(), 1);
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "served from cache");
         std::fs::remove_dir_all(&root).ok();
     }
 
