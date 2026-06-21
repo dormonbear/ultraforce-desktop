@@ -18,17 +18,16 @@ AST path is at parity. Until then both compile side by side.
 
 ## Increments (each its own commit, TDD)
 
-1. **AST lexer** (`ast/lexer.rs`) — a complete token stream: full operator set
+1. **AST lexer** (`ast/lexer.rs`) — ✅ DONE. Full operator set
    (`= == != < <= > >= && || ! + - * / % ++ -- += -= *= /= & | ^ =>`), all punctuation
    (`. , ; : ? ( ) { } [ ] @`), comments (`//`, `/* */`), and proper literals (int, long `L`,
    decimal, string with escapes, `true`/`false`, `null`). Tokens carry `kind` + byte span.
-2. **AST types** (`ast/tree.rs`) — typed nodes: compilation unit, type decl (class/interface/enum)
-   with modifiers, member decls (field/method/property/ctor), statements, expressions; every node
-   carries a span.
-3. **Declaration parser** (`ast/parser.rs`) — parse a compilation unit's structure: type decls,
-   members, signatures (recover on errors; never panic).
-4. **Statement & expression parser** — method bodies: var decls, if/for/while/try, return/throw,
-   assignments, calls, member access, `new`, literals, operators with precedence.
+2. **AST types** (`ast/tree.rs`) — ✅ DONE. Spanned typed nodes: compilation unit, type decl
+   (class/interface/enum) with modifiers/annotations, member decls (field/method/property/nested).
+3. **Declaration parser** (`ast/parser.rs`) — ✅ DONE. Parses a compilation unit's structure: type
+   decls, members, signatures; bodies as spans; error recovery, never panics.
+4. **Statement & expression parser** — ⬜ NEXT. Method bodies: var decls, if/for/while/try,
+   return/throw, assignments, calls, member access, `new`, literals, operators with precedence.
 
 Phase 1 ends when increments 1–4 parse representative Apex into a spanned AST. Type resolution,
 inference, and diagnostics are Phases 2–5.
