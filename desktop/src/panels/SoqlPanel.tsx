@@ -28,7 +28,7 @@ interface SoqlViewProps {
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
 export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
-  const { query, result, error, view, useToolingApi, plan } = tab;
+  const { query, result, error, view, useToolingApi, allRows, plan } = tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
   // Persist the editor/results split to localStorage; restored on next launch.
@@ -47,6 +47,7 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
       const dto = await invoke<SoqlResultDto>("run_soql", {
         query,
         useToolingApi,
+        allRows,
       });
       onPatch({ result: dto });
       const ms = performance.now() - t0;
@@ -75,7 +76,7 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
     } finally {
       setRunning(false);
     }
-  }, [query, onPatch, org, useToolingApi]);
+  }, [query, onPatch, org, useToolingApi, allRows]);
 
   const explain = useCallback(async () => {
     try {
@@ -144,6 +145,18 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
                   className="size-3 cursor-pointer accent-primary"
                 />
                 Tooling API
+              </label>
+              <label
+                className="flex cursor-pointer items-center gap-1.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground"
+                title="Include deleted/archived rows (queryAll, --all-rows)"
+              >
+                <input
+                  type="checkbox"
+                  checked={allRows}
+                  onChange={(e) => onPatch({ allRows: e.target.checked })}
+                  className="size-3 cursor-pointer accent-primary"
+                />
+                All rows
               </label>
               <button
                 type="button"

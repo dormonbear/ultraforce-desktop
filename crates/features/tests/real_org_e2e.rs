@@ -15,7 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use features::anon_apex::run_anon;
 use features::apex_complete::ApexCompleter;
-use features::soql::{complete_fields, diagnose, list_sobject_names, run_query};
+use features::soql::{complete_fields, diagnose, list_sobject_names, run_query, QueryOptions};
 use sf_core::{ProcessRunner, SfInvoker};
 use sf_schema::SchemaStore;
 
@@ -121,7 +121,7 @@ async fn e2e_run_soql_real() {
         &invoker(),
         "SELECT Id, Name FROM Account LIMIT 5",
         Some(&org()),
-        false,
+        QueryOptions::default(),
     )
     .await
     .expect("run_soql should succeed");
@@ -256,7 +256,7 @@ async fn e2e_dml_insert_query_delete() {
         &inv,
         &format!("SELECT Id, Name FROM Account WHERE Name = '{marker}'"),
         Some(&o),
-        false,
+        QueryOptions::default(),
     )
     .await
     .expect("post-insert query");
@@ -280,7 +280,7 @@ async fn e2e_dml_insert_query_delete() {
         &inv,
         &format!("SELECT Id FROM Account WHERE Name = '{marker}'"),
         Some(&o),
-        false,
+        QueryOptions::default(),
     )
     .await
     .expect("post-delete query");
