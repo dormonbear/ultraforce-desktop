@@ -79,6 +79,21 @@ pub fn outline(input: &str) -> SoqlOutline {
                     at_item_start = false; // trailing idents in this item (alias) are not fields
                 }
             }
+            TokenKind::LParen if in_select => {
+                // Skip a balanced parenthesized group (child subquery or function
+                // args) — its contents are not parent SELECT fields or FROM object.
+                let mut depth = 1;
+                i += 1;
+                while i < toks.len() && depth > 0 {
+                    match toks[i].kind {
+                        TokenKind::LParen => depth += 1,
+                        TokenKind::RParen => depth -= 1,
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                at_item_start = false;
+            }
             _ => {
                 expect_from_object = false;
                 at_item_start = false;
@@ -87,6 +102,44 @@ pub fn outline(input: &str) -> SoqlOutline {
         }
     }
 
+    out
+}
+
+/// Each child subquery's `(body_start_byte_offset, body_text)`. A subquery is a
+/// parenthesized group whose body begins with `SELECT`.
+pub fn subquery_groups(input: &str) -> Vec<(usize, String)> {
+    let bytes = input.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'(' {
+            let body_start = i + 1;
+            let trimmed = input[body_start..].trim_start();
+            if trimmed.len() >= 6 && trimmed[..6].eq_ignore_ascii_case("SELECT") {
+                let mut depth = 0i32;
+                let mut close = input.len();
+                let mut j = body_start;
+                while j < bytes.len() {
+                    match bytes[j] {
+                        b'(' => depth += 1,
+                        b')' => {
+                            if depth == 0 {
+                                close = j;
+                                break;
+                            }
+                            depth -= 1;
+                        }
+                        _ => {}
+                    }
+                    j += 1;
+                }
+                out.push((body_start, input[body_start..close].to_string()));
+                i = close + 1;
+                continue;
+            }
+        }
+        i += 1;
+    }
     out
 }
 
@@ -293,5 +346,24 @@ mod tests {
     #[test]
     fn no_where_no_conditions() {
         assert!(where_conditions("SELECT Id FROM Account").is_empty());
+    }
+
+    #[test]
+    fn outline_skips_subquery_contents() {
+        let o = outline("SELECT Id, (SELECT LastName FROM Contacts) FROM Account");
+        // Parent fields exclude the subquery's LastName; FROM stays Account.
+        let names: Vec<&str> = o.select_fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["Id"]);
+        assert_eq!(o.from_object.as_deref(), Some("Account"));
+    }
+
+    #[test]
+    fn subquery_groups_extracts_body_and_offset() {
+        let input = "SELECT Id, (SELECT LastName FROM Contacts) FROM Account";
+        let groups = subquery_groups(input);
+        assert_eq!(groups.len(), 1);
+        let (start, body) = &groups[0];
+        assert_eq!(body, "SELECT LastName FROM Contacts");
+        assert_eq!(&input[*start..*start + body.len()], body);
     }
 }

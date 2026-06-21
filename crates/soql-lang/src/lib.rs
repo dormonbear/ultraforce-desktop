@@ -5,7 +5,10 @@ pub mod diagnostics;
 pub mod lexer;
 pub mod parse;
 
-pub use complete::{clause_at, complete, relationship_chain_at, Candidate, CandidateKind, Clause};
+pub use complete::{
+    clause_at, complete, relationship_chain_at, subquery_at, Candidate, CandidateKind, Clause,
+    Subquery,
+};
 pub use diagnostics::{diagnostics, Diagnostic, Severity};
 pub use lexer::{lex, Token, TokenKind};
-pub use parse::{outline, where_conditions, Condition, FieldRef, SoqlOutline};
+pub use parse::{outline, subquery_groups, where_conditions, Condition, FieldRef, SoqlOutline};
