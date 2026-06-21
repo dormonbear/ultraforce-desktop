@@ -3,7 +3,8 @@ import { TabStrip } from "../tabs/TabStrip";
 import { useFileTabs } from "../tabs/useFileTabs";
 import { Explorer } from "../components/Explorer";
 import { getRoot } from "../fs/workspace";
-import { basename } from "../fs/paths";
+import { basename, joinPath } from "../fs/paths";
+import { consumePending, onOpenTabRequest } from "../openTab";
 import { SoqlView } from "./SoqlPanel";
 import type { SoqlTab } from "../tabs/types";
 
@@ -29,12 +30,26 @@ export function SoqlTabs() {
     activeId,
     reveal,
     openFile,
+    openOrReplace,
     close,
     select,
     patch,
     retitle,
     closeByPath,
   } = useFileTabs<SoqlTab>({ tool: "soql", contentKey: "query", make: makeSoqlTab });
+
+  // History "open in tab" stages text via openTab; write it to scratch.soql.
+  useEffect(() => {
+    if (!root) return;
+    const tryOpen = () => {
+      const text = consumePending("soql");
+      if (text != null) void openOrReplace(joinPath(root, "scratch.soql"), text);
+    };
+    tryOpen();
+    return onOpenTabRequest((tool) => {
+      if (tool === "soql") tryOpen();
+    });
+  }, [root, openOrReplace]);
 
   const activeReveal =
     reveal && active && reveal.id === active.id

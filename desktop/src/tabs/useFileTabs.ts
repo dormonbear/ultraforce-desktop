@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { getJson, setJson } from "../store";
 import { saveFile } from "../fs/save";
 import { basename } from "../fs/paths";
@@ -122,6 +122,24 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     [contentKey],
   );
 
+  // Write `content` to `path` and show it (used by "open from history"):
+  // patch an already-open tab, otherwise open a fresh one.
+  const openOrReplace = useCallback(
+    async (path: string, content: string) => {
+      await writeTextFile(path, content);
+      const existing = tabs.find((t) => t.path === path);
+      if (existing) {
+        patch(existing.id, { [contentKey]: content } as Partial<T>);
+        setActiveId(existing.id);
+        return;
+      }
+      const tab = make(path, content);
+      setTabs((prev) => [...prev, tab]);
+      setActiveId(tab.id);
+    },
+    [tabs, make, patch, contentKey],
+  );
+
   // Reflect external path changes (rename/move) on any open tab.
   const retitle = useCallback((from: string, to: string) => {
     setTabs((prev) =>
@@ -152,6 +170,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     activeId,
     reveal,
     openFile,
+    openOrReplace,
     close,
     select,
     patch,

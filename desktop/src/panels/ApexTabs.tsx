@@ -3,7 +3,8 @@ import { TabStrip } from "../tabs/TabStrip";
 import { useFileTabs } from "../tabs/useFileTabs";
 import { Explorer } from "../components/Explorer";
 import { getRoot } from "../fs/workspace";
-import { basename } from "../fs/paths";
+import { basename, joinPath } from "../fs/paths";
+import { consumePending, onOpenTabRequest } from "../openTab";
 import { ApexView } from "./ApexPanel";
 import type { ApexTab } from "../tabs/types";
 
@@ -29,12 +30,26 @@ export function ApexTabs() {
     activeId,
     reveal,
     openFile,
+    openOrReplace,
     close,
     select,
     patch,
     retitle,
     closeByPath,
   } = useFileTabs<ApexTab>({ tool: "apex", contentKey: "src", make: makeApexTab });
+
+  // History "open in tab" stages text via openTab; write it to scratch.apex.
+  useEffect(() => {
+    if (!root) return;
+    const tryOpen = () => {
+      const text = consumePending("apex");
+      if (text != null) void openOrReplace(joinPath(root, "scratch.apex"), text);
+    };
+    tryOpen();
+    return onOpenTabRequest((tool) => {
+      if (tool === "apex") tryOpen();
+    });
+  }, [root, openOrReplace]);
 
   const activeReveal =
     reveal && active && reveal.id === active.id
