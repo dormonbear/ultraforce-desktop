@@ -1,6 +1,7 @@
 import type { Monaco } from "@monaco-editor/react";
 import { invoke } from "@tauri-apps/api/core";
 import type { CompletionItemDto } from "./types";
+import { limitInsertion } from "./components/soqlQuickfix";
 
 const SOQL_KEYWORDS = [
   "SELECT",
@@ -79,6 +80,48 @@ export function registerSoqlCompletion(monaco: Monaco): void {
           range,
         })),
       };
+    },
+  });
+}
+
+let soqlQuickfixRegistered = false;
+
+/** Register a "Add LIMIT 200" quickfix for the no-LIMIT warning marker. */
+export function registerSoqlQuickfix(monaco: Monaco): void {
+  if (soqlQuickfixRegistered) return;
+  soqlQuickfixRegistered = true;
+  monaco.languages.registerCodeActionProvider("soql", {
+    provideCodeActions: (model, _range, context) => {
+      const actions = context.markers
+        .filter((m) => m.message.includes("LIMIT"))
+        .map((marker) => {
+          const { offset, text } = limitInsertion(model.getValue());
+          const pos = model.getPositionAt(offset);
+          return {
+            title: "Add LIMIT 200",
+            diagnostics: [marker],
+            kind: "quickfix",
+            isPreferred: true,
+            edit: {
+              edits: [
+                {
+                  resource: model.uri,
+                  versionId: model.getVersionId(),
+                  textEdit: {
+                    range: new monaco.Range(
+                      pos.lineNumber,
+                      pos.column,
+                      pos.lineNumber,
+                      pos.column,
+                    ),
+                    text,
+                  },
+                },
+              ],
+            },
+          };
+        });
+      return { actions, dispose: () => {} };
     },
   });
 }
@@ -166,4 +209,5 @@ export function configureMonaco(monaco: Monaco): void {
   });
 
   registerSoqlCompletion(monaco);
+  registerSoqlQuickfix(monaco);
 }

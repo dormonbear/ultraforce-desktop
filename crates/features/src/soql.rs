@@ -454,11 +454,10 @@ pub async fn diagnose(
 ) -> Vec<SoqlDiagnostic> {
     let api = crate::api_version::api_version_for(invoker, org_id).await;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
-    soql_query_diagnostics(&mut store, invoker, &api, query)
-        .await
-        .into_iter()
-        .map(|d| to_dto(d, 0))
-        .collect()
+    let mut diags = soql_query_diagnostics(&mut store, invoker, &api, query).await;
+    // Schema-free lint: warn on unbounded (no-LIMIT) queries even offline.
+    diags.extend(soql_lang::missing_limit(query));
+    diags.into_iter().map(|d| to_dto(d, 0)).collect()
 }
 
 /// Unknown-field diagnostics for every inline `[SELECT …]` literal in Apex `src`, with spans in
@@ -728,7 +727,13 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-rel-diag-{}", std::process::id()));
-        let diags = diagnose(&invoker, &dir, "myorg", "SELECT Owner.Bogus FROM Account").await;
+        let diags = diagnose(
+            &invoker,
+            &dir,
+            "myorg",
+            "SELECT Owner.Bogus FROM Account LIMIT 1",
+        )
+        .await;
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert!(diags[0].message.contains("Bogus"));
         let _ = std::fs::remove_dir_all(&dir);
@@ -769,10 +774,35 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-diag-test-{}", std::process::id()));
-        let diags = diagnose(&invoker, &dir, "myorg", "SELECT Id, Bogus FROM Account").await;
+        let diags = diagnose(
+            &invoker,
+            &dir,
+            "myorg",
+            "SELECT Id, Bogus FROM Account LIMIT 1",
+        )
+        .await;
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert!(diags[0].message.contains("Bogus"));
         assert_eq!(diags[0].severity, "error");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn diagnose_warns_missing_limit_even_when_describe_fails() {
+        // Describe fails (status 1) -> no schema -> only the schema-free LIMIT lint.
+        let runner = sf_core::runner::MockRunner::new(move |_p, _a| {
+            Ok(sf_core::RawOutput {
+                status: 1,
+                stdout: r#"{"status":1}"#.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-limit-diag-{}", std::process::id()));
+        let diags = diagnose(&invoker, &dir, "myorg", "SELECT Id FROM Account").await;
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].severity, "warning");
+        assert!(diags[0].message.contains("LIMIT"));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
