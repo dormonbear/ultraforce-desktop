@@ -8,7 +8,11 @@ import {
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
+import { getJson, setJson } from "./store";
 import type { OrgDto } from "./types";
+
+/** Store key for the last selected org username. */
+const ORG_KEY = "settings.org";
 
 interface OrgState {
   orgs: OrgDto[];
@@ -37,24 +41,33 @@ export function OrgProvider({ children }: { children: ReactNode }) {
 
   const select = useCallback((username: string) => {
     setSelected(username);
+    void setJson(ORG_KEY, username);
     invoke("set_target_org", { username }).catch((e) => {
       toast.error(`Failed to switch org: ${typeof e === "string" ? e : String(e)}`);
     });
-    // Fire-and-forget: pre-warm the Apex OST so the first completion is instant.
+    // Fire-and-forget: pre-warm the Apex OST + sObject list so the first
+    // completion is instant and FROM completion reflects the new org.
     void invoke("warm_apex", { org: username }).catch(() => {});
+    void invoke("warm_schema", { org: username }).catch(() => {});
   }, []);
 
   useEffect(() => {
     let alive = true;
-    invoke<OrgDto[]>("list_orgs")
-      .then((list) => {
+    Promise.all([
+      invoke<OrgDto[]>("list_orgs"),
+      getJson<string | null>(ORG_KEY, null),
+    ])
+      .then(([list, savedOrg]) => {
         if (!alive) return;
         setOrgs(list);
-        const def = list.find((o) => o.is_default) ?? list[0];
+        // Prefer the last-selected org (if it still exists), else the CLI default.
+        const saved = savedOrg ? list.find((o) => o.username === savedOrg) : undefined;
+        const def = saved ?? list.find((o) => o.is_default) ?? list[0];
         if (def) {
           setSelected(def.username);
           void invoke("set_target_org", { username: def.username });
           void invoke("warm_apex", { org: def.username }).catch(() => {});
+          void invoke("warm_schema", { org: def.username }).catch(() => {});
         }
       })
       .catch((e) => {
