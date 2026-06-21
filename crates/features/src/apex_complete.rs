@@ -257,7 +257,7 @@ fn apex_field_type(f: &sf_schema::model::Field) -> String {
 }
 
 /// Map an sObject describe to an OST ApexType: fields -> instance properties (+ relationship props).
-fn schema_to_apex_type(schema: &SObjectSchema) -> ApexType {
+pub(crate) fn schema_to_apex_type(schema: &SObjectSchema) -> ApexType {
     let mut properties = Vec::new();
     for f in &schema.fields {
         properties.push(Property {
