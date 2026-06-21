@@ -14,6 +14,7 @@ import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
 import { HistoryDrawer } from "./components/HistoryDrawer";
+import { IndexProgress } from "./components/IndexProgress";
 import { SchemaRefresh } from "./components/SchemaRefresh";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { onOpenTabRequest } from "./openTab";
@@ -74,6 +75,7 @@ export default function App() {
           ULTRAFORCE
         </span>
         <div className="flex items-center gap-2">
+          <IndexProgress />
           <SchemaRefresh />
           <WorkspaceSettings onChanged={() => setWsVersion((v) => v + 1)} />
           <Tooltip>

@@ -26,8 +26,8 @@ export function SchemaRefresh() {
     }
     setBusy(true);
     try {
-      const count = await invoke<number>("refresh_schema_cache", { org });
-      toast.success(`Refreshed schema cache (${count} objects)`);
+      await invoke("reindex_org", { org });
+      toast.success("Reindexing org...");
     } catch (e) {
       toast.error(`Schema refresh failed: ${typeof e === "string" ? e : String(e)}`);
     } finally {
@@ -43,13 +43,13 @@ export function SchemaRefresh() {
           size="icon"
           onClick={refresh}
           disabled={busy}
-          aria-label="Refresh offline schema"
+          aria-label="Reindex org"
           className="size-7 cursor-pointer text-text-dim hover:text-foreground"
         >
           <RefreshCw size={15} className={busy ? "spin" : ""} />
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Refresh offline schema</TooltipContent>
+      <TooltipContent>Reindex org</TooltipContent>
     </Tooltip>
   );
 }
