@@ -34,6 +34,19 @@ pub fn parse(src: &str) -> CompilationUnit {
     }
 }
 
+/// Parse a standalone expression (for completion's receiver-chain analysis).
+/// Returns `None` if `src` doesn't begin with an expression.
+pub fn parse_expression(src: &str) -> Option<Expr> {
+    let toks = lex_code(src);
+    let mut p = Parser {
+        src,
+        toks,
+        pos: 0,
+        errors: Vec::new(),
+    };
+    p.parse_expr()
+}
+
 const MODIFIERS: &[&str] = &[
     "public",
     "private",
