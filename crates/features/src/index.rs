@@ -2,7 +2,10 @@
 
 use std::path::PathBuf;
 
-use apex_lang::acquire::{parse_org_types, parse_stdlib};
+use apex_lang::acquire::{
+    fetch_apex_class_names, fetch_changed_apex_classes, fetch_changed_entities, parse_org_types,
+    parse_stdlib,
+};
 use apex_lang::store::{OstSource, OstStore};
 use apex_lang::symbols::ApexType;
 use apex_lang::{save_snapshot, IndexManifest, Ost};
@@ -137,6 +140,104 @@ pub async fn index_org(
     Ok(ost)
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SyncOutcome {
+    pub added: usize,
+    pub updated: usize,
+    pub removed: usize,
+}
+
+impl SyncOutcome {
+    pub fn changed(&self) -> bool {
+        self.added + self.updated + self.removed > 0
+    }
+}
+
+/// Insert `ty` into `types`, replacing any same-name (case-insensitive) entry.
+/// Returns true when it replaced an existing type (an update), false on add.
+fn upsert(types: &mut Vec<ApexType>, ty: ApexType) -> bool {
+    if let Some(slot) = types
+        .iter_mut()
+        .find(|t| t.name.eq_ignore_ascii_case(&ty.name))
+    {
+        *slot = ty;
+        true
+    } else {
+        types.push(ty);
+        false
+    }
+}
+
+/// Delta sync: patch the snapshot's OST with only what changed since its
+/// watermark, persist, and return the patched OST + counts. No-op (zero
+/// counts, default OST) when no snapshot exists.
+pub async fn sync_org(
+    invoker: &SfInvoker,
+    root: PathBuf,
+    org_id: &str,
+) -> Result<(SyncOutcome, Ost), SfError> {
+    let api = api_version_for(invoker, org_id).await;
+    let Some((mut ost, manifest)) = apex_lang::load_snapshot(&root, org_id, &api) else {
+        return Ok((SyncOutcome::default(), Ost::default()));
+    };
+    let since = manifest.indexed_at.clone();
+    let started_at = now_iso8601();
+    let mut outcome = SyncOutcome::default();
+
+    // Changed Apex classes → upsert full SymbolTables.
+    let class_records = fetch_changed_apex_classes(invoker, org_id, &since).await?;
+    for ty in parse_org_types(&class_records) {
+        if upsert(&mut ost.org_types, ty) {
+            outcome.updated += 1;
+        } else {
+            outcome.added += 1;
+        }
+    }
+
+    // Changed sObjects → evict stale describe, re-describe, upsert.
+    let entities = fetch_changed_entities(invoker, org_id, &since).await?;
+    let mut schema_store = SchemaStore::new(root.clone(), org_id);
+    for name in entities {
+        let _ = schema_store.invalidate(&api, &name);
+        if let Ok(schema) = schema_store.get_or_fetch(invoker, &api, &name).await {
+            if upsert(&mut ost.org_types, schema_to_apex_type(&schema)) {
+                outcome.updated += 1;
+            } else {
+                outcome.added += 1;
+            }
+        }
+    }
+
+    // Deletion reconcile — only when BOTH name lists are non-empty (an empty
+    // list means a failed fetch; never wipe the index on that).
+    let class_names = fetch_apex_class_names(invoker, org_id)
+        .await
+        .unwrap_or_default();
+    let sobject_names = list_sobject_names(invoker, org_id).await;
+    if !class_names.is_empty() && !sobject_names.is_empty() {
+        let live: std::collections::HashSet<String> = class_names
+            .iter()
+            .chain(sobject_names.iter())
+            .map(|n| n.to_ascii_lowercase())
+            .collect();
+        let before = ost.org_types.len();
+        ost.org_types
+            .retain(|t| live.contains(&t.name.to_ascii_lowercase()));
+        outcome.removed = before - ost.org_types.len();
+    }
+
+    let manifest = IndexManifest {
+        org_id: org_id.to_string(),
+        api_version: api,
+        indexed_at: started_at,
+        namespaces: ost.namespaces.len(),
+        classes: class_names.len(),
+        sobjects: sobject_names.len(),
+    };
+    save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
+    Ok((outcome, ost))
+}
+
 fn now_iso8601() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -189,6 +290,164 @@ mod tests {
         assert_eq!(iso8601_utc(0), "1970-01-01T00:00:00Z");
         assert_eq!(iso8601_utc(86_399), "1970-01-01T23:59:59Z");
         assert_eq!(iso8601_utc(1_609_459_200), "2021-01-01T00:00:00Z");
+    }
+
+    // Build a snapshot on disk for `org` with a known watermark + seeded OST.
+    fn seed_snapshot(root: &std::path::Path, org: &str, api: &str, ost: &Ost) {
+        let m = IndexManifest {
+            org_id: org.into(),
+            api_version: api.into(),
+            indexed_at: "2026-01-01T00:00:00Z".into(),
+            namespaces: ost.namespaces.len(),
+            classes: 0,
+            sobjects: 0,
+        };
+        apex_lang::save_snapshot(root, ost, &m).unwrap();
+    }
+
+    #[tokio::test]
+    async fn sync_upserts_changed_class_and_advances_watermark() {
+        let root = std::env::temp_dir().join(format!("sync-up-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let seeded = Ost {
+            namespaces: vec![],
+            org_types: vec![ApexType {
+                name: "Foo".into(),
+                ..Default::default()
+            }],
+        };
+        seed_snapshot(&root, "uorg_up", "60.0", &seeded);
+
+        let runner = MockRunner::new(|_p, args: &[String]| {
+            let a = args.join(" ");
+            if a.contains("org display") {
+                ok(r#"{"status":0,"result":{"apiVersion":"60.0"}}"#)
+            } else if a.contains("FROM ApexClass") && a.contains("LastModifiedDate") {
+                ok(
+                    r#"{"status":0,"result":{"records":[{"Name":"Foo","SymbolTable":{"name":"Foo","methods":[{"name":"bar","returnType":"void","parameters":[]}],"properties":[]}}]}}"#,
+                )
+            } else if a.contains("FROM EntityDefinition") || a.contains("FROM CustomField") {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            } else if a.contains("SELECT Name FROM ApexClass") {
+                ok(r#"{"status":0,"result":{"records":[{"Name":"Foo"}]}}"#)
+            } else if a.contains("sobject list") {
+                ok(r#"{"status":0,"result":["Account"]}"#)
+            } else {
+                ok(
+                    r#"{"status":0,"result":{"name":"Account","fields":[],"childRelationships":[]}}"#,
+                )
+            }
+        });
+        let inv = SfInvoker::new(Arc::new(runner));
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_up").await.unwrap();
+
+        let foo = ost
+            .org_types
+            .iter()
+            .find(|t| t.name == "Foo")
+            .expect("Foo present");
+        assert!(
+            foo.methods.iter().any(|m| m.name == "bar"),
+            "Foo upgraded with bar"
+        );
+        assert_eq!(outcome.updated, 1, "Foo counted as updated");
+        let (_, m) = apex_lang::load_snapshot(&root, "uorg_up", "60.0").unwrap();
+        assert_ne!(m.indexed_at, "2026-01-01T00:00:00Z", "watermark advanced");
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn sync_reconciles_deleted_type() {
+        let root = std::env::temp_dir().join(format!("sync-del-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let seeded = Ost {
+            namespaces: vec![],
+            org_types: vec![
+                ApexType {
+                    name: "Keeper".into(),
+                    ..Default::default()
+                },
+                ApexType {
+                    name: "Account".into(),
+                    ..Default::default()
+                },
+                ApexType {
+                    name: "Gone".into(),
+                    ..Default::default()
+                },
+            ],
+        };
+        seed_snapshot(&root, "uorg_del", "60.0", &seeded);
+        let runner = MockRunner::new(|_p, args: &[String]| {
+            let a = args.join(" ");
+            if a.contains("org display") {
+                ok(r#"{"status":0,"result":{"apiVersion":"60.0"}}"#)
+            } else if a.contains("LastModifiedDate") {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            } else if a.contains("SELECT Name FROM ApexClass") {
+                ok(r#"{"status":0,"result":{"records":[{"Name":"Keeper"}]}}"#)
+            } else if a.contains("sobject list") {
+                ok(r#"{"status":0,"result":["Account"]}"#)
+            } else {
+                ok(
+                    r#"{"status":0,"result":{"name":"Account","fields":[],"childRelationships":[]}}"#,
+                )
+            }
+        });
+        let inv = SfInvoker::new(Arc::new(runner));
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_del").await.unwrap();
+        assert!(
+            ost.org_types.iter().any(|t| t.name == "Keeper"),
+            "Keeper kept"
+        );
+        assert!(
+            ost.org_types.iter().any(|t| t.name == "Account"),
+            "Account kept"
+        );
+        assert!(
+            !ost.org_types.iter().any(|t| t.name == "Gone"),
+            "Gone removed"
+        );
+        assert_eq!(outcome.removed, 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn sync_skips_reconcile_when_namelist_empty() {
+        let root = std::env::temp_dir().join(format!("sync-guard-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let seeded = Ost {
+            namespaces: vec![],
+            org_types: vec![ApexType {
+                name: "Account".into(),
+                ..Default::default()
+            }],
+        };
+        seed_snapshot(&root, "uorg_guard", "60.0", &seeded);
+        let runner = MockRunner::new(|_p, args: &[String]| {
+            let a = args.join(" ");
+            if a.contains("org display") {
+                ok(r#"{"status":0,"result":{"apiVersion":"60.0"}}"#)
+            } else if a.contains("LastModifiedDate") {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            } else if a.contains("SELECT Name FROM ApexClass") {
+                ok(r#"{"status":0,"result":{"records":[{"Name":"SomeClass"}]}}"#)
+            } else if a.contains("sobject list") {
+                ok(r#"{"status":0,"result":[]}"#)
+            } else {
+                ok(
+                    r#"{"status":0,"result":{"name":"Account","fields":[],"childRelationships":[]}}"#,
+                )
+            }
+        });
+        let inv = SfInvoker::new(Arc::new(runner));
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_guard").await.unwrap();
+        assert!(
+            ost.org_types.iter().any(|t| t.name == "Account"),
+            "Account NOT wiped"
+        );
+        assert_eq!(outcome.removed, 0, "no reconcile on empty list");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
