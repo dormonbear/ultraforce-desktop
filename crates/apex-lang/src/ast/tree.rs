@@ -167,6 +167,29 @@ pub enum Stmt {
     Empty(Span),
 }
 
+impl Stmt {
+    /// The byte span this statement covers.
+    pub fn span(&self) -> Span {
+        match self {
+            Stmt::Expr(e) => e.span(),
+            Stmt::LocalVar { span, .. }
+            | Stmt::If { span, .. }
+            | Stmt::For { span, .. }
+            | Stmt::ForEach { span, .. }
+            | Stmt::While { span, .. }
+            | Stmt::DoWhile { span, .. }
+            | Stmt::Return(_, span)
+            | Stmt::Throw(_, span)
+            | Stmt::Break(span)
+            | Stmt::Continue(span)
+            | Stmt::Try { span, .. }
+            | Stmt::Dml { span, .. }
+            | Stmt::Empty(span) => *span,
+            Stmt::Block(b) => b.span,
+        }
+    }
+}
+
 /// A `catch (Type name) { … }` clause.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Catch {
