@@ -134,6 +134,15 @@ test("Explain shows the query plan with the leading operation and cost", async (
   await expect(page.getByText("Query plan (EXPLAIN)")).toHaveCount(0);
 });
 
+test("opening a local .log file parses and renders it", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "Logs" }).click();
+  await page.getByRole("button", { name: "OPEN" }).click();
+  // parse_log (mocked) returns a unit with a CODE_UNIT_STARTED tree node.
+  await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
+  await expect(page.getByText("MyClass.run")).toBeVisible();
+});
+
 test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Reindex org" }).click();
