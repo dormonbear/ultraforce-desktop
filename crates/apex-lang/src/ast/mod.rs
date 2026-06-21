@@ -5,3 +5,5 @@
 //! lexer → tree → declaration parser → statement/expression parser.
 
 pub mod lexer;
+pub mod parser;
+pub mod tree;
