@@ -360,3 +360,60 @@ async fn e2e_index_org_offline() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// Delta sync against a live org with a future watermark = no changed classes,
+/// fast, and reconcile drops a fake type while keeping a real one. Seeds a tiny
+/// snapshot first (a full index would take minutes).
+#[tokio::test]
+#[ignore = "hits the live org; run with --ignored"]
+async fn e2e_sync_org_noop() {
+    use apex_lang::symbols::{ApexType, Ost};
+    let inv = invoker();
+    let o = org();
+    let root = std::env::temp_dir().join(format!("uf-e2e-sync-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+
+    let api = features::api_version::api_version_for(&inv, &o).await;
+    let seeded = Ost {
+        namespaces: vec![],
+        org_types: vec![
+            ApexType {
+                name: "Account".into(),
+                ..Default::default()
+            },
+            ApexType {
+                name: "ZzzNotARealType".into(),
+                ..Default::default()
+            },
+        ],
+    };
+    let m = apex_lang::IndexManifest {
+        org_id: o.clone(),
+        api_version: api.clone(),
+        indexed_at: "2999-01-01T00:00:00Z".into(),
+        namespaces: 0,
+        classes: 0,
+        sobjects: 0,
+    };
+    apex_lang::save_snapshot(&root, &seeded, &m).unwrap();
+
+    let (outcome, ost) = features::index::sync_org(&inv, root.clone(), &o)
+        .await
+        .expect("delta sync against live org");
+
+    assert_eq!(outcome.added, 0, "no adds with a future watermark");
+    assert_eq!(outcome.updated, 0, "no updates with a future watermark");
+    assert!(
+        ost.org_types.iter().any(|t| t.name == "Account"),
+        "Account kept"
+    );
+    assert!(
+        !ost.org_types.iter().any(|t| t.name == "ZzzNotARealType"),
+        "fake removed"
+    );
+    assert!(outcome.removed >= 1, "fake type reconciled away");
+
+    let (_, m2) = apex_lang::load_snapshot(&root, &o, &api).unwrap();
+    assert_ne!(m2.indexed_at, "2999-01-01T00:00:00Z", "watermark advanced");
+    let _ = std::fs::remove_dir_all(&root);
+}

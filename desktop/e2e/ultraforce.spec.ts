@@ -105,3 +105,15 @@ test("top bar shows indexing progress then clears when done", async ({
   );
   await expect(page.getByText(/Indexing objects/)).toHaveCount(0);
 });
+
+test("sync-result event shows a toast", async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() =>
+    (window as unknown as { __ufEmit: (e: string, p: unknown) => void }).__ufEmit(
+      "sync-result",
+      { org: "x", added: 1, updated: 2, removed: 0 },
+    ),
+  );
+  // sonner renders the text twice (visible toast + aria-live); match the first.
+  await expect(page.getByText("Synced 3 updates").first()).toBeVisible();
+});
