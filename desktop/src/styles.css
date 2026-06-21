@@ -189,3 +189,36 @@ body {
 .spin {
   animation: spin 0.8s linear infinite;
 }
+
+/*
+ * Persistent (non-overlay) scrollbars. macOS hides overlay scrollbars until you
+ * scroll, so a wide table's horizontal bar is undiscoverable. `-webkit-appearance:
+ * none` forces always-visible tracks; both axes stay reachable without scrolling
+ * to the content edge.
+ */
+.uf-scroll::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+  -webkit-appearance: none;
+}
+.uf-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted-foreground) 45%, transparent);
+  border-radius: 6px;
+  border: 2px solid var(--background);
+  background-clip: padding-box;
+}
+.uf-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+.uf-scroll::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/*
+ * The result grid drives horizontal scroll through its own floating bottom bar,
+ * so the shadcn table wrapper (`overflow-x-auto`) must NOT create a second
+ * scrollbar. Let the table overflow into the .uf-scroll body, which clips x and
+ * is scrolled programmatically.
+ */
+.uf-scroll > [data-slot="table-container"] {
+  overflow: visible;
+}

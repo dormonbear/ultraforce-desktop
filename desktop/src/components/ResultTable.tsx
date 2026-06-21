@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender,
   getCoreRowModel,
@@ -118,6 +118,40 @@ export function ResultTable({
   });
 
   const parentRef = useRef<HTMLDivElement>(null);
+  // Floating horizontal scrollbar pinned to the container's visible bottom,
+  // kept in sync with the table's own horizontal scroll (which has its native
+  // x-scrollbar hidden) so it stays put while scrolling rows vertically.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [containerW, setContainerW] = useState(0);
+  const hasRows = data.rows.length > 0;
+
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setContainerW(el.clientWidth));
+    ro.observe(el);
+    setContainerW(el.clientWidth);
+    return () => ro.disconnect();
+  }, [hasRows]);
+
+  const syncBarFromBody = () => {
+    const b = barRef.current;
+    const p = parentRef.current;
+    if (b && p && b.scrollLeft !== p.scrollLeft) b.scrollLeft = p.scrollLeft;
+  };
+  const syncBodyFromBar = () => {
+    const b = barRef.current;
+    const p = parentRef.current;
+    if (b && p && p.scrollLeft !== b.scrollLeft) p.scrollLeft = b.scrollLeft;
+  };
+  // The body has overflow-x hidden, so forward trackpad/shift horizontal wheel
+  // into programmatic scroll (scrollLeft still works under overflow:hidden).
+  const onBodyWheel = (e: React.WheelEvent) => {
+    if (e.deltaX === 0) return;
+    const p = parentRef.current;
+    if (p) p.scrollLeft += e.deltaX;
+  };
+
   const tableRows = table.getRowModel().rows;
   const virtualize = tableRows.length > 100;
 
@@ -150,6 +184,7 @@ export function ResultTable({
     : tableRows.map((row, index) => ({ row, index }));
 
   const tableWidth = GUTTER_W + table.getCenterTotalSize();
+  const hasXOverflow = containerW > 0 && tableWidth > containerW + 1;
 
   return (
     <div className="flex h-full flex-col">
@@ -207,7 +242,9 @@ export function ResultTable({
       ) : (
         <div
           ref={parentRef}
-          className="min-h-0 flex-1 overflow-auto border-t border-border"
+          onScroll={syncBarFromBody}
+          onWheel={onBodyWheel}
+          className="uf-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden border-t border-border"
         >
           <Table
             style={{ width: tableWidth }}
@@ -335,6 +372,16 @@ export function ResultTable({
               )}
             </TableBody>
           </Table>
+        </div>
+      )}
+      {data.rows.length > 0 && hasXOverflow && (
+        <div
+          ref={barRef}
+          onScroll={syncBodyFromBar}
+          className="uf-scroll shrink-0 overflow-x-auto overflow-y-hidden border-t border-border"
+          style={{ height: 14 }}
+        >
+          <div style={{ width: tableWidth, height: 1 }} />
         </div>
       )}
     </div>
