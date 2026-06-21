@@ -4,6 +4,7 @@ use sf_core::{ApexLogRef, SfError, SfInvoker};
 use log_parser::header::LogHeader;
 use log_parser::limits::{extract_limits, LimitRollup};
 use log_parser::parse::ParsedLog;
+use log_parser::statements::{statements, Statement};
 use log_parser::tree::{build_tree, ExecNode};
 
 /// List recent debug logs via `sf apex list log`.
@@ -47,6 +48,7 @@ pub async fn get_log_body(
 #[derive(Debug, Clone)]
 pub struct UnitView {
     pub tree: Vec<ExecNode>,
+    pub statements: Vec<Statement>,
     pub limits: Vec<LimitRollup>,
 }
 
@@ -66,6 +68,7 @@ impl DebugLogView {
             .iter()
             .map(|u| UnitView {
                 tree: build_tree(u),
+                statements: statements(u),
                 limits: extract_limits(u),
             })
             .collect();

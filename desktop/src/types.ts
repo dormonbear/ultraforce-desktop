@@ -79,9 +79,17 @@ export interface HotspotDto {
   count: number;
 }
 
+export interface StatementDto {
+  kind: "soql" | "dml";
+  text: string;
+  rows: number;
+  dur_ns: number | null;
+}
+
 export interface UnitDto {
   tree: ExecNodeDto[];
   hotspots: HotspotDto[];
+  statements: StatementDto[];
   limits: LimitRollupDto[];
 }
 

@@ -271,11 +271,21 @@ pub struct HotspotDto {
     pub count: usize,
 }
 
-/// One execution unit: its tree, hotspots, and limit rollups.
+/// One executed SOQL query or DML operation.
+#[derive(serde::Serialize)]
+pub struct StatementDto {
+    pub kind: String,
+    pub text: String,
+    pub rows: u64,
+    pub dur_ns: Option<u64>,
+}
+
+/// One execution unit: its tree, hotspots, SOQL/DML statements, and limit rollups.
 #[derive(serde::Serialize)]
 pub struct UnitDto {
     pub tree: Vec<ExecNodeDto>,
     pub hotspots: Vec<HotspotDto>,
+    pub statements: Vec<StatementDto>,
     pub limits: Vec<LimitRollupDto>,
 }
 
@@ -357,6 +367,20 @@ fn map_unit(unit: &UnitView) -> UnitDto {
                 self_ns: h.self_ns,
                 total_ns: h.total_ns,
                 count: h.count,
+            })
+            .collect(),
+        statements: unit
+            .statements
+            .iter()
+            .map(|s| StatementDto {
+                kind: match s.kind {
+                    log_parser::statements::StatementKind::Soql => "soql",
+                    log_parser::statements::StatementKind::Dml => "dml",
+                }
+                .to_string(),
+                text: s.text.clone(),
+                rows: s.rows,
+                dur_ns: s.dur_ns,
             })
             .collect(),
         limits: unit.limits.iter().map(map_rollup).collect(),
@@ -489,6 +513,7 @@ mod tests {
             header: None,
             units: vec![UnitView {
                 tree: vec![root],
+                statements: vec![],
                 limits: vec![],
             }],
         };
@@ -521,6 +546,7 @@ mod tests {
             header: None,
             units: vec![UnitView {
                 tree: vec![],
+                statements: vec![],
                 limits: vec![LimitRollup {
                     namespace: "(default)".to_string(),
                     entries: vec![
