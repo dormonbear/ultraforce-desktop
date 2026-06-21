@@ -15,11 +15,16 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronsUpDown,
+  Download,
   Rows3,
   Rows4,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
+import { toCsv } from "./csv";
 import {
   Table,
   TableBody,
@@ -72,6 +77,20 @@ export function ResultTable({
   const [copied, setCopied] = useState<string | null>(null);
 
   const rowHeight = compact ? 26 : 34;
+
+  const exportCsv = async () => {
+    const path = await save({
+      defaultPath: "query-result.csv",
+      filters: [{ name: "CSV", extensions: ["csv"] }],
+    });
+    if (!path) return;
+    try {
+      await writeTextFile(path, toCsv(data.columns, data.rows));
+      toast.success(`Exported ${data.rows.length} rows to CSV`);
+    } catch (e) {
+      toast.error(`Export failed: ${typeof e === "string" ? e : String(e)}`);
+    }
+  };
 
   const rows = useMemo<Row[]>(
     () =>
@@ -220,6 +239,14 @@ export function ResultTable({
 
         <div className="micro-label flex-1" />
 
+        <button
+          type="button"
+          onClick={() => void exportCsv()}
+          title="Export CSV"
+          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+        >
+          <Download size={14} />
+        </button>
         <button
           type="button"
           onClick={() => setCompact((c) => !c)}

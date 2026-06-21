@@ -66,6 +66,25 @@ test("running a query records history and reopens it in a tab", async ({
   await expect(page.getByRole("tab")).toHaveCount(tabsBefore + 1);
 });
 
+test("exporting query results writes a CSV file", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Export CSV" }).click();
+  await expect(page.getByText(/Exported .* rows to CSV/)).toBeVisible();
+
+  const csv = await page.evaluate(() =>
+    (
+      window as unknown as { __ufReadFile: (p: string) => string | null }
+    ).__ufReadFile("/ws/export.csv"),
+  );
+  expect(csv).not.toBeNull();
+  expect(csv).toContain("Id,Name,Industry\r\n");
+  expect((csv ?? "").trimEnd().split("\r\n")).toHaveLength(13); // header + 12 rows
+});
+
 test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Reindex org" }).click();
