@@ -27,6 +27,7 @@ export function ApexTabs() {
     tabs,
     active,
     activeId,
+    reveal,
     openFile,
     close,
     select,
@@ -34,6 +35,11 @@ export function ApexTabs() {
     retitle,
     closeByPath,
   } = useFileTabs<ApexTab>({ tool: "apex", contentKey: "src", make: makeApexTab });
+
+  const activeReveal =
+    reveal && active && reveal.id === active.id
+      ? { line: reveal.line, nonce: reveal.nonce }
+      : undefined;
 
   const onPatch = useCallback(
     (partial: Partial<ApexTab>) => {
@@ -49,7 +55,7 @@ export function ApexTabs() {
           root={root}
           ext="apex"
           activePath={active?.path ?? null}
-          onOpen={(p) => void openFile(p)}
+          onOpen={(p, line) => void openFile(p, line)}
           onRenamed={retitle}
           onRemoved={closeByPath}
         />
@@ -66,7 +72,12 @@ export function ApexTabs() {
               onAdd={() => {}}
             />
             <div role="tabpanel" className="min-h-0 flex-1">
-              <ApexView key={active.id} tab={active} onPatch={onPatch} />
+              <ApexView
+                key={active.id}
+                tab={active}
+                onPatch={onPatch}
+                reveal={activeReveal}
+              />
             </div>
           </>
         ) : (

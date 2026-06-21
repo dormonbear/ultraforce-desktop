@@ -4,6 +4,8 @@ import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import { configureMonaco } from "../monaco-soql";
+import { retriggerSuggestOnEdit } from "../monaco-retrigger";
+import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import { EDITOR_OPTS } from "../monaco-opts";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
@@ -14,14 +16,16 @@ interface Props {
   onChange: (value: string) => void;
   onRun: () => void;
   running: boolean;
+  reveal?: Reveal;
 }
 
-export function SoqlEditor({ value, onChange, onRun, running }: Props) {
+export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
   const { theme } = useTheme();
   const onRunRef = useRef(onRun);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   onRunRef.current = onRun;
+  const { flushPending } = useMonacoReveal(editorRef, reveal);
 
   function beforeMount(monaco: Monaco) {
     configureMonaco(monaco);
@@ -34,6 +38,8 @@ export function SoqlEditor({ value, onChange, onRun, running }: Props) {
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
       () => onRunRef.current()
     );
+    retriggerSuggestOnEdit(editorInstance);
+    flushPending();
   };
 
   useEffect(() => {

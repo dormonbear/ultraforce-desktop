@@ -6,6 +6,8 @@ import type { editor } from "monaco-editor";
 import { ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
+import { retriggerSuggestOnEdit } from "../monaco-retrigger";
+import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -38,10 +40,11 @@ function StatusChip({ label, ok }: { label: string; ok: boolean }) {
 interface ApexViewProps {
   tab: ApexTab;
   onPatch: (partial: Partial<ApexTab>) => void;
+  reveal?: Reveal;
 }
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
-export function ApexView({ tab, onPatch }: ApexViewProps) {
+export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
   const { theme } = useTheme();
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
@@ -54,6 +57,7 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   srcRef.current = src;
+  const { flushPending } = useMonacoReveal(editorRef, reveal);
 
   useEffect(() => {
     invoke<DebugConfigDto>("get_debug_config")
@@ -126,6 +130,8 @@ export function ApexView({ tab, onPatch }: ApexViewProps) {
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
       run()
     );
+    retriggerSuggestOnEdit(instance);
+    flushPending();
   };
 
   useEffect(() => {

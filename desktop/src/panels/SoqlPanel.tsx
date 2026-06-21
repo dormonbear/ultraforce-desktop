@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
+import { useDefaultLayout } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -8,24 +9,34 @@ import {
 } from "@/components/ui/resizable";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { SoqlEditor } from "../components/SoqlEditor";
+import type { Reveal } from "../monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
 import { RecordTree } from "../components/RecordTree";
 import { useOrgs } from "../org";
 import { recordHistory } from "../history";
 import { timing } from "../metrics";
+import { parseSfError } from "../errorFormat";
 import type { SoqlResultDto } from "../types";
 import type { SoqlTab } from "../tabs/types";
 
 interface SoqlViewProps {
   tab: SoqlTab;
   onPatch: (partial: Partial<SoqlTab>) => void;
+  reveal?: Reveal;
 }
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
-export function SoqlView({ tab, onPatch }: SoqlViewProps) {
+export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
   const { query, result, error, view } = tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
+  // Persist the editor/results split to localStorage; restored on next launch.
+  // First run falls back to the editor's ~5-line default size below.
+  const layout = useDefaultLayout({
+    id: "uf-soql-split",
+    panelIds: ["editor", "results"],
+    storage: localStorage,
+  });
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -46,7 +57,7 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
       });
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
-      toast.error(message);
+      toast.error(parseSfError(message).detail);
       onPatch({ error: message });
       const ms = performance.now() - t0;
       void timing("run.soql", ms);
@@ -71,17 +82,22 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
         : "";
 
   return (
-    <ResizablePanelGroup direction="vertical">
-      <ResizablePanel defaultSize={40} minSize={20}>
+    <ResizablePanelGroup
+      direction="vertical"
+      defaultLayout={layout.defaultLayout}
+      onLayoutChanged={layout.onLayoutChanged}
+    >
+      <ResizablePanel id="editor" defaultSize="150px" minSize="80px">
         <SoqlEditor
           value={query}
           onChange={(v) => onPatch({ query: v })}
           onRun={run}
           running={running}
+          reveal={reveal}
         />
       </ResizablePanel>
       <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
-      <ResizablePanel defaultSize={60} minSize={20}>
+      <ResizablePanel id="results" minSize="160px">
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
             <ToggleGroup
@@ -106,9 +122,29 @@ export function SoqlView({ tab, onPatch }: SoqlViewProps) {
           </div>
           <div className="min-h-0 flex-1">
             {error ? (
-              <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-                {error}
-              </pre>
+              (() => {
+                const e = parseSfError(error);
+                return (
+                  <div className="m-4 rounded-md border border-destructive/40 bg-card p-3">
+                    <div className="text-[13px] font-medium text-destructive">
+                      {e.title}
+                    </div>
+                    <div className="mt-1 whitespace-pre-wrap text-[12px] text-foreground">
+                      {e.detail}
+                    </div>
+                    {e.raw !== e.detail && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-text-dim">
+                          Raw error
+                        </summary>
+                        <pre className="mt-1 overflow-auto whitespace-pre-wrap text-[11px] text-text-dim">
+                          {e.raw}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                );
+              })()
             ) : !result ? (
               <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
                 — run a query —

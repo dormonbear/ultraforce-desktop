@@ -27,6 +27,7 @@ export function SoqlTabs() {
     tabs,
     active,
     activeId,
+    reveal,
     openFile,
     close,
     select,
@@ -34,6 +35,11 @@ export function SoqlTabs() {
     retitle,
     closeByPath,
   } = useFileTabs<SoqlTab>({ tool: "soql", contentKey: "query", make: makeSoqlTab });
+
+  const activeReveal =
+    reveal && active && reveal.id === active.id
+      ? { line: reveal.line, nonce: reveal.nonce }
+      : undefined;
 
   const onPatch = useCallback(
     (partial: Partial<SoqlTab>) => {
@@ -49,7 +55,7 @@ export function SoqlTabs() {
           root={root}
           ext="soql"
           activePath={active?.path ?? null}
-          onOpen={(p) => void openFile(p)}
+          onOpen={(p, line) => void openFile(p, line)}
           onRenamed={retitle}
           onRemoved={closeByPath}
         />
@@ -66,7 +72,12 @@ export function SoqlTabs() {
               onAdd={() => {}}
             />
             <div role="tabpanel" className="min-h-0 flex-1">
-              <SoqlView key={active.id} tab={active} onPatch={onPatch} />
+              <SoqlView
+                key={active.id}
+                tab={active}
+                onPatch={onPatch}
+                reveal={activeReveal}
+              />
             </div>
           </>
         ) : (

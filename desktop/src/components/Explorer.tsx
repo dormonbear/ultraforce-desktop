@@ -17,7 +17,7 @@ interface Props {
   root: string;
   ext: "soql" | "apex";
   activePath: string | null;
-  onOpen: (path: string) => void;
+  onOpen: (path: string, line?: number) => void;
   onRenamed: (from: string, to: string) => void;
   onRemoved: (path: string) => void;
 }
@@ -232,7 +232,7 @@ export function Explorer({
                   <button
                     key={m.line}
                     type="button"
-                    onClick={() => onOpen(h.path)}
+                    onClick={() => onOpen(h.path, m.line)}
                     className="block w-full truncate px-2 py-0.5 pl-6 text-left text-[11px] text-text-dim hover:bg-card hover:text-foreground"
                   >
                     <span className="mr-2 tabular-nums text-text-dim">{m.line}</span>

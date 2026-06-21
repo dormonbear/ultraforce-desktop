@@ -24,6 +24,13 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
   const { tool, contentKey, make } = opts;
   const [tabs, setTabs] = useState<T[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Transient request to scroll a tab's editor to a line (from content search).
+  const [reveal, setReveal] = useState<{
+    id: string;
+    line: number;
+    nonce: number;
+  } | null>(null);
+  const revealNonce = useRef(0);
   const hydrated = useRef(false);
   const storeKey = `tabs.${tool}`;
 
@@ -65,15 +72,22 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
   }, [tabs, activeId, storeKey]);
 
   const openFile = useCallback(
-    async (path: string) => {
+    async (path: string, line?: number) => {
+      const fire = (id: string) => {
+        if (line == null) return;
+        revealNonce.current += 1;
+        setReveal({ id, line, nonce: revealNonce.current });
+      };
       const existing = tabs.find((t) => t.path === path);
       if (existing) {
         setActiveId(existing.id);
+        fire(existing.id);
         return;
       }
       const tab = make(path, await readTextFile(path));
       setTabs((prev) => [...prev, tab]);
       setActiveId(tab.id);
+      fire(tab.id);
     },
     [tabs, make],
   );
@@ -136,6 +150,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     tabs,
     active,
     activeId,
+    reveal,
     openFile,
     close,
     select,
