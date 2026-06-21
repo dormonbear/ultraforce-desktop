@@ -268,6 +268,7 @@ pub struct HotspotDto {
     pub signature: String,
     pub self_ns: u64,
     pub total_ns: u64,
+    pub self_bytes: u64,
     pub count: usize,
 }
 
@@ -307,6 +308,7 @@ pub fn event_label(event: &LogEvent) -> &str {
         LogEvent::CalloutRequest => "CALLOUT_REQUEST",
         LogEvent::CalloutResponse => "CALLOUT_RESPONSE",
         LogEvent::UserDebug => "USER_DEBUG",
+        LogEvent::HeapAllocate => "HEAP_ALLOCATE",
         LogEvent::CumulativeLimitUsage => "CUMULATIVE_LIMIT_USAGE",
         LogEvent::CumulativeLimitUsageEnd => "CUMULATIVE_LIMIT_USAGE_END",
         LogEvent::LimitUsageForNs => "LIMIT_USAGE_FOR_NS",
@@ -366,6 +368,7 @@ fn map_unit(unit: &UnitView) -> UnitDto {
                 signature: h.signature,
                 self_ns: h.self_ns,
                 total_ns: h.total_ns,
+                self_bytes: h.self_bytes,
                 count: h.count,
             })
             .collect(),

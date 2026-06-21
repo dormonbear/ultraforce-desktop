@@ -16,8 +16,28 @@ pub struct Hotspot {
     pub self_ns: u64,
     /// Summed total (inclusive) time across all invocations.
     pub total_ns: u64,
+    /// Summed self heap: bytes allocated directly in this frame (its own
+    /// `HEAP_ALLOCATE` events), across all invocations.
+    pub self_bytes: u64,
     /// Number of invocations.
     pub count: usize,
+}
+
+/// `Bytes:N` param value from a `HEAP_ALLOCATE` entry.
+fn heap_bytes(params: &[String]) -> u64 {
+    params
+        .iter()
+        .find_map(|p| p.strip_prefix("Bytes:")?.parse().ok())
+        .unwrap_or(0)
+}
+
+/// Heap allocated directly in this frame: its own `HEAP_ALLOCATE` children.
+fn frame_self_bytes(node: &ExecNode) -> u64 {
+    node.children
+        .iter()
+        .filter(|c| c.entry.event == LogEvent::HeapAllocate)
+        .map(|c| heap_bytes(&c.entry.params))
+        .sum()
 }
 
 /// The signature of an invocable frame (`Method/Constructor entry`, `CodeUnit`),
@@ -56,10 +76,12 @@ fn walk(node: &ExecNode, map: &mut HashMap<String, Hotspot>) {
             signature: sig,
             self_ns: 0,
             total_ns: 0,
+            self_bytes: 0,
             count: 0,
         });
         h.self_ns += node.self_ns.unwrap_or(0);
         h.total_ns += total;
+        h.self_bytes += frame_self_bytes(node);
         h.count += 1;
     }
     for child in &node.children {
@@ -100,6 +122,21 @@ mod tests {
 
         // Sorted by self time desc → slow first.
         assert_eq!(hs[0].signature, "C.slow()");
+    }
+
+    #[test]
+    fn attributes_self_heap_to_the_frame() {
+        let text = "67.0 X,Y\n\
+            00:00:00.0 (0)|EXECUTION_STARTED\n\
+            00:00:00.0 (10)|METHOD_ENTRY|[1]|01p|C.alloc()\n\
+            00:00:00.0 (20)|HEAP_ALLOCATE|[2]|Bytes:48\n\
+            00:00:00.0 (30)|HEAP_ALLOCATE|[3]|Bytes:16\n\
+            00:00:00.0 (40)|METHOD_EXIT|[1]|01p|C.alloc()\n\
+            00:00:00.0 (90)|EXECUTION_FINISHED\n";
+        let log = ParsedLog::parse(text);
+        let hs = hotspots(&build_tree(&log.units[0]));
+        let alloc = hs.iter().find(|h| h.signature == "C.alloc()").unwrap();
+        assert_eq!(alloc.self_bytes, 64); // 48 + 16
     }
 
     #[test]

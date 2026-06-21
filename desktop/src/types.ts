@@ -76,6 +76,7 @@ export interface HotspotDto {
   signature: string;
   self_ns: number;
   total_ns: number;
+  self_bytes: number;
   count: number;
 }
 
