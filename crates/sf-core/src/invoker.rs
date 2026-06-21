@@ -8,6 +8,7 @@ use std::time::Duration;
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// Runs `sf` subcommands through an injectable `CommandRunner`.
+#[derive(Clone)]
 pub struct SfInvoker {
     runner: Arc<dyn CommandRunner>,
     timeout: Duration,

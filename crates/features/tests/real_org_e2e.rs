@@ -288,3 +288,75 @@ async fn e2e_dml_insert_query_delete() {
     );
     assert_eq!(q2.total_size, 0, "record should be gone after delete");
 }
+
+/// Offline index (that-plugin-style) — the full index runs end-to-end against the live
+/// org: stdlib + every Apex class + every sObject (8-concurrent describes),
+/// persisted to a snapshot that reloads identically, then served with ZERO
+/// further network calls (proven by an invoker that panics on any sf call).
+/// Can take minutes on a large org (the one-time cost the design accepts).
+#[tokio::test]
+#[ignore = "hits the live org; full index can take minutes; run with --ignored"]
+async fn e2e_index_org_offline() {
+    let inv = invoker();
+    let o = org();
+    let root = std::env::temp_dir().join(format!("uf-e2e-index-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+
+    let mut phases: Vec<&'static str> = vec![];
+    let ost = features::index::index_org(&inv, root.clone(), &o, &mut |p| {
+        if phases.last() != Some(&p.phase) {
+            phases.push(p.phase);
+        }
+    })
+    .await
+    .expect("index_org against live org");
+
+    // Assembled OST carries all three sources.
+    assert!(
+        ost.namespaces.iter().any(|n| n.name == "System"),
+        "stdlib System namespace missing"
+    );
+    assert!(
+        ost.org_types.iter().any(|t| t.name == "Account"),
+        "Account sObject type missing from index"
+    );
+    assert!(
+        ost.org_types.len() > 50,
+        "expected many org types, got {}",
+        ost.org_types.len()
+    );
+    assert!(
+        phases.contains(&"stdlib") && phases.contains(&"classes") && phases.contains(&"sobjects"),
+        "all phases should fire: {phases:?}"
+    );
+
+    // Snapshot persisted and reloads to exactly the same OST.
+    let api = features::api_version::api_version_for(&inv, &o).await;
+    let (loaded, manifest) = apex_lang::load_snapshot(&root, &o, &api).expect("snapshot reload");
+    assert_eq!(loaded, ost, "reloaded OST must equal the indexed one");
+    assert!(
+        manifest.indexed_at.ends_with('Z'),
+        "manifest timestamp should be ISO8601 UTC: {}",
+        manifest.indexed_at
+    );
+    assert!(manifest.sobjects > 0 && manifest.namespaces > 0);
+
+    // Offline serve: install the index, then complete with an invoker that
+    // PANICS on any sf call — proving zero on-demand network once indexed.
+    let completer = ApexCompleter::new(root.clone());
+    completer.install_index(&o, ost);
+    let panicking = SfInvoker::new(Arc::new(sf_core::runner::MockRunner::new(|_p, _a| {
+        panic!("indexed completion must not hit the network")
+    })));
+    let src = "Account a; a.";
+    let cands = completer
+        .complete(&panicking, &o, src, src.len())
+        .await
+        .expect("offline complete");
+    assert!(
+        cands.iter().any(|c| c.label == "Name"),
+        "offline Account.Name missing: {cands:?}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}

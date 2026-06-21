@@ -15,7 +15,9 @@ pub struct IndexManifest {
 }
 
 fn org_dir(root: &Path, org_id: &str) -> std::path::PathBuf {
-    root.join(org_id)
+    // Sanitize to match OstStore/SchemaStore's org dir, so the schema-cache
+    // clear in `reindex_org` also removes the snapshot.
+    root.join(crate::store::sanitize(org_id))
 }
 
 /// Persist the assembled OST + manifest under `<root>/<org_id>/`.

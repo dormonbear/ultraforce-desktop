@@ -124,7 +124,7 @@ impl OstStore {
     }
 }
 
-fn sanitize(s: &str) -> String {
+pub(crate) fn sanitize(s: &str) -> String {
     s.replace(['/', '\\'], "_")
 }
 

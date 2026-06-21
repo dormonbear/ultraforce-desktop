@@ -12,6 +12,7 @@ sf-schema = { path = "../sf-schema" }
 log-parser = { path = "../log-parser" }
 serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
+tokio = { workspace = true }
 
 [dev-dependencies]
 sf-core = { path = "../sf-core", features = ["test-util"] }
