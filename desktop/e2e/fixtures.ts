@@ -121,6 +121,10 @@ async function installMocks(page: Page): Promise<void> {
     const writeStore = (o: Record<string, unknown>) =>
       localStorage.setItem(SKEY, JSON.stringify(o));
 
+    // Registered `listen` handlers, keyed by event name, so tests can drive
+    // backend-emitted events via `window.__ufEmit(event, payload)`.
+    const handlers: Record<string, ((e: unknown) => void)[]> = {};
+
     const invoke = (cmd: string, args: Record<string, unknown> = {}) => {
       if (cmd.startsWith("plugin:store|")) {
         const op = cmd.split("|")[1];
@@ -156,7 +160,13 @@ async function installMocks(page: Page): Promise<void> {
             return Promise.resolve(null);
         }
       }
-      if (cmd === "plugin:event|listen" || cmd.startsWith("plugin:event|")) {
+      if (cmd === "plugin:event|listen") {
+        const ev = args.event as string;
+        const h = args.handler as (e: unknown) => void;
+        (handlers[ev] ??= []).push(h);
+        return Promise.resolve(0);
+      }
+      if (cmd.startsWith("plugin:event|")) {
         return Promise.resolve(0);
       }
       if (cmd.startsWith("plugin:path|")) return Promise.resolve("/ws");
@@ -187,6 +197,9 @@ async function installMocks(page: Page): Promise<void> {
         currentWebview: { label: "main" },
       },
     };
+    // @ts-expect-error — test-only hook to deliver a backend event.
+    window.__ufEmit = (event: string, payload: unknown) =>
+      (handlers[event] ?? []).forEach((h) => h({ event, id: 0, payload }));
     },
     { resp: RESP, dirs: FAKE_DIRS, files: FAKE_FILES },
   );

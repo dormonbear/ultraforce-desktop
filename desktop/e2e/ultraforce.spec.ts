@@ -85,3 +85,23 @@ test("apex annotation completion offers @AuraEnabled", async ({ page }) => {
     page.locator(".monaco-editor .suggest-widget").getByText("@AuraEnabled"),
   ).toBeVisible({ timeout: 5000 });
 });
+
+test("top bar shows indexing progress then clears when done", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.evaluate(() =>
+    (window as unknown as { __ufEmit: (e: string, p: unknown) => void }).__ufEmit(
+      "index-progress",
+      { org: "x", phase: "sobjects", done: 120, total: 340 },
+    ),
+  );
+  await expect(page.getByText("Indexing objects 120/340")).toBeVisible();
+  await page.evaluate(() =>
+    (window as unknown as { __ufEmit: (e: string, p: unknown) => void }).__ufEmit(
+      "index-progress",
+      { org: "x", phase: "done", done: 340, total: 340 },
+    ),
+  );
+  await expect(page.getByText(/Indexing objects/)).toHaveCount(0);
+});

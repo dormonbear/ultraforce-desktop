@@ -1,18 +1,11 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Loader2 } from "lucide-react";
+import { barState, phaseLabel, type Progress } from "./indexBar";
 
-interface Progress {
-  org: string;
-  phase: string;
-  done: number;
-  total: number;
-}
-
-/** Top-bar indicator shown while an org is being indexed; hides when done. */
-export function IndexProgress() {
+/** Shared subscription to the backend `index-progress` stream (null = idle). */
+function useIndexProgress(): Progress | null {
   const [p, setP] = useState<Progress | null>(null);
-
   useEffect(() => {
     const un = listen<Progress>("index-progress", (e) => {
       setP(e.payload.phase === "done" ? null : e.payload);
@@ -21,20 +14,41 @@ export function IndexProgress() {
       void un.then((f) => f());
     };
   }, []);
+  return p;
+}
 
+/**
+ * The 2px strip at the very top of the window. Idle: a static accent bar.
+ * While indexing: a progress bar — real percentage during the sObject phase,
+ * an indeterminate sweep otherwise.
+ */
+export function TopProgressBar() {
+  const { active, determinate, pct } = barState(useIndexProgress());
+
+  if (!active) return <div className="h-0.5 w-full bg-primary" />;
+
+  return (
+    <div className="h-0.5 w-full overflow-hidden bg-primary/20">
+      {determinate ? (
+        <div
+          className="h-full bg-primary transition-[width] duration-300"
+          style={{ width: `${pct}%` }}
+        />
+      ) : (
+        <div className="uf-indeterminate h-full w-1/3 bg-primary" />
+      )}
+    </div>
+  );
+}
+
+/** Top-bar text indicator shown while an org is being indexed; hides when done. */
+export function IndexProgress() {
+  const p = useIndexProgress();
   if (!p) return null;
-
-  const label =
-    p.phase === "sobjects"
-      ? `Indexing objects ${p.done}/${p.total}`
-      : p.phase === "classes"
-        ? "Indexing Apex classes"
-        : "Indexing stdlib";
-
   return (
     <span className="flex items-center gap-1.5 text-[11px] text-text-dim">
       <Loader2 size={12} className="spin" />
-      {label}
+      {phaseLabel(p)}
     </span>
   );
 }

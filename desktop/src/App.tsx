@@ -14,7 +14,7 @@ import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { CommandPalette } from "./components/CommandPalette";
 import { HistoryDrawer } from "./components/HistoryDrawer";
-import { IndexProgress } from "./components/IndexProgress";
+import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
 import { SchemaRefresh } from "./components/SchemaRefresh";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { onOpenTabRequest } from "./openTab";
@@ -63,8 +63,8 @@ export default function App() {
   return (
     <TooltipProvider>
     <div className="flex h-full flex-col bg-background text-foreground">
-      {/* 2px accent strip */}
-      <div className="h-0.5 w-full bg-primary" />
+      {/* 2px accent strip — doubles as the org-indexing progress bar */}
+      <TopProgressBar />
 
       {/* Top bar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
