@@ -25,7 +25,9 @@
 4. **SOQL/DML detail + row counts** — ✅ DONE. `statements::statements` extracts SOQL/DML
    text + rows + duration; a "Queries" tab groups by text (count + rows) and flags repeats (N+1).
 5. **Broader event coverage** (toward that plugin's ~140) + sortable/event-filterable tree-table.
-6. **Open local `.log` / save downloaded log.**
+6. **Open local `.log` / save downloaded log** — ✅ DONE. `parse_log` command
+   (shares `build_log_view` with `get_log`, no org fetch); LogsPanel OPEN/SAVE
+   buttons via dialog + fs. Unit-covered parsing + e2e for the open flow.
 
 ### SOQL (operational power features)
 1. **CSV export of results** — ✅ DONE. `csv::toCsv` (RFC 4180) + Export button in
@@ -46,7 +48,9 @@
 7. Remaining SOQL polish: TYPEOF / function / bind-variable completion (niche).
 
 ### Anonymous Apex
-1. Run-history panel (history.ts already records — needs UI).
+1. Run-history panel — ✅ DONE (already implemented). `ApexPanel` records
+   `tool: "apex"` runs; `HistoryDrawer` surfaces them; `requestOpenTab("apex")`
+   reopens into a scratch tab.
 2. Default-namespace execution toggle.
 3. (Large) Offline/checkpoint debugger — step-through with stack/heap/variable inspection.
 4. (Large, depends on 3) AER expression / watch evaluation.
