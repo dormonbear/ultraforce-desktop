@@ -1,6 +1,6 @@
 //! Gated end-to-end test that hits a live org. Run with `--ignored`.
 
-use features::soql::{run_query, FieldValue};
+use features::soql::{run_query, FieldValue, QueryOptions};
 use sf_core::{ProcessRunner, SfInvoker};
 use std::sync::Arc;
 
@@ -12,7 +12,7 @@ async fn run_query_against_live_org() {
         &invoker,
         "SELECT Id, Name FROM Account LIMIT 1",
         None,
-        false,
+        QueryOptions::default(),
     )
     .await
     .expect("query should succeed against the default org");

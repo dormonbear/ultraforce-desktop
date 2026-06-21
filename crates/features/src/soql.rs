@@ -217,20 +217,32 @@ fn scalar_text(v: &serde_json::Value) -> String {
     }
 }
 
+/// Optional flags for a SOQL query run.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct QueryOptions {
+    /// Query Tooling API objects (`--use-tooling-api`).
+    pub use_tooling_api: bool,
+    /// Include deleted/archived rows — queryAll (`--all-rows`).
+    pub all_rows: bool,
+}
+
 /// Execute a SOQL query and return the typed [`QueryResult`].
 pub async fn run_query(
     invoker: &SfInvoker,
     soql: &str,
     target_org: Option<&str>,
-    use_tooling_api: bool,
+    opts: QueryOptions,
 ) -> Result<QueryResult, SfError> {
     let mut args = vec!["data", "query", "-q", soql];
     if let Some(org) = target_org {
         args.push("--target-org");
         args.push(org);
     }
-    if use_tooling_api {
+    if opts.use_tooling_api {
         args.push("--use-tooling-api");
+    }
+    if opts.all_rows {
+        args.push("--all-rows");
     }
     invoker.run_json::<QueryResult>(&args).await
 }
@@ -240,9 +252,9 @@ pub async fn run_query_table(
     invoker: &SfInvoker,
     soql: &str,
     target_org: Option<&str>,
-    use_tooling_api: bool,
+    opts: QueryOptions,
 ) -> Result<TableModel, SfError> {
-    let result = run_query(invoker, soql, target_org, use_tooling_api).await?;
+    let result = run_query(invoker, soql, target_org, opts).await?;
     Ok(result.to_table())
 }
 
@@ -571,7 +583,9 @@ mod tests {
         let invoker = SfInvoker::new(Arc::new(runner));
 
         let soql = "SELECT Id, Name, Owner.Name, (SELECT LastName FROM Contacts) FROM Account";
-        let qr = run_query(&invoker, soql, None, false).await.unwrap();
+        let qr = run_query(&invoker, soql, None, QueryOptions::default())
+            .await
+            .unwrap();
 
         let args = seen.lock().unwrap().clone();
         assert_eq!(args, vec!["data", "query", "-q", soql, "--json"]);
@@ -585,9 +599,14 @@ mod tests {
         let runner = MockRunner::ok_json(FIXTURE);
         let invoker = SfInvoker::new(Arc::new(runner));
 
-        let table = run_query_table(&invoker, "SELECT Id FROM Account", None, false)
-            .await
-            .unwrap();
+        let table = run_query_table(
+            &invoker,
+            "SELECT Id FROM Account",
+            None,
+            QueryOptions::default(),
+        )
+        .await
+        .unwrap();
         assert_eq!(table.columns, ["Id", "Name", "Owner.Name", "Contacts"]);
     }
 
@@ -605,9 +624,14 @@ mod tests {
             })
         });
         let invoker = SfInvoker::new(Arc::new(runner));
-        run_query(&invoker, "SELECT Id FROM Account", Some("me@x.com"), false)
-            .await
-            .unwrap();
+        run_query(
+            &invoker,
+            "SELECT Id FROM Account",
+            Some("me@x.com"),
+            QueryOptions::default(),
+        )
+        .await
+        .unwrap();
         let args = seen.lock().unwrap().clone();
         assert!(
             args.windows(2).any(|w| w == ["--target-org", "me@x.com"]),
@@ -629,14 +653,51 @@ mod tests {
             })
         });
         let invoker = SfInvoker::new(Arc::new(runner));
-        run_query(&invoker, "SELECT Id FROM ApexClass", None, true)
-            .await
-            .unwrap();
+        run_query(
+            &invoker,
+            "SELECT Id FROM ApexClass",
+            None,
+            QueryOptions {
+                use_tooling_api: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
         let args = seen.lock().unwrap().clone();
         assert!(
             args.iter().any(|a| a == "--use-tooling-api"),
             "got: {args:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn run_query_appends_all_rows_when_set() {
+        use std::sync::{Arc, Mutex};
+        let seen: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(vec![]));
+        let seen2 = seen.clone();
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            *seen2.lock().unwrap() = args.to_vec();
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: r#"{"status":0,"result":{"records":[],"totalSize":0,"done":true}}"#.into(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = SfInvoker::new(Arc::new(runner));
+        run_query(
+            &invoker,
+            "SELECT Id FROM Account",
+            None,
+            QueryOptions {
+                all_rows: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        let args = seen.lock().unwrap().clone();
+        assert!(args.iter().any(|a| a == "--all-rows"), "got: {args:?}");
     }
 
     #[tokio::test]

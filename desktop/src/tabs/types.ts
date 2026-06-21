@@ -14,6 +14,7 @@ export interface SoqlTab extends TabBase {
   error: string | null;
   view: "table" | "tree";
   useToolingApi: boolean;
+  allRows: boolean;
   plan: QueryPlanDto | null;
 }
 

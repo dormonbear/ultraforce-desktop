@@ -102,6 +102,21 @@ test("Tooling API toggle threads use_tooling_api to run_soql", async ({
   expect(args?.useToolingApi).toBe(true);
 });
 
+test("All rows toggle threads all_rows to run_soql", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+
+  await page.getByRole("checkbox", { name: "All rows" }).check();
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  const args = await page.evaluate(() => {
+    const calls = (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] }).__ufCalls ?? [];
+    return calls.filter((c) => c.cmd === "run_soql").at(-1)?.args;
+  });
+  expect(args?.allRows).toBe(true);
+});
+
 test("Explain shows the query plan with the leading operation and cost", async ({
   page,
 }) => {

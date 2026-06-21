@@ -54,6 +54,7 @@ struct SyncResultDto {
 async fn run_soql(
     query: String,
     use_tooling_api: Option<bool>,
+    all_rows: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<SoqlResultDto, String> {
     let start = Instant::now();
@@ -63,7 +64,10 @@ async fn run_soql(
         &state.invoker,
         &query,
         org.as_deref(),
-        use_tooling_api.unwrap_or(false),
+        features::soql::QueryOptions {
+            use_tooling_api: use_tooling_api.unwrap_or(false),
+            all_rows: all_rows.unwrap_or(false),
+        },
     )
     .await
     .map_err(|e| {
