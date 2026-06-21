@@ -16,10 +16,6 @@ use crate::apex_complete::schema_to_apex_type;
 use crate::api_version::api_version_for;
 use crate::soql::list_sobject_names;
 
-/// Max sObject describes in flight during indexing (bounds wall time without
-/// hammering the org).
-const DESCRIBE_CONCURRENCY: usize = 8;
-
 #[derive(Clone, Debug)]
 pub struct IndexProgress {
     pub phase: &'static str,
@@ -82,41 +78,23 @@ pub async fn index_org(
 
     let names = list_sobject_names(invoker, org_id).await;
     let total = names.len();
-    let mut sobjects = 0;
-    let mut done = 0;
-    // Describe sObjects up to DESCRIBE_CONCURRENCY at a time: serial describes
-    // (one `sf` call each) make a large org's first index take many minutes.
-    // Each task gets its own SchemaStore (disk cache is the shared truth; per
-    // object → distinct files, so concurrent writes never collide).
-    for chunk in names.chunks(DESCRIBE_CONCURRENCY) {
-        let mut set: tokio::task::JoinSet<Option<ApexType>> = tokio::task::JoinSet::new();
-        for name in chunk {
-            let invoker = invoker.clone();
-            let api = api.clone();
-            let root = root.clone();
-            let org = org_id.to_string();
-            let name = name.clone();
-            set.spawn(async move {
-                let mut store = SchemaStore::new(root, &org);
-                store
-                    .get_or_fetch(&invoker, &api, &name)
-                    .await
-                    .ok()
-                    .map(|s| schema_to_apex_type(&s))
-            });
-        }
-        while let Some(res) = set.join_next().await {
-            done += 1;
-            if let Ok(Some(ty)) = res {
-                org_types.push(ty);
-                sobjects += 1;
-            }
+    // Describe all sObjects via batched Composite REST (25 per call, up to 4
+    // calls concurrently) instead of one `sf` process per object — the latter
+    // made a managed-package org's first index take ~15 min.
+    let mut store = SchemaStore::new(root.clone(), org_id);
+    let described = store
+        .get_or_fetch_many(invoker, &api, &names, &mut |done, _total| {
             on_progress(IndexProgress {
                 phase: "sobjects",
                 done,
                 total,
             });
-        }
+        })
+        .await;
+    let mut sobjects = 0;
+    for (_name, schema) in &described {
+        org_types.push(schema_to_apex_type(schema));
+        sobjects += 1;
     }
 
     let ost = Ost {
@@ -466,6 +444,10 @@ mod tests {
                 )
             } else if a.contains("sobject list") {
                 ok(r#"{"status":0,"result":["Account"]}"#)
+            } else if a.contains("composite") {
+                ok(
+                    r#"{"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"Account","fields":[{"name":"Name","type":"string","relationshipName":null,"referenceTo":[]}],"childRelationships":[]}}]}"#,
+                )
             } else {
                 ok(
                     r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Name","type":"string","relationshipName":null,"referenceTo":[]}],"childRelationships":[]}}"#,
