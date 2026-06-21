@@ -39,7 +39,10 @@
 4. **Governor/result-set validations + add-LIMIT quickfix** — ✅ DONE.
    `soql_lang::missing_limit` warns on unbounded queries (schema-free, fires
    offline); Monaco "Add LIMIT 200" quickfix via `limitInsertion`. Unit-covered.
-5. queryAll / include-deleted; TYPEOF / function / bind-variable completion; SOQL formatter.
+5. **SOQL formatter** — ✅ DONE. `soql_lang::format_soql` (clause-per-line,
+   depth-aware) wired to Monaco Format Document. Remaining SOQL-5 items:
+   queryAll/`--all-rows` toggle (needs a QueryOptions refactor to avoid a
+   2-bool param smell), TYPEOF / function / bind-variable completion.
 
 ### Anonymous Apex
 1. Run-history panel (history.ts already records — needs UI).
