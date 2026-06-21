@@ -82,6 +82,17 @@ impl ApexCompleter {
         cursor: usize,
     ) -> Result<Vec<Candidate>, SfError> {
         if let Some((s, e)) = apex_lang::soql_region_at(src, cursor) {
+            // SOQL bind variable: cursor sits at `:partial` — offer in-scope
+            // Apex variables (locals, params, fields) instead of SOQL fields.
+            if is_bind_position(src, s, cursor) {
+                return Ok(apex_lang::ast::complete::scope_names_at(src, cursor)
+                    .into_iter()
+                    .map(|name| Candidate {
+                        label: name,
+                        kind: CandidateKind::LocalVar,
+                    })
+                    .collect());
+            }
             return self
                 .complete_soql(invoker, org_id, &src[s..e], cursor.saturating_sub(s))
                 .await;
@@ -279,6 +290,17 @@ impl ApexCompleter {
 
 /// A member-less placeholder for an org Apex class (top-level name completion
 /// only). Replaced by the full type when its members are fetched on demand.
+/// True when `cursor` is at a SOQL bind-variable position: scanning back over an
+/// identifier partial within the region lands immediately after a `:`.
+fn is_bind_position(src: &str, region_start: usize, cursor: usize) -> bool {
+    let bytes = src.as_bytes();
+    let mut i = cursor;
+    while i > region_start && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'_') {
+        i -= 1;
+    }
+    i > region_start && bytes[i - 1] == b':'
+}
+
 fn stub_type(name: String) -> ApexType {
     ApexType {
         name,
@@ -716,6 +738,36 @@ mod tests {
             .await
             .unwrap();
         assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn completes_bind_variable_inside_apex_soql() {
+        // Bind completion is schema-free (scope only) — describe can fail.
+        let runner = MockRunner::new(|_p, _a| {
+            Ok(sf_core::RawOutput {
+                status: 1,
+                stdout: r#"{"status":1}"#.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("bind-var-test-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+
+        let src =
+            "class C { void m(Id accId) { Account a = [SELECT Id FROM Account WHERE Id = :acc]; } }";
+        let cursor = src.find(":acc").unwrap() + ":acc".len();
+        let got = completer
+            .complete(&invoker, "myorg", src, cursor)
+            .await
+            .unwrap();
+        assert!(
+            got.iter()
+                .any(|c| c.label == "accId" && c.kind == CandidateKind::LocalVar),
+            "bind var should offer in-scope Apex variables: {got:?}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }
