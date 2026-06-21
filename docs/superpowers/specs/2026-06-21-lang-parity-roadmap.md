@@ -50,7 +50,9 @@
 7. **Date-literal completion** — ✅ DONE. `SOQL_DATE_LITERALS` offered in
    WHERE/HAVING (TODAY, LAST_N_DAYS:, …). Functions already covered.
    Bind-variable (`:apexVar`) completion — ✅ DONE. Inside Apex `[SELECT … :x]`,
-   completing after `:` offers in-scope Apex vars (`scope_names_at`). Remaining: TYPEOF (very niche).
+   completing after `:` offers in-scope Apex vars (`scope_names_at`).
+   TYPEOF (polymorphic SELECT) completion — ✅ DONE. WHEN → types, THEN/ELSE →
+   that type's fields, END → SELECT. **SOQL section fully complete.**
 
 ### Anonymous Apex
 1. Run-history panel — ✅ DONE (already implemented). `ApexPanel` records
