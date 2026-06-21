@@ -271,4 +271,29 @@ mod tests {
         assert!(store.get(API, "Account").is_none());
         std::fs::remove_dir_all(&root).ok();
     }
+
+    #[tokio::test]
+    async fn invalidate_removes_one_object_keeping_siblings() {
+        let root = unique_root();
+        let (invoker, _calls) = counting_invoker();
+        let mut store = SchemaStore::new(&root, "00Dorg");
+        store.get_or_fetch(&invoker, API, "Account").await.unwrap();
+        store.get_or_fetch(&invoker, API, "Contact").await.unwrap();
+
+        store.invalidate(API, "Account").unwrap();
+
+        assert!(
+            store.get(API, "Account").is_none(),
+            "Account evicted from memory"
+        );
+        assert!(
+            !root.join("00Dorg/60.0/Account.json").exists(),
+            "Account file deleted"
+        );
+        assert!(
+            root.join("00Dorg/60.0/Contact.json").exists(),
+            "Contact untouched"
+        );
+        std::fs::remove_dir_all(&root).ok();
+    }
 }
