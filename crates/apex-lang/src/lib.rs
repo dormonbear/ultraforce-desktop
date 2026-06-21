@@ -1,4 +1,5 @@
 pub mod acquire;
+pub mod ast;
 pub mod complete;
 pub mod lexer;
 pub mod parser;
