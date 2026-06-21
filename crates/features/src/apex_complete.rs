@@ -3,9 +3,7 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use apex_lang::acquire::{
-    fetch_apex_class, fetch_apex_class_names, parse_org_types, parse_stdlib,
-};
+use apex_lang::acquire::{fetch_apex_class, fetch_apex_class_names, parse_org_types, parse_stdlib};
 use apex_lang::complete::{complete as ost_complete, Candidate, CandidateKind};
 use apex_lang::resolve::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
@@ -437,7 +435,10 @@ mod tests {
         let completer = ApexCompleter::new(dir.clone());
 
         // Top-level: the stub name is offered.
-        let top = completer.complete(&invoker, "myorg", "Fo", 2).await.unwrap();
+        let top = completer
+            .complete(&invoker, "myorg", "Fo", 2)
+            .await
+            .unwrap();
         assert!(top.iter().any(|c| c.label == "Foo"), "stub name: {top:?}");
 
         // Member access upgrades the stub and surfaces its static method.
@@ -446,7 +447,10 @@ mod tests {
             .complete(&invoker, "myorg", input, input.len())
             .await
             .unwrap();
-        assert!(got.iter().any(|c| c.label == "bar"), "upgraded member: {got:?}");
+        assert!(
+            got.iter().any(|c| c.label == "bar"),
+            "upgraded member: {got:?}"
+        );
 
         let _ = std::fs::remove_dir_all(&dir);
     }

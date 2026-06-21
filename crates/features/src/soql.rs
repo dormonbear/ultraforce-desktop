@@ -243,16 +243,18 @@ pub async fn run_query_table(
 
 /// Context-aware completion for the standalone SOQL editor.
 ///
-/// Best-effort: object-name completion still works when no FROM object is resolved, and field
-/// completion falls back to non-field candidates when describe fails.
+/// `objects` is the (cached) sObject-name list for FROM completion; the caller owns that cache so
+/// keystroke completion never blocks on a live `sf sobject list` (a multi-second call). Field
+/// completion still resolves the FROM object's describe (disk-cached) and falls back to keyword/
+/// function candidates when describe fails.
 pub async fn complete_fields(
     invoker: &SfInvoker,
     root: impl Into<PathBuf>,
     org_id: &str,
     query: &str,
     cursor: usize,
+    objects: &[String],
 ) -> Vec<soql_lang::Candidate> {
-    let objects = list_sobject_names(invoker, org_id).await;
     let object = soql_lang::outline(query).from_object;
     let mut store = sf_schema::SchemaStore::new(root, org_id);
     let schema = if let Some(object) = object {
@@ -264,7 +266,7 @@ pub async fn complete_fields(
     } else {
         empty_schema()
     };
-    soql_lang::complete(query, cursor, &schema, &objects)
+    soql_lang::complete(query, cursor, &schema, objects)
 }
 
 /// Best-effort object-name list for FROM completion.
@@ -517,7 +519,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("soql-panel-test-{}", std::process::id()));
         let q = "SELECT Na FROM Account";
         let cursor = q.find("Na").unwrap() + 2;
-        let got = complete_fields(&invoker, &dir, "myorg", q, cursor).await;
+        let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
         assert!(got
             .iter()
             .any(|c| c.label == "Name" && c.kind == soql_lang::CandidateKind::Field));
@@ -526,23 +528,19 @@ mod tests {
 
     #[tokio::test]
     async fn complete_fields_returns_from_object_candidates() {
-        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
-            let stdout = if args.starts_with(&["sobject".to_string(), "list".to_string()]) {
-                r#"{"status":0,"result":["Account","Contact"]}"#
-            } else {
-                r#"{"status":1}"#
-            };
+        let runner = sf_core::runner::MockRunner::new(move |_p, _args| {
             Ok(sf_core::RawOutput {
-                status: 0,
-                stdout: stdout.to_string(),
+                status: 1,
+                stdout: r#"{"status":1}"#.to_string(),
                 stderr: String::new(),
             })
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir =
             std::env::temp_dir().join(format!("soql-from-complete-test-{}", std::process::id()));
+        let objects = vec!["Account".to_string(), "Contact".to_string()];
         let q = "SELECT Id FROM Acc";
-        let got = complete_fields(&invoker, &dir, "from-org", q, q.len()).await;
+        let got = complete_fields(&invoker, &dir, "from-org", q, q.len(), &objects).await;
 
         assert!(got
             .iter()

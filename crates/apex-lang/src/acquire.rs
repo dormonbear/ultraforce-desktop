@@ -444,7 +444,9 @@ mod tests {
         });
         let invoker = SfInvoker::new(Arc::new(runner));
 
-        let raw = fetch_completions(&invoker, "default", "60.0").await.unwrap();
+        let raw = fetch_completions(&invoker, "default", "60.0")
+            .await
+            .unwrap();
 
         assert!(raw.get("publicDeclarations").is_some());
         assert_eq!(

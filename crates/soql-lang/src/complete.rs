@@ -140,6 +140,27 @@ fn partial_at(input: &str, cursor: usize) -> &str {
     &input[start..cursor]
 }
 
+/// Within a FROM clause, decide whether the object name has already been given
+/// (cursor sits *after* it, where trailing keywords like WHERE/LIMIT belong)
+/// rather than the object still being typed (where object names belong).
+fn from_object_named(input: &str, cursor: usize, partial: &str) -> bool {
+    use crate::lexer::{lex, TokenKind};
+    let tokens: Vec<_> = lex(input)
+        .into_iter()
+        .filter(|t| t.kind != TokenKind::Whitespace)
+        .collect();
+    let Some(from_tok) = tokens.iter().rev().find(|t| {
+        t.start < cursor && t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case("FROM")
+    }) else {
+        return false;
+    };
+    let partial_start = cursor - partial.len();
+    // A complete identifier between FROM and the in-progress partial == object given.
+    tokens
+        .iter()
+        .any(|t| t.kind == TokenKind::Ident && t.start >= from_tok.end && t.start < partial_start)
+}
+
 fn matches_partial(label: &str, partial: &str) -> bool {
     label
         .to_ascii_lowercase()
@@ -223,8 +244,15 @@ pub fn complete(
             }
         }
         Clause::From => {
-            for object in objects {
-                push_candidate(&mut candidates, object.clone(), CandidateKind::Object, None);
+            if from_object_named(input, cursor, partial) {
+                // Object already named → offer the clauses that may follow it.
+                for keyword in ["WHERE", "GROUP BY", "ORDER BY", "LIMIT", "OFFSET"] {
+                    push_candidate(&mut candidates, keyword, CandidateKind::Keyword, None);
+                }
+            } else {
+                for object in objects {
+                    push_candidate(&mut candidates, object.clone(), CandidateKind::Object, None);
+                }
             }
         }
         Clause::None => {
@@ -355,6 +383,56 @@ mod tests {
         let input = "SELECT Id FROM ";
         let cursor = input.len();
         assert!(complete(input, cursor, &schema, &[]).is_empty());
+    }
+
+    #[test]
+    fn offers_where_after_from_object_is_named() {
+        let schema = account_schema();
+        let objects = vec!["Account".to_string(), "Contact".to_string()];
+        let input = "SELECT Id FROM Account wh";
+        let cursor = input.len();
+        let candidates = complete(input, cursor, &schema, &objects);
+        assert!(
+            candidates
+                .iter()
+                .any(|c| c.label == "WHERE" && c.kind == CandidateKind::Keyword),
+            "expected WHERE keyword after a named FROM object: {candidates:?}"
+        );
+        assert!(
+            !candidates.iter().any(|c| c.kind == CandidateKind::Object),
+            "should not offer object names once the FROM object is named"
+        );
+    }
+
+    #[test]
+    fn offers_trailing_keywords_after_from_object_and_space() {
+        let schema = account_schema();
+        let objects = vec!["Account".to_string()];
+        let input = "SELECT Id FROM Account ";
+        let cursor = input.len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &objects)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"WHERE".to_string()));
+        assert!(labels.contains(&"ORDER BY".to_string()));
+        assert!(labels.contains(&"LIMIT".to_string()));
+        assert!(!labels.contains(&"Account".to_string()));
+    }
+
+    #[test]
+    fn still_offers_objects_while_typing_from_object() {
+        let schema = account_schema();
+        let objects = vec!["Account".to_string(), "Contact".to_string()];
+        let input = "SELECT Id FROM Acc";
+        let cursor = input.len();
+        let candidates = complete(input, cursor, &schema, &objects);
+        assert!(
+            candidates
+                .iter()
+                .any(|c| c.label == "Account" && c.kind == CandidateKind::Object),
+            "still typing the object → offer object names: {candidates:?}"
+        );
     }
 
     #[test]
