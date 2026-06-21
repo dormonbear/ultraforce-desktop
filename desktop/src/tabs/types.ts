@@ -1,4 +1,4 @@
-import type { SoqlResultDto, ApexOutcomeDto } from "../types";
+import type { SoqlResultDto, ApexOutcomeDto, QueryPlanDto } from "../types";
 
 export interface TabBase {
   id: string;
@@ -14,6 +14,7 @@ export interface SoqlTab extends TabBase {
   error: string | null;
   view: "table" | "tree";
   useToolingApi: boolean;
+  plan: QueryPlanDto | null;
 }
 
 export interface ApexTab extends TabBase {

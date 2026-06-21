@@ -84,6 +84,22 @@ const RESP: Record<string, unknown> = {
     done: true,
     tree: [],
   },
+  query_plan: {
+    plans: [
+      {
+        cardinality: 1000,
+        leading_operation_type: "TableScan",
+        relative_cost: 2.8,
+        sobject_cardinality: 1000,
+        sobject_type: "Account",
+        fields: [],
+        notes: [
+          { description: "not selective", fields: [], table_enum_or_id: "Account" },
+        ],
+      },
+    ],
+    source_query: "SELECT Id FROM Account",
+  },
   list_logs: [],
   refresh_schema_cache: 42,
   index_org: null,
