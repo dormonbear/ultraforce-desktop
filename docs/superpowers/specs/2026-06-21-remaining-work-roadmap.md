@@ -3,14 +3,14 @@
 Status of every item still open after the relationship-completion merge. Drives the
 feasible-tier implementations and heavy-tier specs requested by the user.
 
-## Feasible tier — implement (spec → plan → TDD → verify)
+## Feasible tier
 
 | # | Item | Spec | Status |
 |---|------|------|--------|
-| 1 | SOQL child-subquery completion + diagnostics | `2026-06-21-soql-subquery-completion-design.md` | implementing |
-| 2 | Polymorphic relationship completion (union of `referenceTo`) | `2026-06-21-polymorphic-relationship-design.md` | planned |
-| 3 | Namespace / managed-package index scoping | `2026-06-21-namespace-index-scoping-design.md` | planned |
-| 4 | Background index polling (the realistic form of "push") | `2026-06-21-background-index-polling-design.md` | planned |
+| 1 | SOQL child-subquery completion + diagnostics | `2026-06-21-soql-subquery-completion-design.md` | **DONE** (tested) |
+| 2 | Polymorphic relationship completion (union of `referenceTo`) | `2026-06-21-polymorphic-relationship-design.md` | **DONE** (tested) |
+| 3 | Namespace / managed-package index scoping | `2026-06-21-namespace-index-scoping-design.md` | spec only — niche; indexer+settings+UI, implement on demand |
+| 4 | Background index polling (the realistic form of "push") | `2026-06-21-background-index-polling-design.md` | **DONE** |
 
 ## Heavy tier — spec only (implementation deferred, each is its own multi-week project)
 
