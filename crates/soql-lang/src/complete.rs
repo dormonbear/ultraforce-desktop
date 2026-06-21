@@ -161,6 +161,34 @@ fn from_object_named(input: &str, cursor: usize, partial: &str) -> bool {
         .any(|t| t.kind == TokenKind::Ident && t.start >= from_tok.end && t.start < partial_start)
 }
 
+/// The relationship segments of a dotted path immediately before the cursor's
+/// partial. `SELECT Account.Owner.Ma|` → `["Account","Owner"]`; `SELECT Na|` → `[]`.
+/// Purely lexical, so it is clause-independent (works in SELECT and WHERE).
+pub fn relationship_chain_at(input: &str, cursor: usize) -> Vec<String> {
+    let bytes = input.as_bytes();
+    let is_ident = |c: u8| (c as char).is_ascii_alphanumeric() || c == b'_';
+    // Skip the trailing partial.
+    let mut pos = cursor;
+    while pos > 0 && is_ident(bytes[pos - 1]) {
+        pos -= 1;
+    }
+    let mut segments: Vec<String> = Vec::new();
+    // Each preceding `.<ident>` contributes one segment (innermost first).
+    while pos > 0 && bytes[pos - 1] == b'.' {
+        pos -= 1; // consume '.'
+        let end = pos;
+        while pos > 0 && is_ident(bytes[pos - 1]) {
+            pos -= 1;
+        }
+        if pos == end {
+            break; // a dot with no identifier before it
+        }
+        segments.push(input[pos..end].to_string());
+    }
+    segments.reverse();
+    segments
+}
+
 fn matches_partial(label: &str, partial: &str) -> bool {
     label
         .to_ascii_lowercase()
@@ -212,30 +240,63 @@ fn finish_candidates(mut candidates: Vec<Candidate>, partial: &str) -> Vec<Candi
     candidates
 }
 
+/// Walk a relationship chain from `schema`, returning the final hop's schema.
+fn resolve_chain<'a>(
+    schema: &'a SObjectSchema,
+    chain: &[String],
+    resolve: &dyn Fn(&str) -> Option<&'a SObjectSchema>,
+) -> Option<&'a SObjectSchema> {
+    let mut cur = schema;
+    for seg in chain {
+        let field = cur.fields.iter().find(|f| {
+            f.relationship_name
+                .as_deref()
+                .is_some_and(|r| r.eq_ignore_ascii_case(seg))
+        })?;
+        let target = field.reference_to.first()?;
+        cur = resolve(target)?;
+    }
+    Some(cur)
+}
+
+/// Push every field (as `Field`) and every relationship name (as `Relationship`).
+fn push_fields_and_relationships(candidates: &mut Vec<Candidate>, schema: &SObjectSchema) {
+    for field in &schema.fields {
+        push_candidate(candidates, field.name.clone(), CandidateKind::Field, None);
+        if let Some(rel) = &field.relationship_name {
+            push_candidate(candidates, rel.clone(), CandidateKind::Relationship, None);
+        }
+    }
+}
+
 /// Produce context-aware completions for `input` at `cursor`.
 ///
-/// Pure: reads only `schema` and `objects`.
-pub fn complete(
+/// Pure: reads `schema`, `objects`, and `resolve` (object name → schema, used to
+/// traverse relationship paths). Callers without related schemas pass `&|_| None`.
+pub fn complete<'a>(
     input: &str,
     cursor: usize,
-    schema: &SObjectSchema,
+    schema: &'a SObjectSchema,
     objects: &[String],
+    resolve: &dyn Fn(&str) -> Option<&'a SObjectSchema>,
 ) -> Vec<Candidate> {
     let o = outline(input);
     let clause = clause_at(&o, input, cursor);
     let partial = partial_at(input, cursor);
+    let chain = relationship_chain_at(input, cursor);
     let mut candidates = Vec::new();
+
+    // A dotted path completes against the related object, in any clause.
+    if !chain.is_empty() {
+        if let Some(target) = resolve_chain(schema, &chain, resolve) {
+            push_fields_and_relationships(&mut candidates, target);
+        }
+        return finish_candidates(candidates, partial);
+    }
 
     match clause {
         Clause::Select | Clause::Where | Clause::OrderBy | Clause::GroupBy | Clause::Having => {
-            for field in &schema.fields {
-                push_candidate(
-                    &mut candidates,
-                    field.name.clone(),
-                    CandidateKind::Field,
-                    None,
-                );
-            }
+            push_fields_and_relationships(&mut candidates, schema);
             for function in SOQL_FUNCTIONS {
                 push_candidate(&mut candidates, *function, CandidateKind::Function, None);
             }
@@ -301,12 +362,103 @@ mod tests {
         }
     }
 
+    fn user_schema() -> SObjectSchema {
+        SObjectSchema {
+            name: "User".to_string(),
+            label: String::new(),
+            label_plural: String::new(),
+            key_prefix: None,
+            custom: false,
+            fields: vec![field("Id"), field("Email"), field("ManagerId")],
+            child_relationships: vec![],
+        }
+    }
+
+    #[test]
+    fn chain_single_hop() {
+        assert_eq!(
+            relationship_chain_at("SELECT Owner.Ma", "SELECT Owner.Ma".len()),
+            vec!["Owner"]
+        );
+    }
+
+    #[test]
+    fn chain_multi_hop_empty_partial() {
+        let input = "SELECT Account.Owner.";
+        assert_eq!(
+            relationship_chain_at(input, input.len()),
+            vec!["Account", "Owner"]
+        );
+    }
+
+    #[test]
+    fn chain_plain_field_is_empty() {
+        assert_eq!(
+            relationship_chain_at("SELECT Na", "SELECT Na".len()),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn chain_in_where_clause() {
+        let input = "SELECT Id FROM Account WHERE Owner.Na";
+        assert_eq!(relationship_chain_at(input, input.len()), vec!["Owner"]);
+    }
+
+    #[test]
+    fn completes_related_object_fields_single_hop() {
+        let mut account = account_schema();
+        account.fields[3].relationship_name = Some("Owner".to_string());
+        account.fields[3].reference_to = vec!["User".to_string()];
+        let mut map = std::collections::HashMap::new();
+        map.insert("User".to_string(), user_schema());
+        let resolve = |name: &str| map.get(name);
+        let input = "SELECT Owner.Em FROM Account";
+        let cursor = "SELECT Owner.Em".len();
+        let labels: Vec<String> = complete(input, cursor, &account, &[], &resolve)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"Email".to_string()), "{labels:?}");
+        assert!(
+            !labels.contains(&"Industry".to_string()),
+            "no root fields: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn unresolvable_hop_yields_no_candidates() {
+        let mut account = account_schema();
+        account.fields[3].relationship_name = Some("Owner".to_string());
+        account.fields[3].reference_to = vec!["User".to_string()];
+        let resolve = |_: &str| None;
+        let input = "SELECT Owner.Em FROM Account";
+        let cursor = "SELECT Owner.Em".len();
+        assert!(complete(input, cursor, &account, &[], &resolve).is_empty());
+    }
+
+    #[test]
+    fn offers_relationship_names_at_root() {
+        let mut schema = account_schema();
+        schema.fields[3].relationship_name = Some("Owner".to_string());
+        schema.fields[3].reference_to = vec!["User".to_string()];
+        let input = "SELECT  FROM Account";
+        let cursor = "SELECT ".len();
+        let cands = complete(input, cursor, &schema, &[], &|_| None);
+        assert!(
+            cands
+                .iter()
+                .any(|c| c.label == "Owner" && c.kind == CandidateKind::Relationship),
+            "{cands:?}"
+        );
+    }
+
     #[test]
     fn completes_partial_field_in_select() {
         let schema = account_schema();
         let input = "SELECT Na FROM Account";
         let cursor = "SELECT Na".len();
-        let labels: Vec<String> = complete(input, cursor, &schema, &[])
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
             .into_iter()
             .map(|c| c.label)
             .collect();
@@ -319,7 +471,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT Na FROM Account";
         let cursor = input.len(); // inside "Account"
-        assert!(complete(input, cursor, &schema, &[]).is_empty());
+        assert!(complete(input, cursor, &schema, &[], &|_| None).is_empty());
     }
 
     #[test]
@@ -327,7 +479,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT  FROM Account";
         let cursor = "SELECT ".len();
-        let labels: Vec<String> = complete(input, cursor, &schema, &[])
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
             .into_iter()
             .map(|c| c.label)
             .collect();
@@ -342,7 +494,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT  FROM Account";
         let cursor = "SELECT ".len();
-        let candidates = complete(input, cursor, &schema, &[]);
+        let candidates = complete(input, cursor, &schema, &[], &|_| None);
         assert!(candidates
             .iter()
             .any(|c| c.label == "Name" && c.kind == CandidateKind::Field && c.detail.is_none()));
@@ -357,7 +509,7 @@ mod tests {
         let input = "SELECT Id FROM Acc";
         let cursor = input.len();
         let objects = vec!["Account".to_string(), "Contact".to_string()];
-        let labels: Vec<String> = complete(input, cursor, &schema, &objects)
+        let labels: Vec<String> = complete(input, cursor, &schema, &objects, &|_| None)
             .into_iter()
             .map(|c| c.label)
             .collect();
@@ -370,7 +522,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT na FROM Account";
         let cursor = "SELECT na".len();
-        let labels: Vec<String> = complete(input, cursor, &schema, &[])
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
             .into_iter()
             .map(|c| c.label)
             .collect();
@@ -382,7 +534,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT Id FROM ";
         let cursor = input.len();
-        assert!(complete(input, cursor, &schema, &[]).is_empty());
+        assert!(complete(input, cursor, &schema, &[], &|_| None).is_empty());
     }
 
     #[test]
@@ -391,7 +543,7 @@ mod tests {
         let objects = vec!["Account".to_string(), "Contact".to_string()];
         let input = "SELECT Id FROM Account wh";
         let cursor = input.len();
-        let candidates = complete(input, cursor, &schema, &objects);
+        let candidates = complete(input, cursor, &schema, &objects, &|_| None);
         assert!(
             candidates
                 .iter()
@@ -410,7 +562,7 @@ mod tests {
         let objects = vec!["Account".to_string()];
         let input = "SELECT Id FROM Account ";
         let cursor = input.len();
-        let labels: Vec<String> = complete(input, cursor, &schema, &objects)
+        let labels: Vec<String> = complete(input, cursor, &schema, &objects, &|_| None)
             .into_iter()
             .map(|c| c.label)
             .collect();
@@ -426,7 +578,7 @@ mod tests {
         let objects = vec!["Account".to_string(), "Contact".to_string()];
         let input = "SELECT Id FROM Acc";
         let cursor = input.len();
-        let candidates = complete(input, cursor, &schema, &objects);
+        let candidates = complete(input, cursor, &schema, &objects, &|_| None);
         assert!(
             candidates
                 .iter()
@@ -440,7 +592,7 @@ mod tests {
         let schema = account_schema();
         let input = "SELECT Name FR";
         let cursor = input.len();
-        let candidates = complete(input, cursor, &schema, &[]);
+        let candidates = complete(input, cursor, &schema, &[], &|_| None);
         assert!(candidates
             .iter()
             .any(|c| c.label == "FROM" && c.kind == CandidateKind::Keyword));

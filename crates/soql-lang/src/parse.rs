@@ -90,6 +90,122 @@ pub fn outline(input: &str) -> SoqlOutline {
     out
 }
 
+/// A WHERE condition: a (possibly dotted) field, an operator, and the operator span.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Condition {
+    pub field: FieldRef,
+    pub op: String,
+    pub op_start: usize,
+    pub op_end: usize,
+}
+
+/// Recognized comparison operators built from one or two `Other` tokens.
+fn comparison_op(s: &str) -> bool {
+    matches!(s, "=" | "!=" | "<>" | "<" | ">" | "<=" | ">=")
+}
+
+/// Extract `field operator …` conditions from the WHERE clause (best-effort, never panics).
+/// Operators: `= != <> < > <= >=`, keyword `LIKE`/`IN`, ident `INCLUDES`/`EXCLUDES`.
+pub fn where_conditions(input: &str) -> Vec<Condition> {
+    let toks: Vec<_> = lex(input)
+        .into_iter()
+        .filter(|t| t.kind != TokenKind::Whitespace)
+        .collect();
+
+    // Locate the WHERE keyword; bound the scan at the next top-level clause keyword.
+    let Some(where_i) = toks
+        .iter()
+        .position(|t| t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case("WHERE"))
+    else {
+        return Vec::new();
+    };
+    let stop = ["GROUP", "ORDER", "LIMIT", "OFFSET", "HAVING", "WITH", "FOR"];
+    let end = toks[where_i + 1..]
+        .iter()
+        .position(|t| {
+            t.kind == TokenKind::Keyword && stop.iter().any(|s| t.text.eq_ignore_ascii_case(s))
+        })
+        .map(|p| where_i + 1 + p)
+        .unwrap_or(toks.len());
+
+    let mut out = Vec::new();
+    let mut i = where_i + 1;
+    while i < end {
+        // A field path: Ident (Dot Ident)*.
+        if toks[i].kind != TokenKind::Ident {
+            i += 1;
+            continue;
+        }
+        let start = toks[i].start;
+        let mut last_end = toks[i].end;
+        let mut name = toks[i].text.clone();
+        i += 1;
+        while i + 1 < end && toks[i].kind == TokenKind::Dot && toks[i + 1].kind == TokenKind::Ident
+        {
+            name.push('.');
+            name.push_str(&toks[i + 1].text);
+            last_end = toks[i + 1].end;
+            i += 2;
+        }
+        let field = FieldRef {
+            name,
+            start,
+            end: last_end,
+        };
+
+        // The operator immediately following the field path.
+        if i >= end {
+            break;
+        }
+        let t = &toks[i];
+        if t.kind == TokenKind::Keyword
+            && (t.text.eq_ignore_ascii_case("LIKE") || t.text.eq_ignore_ascii_case("IN"))
+        {
+            out.push(Condition {
+                field,
+                op: t.text.to_ascii_uppercase(),
+                op_start: t.start,
+                op_end: t.end,
+            });
+            i += 1;
+        } else if t.kind == TokenKind::Ident
+            && (t.text.eq_ignore_ascii_case("INCLUDES") || t.text.eq_ignore_ascii_case("EXCLUDES"))
+        {
+            out.push(Condition {
+                field,
+                op: t.text.to_ascii_uppercase(),
+                op_start: t.start,
+                op_end: t.end,
+            });
+            i += 1;
+        } else if t.kind == TokenKind::Other {
+            // Join up to two adjacent `Other` tokens into the operator text.
+            let mut op = t.text.clone();
+            let op_start = t.start;
+            let mut op_end = t.end;
+            if i + 1 < end && toks[i + 1].kind == TokenKind::Other && toks[i + 1].start == op_end {
+                let joined = format!("{op}{}", toks[i + 1].text);
+                if comparison_op(&joined) {
+                    op = joined;
+                    op_end = toks[i + 1].end;
+                    i += 1;
+                }
+            }
+            if comparison_op(&op) {
+                out.push(Condition {
+                    field,
+                    op,
+                    op_start,
+                    op_end,
+                });
+            }
+            i += 1;
+        }
+        // else: not an operator (e.g. a bare keyword) — skip and resume scanning.
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,5 +261,44 @@ mod tests {
         let o = outline("SELECT toLabel(Status), Name FROM Case");
         let names: Vec<&str> = o.select_fields.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, vec!["Name"]); // toLabel + its arg skipped; Name kept
+    }
+
+    #[test]
+    fn extracts_simple_condition() {
+        let c = where_conditions("SELECT Id FROM Account WHERE Name = 'x'");
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].field.name, "Name");
+        assert_eq!(c[0].op, "=");
+    }
+
+    #[test]
+    fn extracts_dotted_field_and_two_char_op() {
+        let c = where_conditions("SELECT Id FROM Account WHERE Owner.Age >= 18");
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].field.name, "Owner.Age");
+        assert_eq!(c[0].op, ">=");
+    }
+
+    #[test]
+    fn extracts_like_and_and() {
+        let c =
+            where_conditions("SELECT Id FROM Account WHERE Name LIKE 'a%' AND Industry = 'Tech'");
+        let pairs: Vec<(&str, &str)> = c
+            .iter()
+            .map(|x| (x.field.name.as_str(), x.op.as_str()))
+            .collect();
+        assert_eq!(pairs, vec![("Name", "LIKE"), ("Industry", "=")]);
+    }
+
+    #[test]
+    fn stops_at_order_by() {
+        let c = where_conditions("SELECT Id FROM Account WHERE Amount > 1 ORDER BY Name");
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].op, ">");
+    }
+
+    #[test]
+    fn no_where_no_conditions() {
+        assert!(where_conditions("SELECT Id FROM Account").is_empty());
     }
 }
