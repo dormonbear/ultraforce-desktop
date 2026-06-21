@@ -269,6 +269,79 @@ fn push_fields_and_relationships(candidates: &mut Vec<Candidate>, schema: &SObje
     }
 }
 
+/// A child subquery enclosing the cursor: its inner text, the cursor offset into
+/// that text, and the child-relationship named in its FROM (if any).
+pub struct Subquery {
+    pub inner: String,
+    pub cursor: usize,
+    pub from_rel: Option<String>,
+}
+
+/// Detect the innermost `(SELECT …)` child subquery enclosing `cursor`.
+pub fn subquery_at(input: &str, cursor: usize) -> Option<Subquery> {
+    let bytes = input.as_bytes();
+    // Innermost unclosed '(' before the cursor.
+    let mut depth = 0i32;
+    let mut open = None;
+    for i in (0..cursor).rev() {
+        match bytes[i] {
+            b')' => depth += 1,
+            b'(' => {
+                if depth == 0 {
+                    open = Some(i);
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    let open = open?;
+    let body_start = open + 1;
+    // Body must begin with SELECT (after optional whitespace).
+    let trimmed = input[body_start..].trim_start();
+    if trimmed.len() < 6 || !trimmed[..6].eq_ignore_ascii_case("SELECT") {
+        return None;
+    }
+    // Matching ')' (or end of input).
+    let mut d = 0i32;
+    let mut close = input.len();
+    for (i, &b) in bytes.iter().enumerate().skip(body_start) {
+        match b {
+            b'(' => d += 1,
+            b')' => {
+                if d == 0 {
+                    close = i;
+                    break;
+                }
+                d -= 1;
+            }
+            _ => {}
+        }
+    }
+    let inner = input[body_start..close].to_string();
+    let from_rel = outline(&inner).from_object;
+    Some(Subquery {
+        inner,
+        cursor: cursor - body_start,
+        from_rel,
+    })
+}
+
+/// Resolve a child-relationship name to its child sObject schema.
+fn resolve_child<'a>(
+    schema: &'a SObjectSchema,
+    rel: &str,
+    resolve: &dyn Fn(&str) -> Option<&'a SObjectSchema>,
+) -> Option<&'a SObjectSchema> {
+    let cr = schema.child_relationships.iter().find(|c| {
+        c.relationship_name
+            .as_deref()
+            .is_some_and(|r| r.eq_ignore_ascii_case(rel))
+    })?;
+    resolve(&cr.child_sobject)
+}
+
 /// Produce context-aware completions for `input` at `cursor`.
 ///
 /// Pure: reads `schema`, `objects`, and `resolve` (object name → schema, used to
@@ -280,6 +353,22 @@ pub fn complete<'a>(
     objects: &[String],
     resolve: &dyn Fn(&str) -> Option<&'a SObjectSchema>,
 ) -> Vec<Candidate> {
+    // Inside a child subquery: complete against the child sObject (fields) or the
+    // parent's child-relationship names (its FROM).
+    if let Some(sub) = subquery_at(input, cursor) {
+        let child_rel_names: Vec<String> = schema
+            .child_relationships
+            .iter()
+            .filter_map(|c| c.relationship_name.clone())
+            .collect();
+        let child = sub
+            .from_rel
+            .as_deref()
+            .and_then(|rel| resolve_child(schema, rel, resolve))
+            .unwrap_or(schema);
+        return complete(&sub.inner, sub.cursor, child, &child_rel_names, resolve);
+    }
+
     let o = outline(input);
     let clause = clause_at(&o, input, cursor);
     let partial = partial_at(input, cursor);
@@ -435,6 +524,76 @@ mod tests {
         let input = "SELECT Owner.Em FROM Account";
         let cursor = "SELECT Owner.Em".len();
         assert!(complete(input, cursor, &account, &[], &resolve).is_empty());
+    }
+
+    fn account_with_contacts() -> SObjectSchema {
+        let mut a = account_schema();
+        a.child_relationships = vec![sf_schema::model::ChildRelationship {
+            child_sobject: "Contact".to_string(),
+            field: "AccountId".to_string(),
+            relationship_name: Some("Contacts".to_string()),
+        }];
+        a
+    }
+
+    fn contact_schema() -> SObjectSchema {
+        SObjectSchema {
+            name: "Contact".to_string(),
+            label: String::new(),
+            label_plural: String::new(),
+            key_prefix: None,
+            custom: false,
+            fields: vec![field("Id"), field("LastName")],
+            child_relationships: vec![],
+        }
+    }
+
+    #[test]
+    fn subquery_at_detects_inner_select() {
+        let input = "SELECT Id, (SELECT Las FROM Contacts) FROM Account";
+        let cursor = input.find("Las").unwrap() + 3;
+        let sub = subquery_at(input, cursor).expect("subquery");
+        assert_eq!(sub.from_rel.as_deref(), Some("Contacts"));
+        assert_eq!(&sub.inner[..6], "SELECT");
+    }
+
+    #[test]
+    fn subquery_at_none_outside() {
+        let input = "SELECT Id FROM Account";
+        assert!(subquery_at(input, input.len()).is_none());
+    }
+
+    #[test]
+    fn completes_child_subquery_fields() {
+        let account = account_with_contacts();
+        let mut map = std::collections::HashMap::new();
+        map.insert("Contact".to_string(), contact_schema());
+        let resolve = |n: &str| map.get(n);
+        let input = "SELECT Id, (SELECT Las FROM Contacts) FROM Account";
+        let cursor = input.find("Las").unwrap() + 3;
+        let labels: Vec<String> = complete(input, cursor, &account, &[], &resolve)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(labels.contains(&"LastName".to_string()), "{labels:?}");
+        assert!(
+            !labels.contains(&"Industry".to_string()),
+            "parent field leaked into subquery: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn completes_child_relationship_names_in_subquery_from() {
+        let account = account_with_contacts();
+        let input = "SELECT Id, (SELECT Id FROM Con) FROM Account";
+        let cursor = input.find("Con").unwrap() + 3;
+        let cands = complete(input, cursor, &account, &[], &|_| None);
+        assert!(
+            cands
+                .iter()
+                .any(|c| c.label == "Contacts" && c.kind == CandidateKind::Object),
+            "{cands:?}"
+        );
     }
 
     #[test]

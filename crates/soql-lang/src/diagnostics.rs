@@ -1,6 +1,6 @@
 //! Unknown-field + WHERE operator/type diagnostics for SOQL (pure).
 
-use crate::parse::{outline, where_conditions};
+use crate::parse::{outline, subquery_groups, where_conditions};
 use sf_schema::SObjectSchema;
 
 /// Diagnostic severity.
@@ -146,6 +146,39 @@ pub fn diagnostics<'a>(
         }
     }
 
+    // 3. Child-subquery SELECT fields validated against the child sObject.
+    for (body_start, inner) in subquery_groups(input) {
+        let sub = outline(&inner);
+        let Some(rel) = sub.from_object else {
+            continue;
+        };
+        let Some(child) = schema
+            .child_relationships
+            .iter()
+            .find(|c| {
+                c.relationship_name
+                    .as_deref()
+                    .is_some_and(|r| r.eq_ignore_ascii_case(&rel))
+            })
+            .and_then(|c| resolve(&c.child_sobject))
+        else {
+            continue;
+        };
+        for f in &sub.select_fields {
+            if f.name == "*" || f.name.contains('.') {
+                continue;
+            }
+            if child.field(&f.name).is_none() {
+                diags.push(Diagnostic {
+                    message: format!("Unknown field '{}' on {}", f.name, child.name),
+                    start: body_start + f.start,
+                    end: body_start + f.end,
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+
     diags
 }
 
@@ -275,5 +308,57 @@ mod tests {
             &|_| None
         )
         .is_empty());
+    }
+
+    fn account_with_contacts() -> SObjectSchema {
+        let mut a = account_schema();
+        a.child_relationships = vec![sf_schema::model::ChildRelationship {
+            child_sobject: "Contact".to_string(),
+            field: "AccountId".to_string(),
+            relationship_name: Some("Contacts".to_string()),
+        }];
+        a
+    }
+
+    fn contact_schema() -> SObjectSchema {
+        SObjectSchema {
+            name: "Contact".to_string(),
+            label: String::new(),
+            label_plural: String::new(),
+            key_prefix: None,
+            custom: false,
+            fields: vec![field("Id"), field("LastName")],
+            child_relationships: vec![],
+        }
+    }
+
+    #[test]
+    fn flags_unknown_subquery_field() {
+        let schema = account_with_contacts();
+        let contact = contact_schema();
+        let resolve = |n: &str| (n == "Contact").then_some(&contact);
+        let input = "SELECT Id, (SELECT Bogus FROM Contacts) FROM Account";
+        let diags = diagnostics(input, &schema, &resolve);
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(&input[diags[0].start..diags[0].end], "Bogus");
+    }
+
+    #[test]
+    fn known_subquery_field_clean() {
+        let schema = account_with_contacts();
+        let contact = contact_schema();
+        let resolve = |n: &str| (n == "Contact").then_some(&contact);
+        let input = "SELECT Id, (SELECT LastName FROM Contacts) FROM Account";
+        assert!(
+            diagnostics(input, &schema, &resolve).is_empty(),
+            "should be clean"
+        );
+    }
+
+    #[test]
+    fn no_false_positive_on_subquery_without_resolver() {
+        let schema = account_with_contacts();
+        let input = "SELECT Id, (SELECT LastName FROM Contacts) FROM Account";
+        assert!(diagnostics(input, &schema, &|_| None).is_empty());
     }
 }

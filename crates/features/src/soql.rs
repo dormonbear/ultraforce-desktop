@@ -297,8 +297,37 @@ pub async fn complete_fields(
         .await
         .unwrap_or_else(|_| empty_schema());
     let chain = soql_lang::relationship_chain_at(query, cursor);
-    let map = resolve_related(&mut store, invoker, &api, &root_schema, &chain).await;
+    let mut map = resolve_related(&mut store, invoker, &api, &root_schema, &chain).await;
+    // When the cursor sits in a child subquery, fetch the child sObject too.
+    if let Some(rel) = soql_lang::subquery_at(query, cursor).and_then(|s| s.from_rel) {
+        map.extend(resolve_children(&mut store, invoker, &api, &root_schema, &[rel]).await);
+    }
     soql_lang::complete(query, cursor, &root_schema, objects, &|name| map.get(name))
+}
+
+/// Fetch the child sObject schema for each child-relationship name, keyed by
+/// child sObject name. Names that don't match a child relationship are skipped.
+async fn resolve_children(
+    store: &mut sf_schema::SchemaStore,
+    invoker: &SfInvoker,
+    api: &str,
+    root: &sf_schema::SObjectSchema,
+    rels: &[String],
+) -> std::collections::HashMap<String, sf_schema::SObjectSchema> {
+    let mut map = std::collections::HashMap::new();
+    for rel in rels {
+        let Some(cr) = root.child_relationships.iter().find(|c| {
+            c.relationship_name
+                .as_deref()
+                .is_some_and(|r| r.eq_ignore_ascii_case(rel))
+        }) else {
+            continue;
+        };
+        if let Ok(s) = store.get_or_fetch(invoker, api, &cr.child_sobject).await {
+            map.insert(cr.child_sobject.clone(), s);
+        }
+    }
+    map
 }
 
 /// Best-effort object-name list for FROM completion.
@@ -376,6 +405,14 @@ async fn soql_query_diagnostics(
         let hop = resolve_related(store, invoker, api, &root_schema, &chain).await;
         map.extend(hop);
     }
+
+    // Fetch child sObjects for every child subquery so their fields validate.
+    let rels: Vec<String> = soql_lang::subquery_groups(query)
+        .into_iter()
+        .filter_map(|(_, body)| soql_lang::outline(&body).from_object)
+        .collect();
+    map.extend(resolve_children(store, invoker, api, &root_schema, &rels).await);
+
     soql_lang::diagnostics(query, &root_schema, &|name| map.get(name))
 }
 
@@ -607,6 +644,32 @@ mod tests {
         let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
         let labels: Vec<String> = got.into_iter().map(|c| c.label).collect();
         assert!(labels.contains(&"Email".to_string()), "{labels:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn complete_fields_in_child_subquery() {
+        // Account has child relationship Contacts → Contact; inside the subquery
+        // `(SELECT La|` completes Contact's LastName.
+        let runner = sf_core::runner::MockRunner::new(move |_p, args| {
+            let body = if args.iter().any(|a| a == "Contact") {
+                r#"{"status":0,"result":{"name":"Contact","fields":[{"name":"LastName","type":"string"}]}}"#
+            } else {
+                r#"{"status":0,"result":{"name":"Account","fields":[{"name":"Id","type":"id"}],"childRelationships":[{"childSObject":"Contact","field":"AccountId","relationshipName":"Contacts"}]}}"#
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: body.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-subq-complete-{}", std::process::id()));
+        let q = "SELECT Id, (SELECT La FROM Contacts) FROM Account";
+        let cursor = q.find("La FROM").unwrap() + 2;
+        let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
+        let labels: Vec<String> = got.into_iter().map(|c| c.label).collect();
+        assert!(labels.contains(&"LastName".to_string()), "{labels:?}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
