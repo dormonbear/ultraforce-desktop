@@ -30,7 +30,8 @@
 ### SOQL (operational power features)
 1. **CSV export of results** — ✅ DONE. `csv::toCsv` (RFC 4180) + Export button in
    `ResultTable` → native save dialog → `writeTextFile`. Unit + e2e covered.
-2. **Tooling API toggle** (query ApexClass etc. via `--use-tooling-api`).
+2. **Tooling API toggle** — ✅ DONE. Per-tab "Tooling API" checkbox →
+   `run_query(..., use_tooling_api)` adds `--use-tooling-api`. Unit + e2e covered.
 3. **Query EXPLAIN / plan** (cost, cardinality, leading operation).
 4. **Governor/result-set validations + add-LIMIT quickfix.**
 5. queryAll / include-deleted; TYPEOF / function / bind-variable completion; SOQL formatter.
