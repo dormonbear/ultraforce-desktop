@@ -85,48 +85,58 @@ export function registerSoqlCompletion(monaco: Monaco): void {
 
 /** Register the `sf` editor theme and a minimal `soql` language once. */
 export function configureMonaco(monaco: Monaco): void {
-  // Cursor editorial light theme: ink keywords, success-green strings, gold numbers,
-  // orange cursor. Code stays restrained — orange is reserved for the caret only.
+  // Catppuccin Latte (light): mauve keywords, green strings, peach numbers.
+  // Brand orange is kept for the caret only.
   monaco.editor.defineTheme("sf", {
     base: "vs",
     inherit: true,
     rules: [
-      { token: "keyword.soql", foreground: "26251e", fontStyle: "bold" },
-      { token: "string.soql", foreground: "1f8a65" },
-      { token: "number.soql", foreground: "c08532" },
-      { token: "comment.soql", foreground: "807d72", fontStyle: "italic" },
+      { token: "keyword.soql", foreground: "8839ef", fontStyle: "bold" },
+      { token: "string.soql", foreground: "40a02b" },
+      { token: "number.soql", foreground: "fe640b" },
+      { token: "comment.soql", foreground: "9ca0b0", fontStyle: "italic" },
     ],
     colors: {
-      "editor.background": "#fafaf7",
-      "editor.foreground": "#26251e",
-      "editorGutter.background": "#f7f7f4",
-      "editorLineNumber.foreground": "#a09c92",
-      "editorLineNumber.activeForeground": "#5a5852",
-      "editor.selectionBackground": "#f54e0022",
-      "editor.lineHighlightBackground": "#f1f0ea",
+      "editor.background": "#eff1f5",
+      "editor.foreground": "#4c4f69",
+      "editorGutter.background": "#e6e9ef",
+      "editorLineNumber.foreground": "#9ca0b0",
+      "editorLineNumber.activeForeground": "#4c4f69",
+      "editor.selectionBackground": "#acb0be66",
+      "editor.lineHighlightBackground": "#ccd0da66",
       "editorCursor.foreground": "#f54e00",
+      "editorSuggestWidget.background": "#e6e9ef",
+      "editorSuggestWidget.foreground": "#4c4f69",
+      "editorSuggestWidget.border": "#ccd0da",
+      "editorSuggestWidget.selectedBackground": "#ccd0da",
+      "editorSuggestWidget.highlightForeground": "#1e66f5",
     },
   });
 
-  // Warm-dark counterpart (matches the app's [data-theme="dark"] palette).
+  // Catppuccin Mocha (dark): mauve keywords, green strings, peach numbers.
   monaco.editor.defineTheme("sf-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "keyword.soql", foreground: "f2f1ec", fontStyle: "bold" },
-      { token: "string.soql", foreground: "3fb488" },
-      { token: "number.soql", foreground: "d9a23f" },
-      { token: "comment.soql", foreground: "8c887d", fontStyle: "italic" },
+      { token: "keyword.soql", foreground: "cba6f7", fontStyle: "bold" },
+      { token: "string.soql", foreground: "a6e3a1" },
+      { token: "number.soql", foreground: "fab387" },
+      { token: "comment.soql", foreground: "6c7086", fontStyle: "italic" },
     ],
     colors: {
-      "editor.background": "#211f1b",
-      "editor.foreground": "#f2f1ec",
-      "editorGutter.background": "#1a1916",
-      "editorLineNumber.foreground": "#8c887d",
-      "editorLineNumber.activeForeground": "#bdb9ae",
-      "editor.selectionBackground": "#ff5a1433",
-      "editor.lineHighlightBackground": "#26241f",
+      "editor.background": "#1e1e2e",
+      "editor.foreground": "#cdd6f4",
+      "editorGutter.background": "#181825",
+      "editorLineNumber.foreground": "#6c7086",
+      "editorLineNumber.activeForeground": "#b4befe",
+      "editor.selectionBackground": "#585b7066",
+      "editor.lineHighlightBackground": "#31324466",
       "editorCursor.foreground": "#ff5a14",
+      "editorSuggestWidget.background": "#181825",
+      "editorSuggestWidget.foreground": "#cdd6f4",
+      "editorSuggestWidget.border": "#313244",
+      "editorSuggestWidget.selectedBackground": "#313244",
+      "editorSuggestWidget.highlightForeground": "#89b4fa",
     },
   });
 
