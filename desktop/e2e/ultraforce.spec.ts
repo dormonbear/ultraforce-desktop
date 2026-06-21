@@ -66,10 +66,10 @@ test("running a query records history and reopens it in a tab", async ({
   await expect(page.getByRole("tab")).toHaveCount(tabsBefore + 1);
 });
 
-test("schema refresh shows a success toast", async ({ page }) => {
+test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
-  await page.getByRole("button", { name: "Refresh offline schema" }).click();
-  await expect(page.getByText(/Refreshed schema cache/)).toBeVisible();
+  await page.getByRole("button", { name: "Reindex org" }).click();
+  await expect(page.getByText(/Reindexing org/)).toBeVisible();
 });
 
 test("apex annotation completion offers @AuraEnabled", async ({ page }) => {

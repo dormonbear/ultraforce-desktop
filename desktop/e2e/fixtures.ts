@@ -86,6 +86,8 @@ const RESP: Record<string, unknown> = {
   },
   list_logs: [],
   refresh_schema_cache: 42,
+  index_org: null,
+  reindex_org: null,
   soql_complete: [
     { label: "FROM", kind: "keyword", detail: null },
     { label: "WHERE", kind: "keyword", detail: null },
