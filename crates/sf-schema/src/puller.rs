@@ -4,11 +4,15 @@ use crate::model::SObjectSchema;
 use sf_core::{SfError, SfInvoker};
 use std::time::Duration;
 
-/// Describe a single object: `sf sobject describe -s <object> --json`.
-pub async fn describe_object(invoker: &SfInvoker, object: &str) -> Result<SObjectSchema, SfError> {
-    invoker
-        .run_json(&["sobject", "describe", "-s", object])
-        .await
+/// Describe a single object: `sf sobject describe -s <object> --json`,
+/// pinned to `org` (skipped when empty or the "default" sentinel).
+pub async fn describe_object(
+    invoker: &SfInvoker,
+    org: &str,
+    object: &str,
+) -> Result<SObjectSchema, SfError> {
+    let args = with_target(vec!["sobject", "describe", "-s", object], org);
+    invoker.run_json(&args).await
 }
 
 /// Salesforce composite hard limit: max subrequests per call.
@@ -113,7 +117,7 @@ mod tests {
         });
         let invoker = SfInvoker::new(Arc::new(runner));
 
-        let schema = describe_object(&invoker, "Account").await.unwrap();
+        let schema = describe_object(&invoker, "myorg", "Account").await.unwrap();
 
         assert_eq!(schema.name, "Account");
         assert_eq!(schema.fields.len(), 5);
@@ -125,7 +129,18 @@ mod tests {
         assert_eq!(schema.child_relationships.len(), 2);
 
         let args = seen.lock().unwrap().clone();
-        assert_eq!(args, vec!["sobject", "describe", "-s", "Account", "--json"]);
+        assert_eq!(
+            args,
+            vec![
+                "sobject",
+                "describe",
+                "-s",
+                "Account",
+                "--target-org",
+                "myorg",
+                "--json"
+            ]
+        );
     }
 
     #[test]

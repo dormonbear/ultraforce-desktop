@@ -11,13 +11,13 @@ use soql_lang::{complete, diagnostics, Severity};
 #[ignore]
 async fn completion_and_diagnostics_against_real_account() {
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
-    let schema = sf_schema::describe_object(&invoker, "Account")
+    let schema = sf_schema::describe_object(&invoker, "default", "Account")
         .await
         .expect("describe Account");
 
     let input = "SELECT Nam FROM Account";
     let cursor = "SELECT Nam".len();
-    let labels: Vec<String> = complete(input, cursor, &schema, &[])
+    let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
         .into_iter()
         .map(|c| c.label)
         .collect();
@@ -26,7 +26,32 @@ async fn completion_and_diagnostics_against_real_account() {
         "expected a Name candidate, got {labels:?}"
     );
 
-    let diags = diagnostics("SELECT NotARealField123 FROM Account", &schema);
+    let diags = diagnostics("SELECT NotARealField123 FROM Account", &schema, &|_| None);
     assert_eq!(diags.len(), 1, "expected exactly one diagnostic");
     assert_eq!(diags[0].severity, Severity::Error);
+}
+
+#[tokio::test]
+#[ignore]
+async fn relationship_completion_against_real_account() {
+    use std::collections::HashMap;
+    let invoker = SfInvoker::new(Arc::new(ProcessRunner));
+    let account = sf_schema::describe_object(&invoker, "default", "Account")
+        .await
+        .expect("Account");
+    let user = sf_schema::describe_object(&invoker, "default", "User")
+        .await
+        .expect("User");
+    let mut map = HashMap::new();
+    map.insert("User".to_string(), user);
+    let input = "SELECT Owner. FROM Account";
+    let cursor = "SELECT Owner.".len();
+    let labels: Vec<String> = complete(input, cursor, &account, &[], &|n| map.get(n))
+        .into_iter()
+        .map(|c| c.label)
+        .collect();
+    assert!(
+        labels.iter().any(|l| l == "Email" || l == "Username"),
+        "User fields: {labels:?}"
+    );
 }

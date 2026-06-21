@@ -128,7 +128,7 @@ impl ApexCompleter {
         let Some(schema) = self.describe_schema(invoker, org_id, &object).await else {
             return Ok(Vec::new());
         };
-        let fields = soql_lang::complete(inner, rel_cursor, &schema, &[]);
+        let fields = soql_lang::complete(inner, rel_cursor, &schema, &[], &|_| None);
         Ok(fields
             .into_iter()
             .map(|c| Candidate {

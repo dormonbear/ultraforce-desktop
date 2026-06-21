@@ -72,6 +72,22 @@ test("reindex org shows a success toast", async ({ page }) => {
   await expect(page.getByText(/Reindexing org/)).toBeVisible();
 });
 
+test("soql editor surfaces relationship-field completion after a dot", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  const editor = page.locator(".monaco-editor").first();
+  await editor.click();
+  await page.keyboard.press("Control+a");
+  // `.` is a SOQL completion trigger; the mocked soql_complete returns a field
+  // reached through the Owner→User relationship.
+  await page.keyboard.type("SELECT Owner.");
+  await expect(
+    page.locator(".monaco-editor .suggest-widget").getByText("Email"),
+  ).toBeVisible({ timeout: 5000 });
+});
+
 test("apex annotation completion offers @AuraEnabled", async ({ page }) => {
   await gotoApp(page);
   await page.getByLabel("Apex").click();

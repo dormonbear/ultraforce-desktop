@@ -92,6 +92,10 @@ const RESP: Record<string, unknown> = {
     { label: "FROM", kind: "keyword", detail: null },
     { label: "WHERE", kind: "keyword", detail: null },
     { label: "Name", kind: "field", detail: null },
+    { label: "Owner", kind: "relationship", detail: null },
+    // A field reached through the Owner→User relationship (real resolution is
+    // unit/integration tested in Rust; this proves the editor surfaces it).
+    { label: "Email", kind: "field", detail: "User" },
   ],
   apex_complete: [
     { label: "@AuraEnabled", kind: "keyword" },
