@@ -45,8 +45,12 @@ fn resolve_field<'a>(
     resolve: &dyn Fn(&str) -> Option<&'a SObjectSchema>,
 ) -> Option<&'a sf_schema::model::Field> {
     let segs: Vec<&str> = path.split('.').collect();
+    if segs.len() < 2 {
+        return schema.field(segs[0]);
+    }
     let mut cur = schema;
-    for seg in &segs[..segs.len() - 1] {
+    // Intermediate relationships use the first target.
+    for seg in &segs[..segs.len() - 2] {
         let rel = cur.fields.iter().find(|f| {
             f.relationship_name
                 .as_deref()
@@ -55,7 +59,18 @@ fn resolve_field<'a>(
         let target = rel.reference_to.first()?;
         cur = resolve(target)?;
     }
-    cur.field(segs[segs.len() - 1])
+    // Last relationship: the field is known if it exists on ANY target (polymorphic).
+    let last_rel = segs[segs.len() - 2];
+    let field_name = segs[segs.len() - 1];
+    let rel = cur.fields.iter().find(|f| {
+        f.relationship_name
+            .as_deref()
+            .is_some_and(|r| r.eq_ignore_ascii_case(last_rel))
+    })?;
+    rel.reference_to
+        .iter()
+        .filter_map(|t| resolve(t))
+        .find_map(|s| s.field(field_name))
 }
 
 /// Final object a dotted path's relationship segments land on. `None` if unresolved.
@@ -103,7 +118,9 @@ pub fn diagnostics<'a>(
             let Some(obj) = resolve_object(schema, &segs[..segs.len() - 1], resolve) else {
                 continue;
             };
-            if obj.field(segs[segs.len() - 1]).is_none() {
+            // Existence check is polymorphic-aware (field may live on any target);
+            // `obj` is only used for the message's object name (first target).
+            if resolve_field(schema, &f.name, resolve).is_none() {
                 diags.push(Diagnostic {
                     message: format!("Unknown field '{}' on {}", segs[segs.len() - 1], obj.name),
                     start: f.start,
@@ -360,5 +377,56 @@ mod tests {
         let schema = account_with_contacts();
         let input = "SELECT Id, (SELECT LastName FROM Contacts) FROM Account";
         assert!(diagnostics(input, &schema, &|_| None).is_empty());
+    }
+
+    fn account_with_who() -> SObjectSchema {
+        let mut a = account_schema();
+        let mut who = field("WhoId");
+        who.relationship_name = Some("Who".to_string());
+        who.reference_to = vec!["Contact".to_string(), "Lead".to_string()];
+        a.fields.push(who);
+        a
+    }
+
+    fn lead_schema() -> SObjectSchema {
+        let mut company = field("Company");
+        company.field_type = "string".to_string();
+        SObjectSchema {
+            name: "Lead".to_string(),
+            label: String::new(),
+            label_plural: String::new(),
+            key_prefix: None,
+            custom: false,
+            fields: vec![field("Id"), company],
+            child_relationships: vec![],
+        }
+    }
+
+    #[test]
+    fn polymorphic_field_on_second_target_not_flagged() {
+        // `Company` exists only on Lead, the second target of Who.
+        let schema = account_with_who();
+        let contact = contact_schema(); // Id, LastName (no Company)
+        let lead = lead_schema(); // Id, Company
+        let resolve = |n: &str| match n {
+            "Contact" => Some(&contact),
+            "Lead" => Some(&lead),
+            _ => None,
+        };
+        assert!(diagnostics("SELECT Who.Company FROM Account", &schema, &resolve).is_empty());
+    }
+
+    #[test]
+    fn polymorphic_field_on_no_target_flagged() {
+        let schema = account_with_who();
+        let contact = contact_schema();
+        let lead = lead_schema();
+        let resolve = |n: &str| match n {
+            "Contact" => Some(&contact),
+            "Lead" => Some(&lead),
+            _ => None,
+        };
+        let diags = diagnostics("SELECT Who.Nope FROM Account", &schema, &resolve);
+        assert_eq!(diags.len(), 1, "{diags:?}");
     }
 }

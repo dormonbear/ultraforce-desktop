@@ -258,7 +258,7 @@ async fn resolve_related(
 ) -> std::collections::HashMap<String, sf_schema::SObjectSchema> {
     let mut map = std::collections::HashMap::new();
     let mut cur = root.clone();
-    for seg in chain {
+    for (idx, seg) in chain.iter().enumerate() {
         let Some(field) = cur.fields.iter().find(|f| {
             f.relationship_name
                 .as_deref()
@@ -266,14 +266,24 @@ async fn resolve_related(
         }) else {
             break;
         };
-        let Some(target) = field.reference_to.first().cloned() else {
-            break;
-        };
-        let Ok(schema) = store.get_or_fetch(invoker, api, &target).await else {
-            break;
-        };
-        map.insert(target, schema.clone());
-        cur = schema;
+        let refs = field.reference_to.clone();
+        // Final hop unions all targets (polymorphic); intermediate hops take the first.
+        if idx + 1 == chain.len() {
+            for target in &refs {
+                if let Ok(s) = store.get_or_fetch(invoker, api, target).await {
+                    map.insert(target.clone(), s);
+                }
+            }
+        } else {
+            let Some(target) = refs.first().cloned() else {
+                break;
+            };
+            let Ok(schema) = store.get_or_fetch(invoker, api, &target).await else {
+                break;
+            };
+            map.insert(target.clone(), schema.clone());
+            cur = schema;
+        }
     }
     map
 }

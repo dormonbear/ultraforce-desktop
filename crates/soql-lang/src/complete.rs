@@ -240,23 +240,42 @@ fn finish_candidates(mut candidates: Vec<Candidate>, partial: &str) -> Vec<Candi
     candidates
 }
 
-/// Walk a relationship chain from `schema`, returning the final hop's schema.
-fn resolve_chain<'a>(
+/// Schemas of every object the final relationship in `chain` can resolve to.
+/// Intermediate hops use the first `referenceTo`; only the final hop (the one
+/// being completed) unions all targets, so polymorphic fields all surface.
+fn resolve_chain_targets<'a>(
     schema: &'a SObjectSchema,
     chain: &[String],
     resolve: &dyn Fn(&str) -> Option<&'a SObjectSchema>,
-) -> Option<&'a SObjectSchema> {
-    let mut cur = schema;
-    for seg in chain {
-        let field = cur.fields.iter().find(|f| {
+) -> Vec<&'a SObjectSchema> {
+    let find_rel = |s: &SObjectSchema, seg: &str| -> Option<usize> {
+        s.fields.iter().position(|f| {
             f.relationship_name
                 .as_deref()
                 .is_some_and(|r| r.eq_ignore_ascii_case(seg))
-        })?;
-        let target = field.reference_to.first()?;
-        cur = resolve(target)?;
+        })
+    };
+    let mut cur = schema;
+    for seg in &chain[..chain.len() - 1] {
+        let Some(idx) = find_rel(cur, seg) else {
+            return Vec::new();
+        };
+        let Some(target) = cur.fields[idx].reference_to.first() else {
+            return Vec::new();
+        };
+        let Some(next) = resolve(target) else {
+            return Vec::new();
+        };
+        cur = next;
     }
-    Some(cur)
+    let Some(idx) = find_rel(cur, &chain[chain.len() - 1]) else {
+        return Vec::new();
+    };
+    cur.fields[idx]
+        .reference_to
+        .iter()
+        .filter_map(|t| resolve(t))
+        .collect()
 }
 
 /// Push every field (as `Field`) and every relationship name (as `Relationship`).
@@ -375,9 +394,10 @@ pub fn complete<'a>(
     let chain = relationship_chain_at(input, cursor);
     let mut candidates = Vec::new();
 
-    // A dotted path completes against the related object, in any clause.
+    // A dotted path completes against the related object(s), in any clause.
+    // Polymorphic final hops union every target's fields (deduped on finish).
     if !chain.is_empty() {
-        if let Some(target) = resolve_chain(schema, &chain, resolve) {
+        for target in resolve_chain_targets(schema, &chain, resolve) {
             push_fields_and_relationships(&mut candidates, target);
         }
         return finish_candidates(candidates, partial);
@@ -593,6 +613,45 @@ mod tests {
                 .iter()
                 .any(|c| c.label == "Contacts" && c.kind == CandidateKind::Object),
             "{cands:?}"
+        );
+    }
+
+    fn lead_schema() -> SObjectSchema {
+        SObjectSchema {
+            name: "Lead".to_string(),
+            label: String::new(),
+            label_plural: String::new(),
+            key_prefix: None,
+            custom: false,
+            fields: vec![field("Id"), field("Company")],
+            child_relationships: vec![],
+        }
+    }
+
+    #[test]
+    fn unions_polymorphic_relationship_targets() {
+        let mut acct = account_schema();
+        let mut who = field("WhoId");
+        who.relationship_name = Some("Who".to_string());
+        who.reference_to = vec!["Contact".to_string(), "Lead".to_string()];
+        acct.fields.push(who);
+        let mut map = std::collections::HashMap::new();
+        map.insert("Contact".to_string(), contact_schema()); // LastName
+        map.insert("Lead".to_string(), lead_schema()); // Company
+        let resolve = |n: &str| map.get(n);
+        let input = "SELECT Who. FROM Account";
+        let cursor = "SELECT Who.".len();
+        let labels: Vec<String> = complete(input, cursor, &acct, &[], &resolve)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert!(
+            labels.contains(&"LastName".to_string()),
+            "Contact field: {labels:?}"
+        );
+        assert!(
+            labels.contains(&"Company".to_string()),
+            "Lead field: {labels:?}"
         );
     }
 
