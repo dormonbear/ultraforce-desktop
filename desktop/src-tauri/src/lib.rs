@@ -51,20 +51,29 @@ struct SyncResultDto {
 }
 
 #[tauri::command]
-async fn run_soql(query: String, state: State<'_, AppState>) -> Result<SoqlResultDto, String> {
+async fn run_soql(
+    query: String,
+    use_tooling_api: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<SoqlResultDto, String> {
     let start = Instant::now();
     tracing::info!("run_soql start");
     let org = current_org(&state);
-    let result = features::soql::run_query(&state.invoker, &query, org.as_deref())
-        .await
-        .map_err(|e| {
-            tracing::warn!(
-                elapsed_ms = start.elapsed().as_millis(),
-                outcome = "err",
-                "run_soql complete"
-            );
-            format!("{e:?}")
-        })?;
+    let result = features::soql::run_query(
+        &state.invoker,
+        &query,
+        org.as_deref(),
+        use_tooling_api.unwrap_or(false),
+    )
+    .await
+    .map_err(|e| {
+        tracing::warn!(
+            elapsed_ms = start.elapsed().as_millis(),
+            outcome = "err",
+            "run_soql complete"
+        );
+        format!("{e:?}")
+    })?;
     let table = result.to_table();
     tracing::info!(
         elapsed_ms = start.elapsed().as_millis(),

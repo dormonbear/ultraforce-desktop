@@ -121,6 +121,7 @@ async fn e2e_run_soql_real() {
         &invoker(),
         "SELECT Id, Name FROM Account LIMIT 5",
         Some(&org()),
+        false,
     )
     .await
     .expect("run_soql should succeed");
@@ -255,6 +256,7 @@ async fn e2e_dml_insert_query_delete() {
         &inv,
         &format!("SELECT Id, Name FROM Account WHERE Name = '{marker}'"),
         Some(&o),
+        false,
     )
     .await
     .expect("post-insert query");
@@ -278,6 +280,7 @@ async fn e2e_dml_insert_query_delete() {
         &inv,
         &format!("SELECT Id FROM Account WHERE Name = '{marker}'"),
         Some(&o),
+        false,
     )
     .await
     .expect("post-delete query");

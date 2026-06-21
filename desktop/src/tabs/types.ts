@@ -13,6 +13,7 @@ export interface SoqlTab extends TabBase {
   result: SoqlResultDto | null;
   error: string | null;
   view: "table" | "tree";
+  useToolingApi: boolean;
 }
 
 export interface ApexTab extends TabBase {

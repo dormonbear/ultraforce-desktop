@@ -8,9 +8,14 @@ use std::sync::Arc;
 #[ignore = "hits the live org; run with --ignored"]
 async fn run_query_against_live_org() {
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
-    let result = run_query(&invoker, "SELECT Id, Name FROM Account LIMIT 1", None)
-        .await
-        .expect("query should succeed against the default org");
+    let result = run_query(
+        &invoker,
+        "SELECT Id, Name FROM Account LIMIT 1",
+        None,
+        false,
+    )
+    .await
+    .expect("query should succeed against the default org");
 
     assert_eq!(result.records.len(), 1, "expected exactly one record");
 
