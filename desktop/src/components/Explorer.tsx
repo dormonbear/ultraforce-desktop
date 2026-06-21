@@ -148,7 +148,7 @@ export function Explorer({
 
   return (
     <div
-      className="flex h-full w-[240px] shrink-0 flex-col border-r border-border bg-background"
+      className="flex h-full w-full flex-col border-r border-border bg-background"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();

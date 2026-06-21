@@ -1,4 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { useDefaultLayout } from "react-resizable-panels";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { TabStrip } from "../tabs/TabStrip";
 import { useFileTabs } from "../tabs/useFileTabs";
 import { Explorer } from "../components/Explorer";
@@ -63,44 +69,60 @@ export function ApexTabs() {
     [patch, activeId],
   );
 
+  const layout = useDefaultLayout({
+    id: "uf-apex-sidebar",
+    panelIds: ["sidebar", "main"],
+    storage: localStorage,
+  });
+
   return (
-    <div className="flex h-full">
-      {root && (
-        <Explorer
-          root={root}
-          ext="apex"
-          activePath={active?.path ?? null}
-          onOpen={(p, line) => void openFile(p, line)}
-          onRenamed={retitle}
-          onRemoved={closeByPath}
-        />
-      )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        {active ? (
-          <>
-            <TabStrip
-              tabs={tabs}
-              activeId={activeId ?? ""}
-              ariaLabel="Apex tabs"
-              onSelect={select}
-              onClose={close}
-              onAdd={() => {}}
-            />
-            <div role="tabpanel" className="min-h-0 flex-1">
-              <ApexView
-                key={active.id}
-                tab={active}
-                onPatch={onPatch}
-                reveal={activeReveal}
-              />
-            </div>
-          </>
-        ) : (
-          <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-            — open a script from the sidebar —
-          </div>
+    <ResizablePanelGroup
+      direction="horizontal"
+      defaultLayout={layout.defaultLayout}
+      onLayoutChanged={layout.onLayoutChanged}
+      className="h-full"
+    >
+      <ResizablePanel id="sidebar" defaultSize="240px" minSize="160px" maxSize="420px">
+        {root && (
+          <Explorer
+            root={root}
+            ext="apex"
+            activePath={active?.path ?? null}
+            onOpen={(p, line) => void openFile(p, line)}
+            onRenamed={retitle}
+            onRemoved={closeByPath}
+          />
         )}
-      </div>
-    </div>
+      </ResizablePanel>
+      <ResizableHandle className="w-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
+      <ResizablePanel id="main" minSize="320px">
+        <div className="flex h-full min-w-0 flex-col">
+          {active ? (
+            <>
+              <TabStrip
+                tabs={tabs}
+                activeId={activeId ?? ""}
+                ariaLabel="Apex tabs"
+                onSelect={select}
+                onClose={close}
+                onAdd={() => {}}
+              />
+              <div role="tabpanel" className="min-h-0 flex-1">
+                <ApexView
+                  key={active.id}
+                  tab={active}
+                  onPatch={onPatch}
+                  reveal={activeReveal}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
+              — open a script from the sidebar —
+            </div>
+          )}
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
