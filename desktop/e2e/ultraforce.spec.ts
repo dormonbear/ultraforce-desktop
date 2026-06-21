@@ -4,7 +4,8 @@ import { gotoApp } from "./fixtures";
 /**
  * Fixed e2e journey over the mocked-IPC app (see fixtures.ts). The real
  * completion/parse logic is unit-tested in Rust; here we assert the UI
- * plumbing: branding, tab rename persistence, run history, and schema refresh.
+ * plumbing: branding, the file explorer (open/filter/search), run history,
+ * schema refresh, and apex completion.
  */
 
 test("brand wordmark reads ULTRAFORCE", async ({ page }) => {
@@ -12,24 +13,45 @@ test("brand wordmark reads ULTRAFORCE", async ({ page }) => {
   await expect(page.getByText("ULTRAFORCE", { exact: true })).toBeVisible();
 });
 
-test("tab rename persists across reload", async ({ page }) => {
+test("explorer lists files and opens one in a tab (persists across reload)", async ({
+  page,
+}) => {
   await gotoApp(page);
-  const tab = page.getByRole("tab").first();
-  await tab.dblclick();
-  const input = page.getByRole("textbox", { name: /Rename/ });
-  await input.fill("My Saved Query");
-  await input.press("Enter");
-  await expect(page.getByRole("tab", { name: /My Saved Query/ })).toBeVisible();
+  await expect(page.getByText("accounts.soql")).toBeVisible();
+  await page.getByText("accounts.soql").click();
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
 
   await page.reload();
   await page.waitForLoadState("networkidle");
-  await expect(page.getByRole("tab", { name: /My Saved Query/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
+});
+
+test("name filter prunes the tree", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByPlaceholder("Filter by name").fill("lead");
+  await expect(page.getByText("leads.soql")).toBeVisible();
+  await expect(page.getByText("accounts.soql")).toHaveCount(0);
+});
+
+test("content search finds a line and opens the file", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "Toggle search mode" }).click();
+  const box = page.getByPlaceholder("Search in files");
+  await box.fill("AnnualRevenue");
+  await box.press("Enter");
+  await page
+    .getByText("SELECT Id, Name, AnnualRevenue", { exact: false })
+    .click();
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
 });
 
 test("running a query records history and reopens it in a tab", async ({
   page,
 }) => {
   await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
+
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
@@ -53,6 +75,7 @@ test("schema refresh shows a success toast", async ({ page }) => {
 test("apex annotation completion offers @AuraEnabled", async ({ page }) => {
   await gotoApp(page);
   await page.getByLabel("Apex").click();
+  await page.getByText("hello.apex").click();
   const editor = page.locator(".monaco-editor").first();
   await editor.click();
   await page.keyboard.press("Control+a");

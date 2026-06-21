@@ -1,2 +1,11 @@
 /target
 .git_signing_key_tmp*
+
+# Local scratch / external analysis (not part of the project)
+.playwright-mcp/
+node-compile-cache/
+reference-source/
+reference-analysis/
+sf-apex-panel.png
+sf-logs-panel.png
+sf-toolkit-desktop.png

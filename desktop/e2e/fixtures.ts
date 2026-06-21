@@ -29,6 +29,31 @@ const LEVELS = {
   workflow: "INFO",
 };
 
+// Fake workspace for the file explorer (plugin:fs / plugin:path mocks).
+const WS = "/ws";
+type FakeEntry = {
+  name: string;
+  isDirectory: boolean;
+  isFile: boolean;
+  isSymlink: boolean;
+};
+const file = (name: string): FakeEntry => ({
+  name,
+  isDirectory: false,
+  isFile: true,
+  isSymlink: false,
+});
+const FAKE_DIRS: Record<string, FakeEntry[]> = {
+  [`${WS}/workspace/soql`]: [file("accounts.soql"), file("leads.soql")],
+  [`${WS}/workspace/apex`]: [file("hello.apex")],
+};
+const FAKE_FILES: Record<string, string> = {
+  [`${WS}/workspace/soql/accounts.soql`]:
+    "SELECT Id, Name, AnnualRevenue FROM Account",
+  [`${WS}/workspace/soql/leads.soql`]: "SELECT Id, Company FROM Lead",
+  [`${WS}/workspace/apex/hello.apex`]: "System.debug('hi');",
+};
+
 // App-command fixtures (everything that is NOT plugin:store|*).
 const RESP: Record<string, unknown> = {
   list_orgs: [
@@ -76,7 +101,13 @@ const RESP: Record<string, unknown> = {
 
 /** Installs the mocked IPC before app scripts run. */
 async function installMocks(page: Page): Promise<void> {
-  await page.addInitScript((resp: Record<string, unknown>) => {
+  await page.addInitScript(
+    (bundle: {
+      resp: Record<string, unknown>;
+      dirs: Record<string, unknown[]>;
+      files: Record<string, string>;
+    }) => {
+    const { resp, dirs, files } = bundle;
     const SKEY = "__uf_store";
     const readStore = (): Record<string, unknown> => {
       try {
@@ -126,6 +157,22 @@ async function installMocks(page: Page): Promise<void> {
       if (cmd === "plugin:event|listen" || cmd.startsWith("plugin:event|")) {
         return Promise.resolve(0);
       }
+      if (cmd.startsWith("plugin:path|")) return Promise.resolve("/ws");
+      if (cmd === "plugin:fs|read_dir") {
+        return Promise.resolve(dirs[(args.path as string)] ?? []);
+      }
+      if (cmd === "plugin:fs|exists") return Promise.resolve(true);
+      if (cmd === "plugin:fs|mkdir") return Promise.resolve(null);
+      if (cmd === "plugin:fs|read_text_file" || cmd === "plugin:fs|read_file") {
+        const text = files[args.path as string] ?? "";
+        return Promise.resolve(Array.from(new TextEncoder().encode(text)));
+      }
+      if (cmd === "plugin:fs|write_text_file" || cmd === "plugin:fs|write_file") {
+        const data = args.data as string | undefined;
+        if (data != null) files[args.path as string] = data;
+        return Promise.resolve(null);
+      }
+      if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
       return Promise.resolve(cmd in resp ? resp[cmd] : null);
     };
 
@@ -138,7 +185,9 @@ async function installMocks(page: Page): Promise<void> {
         currentWebview: { label: "main" },
       },
     };
-  }, RESP);
+    },
+    { resp: RESP, dirs: FAKE_DIRS, files: FAKE_FILES },
+  );
 }
 
 /** Install mocks, navigate to the dev server, and wait for the app to settle. */
