@@ -17,6 +17,13 @@ import {
 } from "../fs/search";
 import { dirname } from "../fs/paths";
 import { TreeNode } from "./TreeNode";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from "./ui/context-menu";
 
 interface Props {
   root: string;
@@ -89,14 +96,6 @@ export function Explorer({
     refresh();
   };
 
-  const onContextMenu = (e: React.MouseEvent, node: Node) => {
-    e.preventDefault();
-    // Minimal menu without a popover dep: right-click = rename,
-    // Shift+right-click = delete.
-    if (e.shiftKey) void del(node);
-    else setEdit({ kind: "rename", path: node.path });
-  };
-
   const newAt = (kind: "new-file" | "new-dir") => {
     const dir = activePath ? dirname(activePath) : root;
     setEdit({ kind, dir });
@@ -136,22 +135,45 @@ export function Explorer({
   const walk = (nodes: Node[], depth: number) => {
     for (const n of nodes) {
       const isOpen = forceExpand || expanded.has(n.path);
+      const parentDir = n.kind === "dir" ? n.path : dirname(n.path);
       rows.push(
-        <TreeNode
-          key={n.path}
-          node={n}
-          depth={depth}
-          expanded={isOpen}
-          active={n.path === activePath}
-          editing={edit?.kind === "rename" && edit.path === n.path}
-          onToggle={() => toggle(n.path)}
-          onOpen={() => onOpen(n.path)}
-          onContextMenu={(e) => onContextMenu(e, n)}
-          onCommitName={commitName}
-          onCancelEdit={() => setEdit(null)}
-          onDragStartNode={() => setDrag(n.path)}
-          onDropOnDir={() => void drop(n.path)}
-        />,
+        <ContextMenu key={n.path}>
+          <ContextMenuTrigger asChild>
+            <div>
+              <TreeNode
+                node={n}
+                depth={depth}
+                expanded={isOpen}
+                active={n.path === activePath}
+                editing={edit?.kind === "rename" && edit.path === n.path}
+                onToggle={() => toggle(n.path)}
+                onOpen={() => onOpen(n.path)}
+                onCommitName={commitName}
+                onCancelEdit={() => setEdit(null)}
+                onDragStartNode={() => setDrag(n.path)}
+                onDropOnDir={() => void drop(n.path)}
+              />
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: parentDir })}>
+              New File
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => setEdit({ kind: "new-dir", dir: parentDir })}>
+              New Folder
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => setEdit({ kind: "rename", path: n.path })}>
+              Rename
+            </ContextMenuItem>
+            <ContextMenuItem
+              className="text-destructive data-[highlighted]:bg-destructive/15 data-[highlighted]:text-destructive"
+              onSelect={() => void del(n)}
+            >
+              Delete
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>,
       );
       if (n.kind === "dir" && isOpen && n.children) walk(n.children, depth + 1);
     }

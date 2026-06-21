@@ -10,7 +10,6 @@ interface Props {
   editing: boolean;
   onToggle: () => void;
   onOpen: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
   onCommitName: (name: string) => void;
   onCancelEdit: () => void;
   onDragStartNode: () => void;
@@ -46,7 +45,6 @@ export function TreeNode(p: Props) {
           : undefined
       }
       onClick={() => (isDir ? p.onToggle() : p.onOpen())}
-      onContextMenu={p.onContextMenu}
       style={{ paddingLeft: 8 + depth * 12 }}
       className={`flex h-6 cursor-pointer items-center gap-1 rounded-[3px] pr-2 text-[12px] ${
         active
