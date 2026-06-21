@@ -5,4 +5,5 @@ pub mod event;
 pub mod header;
 pub mod limits;
 pub mod parse;
+pub mod profile;
 pub mod tree;
