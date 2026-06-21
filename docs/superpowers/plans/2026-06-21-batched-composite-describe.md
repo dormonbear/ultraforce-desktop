@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Verification gate per stage: `cargo fmt --check` (exit-checked), `cargo clippy --all-targets -D warnings`, `cargo test` — all green.
-- Real-org e2e uses the `ultraforce` dev org alias (`UF_E2E_ORG`, default `ultraforce`). **NEVER target `vivabiotech` (production).**
+- Real-org e2e uses a scratch/dev org alias (`UF_E2E_ORG`, default `ultraforce`). **NEVER target a production org.**
 - `sf api request rest` is a beta command that rejects `--json`; parse raw stdout (use `run_raw_with_timeout`). Verified flags: `--method POST`, `--body "<inline json>"`, `--target-org`.
 - The runner passes args directly to the process (no shell), so the inline JSON body needs no shell escaping.
 - Composite REST hard limit: 25 subrequests per call.
