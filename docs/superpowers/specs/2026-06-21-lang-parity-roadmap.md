@@ -36,7 +36,9 @@
    button → `query_plan` via `sf api request rest .../query/?explain=` →
    `QueryPlanView` (cost/cardinality/leading-op, non-selective in red). Unit +
    e2e covered; `sf api request rest` raw-body shape not yet live-tested.
-4. **Governor/result-set validations + add-LIMIT quickfix.**
+4. **Governor/result-set validations + add-LIMIT quickfix** — ✅ DONE.
+   `soql_lang::missing_limit` warns on unbounded queries (schema-free, fires
+   offline); Monaco "Add LIMIT 200" quickfix via `limitInsertion`. Unit-covered.
 5. queryAll / include-deleted; TYPEOF / function / bind-variable completion; SOQL formatter.
 
 ### Anonymous Apex
