@@ -1,6 +1,6 @@
 # Apex AST — Phase 1 (grammar → typed AST) — Design
 
-> Date: 2026-06-21 · Status: In progress · Crate: apex-lang
+> Date: 2026-06-21 · Status: COMPLETE · Crate: apex-lang
 > Phase 1 of `2026-06-21-lsp-apex-completion-design.md`. Foundation for LSP-grade completion.
 
 ## Goal
@@ -26,11 +26,13 @@ AST path is at parity. Until then both compile side by side.
    (class/interface/enum) with modifiers/annotations, member decls (field/method/property/nested).
 3. **Declaration parser** (`ast/parser.rs`) — ✅ DONE. Parses a compilation unit's structure: type
    decls, members, signatures; bodies as spans; error recovery, never panics.
-4. **Statement & expression parser** — ⬜ NEXT. Method bodies: var decls, if/for/while/try,
-   return/throw, assignments, calls, member access, `new`, literals, operators with precedence.
+4. **Statement & expression parser** — ✅ DONE. Method bodies: local-var decls, if/else,
+   C-style + for-each, while/do-while, return/throw/break/continue, try/catch/finally, DML;
+   expressions with full operator precedence, ternary, assignment, member/call/index chains,
+   `new`, casts, pre/post inc-dec. An end-to-end test parses a realistic class with zero errors.
 
-Phase 1 ends when increments 1–4 parse representative Apex into a spanned AST. Type resolution,
-inference, and diagnostics are Phases 2–5.
+**Phase 1 is complete** — increments 1–4 parse representative Apex into a spanned AST. Type
+resolution, inference, and diagnostics are Phases 2–5 (see the LSP design doc).
 
 ## Design notes
 
