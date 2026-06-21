@@ -40,9 +40,10 @@
    `soql_lang::missing_limit` warns on unbounded queries (schema-free, fires
    offline); Monaco "Add LIMIT 200" quickfix via `limitInsertion`. Unit-covered.
 5. **SOQL formatter** — ✅ DONE. `soql_lang::format_soql` (clause-per-line,
-   depth-aware) wired to Monaco Format Document. Remaining SOQL-5 items:
-   queryAll/`--all-rows` toggle (needs a QueryOptions refactor to avoid a
-   2-bool param smell), TYPEOF / function / bind-variable completion.
+   depth-aware) wired to Monaco Format Document.
+6. **queryAll / `--all-rows` toggle** — ✅ DONE. Per-tab "All rows" checkbox →
+   `QueryOptions { all_rows }` (refactored away the 2-bool param smell). Unit + e2e.
+7. Remaining SOQL polish: TYPEOF / function / bind-variable completion (niche).
 
 ### Anonymous Apex
 1. Run-history panel (history.ts already records — needs UI).
