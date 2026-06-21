@@ -4,6 +4,7 @@
 //! `complete`/`resolve`), which still ships. Built up incrementally:
 //! lexer → tree → declaration parser → statement/expression parser.
 
+pub mod diagnostics;
 pub mod infer;
 pub mod lexer;
 pub mod parser;
