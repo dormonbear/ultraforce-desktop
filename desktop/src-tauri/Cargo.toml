@@ -1,6 +1,6 @@
 [package]
 name = "ultraforce-desktop"
-version = "0.2.1"
+version = "0.3.0"
 description = "Ultraforce — local-first Salesforce developer toolkit (SOQL, anonymous Apex, debug logs)"
 edition = "2021"
 
