@@ -63,6 +63,28 @@ const RESP: Record<string, unknown> = {
   set_target_org: null,
   get_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
   set_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
+  load_logging_config: {
+    traceFlags: [
+      {
+        id: "7tf1",
+        logType: "USER_DEBUG",
+        tracedEntityId: "005AAA",
+        tracedEntityName: "Bob (bob@x.com)",
+        tracedEntityKind: "User",
+        debugLevelId: "7dl1",
+        debugLevelName: "FINE_LOGS",
+        startDate: null,
+        expirationDate: "2099-01-01T00:00:00.000+0000",
+        creatorName: "Admin User",
+      },
+    ],
+    debugLevels: [{ id: "7dl1", developerName: "FINE_LOGS", levels: LEVELS }],
+    entities: [
+      { id: "005AAA", name: "Bob (bob@x.com)", kind: "User" },
+      { id: "005BBB", name: "Carol (carol@x.com)", kind: "User" },
+    ],
+  },
+  save_logging_config: { results: [] },
   run_apex: {
     compiled: true,
     success: true,

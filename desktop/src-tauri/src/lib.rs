@@ -339,6 +339,30 @@ async fn set_debug_config(
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
+/// Load all trace flags, debug levels, and traceable entities (Configure Logging dialog).
+#[tauri::command]
+async fn load_logging_config(state: State<'_, AppState>) -> Result<dto::LoggingConfigDto, String> {
+    let org = current_org(&state);
+    let cfg = features::debug_traces::load_logging_config(&state.invoker, org.as_deref())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(dto::LoggingConfigDto::from(&cfg))
+}
+
+/// Commit a batch of trace-flag / debug-level changes; returns per-record results.
+#[tauri::command]
+async fn save_logging_config(
+    diff: dto::LoggingDiffDto,
+    state: State<'_, AppState>,
+) -> Result<dto::SaveOutcomeDto, String> {
+    let org = current_org(&state);
+    let domain = features::debug_traces::LoggingDiff::from(&diff);
+    let out = features::debug_traces::save_logging_config(&state.invoker, &domain, org.as_deref())
+        .await
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(dto::SaveOutcomeDto::from(&out))
+}
+
 #[tauri::command]
 async fn apex_complete(
     src: String,
@@ -604,6 +628,8 @@ pub fn run() {
             set_target_org,
             get_debug_config,
             set_debug_config,
+            load_logging_config,
+            save_logging_config,
             apex_complete,
             soql_complete,
             warm_apex,

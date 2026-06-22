@@ -4,6 +4,10 @@
 use apex_lang::complete::{Candidate as ApexCandidate, CandidateKind as ApexCandidateKind};
 use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
 use features::debug_log::{DebugLogView, UnitView};
+use features::debug_traces::{
+    DebugLevelDraft, DebugLevelInfo, DebugLevelMod, EntityOption, LoggingConfig, LoggingDiff,
+    RecordResult, SaveOutcome, TraceFlagDraft, TraceFlagInfo, TraceFlagMod,
+};
 use features::soql::{FieldValue, Record};
 use log_parser::event::LogEvent;
 use log_parser::limits::{LimitEntry, LimitRollup};
@@ -151,6 +155,217 @@ impl From<&DebugConfig> for DebugConfigDto {
         DebugConfigDto {
             trace_flag_id: c.trace_flag_id.clone(),
             levels: CategoryLevelsDto::from(&c.levels),
+        }
+    }
+}
+
+// ---- Debug Traces management (Configure Logging dialog) ----
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntityDto {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+}
+impl From<&EntityOption> for EntityDto {
+    fn from(e: &EntityOption) -> Self {
+        EntityDto {
+            id: e.id.clone(),
+            name: e.name.clone(),
+            kind: e.kind.as_str().into(),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceFlagDto {
+    pub id: String,
+    pub log_type: String,
+    pub traced_entity_id: String,
+    pub traced_entity_name: String,
+    pub traced_entity_kind: String,
+    pub debug_level_id: String,
+    pub debug_level_name: String,
+    pub start_date: Option<String>,
+    pub expiration_date: Option<String>,
+    pub creator_name: String,
+}
+impl From<&TraceFlagInfo> for TraceFlagDto {
+    fn from(t: &TraceFlagInfo) -> Self {
+        TraceFlagDto {
+            id: t.id.clone(),
+            log_type: t.log_type.clone(),
+            traced_entity_id: t.traced_entity_id.clone(),
+            traced_entity_name: t.traced_entity_name.clone(),
+            traced_entity_kind: t.traced_entity_kind.as_str().into(),
+            debug_level_id: t.debug_level_id.clone(),
+            debug_level_name: t.debug_level_name.clone(),
+            start_date: t.start_date.clone(),
+            expiration_date: t.expiration_date.clone(),
+            creator_name: t.creator_name.clone(),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLevelDto {
+    pub id: String,
+    pub developer_name: String,
+    pub levels: CategoryLevelsDto,
+}
+impl From<&DebugLevelInfo> for DebugLevelDto {
+    fn from(d: &DebugLevelInfo) -> Self {
+        DebugLevelDto {
+            id: d.id.clone(),
+            developer_name: d.developer_name.clone(),
+            levels: CategoryLevelsDto::from(&d.levels),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoggingConfigDto {
+    pub trace_flags: Vec<TraceFlagDto>,
+    pub debug_levels: Vec<DebugLevelDto>,
+    pub entities: Vec<EntityDto>,
+}
+impl From<&LoggingConfig> for LoggingConfigDto {
+    fn from(c: &LoggingConfig) -> Self {
+        LoggingConfigDto {
+            trace_flags: c.trace_flags.iter().map(TraceFlagDto::from).collect(),
+            debug_levels: c.debug_levels.iter().map(DebugLevelDto::from).collect(),
+            entities: c.entities.iter().map(EntityDto::from).collect(),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordResultDto {
+    pub sobject: String,
+    pub op: String,
+    pub id: Option<String>,
+    pub ok: bool,
+    pub error: Option<String>,
+}
+impl From<&RecordResult> for RecordResultDto {
+    fn from(r: &RecordResult) -> Self {
+        RecordResultDto {
+            sobject: r.sobject.clone(),
+            op: r.op.clone(),
+            id: r.id.clone(),
+            ok: r.ok,
+            error: r.error.clone(),
+        }
+    }
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveOutcomeDto {
+    pub results: Vec<RecordResultDto>,
+}
+impl From<&SaveOutcome> for SaveOutcomeDto {
+    fn from(o: &SaveOutcome) -> Self {
+        SaveOutcomeDto {
+            results: o.results.iter().map(RecordResultDto::from).collect(),
+        }
+    }
+}
+
+// ---- diff input (frontend -> domain) ----
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLevelDraftDto {
+    pub local_key: String,
+    pub developer_name: String,
+    pub levels: CategoryLevelsDto,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugLevelModDto {
+    pub id: String,
+    pub levels: CategoryLevelsDto,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceFlagDraftDto {
+    pub log_type: String,
+    pub traced_entity_id: String,
+    pub debug_level_ref: String,
+    pub start_date: Option<String>,
+    pub expiration_date: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TraceFlagModDto {
+    pub id: String,
+    pub debug_level_id: String,
+    pub start_date: Option<String>,
+    pub expiration_date: Option<String>,
+}
+
+#[derive(serde::Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LoggingDiffDto {
+    pub debug_levels_added: Vec<DebugLevelDraftDto>,
+    pub debug_levels_modified: Vec<DebugLevelModDto>,
+    pub debug_levels_removed: Vec<String>,
+    pub trace_flags_added: Vec<TraceFlagDraftDto>,
+    pub trace_flags_modified: Vec<TraceFlagModDto>,
+    pub trace_flags_removed: Vec<String>,
+}
+impl From<&LoggingDiffDto> for LoggingDiff {
+    fn from(d: &LoggingDiffDto) -> Self {
+        LoggingDiff {
+            debug_levels_added: d
+                .debug_levels_added
+                .iter()
+                .map(|x| DebugLevelDraft {
+                    local_key: x.local_key.clone(),
+                    developer_name: x.developer_name.clone(),
+                    levels: CategoryLevels::from(&x.levels),
+                })
+                .collect(),
+            debug_levels_modified: d
+                .debug_levels_modified
+                .iter()
+                .map(|x| DebugLevelMod {
+                    id: x.id.clone(),
+                    levels: CategoryLevels::from(&x.levels),
+                })
+                .collect(),
+            debug_levels_removed: d.debug_levels_removed.clone(),
+            trace_flags_added: d
+                .trace_flags_added
+                .iter()
+                .map(|x| TraceFlagDraft {
+                    log_type: x.log_type.clone(),
+                    traced_entity_id: x.traced_entity_id.clone(),
+                    debug_level_ref: x.debug_level_ref.clone(),
+                    start_date: x.start_date.clone(),
+                    expiration_date: x.expiration_date.clone(),
+                })
+                .collect(),
+            trace_flags_modified: d
+                .trace_flags_modified
+                .iter()
+                .map(|x| TraceFlagMod {
+                    id: x.id.clone(),
+                    debug_level_id: x.debug_level_id.clone(),
+                    start_date: x.start_date.clone(),
+                    expiration_date: x.expiration_date.clone(),
+                })
+                .collect(),
+            trace_flags_removed: d.trace_flags_removed.clone(),
         }
     }
 }
