@@ -1,4 +1,4 @@
-# ULTRAFORCE
+# Ultraforce
 
 A fast, local-first Salesforce developer desktop toolkit for running SOQL,
 executing anonymous Apex, and reading debug logs — with offline, IntelliSense-grade
@@ -52,6 +52,33 @@ The Rust crates are pure and unit-tested with an injectable command runner, so
 the bulk of the logic is testable without a live org. A separate suite of
 real-org end-to-end tests (`#[ignore]` by default) runs against an authenticated
 dev org.
+
+## Install
+
+Download the latest build for your OS from the
+[Releases page](https://github.com/dormonbear/ultraforce-desktop/releases/latest):
+
+- **macOS** — `.dmg` (Apple Silicon `aarch64` or Intel `x64`)
+- **Windows** — `_x64_en-US.msi` or `_x64-setup.exe`
+- **Linux** — `.AppImage`, `.deb`, or `.rpm`
+
+The app drives the Salesforce CLI, so install and authenticate
+[`sf`](https://developer.salesforce.com/tools/salesforcecli) first
+(`sf org login web`).
+
+Builds are not paid-code-signed, so the first launch needs a one-time bypass:
+
+- **macOS** — if you see *"… is damaged and can't be opened"*, clear the download
+  quarantine flag, then open normally:
+  ```bash
+  xattr -cr /Applications/Ultraforce.app
+  ```
+  On builds that show the milder "unidentified developer" prompt, just
+  right-click the app → **Open** → **Open**.
+- **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
+
+Updates are delivered in-app: Ultraforce checks the Releases page on launch and
+offers a one-click download-and-restart when a newer version is available.
 
 ## Requirements
 
