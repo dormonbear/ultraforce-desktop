@@ -67,7 +67,7 @@ export function DebugConfigRow({
   };
 
   return (
-    <div className="border-y border-border bg-card/60 px-4 py-2">
+    <div className="@container border-y border-border bg-card/60 px-4 py-2">
       <button
         type="button"
         aria-label="Toggle debug levels"
@@ -102,7 +102,7 @@ export function DebugConfigRow({
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
             {CATEGORY_FIELDS.map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2">
                 <span className="w-28 shrink-0 truncate text-[11px] uppercase text-text-dim">
