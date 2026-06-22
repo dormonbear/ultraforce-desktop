@@ -17,10 +17,11 @@ import { configureMonacoApex } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { DebugConfigRow } from "./DebugConfigRow";
+import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
 import { recordHistory } from "../history";
 import { timing } from "../metrics";
-import type { ApexOutcomeDto, CategoryLevels, DebugConfigDto } from "../types";
+import type { ApexOutcomeDto } from "../types";
 import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
@@ -49,39 +50,18 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
-  const [levels, setLevels] = useState<CategoryLevels | null>(null);
-  const [cfgApplying, setCfgApplying] = useState(false);
-  const [cfgError, setCfgError] = useState<string | null>(null);
+  const {
+    levels,
+    applying: cfgApplying,
+    error: cfgError,
+    apply: applyConfig,
+  } = useDebugConfig(org);
 
   const srcRef = useRef(src);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   srcRef.current = src;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
-
-  useEffect(() => {
-    invoke<DebugConfigDto>("get_debug_config")
-      .then((dto) => setLevels(dto.levels))
-      .catch((e) => setCfgError(typeof e === "string" ? e : String(e)));
-  }, []);
-
-  const applyConfig = useCallback(async (next: CategoryLevels) => {
-    setCfgApplying(true);
-    setCfgError(null);
-    setLevels(next);
-    try {
-      const dto = await invoke<DebugConfigDto>("set_debug_config", {
-        levels: next,
-      });
-      setLevels(dto.levels);
-    } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
-      setCfgError(message);
-      toast.error(`Debug config: ${message}`);
-    } finally {
-      setCfgApplying(false);
-    }
-  }, []);
 
   const run = useCallback(async () => {
     setRunning(true);

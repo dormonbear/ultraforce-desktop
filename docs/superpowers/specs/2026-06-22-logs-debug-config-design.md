@@ -66,14 +66,29 @@ spinner. No toasts.
 
 ## Testing
 
-`desktop/src/useDebugConfig.test.ts` (vitest, mock `@tauri-apps/api/core`'s
-`invoke`):
+The project's vitest is **node-environment, pure-logic only** (no jsdom /
+testing-library); UI + IPC wiring is covered by **Playwright e2e** (`e2e/`,
+mocked Tauri IPC). A React hook is integration territory, so — following the
+existing split — it is covered by e2e rather than a renderHook unit test (which
+would require adding DOM test infra against the project's convention). The e2e
+harness already mocks `get_debug_config` / `set_debug_config` and records IPC
+calls on `window.__ufCalls`.
 
-1. fetches `get_debug_config` on mount and exposes `levels`.
-2. `apply()` calls `set_debug_config` with the new levels and updates `levels`.
-3. changing `org` triggers a re-fetch.
+`e2e/ultraforce.spec.ts` — two tests:
 
-Existing `ApexPanel` behavior is unchanged; no new ApexPanel test required.
+1. **applies a preset:** open Logs → the `DEBUG LEVELS` row is visible (proves the
+   mount fetch populated `levels`) → expand → pick the "Apex Only" preset →
+   assert `set_debug_config` was threaded with `levels.apexCode === "DEBUG"`.
+2. **re-fetch on org change:** open Logs → switch org → assert the
+   `get_debug_config` call count increases (the hook's `[org]` re-fetch).
+
+Existing `ApexPanel` behavior is unchanged and continues to be exercised by the
+existing apex e2e/completion tests; no new ApexPanel test required.
+
+> Deviation from the approved spec: the originally-planned `useDebugConfig.test.ts`
+> vitest unit test is replaced by the e2e tests above, because the repo's vitest
+> runs in `node` env with no testing-library. The e2e tests cover the same three
+> behaviors (mount fetch, apply, org re-fetch) end-to-end.
 
 ## Risks
 

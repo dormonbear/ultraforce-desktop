@@ -150,6 +150,48 @@ test("opening a local .log file parses and renders it", async ({ page }) => {
   await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
 });
 
+test("Logs panel exposes debug levels and applies a preset", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "Logs" }).click();
+
+  // The config row is present once get_debug_config (mocked) resolves on mount.
+  await expect(page.getByText("DEBUG LEVELS")).toBeVisible();
+
+  // Expand the row and choose the "Apex Only" preset.
+  await page.getByRole("button", { name: "Toggle debug levels" }).click();
+  await page.getByRole("combobox", { name: "Select debug preset" }).click();
+  await page.getByRole("option", { name: "Apex Only" }).click();
+
+  // set_debug_config is threaded with that preset's levels (apexCode = DEBUG).
+  const args = await page.evaluate(() => {
+    const calls =
+      (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] })
+        .__ufCalls ?? [];
+    return calls.filter((c) => c.cmd === "set_debug_config").at(-1)?.args;
+  });
+  expect((args?.levels as Record<string, string> | undefined)?.apexCode).toBe("DEBUG");
+});
+
+test("switching org re-fetches the debug config", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "Logs" }).click();
+  await expect(page.getByText("DEBUG LEVELS")).toBeVisible();
+
+  const getCalls = () =>
+    page.evaluate(() => {
+      const calls =
+        (window as unknown as { __ufCalls: { cmd: string }[] }).__ufCalls ?? [];
+      return calls.filter((c) => c.cmd === "get_debug_config").length;
+    });
+  const before = await getCalls();
+
+  // Switch to the other org → the hook's `org` dep re-fetches the config.
+  await page.getByLabel("Select Salesforce org").click();
+  await page.getByText("stg@acme.com", { exact: false }).click();
+
+  await expect.poll(getCalls).toBeGreaterThan(before);
+});
+
 test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Reindex org" }).click();
