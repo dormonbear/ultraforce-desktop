@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.2](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.1...v0.3.2) (2026-06-22)
+
+
+### Features
+
+* add TraceFlag/DebugLevel control to the Logs panel ([d316615](https://github.com/dormonbear/ultraforce-desktop/commit/d316615e95f58c900cba883087bb73c199d95765))
+* add TraceFlag/DebugLevel control to the Logs panel ([a09f547](https://github.com/dormonbear/ultraforce-desktop/commit/a09f54747c7f0f65b40793cbfbb4c816a2286f19))
+* Debug Traces management (Configure Logging dialog) ([361c614](https://github.com/dormonbear/ultraforce-desktop/commit/361c61434a2c1b4e3e19ee52728a0d0545df08f7))
+* **debug-traces:** backend load/save_logging_config + dto + commands ([e2c0c88](https://github.com/dormonbear/ultraforce-desktop/commit/e2c0c88b805dec43cca5054fa52398c32d787ff1))
+* **debug-traces:** Configure Logging dialog + tables + hook ([c6ffb85](https://github.com/dormonbear/ultraforce-desktop/commit/c6ffb8540ad4312e6dd71cde2d8f5ca64d257f33))
+
+
+### Bug Fixes
+
+* **debug-traces:** widen Configure Logging dialog so all columns fit ([9dbf1ea](https://github.com/dormonbear/ultraforce-desktop/commit/9dbf1eae9bd187fb94d84f980ae927fb631be0df))
+* make debug-config grid responsive to container width ([b42e564](https://github.com/dormonbear/ultraforce-desktop/commit/b42e564f3f3550f7bbe4bebc2ac0e5bc070f38c9))
+* make debug-config grid responsive to container width ([6223895](https://github.com/dormonbear/ultraforce-desktop/commit/6223895ae4b488211164dbbc40368ff2185b76a8))
+
 ## [0.3.1](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.0...v0.3.1) (2026-06-22)
 
 
