@@ -156,6 +156,18 @@ test("reindex org shows a success toast", async ({ page }) => {
   await expect(page.getByText(/Reindexing org/)).toBeVisible();
 });
 
+test("selecting an org warms the sObject-name cache for FROM completion", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  // FROM completion reads the in-memory sObject-name cache, which warm_schema
+  // populates cheaply on org-select — independent of the heavy index_org.
+  const calls = await page.evaluate(
+    () => (window as unknown as { __ufCalls: { cmd: string }[] }).__ufCalls,
+  );
+  expect(calls.some((c) => c.cmd === "warm_schema")).toBe(true);
+});
+
 test("soql editor surfaces relationship-field completion after a dot", async ({
   page,
 }) => {

@@ -14,6 +14,10 @@ import type { OrgDto } from "./types";
 
 /** Fire-and-forget index/delta-sync for `org`, scoped by the saved namespace policy. */
 function triggerIndex(org: string) {
+  // Cheap, immediate sObject-name cache for FROM completion. Kept separate from
+  // index_org below, which only populates that cache as its final step — after a
+  // heavy Apex index that can fail/stall on large orgs, leaving FROM empty.
+  void invoke("warm_schema", { org }).catch(() => {});
   void getNamespacePolicy().then((namespaces) =>
     invoke("index_org", { org, namespaces }).catch(() => {}),
   );

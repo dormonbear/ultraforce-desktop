@@ -142,6 +142,7 @@ const RESP: Record<string, unknown> = {
   apex_diagnostics: [],
   sf_status: { installed: true, version: "@salesforce/cli/2.0.0" },
   login_org: null,
+  warm_schema: 42,
 };
 
 /** Installs the mocked IPC before app scripts run. `overrides` patches RESP
