@@ -100,8 +100,14 @@ Expiration · DebugLevel**, plus per-row add/remove and the two bulk actions.
   ("Two Hours" / "Maximum 24h") match the reference.
 - **DebugLevel:** select over the Debug Levels table's rows.
 
-**Debug Levels table** columns: **DeveloperName + each category level** (reuses
-`CategoryLevels` + `LOG_LEVELS`) + add/remove.
+**Debug Levels table** columns: **DeveloperName + a Preset** (None / Apex Only /
+Full Debugging) that sets all category levels at once (reuses `CategoryLevels` +
+the presets) + add/remove.
+
+> Implementation note: the DebugLevels table sets levels via a **preset** rather
+> than eleven per-category selects per row — far more compact in a table and
+> covers the common case; per-category fine-tuning remains the running-user
+> `DebugConfigRow`'s job.
 
 ## Error handling
 

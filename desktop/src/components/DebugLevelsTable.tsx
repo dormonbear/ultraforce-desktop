@@ -16,7 +16,7 @@ type Cfg = ReturnType<typeof useLoggingConfig>;
 /** Editable table of DebugLevel records. Levels are set via a preset. */
 export function DebugLevelsTable({ cfg }: { cfg: Cfg }) {
   return (
-    <div className="rounded-md border border-border">
+    <div className="overflow-x-auto rounded-md border border-border">
       <div className="flex items-center justify-between border-b border-border px-2 py-1">
         <span className="text-[11px] text-text-dim">{cfg.levels.length} level(s)</span>
         <Button

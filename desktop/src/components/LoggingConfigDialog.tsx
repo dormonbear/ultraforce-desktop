@@ -26,7 +26,7 @@ export function LoggingConfigDialog({ open, onOpenChange, org }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="w-[95vw] sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>Configure Logging</DialogTitle>
         </DialogHeader>
@@ -37,7 +37,7 @@ export function LoggingConfigDialog({ open, onOpenChange, org }: Props) {
           </div>
         )}
 
-        <div className="max-h-[60vh] space-y-4 overflow-auto pr-1">
+        <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
           <section>
             <div className="micro-label mb-1">Trace Flags</div>
             <TraceFlagsTable cfg={cfg} />

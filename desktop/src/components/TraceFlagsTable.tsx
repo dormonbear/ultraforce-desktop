@@ -22,7 +22,7 @@ function defaultLogType(kind: string): string {
 /** Editable table of TraceFlag records across users / classes / triggers. */
 export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
   return (
-    <div className="rounded-md border border-border">
+    <div className="overflow-x-auto rounded-md border border-border">
       <div className="flex items-center justify-between border-b border-border px-2 py-1">
         <span className="text-[11px] text-text-dim">{cfg.flags.length} trace flag(s)</span>
         <div className="flex items-center gap-1">
