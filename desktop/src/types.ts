@@ -145,6 +145,76 @@ export type DebugConfigDto = {
   levels: CategoryLevels;
 };
 
+// ---- Debug Traces management (Configure Logging dialog) ----
+
+export type TracedEntityKind = "User" | "ApexClass" | "ApexTrigger" | "Unknown";
+
+export type EntityDto = { id: string; name: string; kind: TracedEntityKind };
+
+export type TraceFlagDto = {
+  id: string;
+  logType: string;
+  tracedEntityId: string;
+  tracedEntityName: string;
+  tracedEntityKind: TracedEntityKind;
+  debugLevelId: string;
+  debugLevelName: string;
+  startDate: string | null;
+  expirationDate: string | null;
+  creatorName: string;
+};
+
+export type DebugLevelDto = {
+  id: string;
+  developerName: string;
+  levels: CategoryLevels;
+};
+
+export type LoggingConfigDto = {
+  traceFlags: TraceFlagDto[];
+  debugLevels: DebugLevelDto[];
+  entities: EntityDto[];
+};
+
+export type RecordResultDto = {
+  sobject: string;
+  op: string;
+  id: string | null;
+  ok: boolean;
+  error: string | null;
+};
+
+export type SaveOutcomeDto = { results: RecordResultDto[] };
+
+// Diff sent to save_logging_config.
+export type DebugLevelDraftDto = {
+  localKey: string;
+  developerName: string;
+  levels: CategoryLevels;
+};
+export type DebugLevelModDto = { id: string; levels: CategoryLevels };
+export type TraceFlagDraftDto = {
+  logType: string;
+  tracedEntityId: string;
+  debugLevelRef: string; // real DebugLevel id, or a DebugLevelDraftDto.localKey
+  startDate: string | null;
+  expirationDate: string | null;
+};
+export type TraceFlagModDto = {
+  id: string;
+  debugLevelId: string;
+  startDate: string | null;
+  expirationDate: string | null;
+};
+export type LoggingDiffDto = {
+  debugLevelsAdded: DebugLevelDraftDto[];
+  debugLevelsModified: DebugLevelModDto[];
+  debugLevelsRemoved: string[];
+  traceFlagsAdded: TraceFlagDraftDto[];
+  traceFlagsModified: TraceFlagModDto[];
+  traceFlagsRemoved: string[];
+};
+
 export interface ApexCandidateDto {
   label: string;
   kind: string;
