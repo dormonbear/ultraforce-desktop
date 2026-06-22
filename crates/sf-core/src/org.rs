@@ -39,6 +39,10 @@ impl OrgRegistry {
         let mut all = r.non_scratch;
         all.extend(r.scratch);
         all.extend(r.sandboxes);
+        // sf lists a sandbox under both `nonScratchOrgs` and `sandboxes`; dedupe
+        // by username, keeping the first (non-scratch carries isDefaultUsername).
+        let mut seen = std::collections::HashSet::new();
+        all.retain(|o| seen.insert(o.username.clone()));
         Ok(all)
     }
 
@@ -89,6 +93,18 @@ mod tests {
         assert_eq!(orgs[0].alias.as_deref(), Some("prod"));
         assert!(orgs[0].is_default);
         assert!(orgs[1].alias.is_none());
+    }
+
+    #[tokio::test]
+    async fn dedupes_sandbox_listed_in_two_categories() {
+        // sf reports a sandbox under both nonScratchOrgs and sandboxes.
+        let json = r#"{"status":0,"result":{
+            "nonScratchOrgs":[{"username":"sand@x.com","alias":"sand","isDefaultUsername":true}],
+            "sandboxes":[{"username":"sand@x.com","alias":"sand"}]
+        }}"#;
+        let orgs = OrgRegistry::list(&invoker_returning(json)).await.unwrap();
+        assert_eq!(orgs.len(), 1);
+        assert!(orgs[0].is_default);
     }
 
     #[tokio::test]
