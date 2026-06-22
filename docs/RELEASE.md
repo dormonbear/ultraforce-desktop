@@ -8,13 +8,18 @@ ULTRAFORCE 桌面端通过 **release-please + tauri-action** 全自动发布到 
 ## 版本规则
 
 - 遵循 [SemVer](https://semver.org/)，版本号真源在 `.release-please-manifest.json`。
-- 版本号由 [Conventional Commits](https://www.conventionalcommits.org/) 自动推导（`< 1.0` 阶段）：
+- `< 1.0` 阶段日常提交只升 **patch**（`release-please-config.json` 已开
+  `bump-patch-for-minor-pre-major` + `bump-minor-pre-major`）：
   | 提交类型 | 版本变化 | 例 |
   |---|---|---|
-  | `fix:` | patch | 0.1.0 → 0.1.1 |
-  | `feat:` | minor | 0.1.0 → 0.2.0 |
-  | `feat!:` / 含 `BREAKING CHANGE` | minor（<1.0） | 0.1.0 → 0.2.0 |
+  | `fix:` | patch | 0.3.0 → 0.3.1 |
+  | `feat:`（小功能） | patch | 0.3.0 → 0.3.1 |
+  | `feat!:` / 含 `BREAKING CHANGE` | minor | 0.3.0 → 0.4.0 |
   | `docs:` / `chore:` / `refactor:` 等 | 不发版 | — |
+- **手动提升版本**（自动推导不够时）——在某个提交的 footer 写 `Release-As: x.y.z`，
+  release-please 会按指定版本发版：
+  - 大量功能累积 → 升 minor：`Release-As: 0.4.0`
+  - 极大重构 / redesign → 升 major：`Release-As: 1.0.0`
 - 三处版本由 release-please 自动同步，**不要手动改**：
   - `desktop/package.json`
   - `desktop/src-tauri/tauri.conf.json`
