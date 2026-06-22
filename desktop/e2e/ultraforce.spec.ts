@@ -192,6 +192,44 @@ test("switching org re-fetches the debug config", async ({ page }) => {
   await expect.poll(getCalls).toBeGreaterThan(before);
 });
 
+test("Configure Logging dialog adds a trace flag and saves the diff", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "Logs" }).click();
+  await page.getByRole("button", { name: "Configure logging" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Configure Logging" });
+  await expect(dialog).toBeVisible();
+  // The fixture's existing trace flag shows its traced user.
+  await expect(dialog.getByText("Bob (bob@x.com)")).toBeVisible();
+
+  // Add a new trace flag, pick a user and a debug level.
+  await dialog.getByRole("button", { name: "Add trace flag" }).click();
+  const newRow = page
+    .getByRole("row")
+    .filter({ has: page.getByLabel("Traced entity") });
+  await newRow.getByLabel("Traced entity").click();
+  await page.getByRole("option", { name: /Carol/ }).click();
+  await newRow.getByLabel("Debug level").click();
+  await page.getByRole("option", { name: "FINE_LOGS" }).click();
+
+  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+
+  // The committed diff carries one added trace flag for the chosen user/level.
+  const diff = await page.evaluate(() => {
+    const calls =
+      (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] })
+        .__ufCalls ?? [];
+    return calls.filter((c) => c.cmd === "save_logging_config").at(-1)?.args?.diff as
+      | { traceFlagsAdded: { tracedEntityId: string; debugLevelRef: string }[] }
+      | undefined;
+  });
+  expect(diff?.traceFlagsAdded?.length).toBe(1);
+  expect(diff?.traceFlagsAdded?.[0]?.tracedEntityId).toBe("005BBB");
+  expect(diff?.traceFlagsAdded?.[0]?.debugLevelRef).toBe("7dl1");
+});
+
 test("reindex org shows a success toast", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Reindex org" }).click();

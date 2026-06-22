@@ -341,9 +341,7 @@ async fn set_debug_config(
 
 /// Load all trace flags, debug levels, and traceable entities (Configure Logging dialog).
 #[tauri::command]
-async fn load_logging_config(
-    state: State<'_, AppState>,
-) -> Result<dto::LoggingConfigDto, String> {
+async fn load_logging_config(state: State<'_, AppState>) -> Result<dto::LoggingConfigDto, String> {
     let org = current_org(&state);
     let cfg = features::debug_traces::load_logging_config(&state.invoker, org.as_deref())
         .await

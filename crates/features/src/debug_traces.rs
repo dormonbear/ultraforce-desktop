@@ -196,7 +196,9 @@ struct LevelFields {
 }
 
 fn lvl(o: &Option<String>) -> LogLevel {
-    o.as_deref().map(LogLevel::from_sf).unwrap_or(LogLevel::None)
+    o.as_deref()
+        .map(LogLevel::from_sf)
+        .unwrap_or(LogLevel::None)
 }
 
 fn levels_from(f: &LevelFields) -> CategoryLevels {
@@ -319,8 +321,13 @@ pub async fn load_logging_config(
         org,
     )
     .await?;
-    let classes: Vec<RawNamed> =
-        query_t(invoker, "SELECT Id, Name FROM ApexClass ORDER BY Name", true, org).await?;
+    let classes: Vec<RawNamed> = query_t(
+        invoker,
+        "SELECT Id, Name FROM ApexClass ORDER BY Name",
+        true,
+        org,
+    )
+    .await?;
     let triggers: Vec<RawNamed> = query_t(
         invoker,
         "SELECT Id, Name FROM ApexTrigger ORDER BY Name",
@@ -421,7 +428,9 @@ async fn dml_create(
 ) -> Result<String, SfError> {
     let r: WriteResult = invoker
         .run_json(&with_org(
-            vec!["data", "create", "record", "-t", "-s", sobject, "-v", values],
+            vec![
+                "data", "create", "record", "-t", "-s", sobject, "-v", values,
+            ],
             org,
         ))
         .await?;
@@ -522,7 +531,12 @@ pub async fn save_logging_config(
     // 2. DebugLevel updates.
     for d in &diff.debug_levels_modified {
         let res = dml_update(invoker, "DebugLevel", &d.id, &d.levels.values_arg(), org).await;
-        results.push(write_result("DebugLevel", "update", Some(d.id.clone()), res));
+        results.push(write_result(
+            "DebugLevel",
+            "update",
+            Some(d.id.clone()),
+            res,
+        ));
     }
 
     // 3. TraceFlag inserts (resolve debug_level_ref via key_to_id when local).
@@ -608,10 +622,7 @@ mod tests {
     use sf_core::runner::MockRunner;
     use std::sync::{Arc, Mutex};
 
-    fn scripted(
-        responses: Vec<&'static str>,
-        seen: Arc<Mutex<Vec<Vec<String>>>>,
-    ) -> MockRunner {
+    fn scripted(responses: Vec<&'static str>, seen: Arc<Mutex<Vec<Vec<String>>>>) -> MockRunner {
         let idx = Arc::new(Mutex::new(0usize));
         MockRunner::new(move |_p, args| {
             seen.lock().unwrap().push(args.to_vec());
@@ -726,7 +737,12 @@ mod tests {
         assert!(out.results.iter().all(|r| r.ok));
 
         let calls = seen.lock().unwrap();
-        assert!(calls[0].contains(&"TraceFlag".to_string()) && calls[0].contains(&"delete".to_string()));
-        assert!(calls[1].contains(&"DebugLevel".to_string()) && calls[1].contains(&"delete".to_string()));
+        assert!(
+            calls[0].contains(&"TraceFlag".to_string()) && calls[0].contains(&"delete".to_string())
+        );
+        assert!(
+            calls[1].contains(&"DebugLevel".to_string())
+                && calls[1].contains(&"delete".to_string())
+        );
     }
 }
