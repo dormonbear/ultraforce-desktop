@@ -52,8 +52,10 @@ generated automatically by release-please (see [docs/RELEASE.md](docs/RELEASE.md
 | `feat!:` / `BREAKING CHANGE:` | breaking changes | minor |
 | `docs:` `chore:` `refactor:` `test:` `ci:` | non-shipping changes | none |
 
-- **Branch off `main`**; do not commit to `main` directly.
-- **PR title must be a Conventional Commit** — it drives the release notes.
+- **Follow the [Gitflow workflow](docs/WORKFLOW.md)**: branch `feature/*` off
+  `develop` and PR back into `develop`. `main` and `develop` are protected — never
+  commit to them directly.
+- **PR title must be a Conventional Commit** — it drives the version and release notes.
 - Keep changes surgical and focused; match the surrounding code style.
 - For language-tooling work (Apex/SOQL completion, resolution, diagnostics),
   model Apex types on the Salesforce Tooling API `SymbolTable`.
