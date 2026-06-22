@@ -31,8 +31,8 @@ export function TopProgressBar() {
     <div className="h-0.5 w-full overflow-hidden bg-primary/20">
       {determinate ? (
         <div
-          className="h-full bg-primary transition-[width] duration-300"
-          style={{ width: `${pct}%` }}
+          className="h-full w-full origin-left bg-primary transition-transform duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]"
+          style={{ transform: `scaleX(${pct / 100})` }}
         />
       ) : (
         <div className="uf-indeterminate h-full w-1/3 bg-primary" />
