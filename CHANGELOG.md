@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/dormonbear/ultraforce-desktop/compare/v0.2.1...v0.3.0) (2026-06-22)
+
+
+### Features
+
+* **desktop:** guide setup when sf CLI missing or no org; fix macOS GUI PATH ([1665d26](https://github.com/dormonbear/ultraforce-desktop/commit/1665d26db76a50c9ba9784f47d40e9286279a139))
+
+
+### Bug Fixes
+
+* **desktop:** macOS GUI PATH + setup page for missing sf CLI / org ([c797fea](https://github.com/dormonbear/ultraforce-desktop/commit/c797fea57dc902b47c535af3db5d2e89366c1eaf))
+
 ## [0.2.1](https://github.com/dormonbear/ultraforce-desktop/compare/v0.2.0...v0.2.1) (2026-06-22)
 
 
