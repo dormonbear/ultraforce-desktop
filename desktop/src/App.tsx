@@ -79,7 +79,7 @@ export default function App() {
           className="text-[20px] font-normal tracking-tight text-foreground"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          ULTRAFORCE
+          Ultraforce
         </span>
         <div className="flex items-center gap-2">
           <IndexProgress />
