@@ -12,6 +12,8 @@ import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
+import { SetupPage } from "./components/SetupPage";
+import { useOrgs } from "./org";
 import { CommandPalette } from "./components/CommandPalette";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
@@ -47,6 +49,9 @@ export default function App() {
   const [wsVersion, setWsVersion] = useState(0);
   const { theme, toggle } = useTheme();
   const themeTitle = theme === "dark" ? "Switch to light" : "Switch to dark";
+  const { loading: orgLoading, orgs } = useOrgs();
+  // No usable org (CLI missing / not authed) → guide the user instead of panels.
+  const needsSetup = !orgLoading && orgs.length === 0;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -153,9 +158,15 @@ export default function App() {
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {active === "soql" && <SoqlTabs key={`soql-${wsVersion}`} />}
-          {active === "apex" && <ApexTabs key={`apex-${wsVersion}`} />}
-          {active === "logs" && <LogsPanel />}
+          {needsSetup ? (
+            <SetupPage />
+          ) : (
+            <>
+              {active === "soql" && <SoqlTabs key={`soql-${wsVersion}`} />}
+              {active === "apex" && <ApexTabs key={`apex-${wsVersion}`} />}
+              {active === "logs" && <LogsPanel />}
+            </>
+          )}
         </main>
       </div>
       <CommandPalette
