@@ -7,6 +7,8 @@
     "core:default",
     "store:default",
     "dialog:default",
+    "updater:default",
+    "process:default",
     "fs:allow-mkdir",
     "fs:allow-read-dir",
     "fs:allow-read-text-file",
