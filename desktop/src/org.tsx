@@ -29,6 +29,8 @@ interface OrgState {
   error: string | null;
   /** Set the target org for all subsequent `sf` calls. */
   select: (username: string) => void;
+  /** Re-fetch the org list (e.g. after the user logs in from the setup page). */
+  reload: () => void;
 }
 
 const OrgCtx = createContext<OrgState>({
@@ -37,6 +39,7 @@ const OrgCtx = createContext<OrgState>({
   loading: true,
   error: null,
   select: () => {},
+  reload: () => {},
 });
 
 /** Single source of truth for the org list + active org (shared by the top-bar
@@ -56,8 +59,13 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     triggerIndex(username);
   }, []);
 
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setError(null);
     Promise.all([
       invoke<OrgDto[]>("list_orgs"),
       getJson<string | null>(ORG_KEY, null),
@@ -86,7 +94,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   // Background delta-sync: while an org is selected, poll for schema/class
   // changes. `index_org` on an existing snapshot only delta-syncs and emits a
@@ -100,7 +108,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   }, [selected]);
 
   return (
-    <OrgCtx.Provider value={{ orgs, selected, loading, error, select }}>
+    <OrgCtx.Provider value={{ orgs, selected, loading, error, select, reload }}>
       {children}
     </OrgCtx.Provider>
   );

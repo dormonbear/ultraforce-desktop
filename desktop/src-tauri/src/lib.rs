@@ -222,10 +222,92 @@ fn parse_log(body: String) -> LogViewDto {
 /// List the available Salesforce orgs via `sf org list`.
 #[tauri::command]
 async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, String> {
+    // Display (not Debug) so the actionable `SfError` message reaches the user.
     let orgs = sf_core::OrgRegistry::list(&state.invoker)
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(|e| e.to_string())?;
     Ok(orgs.iter().map(dto::OrgDto::from).collect())
+}
+
+/// Whether the `sf` CLI is reachable, plus its version. Lets the setup page tell
+/// "CLI not installed" apart from "installed but no org authed".
+#[derive(serde::Serialize)]
+struct SfStatusDto {
+    installed: bool,
+    version: Option<String>,
+}
+
+#[tauri::command]
+async fn sf_status(state: State<'_, AppState>) -> Result<SfStatusDto, String> {
+    match state.invoker.run_raw(&["--version"]).await {
+        Ok(out) => {
+            let v = out.stdout.trim().to_string();
+            Ok(SfStatusDto {
+                installed: true,
+                version: (!v.is_empty()).then_some(v),
+            })
+        }
+        Err(sf_core::SfError::NotFound) => Ok(SfStatusDto {
+            installed: false,
+            version: None,
+        }),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// Build the `sf org login web` argv from the optional knobs. Pure, so the
+/// arg mapping is unit-testable without spawning a process.
+fn build_login_args(
+    instance_url: Option<&str>,
+    alias: Option<&str>,
+    set_default: bool,
+) -> Vec<String> {
+    let mut a = vec!["org".to_string(), "login".to_string(), "web".to_string()];
+    if let Some(u) = instance_url.filter(|s| !s.trim().is_empty()) {
+        a.push("--instance-url".to_string());
+        a.push(u.trim().to_string());
+    }
+    if let Some(al) = alias.filter(|s| !s.trim().is_empty()) {
+        a.push("--alias".to_string());
+        a.push(al.trim().to_string());
+    }
+    if set_default {
+        a.push("--set-default".to_string());
+    }
+    a
+}
+
+/// Run `sf org login web` (opens the system browser for OAuth). Blocks until the
+/// flow finishes, so it gets a generous timeout. `instance_url` selects a
+/// sandbox / custom domain; `alias` / `set_default` are optional knobs.
+#[tauri::command]
+async fn login_org(
+    instance_url: Option<String>,
+    alias: Option<String>,
+    set_default: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut args = build_login_args(
+        instance_url.as_deref(),
+        alias.as_deref(),
+        set_default.unwrap_or(true),
+    );
+    args.push("--json".to_string());
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let out = state
+        .invoker
+        .run_raw_with_timeout(&arg_refs, std::time::Duration::from_secs(300))
+        .await
+        .map_err(|e| e.to_string())?;
+    if out.status != 0 {
+        let msg = out.stderr.trim();
+        return Err(if msg.is_empty() {
+            format!("`sf org login web` failed (status {})", out.status)
+        } else {
+            msg.to_string()
+        });
+    }
+    Ok(())
 }
 
 /// Set (or clear) the target org used by all subsequent `sf` calls.
@@ -502,6 +584,8 @@ async fn apex_diagnostics(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _guard = init_tracing();
+    #[cfg(target_os = "macos")]
+    inherit_login_path();
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
@@ -532,7 +616,9 @@ pub fn run() {
             apex_diagnostics,
             query_plan,
             format_soql,
-            parse_log
+            parse_log,
+            sf_status,
+            login_org
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
@@ -541,6 +627,25 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+/// ponytail: GUI apps launched from Finder/Dock inherit launchd's minimal PATH,
+/// not the shell PATH — so `sf` installed via mise/nvm/brew is invisible and
+/// every `sf` call fails with `NotFound`. Pull the login shell's PATH once at
+/// startup and adopt it. macOS-only; other platforms inherit a usable PATH.
+#[cfg(target_os = "macos")]
+fn inherit_login_path() {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    if let Ok(out) = std::process::Command::new(&shell)
+        .args(["-ilc", "echo $PATH"])
+        .output()
+    {
+        let path = String::from_utf8_lossy(&out.stdout);
+        let path = path.trim();
+        if !path.is_empty() {
+            std::env::set_var("PATH", path);
+        }
+    }
 }
 
 fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
@@ -560,4 +665,41 @@ fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
         .with_writer(non_blocking)
         .init();
     guard
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_login_args;
+
+    #[test]
+    fn login_args_default_is_web_login_with_set_default() {
+        assert_eq!(
+            build_login_args(None, None, true),
+            vec!["org", "login", "web", "--set-default"]
+        );
+    }
+
+    #[test]
+    fn login_args_include_instance_url_and_alias_when_present() {
+        assert_eq!(
+            build_login_args(Some("https://test.salesforce.com"), Some("sandbox"), false),
+            vec![
+                "org",
+                "login",
+                "web",
+                "--instance-url",
+                "https://test.salesforce.com",
+                "--alias",
+                "sandbox"
+            ]
+        );
+    }
+
+    #[test]
+    fn login_args_skip_blank_knobs() {
+        assert_eq!(
+            build_login_args(Some("  "), Some(""), false),
+            vec!["org", "login", "web"]
+        );
+    }
 }

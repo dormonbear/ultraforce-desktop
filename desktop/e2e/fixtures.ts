@@ -140,10 +140,16 @@ const RESP: Record<string, unknown> = {
   soql_diagnostics: [],
   apex_soql_diagnostics: [],
   apex_diagnostics: [],
+  sf_status: { installed: true, version: "@salesforce/cli/2.0.0" },
+  login_org: null,
 };
 
-/** Installs the mocked IPC before app scripts run. */
-async function installMocks(page: Page): Promise<void> {
+/** Installs the mocked IPC before app scripts run. `overrides` patches RESP
+ * (e.g. force `list_orgs` empty to exercise the setup page). */
+async function installMocks(
+  page: Page,
+  overrides: Record<string, unknown> = {},
+): Promise<void> {
   await page.addInitScript(
     (bundle: {
       resp: Record<string, unknown>;
@@ -266,13 +272,17 @@ async function installMocks(page: Page): Promise<void> {
     // @ts-expect-error — test-only hook to read a file the app wrote.
     window.__ufReadFile = (path: string) => files[path] ?? null;
     },
-    { resp: RESP, dirs: FAKE_DIRS, files: FAKE_FILES },
+    { resp: { ...RESP, ...overrides }, dirs: FAKE_DIRS, files: FAKE_FILES },
   );
 }
 
-/** Install mocks, navigate to the dev server, and wait for the app to settle. */
-export async function gotoApp(page: Page): Promise<void> {
-  await installMocks(page);
+/** Install mocks, navigate to the dev server, and wait for the app to settle.
+ * `overrides` patches the command fixtures (e.g. empty `list_orgs`). */
+export async function gotoApp(
+  page: Page,
+  overrides: Record<string, unknown> = {},
+): Promise<void> {
+  await installMocks(page, overrides);
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(800);

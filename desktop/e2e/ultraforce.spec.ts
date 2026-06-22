@@ -8,9 +8,9 @@ import { gotoApp } from "./fixtures";
  * schema refresh, and apex completion.
  */
 
-test("brand wordmark reads ULTRAFORCE", async ({ page }) => {
+test("brand wordmark reads Ultraforce", async ({ page }) => {
   await gotoApp(page);
-  await expect(page.getByText("ULTRAFORCE", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ultraforce", { exact: true })).toBeVisible();
 });
 
 test("explorer lists files and opens one in a tab (persists across reload)", async ({
@@ -221,4 +221,21 @@ test("sync-result event shows a toast", async ({ page }) => {
   );
   // sonner renders the text twice (visible toast + aria-live); match the first.
   await expect(page.getByText("Synced 3 updates").first()).toBeVisible();
+});
+
+test("setup page guides login when no org is authed", async ({ page }) => {
+  await gotoApp(page, { list_orgs: [] });
+  await expect(page.getByText("Connect a Salesforce org")).toBeVisible();
+  // One-click login invokes login_org with the selected environment.
+  await page.getByRole("button", { name: "Log in" }).click();
+  const calls = await page.evaluate(
+    () => (window as unknown as { __ufCalls: { cmd: string; args: unknown }[] }).__ufCalls,
+  );
+  expect(calls.some((c) => c.cmd === "login_org")).toBe(true);
+});
+
+test("setup page guides install when sf CLI is missing", async ({ page }) => {
+  await gotoApp(page, { list_orgs: [], sf_status: { installed: false, version: null } });
+  await expect(page.getByText("Salesforce CLI not found")).toBeVisible();
+  await expect(page.getByText("npm install -g @salesforce/cli")).toBeVisible();
 });

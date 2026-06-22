@@ -55,6 +55,11 @@ export interface OrgDto {
   is_default: boolean;
 }
 
+export interface SfStatus {
+  installed: boolean;
+  version: string | null;
+}
+
 export interface ApexOutcomeDto {
   compiled: boolean;
   success: boolean;
