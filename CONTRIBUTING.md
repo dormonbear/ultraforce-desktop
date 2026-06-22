@@ -52,7 +52,8 @@ generated automatically by release-please (see [docs/RELEASE.md](docs/RELEASE.md
 | `feat!:` / `BREAKING CHANGE:` | breaking changes | minor |
 | `docs:` `chore:` `refactor:` `test:` `ci:` | non-shipping changes | none |
 
-- **Branch off `main`**; do not commit to `main` directly.
+- **Follow [GitHub Flow](docs/WORKFLOW.md)**: branch off `main` and PR back into it.
+  `main` is protected — never commit to it directly.
 - **PR title must be a Conventional Commit** — it drives the release notes.
 - Keep changes surgical and focused; match the surrounding code style.
 - For language-tooling work (Apex/SOQL completion, resolution, diagnostics),
