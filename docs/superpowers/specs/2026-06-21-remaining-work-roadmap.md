@@ -19,7 +19,12 @@ feasible-tier implementations and heavy-tier specs requested by the user.
 | 5 | LSP-grade semantic Apex completion | `2026-06-21-lsp-apex-completion-design.md` | large; biggest feature |
 | 6 | SQLite-backed schema/index store | `2026-06-21-sqlite-store-design.md` | infra migration |
 | 7 | Cloud telemetry | `2026-06-21-cloud-telemetry-design.md` | privacy decision required |
-| 8 | Signed-release auto-update | `2026-06-21-signed-release-autoupdate-design.md` | needs signing infra |
+
+## Done since this roadmap
+
+| Item | Note |
+|------|------|
+| Release automation + in-app auto-update (was heavy-tier #8) | release-please + tauri-action multi-platform pipeline; Tauri updater with minisign signing (no paid code-signing). Shipped `v0.2.1` across macOS (arm/intel) + Windows + Linux. Runbook: [`docs/RELEASE.md`](../../RELEASE.md). macOS uses ad-hoc signing; first launch needs the Gatekeeper bypass noted in the README. |
 
 ## Not buildable
 

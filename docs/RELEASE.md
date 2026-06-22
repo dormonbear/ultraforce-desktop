@@ -51,11 +51,20 @@ ULTRAFORCE 桌面端通过 **release-please + tauri-action** 全自动发布到 
 - 更新包用 Tauri 自带的 minisign 密钥签名（**与付费代码签名无关**）：
   - 公钥已内置在 `tauri.conf.json > plugins.updater.pubkey`。
   - 私钥在 CI 通过 Secret `TAURI_SIGNING_PRIVATE_KEY` 注入，给安装包签名并生成 `latest.json`。
-- ⚠️ 当前已安装的 `0.1.0` 用户收不到更新（旧包未内置 updater）；自**下一个**发布版本起生效。
+- `0.1.0` 无 updater；`0.2.0` 起内置，之后版本均可应用内自动更新。
+
+## 平台签名与首次打开（无付费签名）
+
+- 安装包**未做付费代码签名/公证**。macOS 用 **ad-hoc 签名**（`tauri.conf.json > bundle.macOS.signingIdentity: "-"`），
+  把下载后的 "is damaged" 降级为温和的"未识别开发者"提示。
+- 首次打开需一次性放行（已写入 README「Install」）：macOS `xattr -cr /Applications/Ultraforce.app` 或右键→打开；
+  Windows SmartScreen → More info → Run anyway。彻底消除提示需付费 Apple 公证。
 
 ---
 
 ## 一次性设置（仅首次）
+
+> ✅ 本仓库两项均已完成（`v0.2.1` 已通过本流水线全平台发布）。以下保留为换仓/重建时的参考。
 
 1. **仓库设置**：Settings → Actions → General → 勾选
    **"Allow GitHub Actions to create and approve pull requests"**（否则 release-please 无法开 PR）。
