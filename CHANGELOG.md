@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.0...v0.3.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* **desktop:** warm sObject-name cache on org-select so FROM completion works ([cd80876](https://github.com/dormonbear/ultraforce-desktop/commit/cd80876e313ca7cee15fa7a3453ae31b9d9cf691))
+* **desktop:** warm sObject-name cache on org-select so FROM completion works ([d9235f0](https://github.com/dormonbear/ultraforce-desktop/commit/d9235f063814c47ebd7556271e30aa71534362d4))
+
 ## [0.3.0](https://github.com/dormonbear/ultraforce-desktop/compare/v0.2.1...v0.3.0) (2026-06-22)
 
 
