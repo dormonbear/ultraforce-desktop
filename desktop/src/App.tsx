@@ -80,12 +80,17 @@ export default function App() {
 
       {/* Top bar */}
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
-        <span
-          className="text-[20px] font-normal tracking-tight text-foreground"
-          style={{ fontFamily: "var(--font-display)" }}
+        <svg
+          viewBox="0 0 128 128"
+          className="size-[22px] select-none"
+          role="img"
+          aria-label="Ultraforce"
         >
-          Ultraforce
-        </span>
+          <g fill="#E0532F">
+            <path d="M16 30H31L89 64L31 98H16L74 64Z" />
+            <path d="M48 30H63L121 64L63 98H48L106 64Z" />
+          </g>
+        </svg>
         <div className="flex items-center gap-2">
           <IndexProgress />
           <SchemaRefresh />
