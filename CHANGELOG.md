@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/dormonbear/ultraforce-desktop/compare/v0.2.0...v0.2.1) (2026-06-22)
+
+
+### Bug Fixes
+
+* display app name as Ultraforce and complete bundle metadata ([d41c777](https://github.com/dormonbear/ultraforce-desktop/commit/d41c777555c5904e9a8ef1821a773d8c1e98b667))
+* display app name as Ultraforce and complete bundle metadata ([b637c87](https://github.com/dormonbear/ultraforce-desktop/commit/b637c87e15baaa30107861d1faeb591d46930210))
+
 ## [0.2.0](https://github.com/dormonbear/ultraforce-desktop/compare/v0.1.0...v0.2.0) (2026-06-22)
 
 
