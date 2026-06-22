@@ -1,0 +1,64 @@
+name: Bug report
+description: Report something that isn't working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please search existing issues first to avoid duplicates.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, plus what you expected instead.
+      placeholder: When I run a SOQL query with ..., the app ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps so we can reproduce it.
+      placeholder: |
+        1. Open the SOQL panel
+        2. Run `SELECT Id FROM Account`
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: The ULTRAFORCE version (release tag, e.g. v0.2.0).
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: sf-cli
+    attributes:
+      label: Salesforce CLI version
+      description: Output of `sf --version` (the app shells out to `sf`).
+      placeholder: "@salesforce/cli/2.x.x ..."
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        App logs live under the OS data dir, `ultraforce/logs/ultraforce.log`
+        (e.g. `~/Library/Application Support/ultraforce/logs` on macOS).
+        Paste any relevant lines. This will be rendered as code, no backticks needed.
+      render: shell
+    validations:
+      required: false

@@ -1,0 +1,9 @@
+# Force use of the structured forms above; no blank issues.
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/dormonbear/ultraforce-desktop/discussions
+    about: Ask questions and discuss ideas here instead of opening an issue.
+  - name: Security vulnerability
+    url: https://github.com/dormonbear/ultraforce-desktop/security/advisories/new
+    about: Report security issues privately (see SECURITY.md). Do NOT open a public issue.

@@ -19,6 +19,7 @@ import { SyncToast } from "./components/SyncToast";
 import { SchemaRefresh } from "./components/SchemaRefresh";
 import { WorkspaceSettings } from "./components/WorkspaceSettings";
 import { onOpenTabRequest } from "./openTab";
+import { checkForUpdates } from "./updater";
 import { useTheme } from "./theme";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
@@ -60,6 +61,11 @@ export default function App() {
 
   // History "open in tab" requests switch to the owning tool's panel.
   useEffect(() => onOpenTabRequest((tool) => setActive(tool)), []);
+
+  // Check GitHub Releases for a newer version once on startup.
+  useEffect(() => {
+    void checkForUpdates();
+  }, []);
 
   return (
     <TooltipProvider>

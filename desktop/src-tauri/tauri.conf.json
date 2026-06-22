@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -33,5 +34,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI1QkJDOTYxOTg5QUNCOTQKUldTVXk1cVlZY203dGU5d1RpL3E2M0xqSjNFazd6T2xVeXpUSGlTVTFFcTJBamVDajN5Qk1GSnIK",
+      "endpoints": [
+        "https://github.com/dormonbear/ultraforce-desktop/releases/latest/download/latest.json"
+      ]
+    }
   }
 }
