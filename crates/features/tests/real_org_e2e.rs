@@ -292,7 +292,7 @@ async fn e2e_dml_insert_query_delete() {
     assert_eq!(q2.total_size, 0, "record should be gone after delete");
 }
 
-/// Offline index (that-plugin-style) — the full index runs end-to-end against the live
+/// Offline index (reference-plugin-style) — the full index runs end-to-end against the live
 /// org: stdlib + every Apex class + every sObject (8-concurrent describes),
 /// persisted to a snapshot that reloads identically, then served with ZERO
 /// further network calls (proven by an invoker that panics on any sf call).

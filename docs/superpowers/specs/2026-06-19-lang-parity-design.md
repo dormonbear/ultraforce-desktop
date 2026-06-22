@@ -5,14 +5,14 @@
 
 ## Goal & scope
 
-Bring the existing Tauri desktop SOQL and Anonymous Apex panels to that plugin "look & feel"
+Bring the existing Tauri desktop SOQL and Anonymous Apex panels to the reference plugin "look & feel"
 parity for the **achievable** feature set, without the two heavy deferred engines.
 
 **In scope (4 units):**
 1. Global org selector (real `sf org list`, target-org threaded into every sf call).
 2. SOQL result: status line (`Executing…` / `N rows returned`) + `Table | Tree` toggle (parent-child / subquery tree).
 3. Apex/debug log view: per-event syntax highlight, USER_DEBUG emphasis, filter row (search + Debug Only + Highlight).
-4. Visual fidelity to that plugin within the existing `desktop-design-system` tokens.
+4. Visual fidelity to the reference plugin within the existing `desktop-design-system` tokens.
 
 **Out of scope (future rounds):** Apex code autocomplete (apex-lang / SP-F), trace-flag /
 log-level config row, multi-tab queries.
@@ -109,7 +109,7 @@ Playwright snapshot deferred (no display in CI here).
 
 ## Unit 4 — Visual fidelity
 
-Top bar org dropdown matches that plugin (globe + `Org (user@…)`); Run is green `▶` (accent),
+Top bar org dropdown matches the reference plugin (globe + `Org (user@…)`); Run is green `▶` (accent),
 spacing/fonts tightened to the terminal/instrument language already in
 `desktop-design-system`. No new tokens; reuse `accent`, `red`, `hair`, `surface`,
 `text-dim`, `micro-label`, `tnum`.

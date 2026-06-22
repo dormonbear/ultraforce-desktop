@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans. Steps use checkbox (`- [ ]`).
 
-**Goal:** Add an that-plugin-style debug-config row to the Apex panel — a Preset dropdown + eleven per-category log-level dropdowns — that upserts the running user's `DebugLevel` + `TraceFlag` via Tooling DML so the next anonymous-Apex run logs at the chosen verbosity. New Rust module `features::debug_config`, two Tauri commands, one React component wired into `ApexPanel`.
+**Goal:** Add a reference-plugin-style debug-config row to the Apex panel — a Preset dropdown + eleven per-category log-level dropdowns — that upserts the running user's `DebugLevel` + `TraceFlag` via Tooling DML so the next anonymous-Apex run logs at the chosen verbosity. New Rust module `features::debug_config`, two Tauri commands, one React component wired into `ApexPanel`.
 
 **Architecture:** `features::debug_config` mirrors `anon_apex`/`debug_log`: pure preset logic (`preset_levels`, `CategoryLevels::values_arg`) + thin sf orchestration (`get_debug_config`, `set_debug_config`) via `SfInvoker::run_json`, with `target_org: Option<&str>` as the last parameter. Tooling DML uses `sf data create/update record -t -s <Object> -v "..."`. Two Tauri commands map DTOs and thread `current_org`. React `DebugConfigRow` reuses the OrgSelector dropdown pattern + existing Tailwind tokens.
 
@@ -988,4 +988,4 @@ git commit -m "feat(desktop): wire debug-config row into the apex panel"
 - **Convention compliance:** `target_org: Option<&str>` is the last param of every `features` fn; `--target-org` appended only when `Some` (asserted in T2 create/update tests). MockRunner only in unit tests; sole real-sf test is `#[ignore]`-d (T4). Reuses existing tokens + OrgSelector dropdown pattern; no new tokens; no emoji. Conventional commits, no author attribution.
 - **Type consistency:** `SfInvoker`/`SfError` from sf-core; `run_json` envelope shape matches `{result:{id,success}}` / `{result:{records,...}}`; DTO camelCase matches the React `CategoryLevels` type. `preset_levels`/`CategoryLevels`/`LogLevel::as_sf`/`from_sf` (T1) reused by T2/T3/T5/T6. `current_org` + `generate_handler!` registration match the existing lib.rs structure.
 - **Placeholder scan:** every Rust step has complete code; `format_iso_utc` + `debug-presets.ts` + `DebugConfigRow.tsx` are specified behaviorally with exact tokens/props (UI files build-verified by `pnpm build`, no display available). No TBD left in the logic paths.
-- **Open question for the user:** whether the TraceFlag should auto-clear on app close (current decision: persist until 24h expiry, matching that plugin) — flagged in the spec; default chosen, reversible.
+- **Open question for the user:** whether the TraceFlag should auto-clear on app close (current decision: persist until 24h expiry, matching the reference plugin) — flagged in the spec; default chosen, reversible.

@@ -27,7 +27,7 @@
 - Detect clause at cursor: SELECT / FROM / WHERE / ORDER BY / GROUP BY / HAVING / LIMIT / OFFSET / none.
 - SELECT/WHERE/ORDER BY/GROUP BY/HAVING → fields (kind Field) + functions (kind Function) + valid clause keywords (kind Keyword).
 - FROM → `objects` filtered by prefix (kind Object) + the already-known object.
-- Provide `const SOQL_KEYWORDS` and `const SOQL_FUNCTIONS` (21 that plugin names). Filter all by the backward-extracted prefix, case-insensitive, dedup, sort.
+- Provide `const SOQL_KEYWORDS` and `const SOQL_FUNCTIONS` (21 the reference plugin names). Filter all by the backward-extracted prefix, case-insensitive, dedup, sort.
 - Tests: keyword appears after `SELECT Id `→ expect `FROM` in FROM-position test; `SELECT ` → fields+functions; `FROM ` with objects → object names; prefix filtering; empty objects slice safe.
 
 ### Task 2: Apex richer keywords (`crates/apex-lang`)

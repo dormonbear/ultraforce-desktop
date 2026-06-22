@@ -1,6 +1,6 @@
 # feature parity roadmap (SOQL / Anonymous Apex / Log analysis)
 
-> Date: 2026-06-21 · Status: In progress · Driven by the that plugin gap analysis.
+> Date: 2026-06-21 · Status: In progress · Driven by the reference plugin gap analysis.
 > Goal: bring SOQL query, Anonymous Apex, and Debug-log analysis to **basic parity** with
 > the established Salesforce IDE plugin. Each item lands as its own tested + e2e-verified increment via /loop.
 
@@ -21,12 +21,12 @@
 2. **Aggregate hotspots** — ✅ DONE. `profile::hotspots` groups method/unit frames by
    signature, sums self/total time + call count; a "Hotspots" tab shows top methods by self time.
 3. **Heap allocation tracking** — ✅ DONE. `HEAP_ALLOCATE` recognized; per-frame self heap
-   aggregated into hotspots (HEAP column), mirroring that plugin's Self Heap.
+   aggregated into hotspots (HEAP column), mirroring the reference plugin's Self Heap.
 4. **SOQL/DML detail + row counts** — ✅ DONE. `statements::statements` extracts SOQL/DML
    text + rows + duration; a "Queries" tab groups by text (count + rows) and flags repeats (N+1).
 5. **Event-filterable tree** — ✅ DONE. `filterTree` prunes the execution tree
    to matching events (label/detail); filter box on the tree tab. Unit + e2e.
-   (Remaining: broader event-name coverage toward that plugin's ~140 — low-value mechanical.)
+   (Remaining: broader event-name coverage toward the reference plugin's ~140 — low-value mechanical.)
 6. **Open local `.log` / save downloaded log** — ✅ DONE. `parse_log` command
    (shares `build_log_view` with `get_log`, no org fetch); LogsPanel OPEN/SAVE
    buttons via dialog + fs. Unit-covered parsing + e2e for the open flow.

@@ -4,7 +4,7 @@
 
 ## Purpose
 
-The schema engine that later powers SOQL/Apex completion & validation (the that plugin
+The schema engine that later powers SOQL/Apex completion & validation (the reference plugin
 "精华"). This **thin first slice** does on-demand single-object describe →
 trimmed model → disk + in-memory cache → basic query. No UI. No bulk
 describe-all. It is the on-disk schema source that SP-E (SOQL completion) will

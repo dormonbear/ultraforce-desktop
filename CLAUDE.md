@@ -2,26 +2,17 @@
 
 This is a SOQL / Anonymous-Apex / debug-log desktop tool with an Apex language engine
 (`crates/apex-lang`), schema/SOQL tooling (`crates/sf-schema`, `crates/soql-lang`), and a
-Tauri/React desktop UI (`desktop/`). It is modeled on **the established Salesforce IDE plugin (that plugin)**, the
-JetBrains Salesforce plugin.
+Tauri/React desktop UI (`desktop/`).
 
-## Reference that plugin's implementation
+## Apex symbol model
 
-For most language-tooling work here — Apex completion, type/symbol resolution, inheritance,
-diagnostics, SOQL handling — **that plugin is the primary reference**. Decompiled sources and analysis
-are checked in:
-
-- `reference-source/src/` — decompiled that plugin Java (e.g. `com/establishedplugin/intellij/apex/completion/ApexCompletionContributor.java`, the `com/sforce/soap/tooling/` SymbolTable model).
-- `reference-analysis/` — supporting analysis (cfr/jadx/javap, indices, semgrep).
-
-Key model to follow: that plugin represents Apex types via the Tooling API **SymbolTable**
+For language-tooling work here — Apex completion, type/symbol resolution, inheritance,
+diagnostics, SOQL handling — model Apex types on the Salesforce Tooling API **SymbolTable**
 (`parentClass`, `interfaces`, `methods`, `properties` with `modifiers`/visibility,
 `constructors`, `innerClasses`, `variables`, `namespace`). Inheritance / `super.` /
-inherited-member completion = walk the `parentClass` chain and merge `interfaces`. Mirror that plugin's
+inherited-member completion = walk the `parentClass` chain and merge `interfaces`. Keep this
 shape in `apex-lang`'s symbol model (`crates/apex-lang/src/symbols.rs`) and its AST engine
 (`crates/apex-lang/src/ast/`) rather than inventing a divergent model.
-
-When implementing or fixing an Apex/SOQL language feature, check how that plugin does it first.
 
 ---
 

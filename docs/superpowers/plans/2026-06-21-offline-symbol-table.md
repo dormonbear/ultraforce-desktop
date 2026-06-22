@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - English code/comments; no author attribution.
-- Data is **first-party only** — Salesforce endpoints (Tooling completions, Tooling `ApexClass.SymbolTable`, sObject describe). Never that plugin bundled data. ([[sf-toolkit-apex-data-first-party-only]])
+- Data is **first-party only** — Salesforce endpoints (Tooling completions, Tooling `ApexClass.SymbolTable`, sObject describe). Never the reference plugin bundled data. ([[sf-toolkit-apex-data-first-party-only]])
 - Reuse the existing cache root `OstStore::default_root()` (`~/.cache/ultraforce`).
 - `Ost`, `ApexType`, `Namespace` already derive `Serialize`/`Deserialize` — snapshot is `serde_json` of `Ost`.
 - v1 sObject describe is **sequential** (ponytail: simple + correct first). `// ponytail: sequential describe; add bounded concurrency if first-index time is too long`.

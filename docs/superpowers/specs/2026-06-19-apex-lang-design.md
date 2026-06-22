@@ -2,11 +2,11 @@
 
 > Date: 2026-06-19 · Crate: `crates/apex-lang` · Depends on: sf-schema → sf-core
 > Mechanism: an Offline Symbol Table (OST), generated from the user's own org
-> via Salesforce first-party endpoints — never from that plugin's bundled data.
+> via Salesforce first-party endpoints — never from the reference plugin's bundled data.
 
 ## Goal & non-goals
 
-**Goal.** The Apex half of the that plugin "精华": an **in-process, cache-fed** Apex
+**Goal.** The Apex half of the reference plugin "精华": an **in-process, cache-fed** Apex
 completion engine. It builds an Offline Symbol Table (OST) that covers (a) the
 Apex `System`-namespace standard library, (b) sObject fields/relationships, and
 (c) the org's own `ApexClass` symbols, then completes against that cached table
@@ -16,7 +16,7 @@ acquisition + basic completion; later phases add inference and diagnostics.
 **Mechanism, not data (LOCKED).** The *mechanism* is the same as
 the established Salesforce IDE plugin's OST. The *data* is ours: we GENERATE the symbol table from
 the user's connected org through Salesforce **first-party** endpoints. We never
-copy, embed, or redistribute that plugin's bundled symbol data. (Mirrors the
+copy, embed, or redistribute the reference plugin's bundled symbol data. (Mirrors the
 sf-toolkit rule: completion data comes from Salesforce endpoints only.)
 
 **Non-goals (this design, all phases).** No code formatting, no execution, no

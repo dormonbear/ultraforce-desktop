@@ -7,7 +7,7 @@
 ## Goal & non-goals
 
 **Goal.** Let the user keep multiple independent SOQL / Anonymous Apex editors open at
-once, each with its own editor content, last result, and view state — like that plugin's
+once, each with its own editor content, last result, and view state — like the reference plugin's
 auto-numbered tab bar. A `+` adds a tab, `×` closes one, clicking switches, and the active
 tab is visually marked. State is per-tab and fully isolated.
 
@@ -106,7 +106,7 @@ documented below).
   (the `×` is hidden/disabled when `tabs.length === 1`).
 - **Switch.** Click a tab → `setActive(id)`. Pure state change; the active view remounts
   (keyed by id), restoring that tab's editor content + result + view state.
-- **Rename.** Not exposed as UI in v1 (that plugin's auto-numbered titles are enough). The model
+- **Rename.** Not exposed as UI in v1 (the reference plugin's auto-numbered titles are enough). The model
   supports it via `onPatch({ title })`, so a double-click-to-rename can be added later
   with zero model change. Documented as future, not built.
 

@@ -1,15 +1,15 @@
-# sf-toolkit — Rust 独立替代 that plugin（SOQL / Anonymous Apex / Debug Log）设计文档
+# sf-toolkit — Rust 独立替代业界 Salesforce IDE 插件（SOQL / Anonymous Apex / Debug Log）设计文档
 
 > Date: 2026-06-18 · Status: Approved (overall design) · Next: per-sub-project specs
 
 ## 1. 目标与非目标
 
-**目标**：一个独立的 Rust 单体桌面应用，复刻 the established Salesforce IDE plugin 的三块功能：
+**目标**：一个独立的 Rust 单体桌面应用，复刻业界 Salesforce IDE 插件的三块功能：
 1. **SOQL Query** — 编写/执行 SOQL，表格与树形结果视图。
 2. **Anonymous Apex** — 编写/执行匿名 Apex，查看编译/执行结果与 debug log。
 3. **Debug Log** — 拉取/解析调试日志，原始视图 + 执行树 + governor-limit 聚合。
 
-并复刻 that plugin 的"精华"：**schema/符号感知的补全与校验**（SOQL 全量 + Apex 完整类型感知补全）。
+并复刻业界 Salesforce IDE 插件的"精华"：**schema/符号感知的补全与校验**（SOQL 全量 + Apex 完整类型感知补全）。
 
 **非目标**：不做完整 IDE（重构、部署、元数据管理、版本控制集成等一律不做）。不做 IntelliJ 插件。
 
@@ -113,7 +113,7 @@ sf-toolkit/
 
 | 风险 | 影响 | 缓解 |
 |---|---|---|
-| **Apex 标准库数据来源**（SP-F.2） | 无 System 库模型则 Apex 补全无从谈起 | 单独 brainstorm；候选：从 that plugin OST 的 systemDeclaration 数据提取 / Salesforce 文档抽取 / 打包 curated 数据集 |
+| **Apex 标准库数据来源**（SP-F.2） | 无 System 库模型则 Apex 补全无从谈起 | 单独 brainstorm；候选：从业界 IDE 插件 OST 的 systemDeclaration 数据提取 / Salesforce 文档抽取 / 打包 curated 数据集 |
 | `sf` 进程启动延迟 | 不能用于逐键补全 | 架构已隔离：补全吃缓存，sf 仅一次性拉取 |
 | Tauri/React 依赖升级 | 跟版本成本 | UI 薄、逻辑在下层 crate，升级面收敛在 `desktop/` |
 | 超大 SOQL 结果集 | 内存/渲染卡顿 | TanStack Table 虚拟化 + 大集走 `data export bulk` |

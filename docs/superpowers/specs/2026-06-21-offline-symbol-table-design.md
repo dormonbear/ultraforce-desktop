@@ -1,4 +1,4 @@
-# Offline Symbol Table (that-plugin-style full index) — Design
+# Offline Symbol Table (reference-plugin-style full index) — Design
 
 **Date:** 2026-06-21
 **Status:** Drafted, pending review
@@ -9,7 +9,7 @@ Code completion currently fetches symbols **lazily on first use** (stdlib OST
 ~140s on first warm; each org Apex class's full SymbolTable on first member
 access; each sObject describe on first access), all disk-cached after. This
 shows Monaco "Loading…" on cache misses during normal use. The user wants the
-**that plugin model**: build a complete local offline symbol table once, then serve
+**the reference plugin model**: build a complete local offline symbol table once, then serve
 completion 100% from the local table — no on-demand fetches, no Loading during
 use.
 
@@ -23,7 +23,7 @@ use.
 - **Completion serves purely from the local table** once indexed (no blocking
   on-demand network).
 - **Data stays first-party** — built from Salesforce endpoints (Tooling
-  completions, Tooling `ApexClass.SymbolTable`, sObject describe). Never that plugin's
+  completions, Tooling `ApexClass.SymbolTable`, sObject describe). Never the reference plugin's
   bundled data. (Constraint unchanged: [[sf-toolkit-apex-data-first-party-only]].)
 - **Phase 2 (optional, later): incremental auto-update** — detect changed
   objects/classes and patch the table in the background.
@@ -31,7 +31,7 @@ use.
 ## Architecture
 
 This reverses the prior "lazy on-demand for scalability" decision in favor of an
-explicit, progress-shown, one-time background index (the that plugin bargain). The bulk
+explicit, progress-shown, one-time background index (the reference plugin bargain). The bulk
 machinery already exists: `fetch_apex_symbols` (all class SymbolTables, via
 `OstSource::OrgTypes`), `list_sobject_names` (`sf sobject list --sobject all`),
 `SchemaStore.get_or_fetch` (per-object describe), `run_raw_with_timeout` (300s).

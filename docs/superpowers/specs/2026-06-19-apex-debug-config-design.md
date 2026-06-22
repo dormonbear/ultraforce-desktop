@@ -5,7 +5,7 @@
 
 ## Goal & non-goals
 
-**Goal.** Give the Apex panel an that-plugin-style config row above the editor: a **Preset**
+**Goal.** Give the Apex panel a reference-plugin-style config row above the editor: a **Preset**
 dropdown (e.g. "None", "Apex Only", "Full Debugging (Debug)") plus eleven
 **per-category log-level** dropdowns (Apex Code, Apex Profiling, Callout, Data Access,
 Database, NBA, System, Validation, Visualforce, Wave, Workflow). Applying a config
@@ -87,7 +87,7 @@ Preset maps (feature parity defaults; `Custom` carries an explicit `CategoryLeve
 - **Apex Only** — `ApexCode=DEBUG`, `System=DEBUG`, everything else `NONE`.
 - **Full Debugging (Debug)** — `ApexCode=FINEST, ApexProfiling=FINEST, Callout=FINEST,
   DataAccess=FINEST, Database=FINEST, Nba=FINE, System=FINE, Validation=INFO,
-  Visualforce=FINER, Wave=FINER, Workflow=FINER` (that plugin's "Debug" preset; exact level map
+  Visualforce=FINER, Wave=FINER, Workflow=FINER` (the reference plugin's "Debug" preset; exact level map
   in code, single source of truth).
 
 `LogLevel::as_sf(&self) -> &'static str` / `from_sf(&str)` bridge the enum to sf strings.
@@ -159,7 +159,7 @@ A new `DebugConfigRow` component rendered above the Monaco editor inside `ApexPa
 ## Scope decision — applies to Apex panel only
 
 The TraceFlag is per running-user and org-wide by nature, but conceptually scoped to "what
-the Apex panel run will log". We do **not** auto-clear it on panel close (matches that plugin: the
+the Apex panel run will log". We do **not** auto-clear it on panel close (matches the reference plugin: the
 trace flag persists until expiry). Default `ExpirationDate = now + 24h`. Documented in the
 row's tooltip so the user understands it affects all of their org's debug logs until expiry.
 

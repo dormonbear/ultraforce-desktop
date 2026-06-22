@@ -10,8 +10,8 @@ header, flat execution units, a nested execution tree, and a governor-limit
 rollup. No IO, no `sf`, no UI — text in, structures out. Consumed by SP-A
 (Debug Log feature) and SP-C (Anonymous Apex feature).
 
-Ported from that plugin's `ParsedApexLog` / `ApexLogEntry` / `ApexLogHeader`, adapted to
-Rust (that plugin generates synthetic data for IntelliJ; we just need queryable structs).
+Ported from the reference plugin's `ParsedApexLog` / `ApexLogEntry` / `ApexLogHeader`, adapted to
+Rust (the reference plugin generates synthetic data for IntelliJ; we just need queryable structs).
 
 ## Log format (verified against a real staging log)
 
@@ -38,7 +38,7 @@ Execute Anonymous: System.debug('hello');          <- non-timestamped preamble (
 
 ## Decisions
 
-1. **Curated event enum + `Other(String)`** — model only structurally-significant events as variants; everything else keeps its raw name in `Other`. Rationale: tree-building and limit extraction only branch on these; transcribing that plugin's 200+ variants we never match is waste.
+1. **Curated event enum + `Other(String)`** — model only structurally-significant events as variants; everything else keeps its raw name in `Other`. Rationale: tree-building and limit extraction only branch on these; transcribing the reference plugin's 200+ variants we never match is waste.
 2. **Zero runtime dependencies** — hand-roll timestamp/event validation (no `regex` crate). std only.
 3. **Category/level**: header levels kept as raw `(String, String)` pairs. No per-event category/level table in this crate (that is a UI-filter concern for SP-A.4; add later if needed).
 4. **Tree is separate from parse** — `ParsedLog` is flat (feature parity: units split on `EXECUTION_STARTED`/`EXECUTION_FINISHED`). Nesting is built on demand by the `tree` module from scope start/end pairing.

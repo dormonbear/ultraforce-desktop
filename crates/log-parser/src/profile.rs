@@ -1,6 +1,6 @@
 //! Aggregate hotspot profiling over the execution tree — group method / unit
 //! frames by signature and sum their self/total time and call count, mirroring
-//! that plugin's aggregate stack-frame view. The biggest analytical win for finding slow
+//! The reference plugin's aggregate stack-frame view. The biggest analytical win for finding slow
 //! methods across an entire log.
 
 use crate::event::LogEvent;

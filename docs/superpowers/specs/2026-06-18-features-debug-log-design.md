@@ -48,7 +48,7 @@ testable without `sf`. `fetch_and_parse` = `get_log_body` then `from_log`.
 ## Decisions
 
 1. **Vertical slice = list → get → parse.** Trace flag / debug level CRUD
-   (that plugin's "configure debug levels") is deferred to the desktop config panel
+   (the reference plugin's "configure debug levels") is deferred to the desktop config panel
    (SP-A.4); not in this slice. YAGNI.
 2. **`LogBody { log: String }`** is a private serde struct in `features` for the
    `get log` result shape; `list_logs` reuses `sf_core::ApexLogRef` directly.

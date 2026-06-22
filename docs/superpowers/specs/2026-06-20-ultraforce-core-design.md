@@ -17,7 +17,7 @@
 - SELECT / WHERE / ORDER BY / GROUP BY: fields + aggregate/date functions + clause keywords.
 - FROM: sObject names (from a provided list) + already-known object.
 - Anywhere: clause keywords valid at that position.
-Ship a static SOQL keyword list and the 21 that plugin function names (AVG, COUNT, COUNT_DISTINCT, MAX, MIN, SUM, CALENDAR_*, DAY_*, FISCAL_*, HOUR_IN_DAY, WEEK_*, CONVERTCURRENCY, CONVERTTIMEZONE, DISTANCE, FORMAT, GROUPING, TOLABEL, FIELDS). `complete()` gains an `objects: &[String]` param for FROM completion (caller passes cached sObject names; empty slice allowed).
+Ship a static SOQL keyword list and the 21 the reference plugin function names (AVG, COUNT, COUNT_DISTINCT, MAX, MIN, SUM, CALENDAR_*, DAY_*, FISCAL_*, HOUR_IN_DAY, WEEK_*, CONVERTCURRENCY, CONVERTTIMEZONE, DISTANCE, FORMAT, GROUPING, TOLABEL, FIELDS). `complete()` gains an `objects: &[String]` param for FROM completion (caller passes cached sObject names; empty slice allowed).
 
 ### 2. Apex completion (richer keywords)
 `crates/apex-lang/src/complete.rs`: replace the 10-keyword list with the full Apex keyword/modifier set, plus annotations (`@AuraEnabled`, `@isTest`, `@TestSetup`, `@future`, `@InvocableMethod`, `@RemoteAction`, `@SuppressWarnings`, `@Deprecated`, `@TestVisible`, `@ReadOnly`, `@HttpGet/Post/Put/Patch/Delete`) and primitive types (`Integer, String, Boolean, Decimal, Double, Long, Date, Datetime, Time, Id, Blob, Object`). Annotations emitted only in `TopLevel` context when prefix starts with `@`. Keep existing type/member/chain resolution.

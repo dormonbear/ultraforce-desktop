@@ -434,7 +434,7 @@ fn parse_org_methods(symbol_table: &Value) -> Vec<Method> {
 
 fn parse_org_properties(symbol_table: &Value) -> Vec<Property> {
     // The Tooling SymbolTable splits get/set `properties` from member `variables`
-    // (plain fields + static constants). Both complete as field access — that plugin does
+    // (plain fields + static constants). Both complete as field access — the reference plugin does
     // the same — so merge them into one list.
     let mut out = parse_symbol_fields(symbol_table, "properties");
     out.extend(parse_symbol_fields(symbol_table, "variables"));

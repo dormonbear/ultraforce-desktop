@@ -45,7 +45,7 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
         };
         let recv_expr = parse_expression(&receiver);
         // `super.` → the superclass's members (the OST already flattens the
-        // parent's own inheritance, mirroring that plugin's resolved member set).
+        // parent's own inheritance, mirroring the reference plugin's resolved member set).
         if matches!(&recv_expr, Some(Expr::Super(_))) {
             let mems = class
                 .extends

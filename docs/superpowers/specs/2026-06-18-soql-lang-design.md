@@ -4,7 +4,7 @@
 
 ## Purpose
 
-The that plugin "精华" for SOQL: an **in-process, cache-fed** completion + diagnostics
+The reference plugin "精华" for SOQL: an **in-process, cache-fed** completion + diagnostics
 engine. This thin first slice does: tokenize a SOQL string, find the `FROM`
 object, and — given that object's already-cached `sf_schema::SObjectSchema` —
 offer SELECT field-name completion and flag unknown fields/objects. Pure: zero

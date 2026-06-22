@@ -1,5 +1,5 @@
 //! SOQL / DML statement extraction from a debug log — the data behind N+1 and
-//! bulkification analysis (that plugin surfaces query text + row counts per statement).
+//! bulkification analysis (the reference plugin surfaces query text + row counts per statement).
 
 use crate::event::LogEvent;
 use crate::parse::ExecUnit;

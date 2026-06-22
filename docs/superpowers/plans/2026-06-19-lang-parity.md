@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Bring the Tauri SOQL & Anonymous Apex panels to that plugin look-and-feel parity: a real org selector, SOQL status line + Table/Tree result toggle, and a syntax-highlighted, filterable debug-log view.
+**Goal:** Bring the Tauri SOQL & Anonymous Apex panels to the reference plugin look-and-feel parity: a real org selector, SOQL status line + Table/Tree result toggle, and a syntax-highlighted, filterable debug-log view.
 
 **Architecture:** Additively thread an optional target-org through the `features` crate; hold the selected org in src-tauri `AppState`; expose org list + selection as Tauri commands; extend the SOQL DTO with the raw record tree; render three new React components (OrgSelector, RecordTree, LogView).
 

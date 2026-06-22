@@ -1,5 +1,5 @@
 //! SOQL query plan (EXPLAIN): cost / cardinality / leading-operation per plan,
-//! fetched from the REST `?explain=` endpoint. Mirrors that plugin's `SoqlExplainResponse`
+//! fetched from the REST `?explain=` endpoint. Mirrors the reference plugin's `SoqlExplainResponse`
 //! (`plans[]` with `leadingOperationType`, `relativeCost`, `sobjectCardinality`,
 //! `cardinality`, `notes`) so the UI can flag non-selective queries before they run.
 
