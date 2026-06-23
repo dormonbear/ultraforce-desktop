@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, Copy } from "lucide-react";
-import { toast } from "sonner";
+import { copyText } from "../clipboard";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -99,14 +99,7 @@ export function LogView({ raw }: { raw: string }) {
           type="button"
           aria-label="Copy log"
           title="Copy the full log to the clipboard"
-          onClick={async () => {
-            try {
-              await navigator.clipboard.writeText(raw);
-              toast.success("Log copied");
-            } catch {
-              toast.error("Copy failed");
-            }
-          }}
+          onClick={() => void copyText(raw, "Log copied")}
           className="focus-accent flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
         >
           <Copy size={13} />

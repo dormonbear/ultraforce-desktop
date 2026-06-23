@@ -25,6 +25,7 @@ import {
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
+import { copyText } from "../clipboard";
 import { toCsv } from "./csv";
 import {
   Table,
@@ -251,12 +252,9 @@ export function ResultTable({
                 r.map((c) => (c == null ? "" : String(c))).join("\t"),
               ),
             ].join("\n");
-            void navigator.clipboard.writeText(tsv).then(
-              () =>
-                toast.success(
-                  `Copied ${data.rows.length} row${data.rows.length === 1 ? "" : "s"}`,
-                ),
-              () => toast.error("Copy failed"),
+            void copyText(
+              tsv,
+              `Copied ${data.rows.length} row${data.rows.length === 1 ? "" : "s"}`,
             );
           }}
           className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
@@ -365,12 +363,9 @@ export function ResultTable({
                             const vals = table
                               .getRowModel()
                               .rows.map((r) => String(r.getValue(col) ?? ""));
-                            navigator.clipboard.writeText(vals.join("\n")).then(
-                              () =>
-                                toast.success(
-                                  `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
-                                ),
-                              () => toast.error("Copy failed"),
+                            void copyText(
+                              vals.join("\n"),
+                              `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
                             );
                           }}
                           className="absolute right-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"

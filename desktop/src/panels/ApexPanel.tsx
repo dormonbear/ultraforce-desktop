@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { trimContextMenu } from "../monaco-contextmenu";
+import { copyText } from "../clipboard";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import {
   ResizableHandle,
@@ -278,20 +279,17 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       type="button"
                       aria-label="Copy exception"
                       title="Copy the exception and stack trace"
-                      onClick={async () => {
-                        const text = [
-                          outcome.exception_message,
-                          outcome.exception_stack_trace,
-                        ]
-                          .filter(Boolean)
-                          .join("\n");
-                        try {
-                          await navigator.clipboard.writeText(text);
-                          toast.success("Exception copied");
-                        } catch {
-                          toast.error("Copy failed");
-                        }
-                      }}
+                      onClick={() =>
+                        void copyText(
+                          [
+                            outcome.exception_message,
+                            outcome.exception_stack_trace,
+                          ]
+                            .filter(Boolean)
+                            .join("\n"),
+                          "Exception copied",
+                        )
+                      }
                       className="focus-accent shrink-0 cursor-pointer rounded-[2px] text-muted-foreground transition-colors hover:text-foreground"
                     >
                       <Copy size={13} />
