@@ -115,7 +115,10 @@ export function SoqlEditor({
           beforeMount={beforeMount}
           onMount={onMount}
           onChange={(v) => onChange(v ?? "")}
-          options={EDITOR_OPTS}
+          options={{
+            ...EDITOR_OPTS,
+            placeholder: "SELECT Id, Name FROM Account WHERE …",
+          }}
           loading={<Loader2 size={18} className="spin text-muted-foreground" />}
         />
       </div>

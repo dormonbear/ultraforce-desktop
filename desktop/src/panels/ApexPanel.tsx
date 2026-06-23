@@ -199,7 +199,10 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               beforeMount={beforeMount}
               onMount={onMount}
               onChange={(v) => onPatch({ src: v ?? "" })}
-              options={EDITOR_OPTS}
+              options={{
+                ...EDITOR_OPTS,
+                placeholder: "System.debug('Hello, World');",
+              }}
               loading={
                 <Loader2 size={18} className="spin text-muted-foreground" />
               }

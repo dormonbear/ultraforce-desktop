@@ -448,3 +448,13 @@ test("run history filters entries and closes on Escape", async ({ page }) => {
   await page.keyboard.press("Escape");
   await expect(drawer).toHaveCount(0);
 });
+
+// ── 13. Empty editor shows a placeholder hint ─────────────────────────────
+
+test("a new empty SOQL tab shows a query placeholder hint", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "New query" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+  // Monaco renders the placeholder example while the editor is empty.
+  await expect(page.getByText(/SELECT Id, Name FROM Account/)).toBeVisible();
+});
