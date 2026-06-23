@@ -396,7 +396,9 @@ export function ResultTable({
                     return (
                       <TableCell
                         key={cell.id}
-                        title="Click to copy"
+                        // Show the full value on hover (cells truncate); the cell
+                        // is still click-to-copy.
+                        title={text || undefined}
                         onClick={() => copyCell(text)}
                         style={{ width: cell.column.getSize() }}
                         className={cn(

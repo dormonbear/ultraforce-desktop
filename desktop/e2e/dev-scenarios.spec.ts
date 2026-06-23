@@ -494,3 +494,17 @@ test("middle-clicking a tab closes it", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toHaveCount(0);
   await expect(page.getByRole("tab", { name: /leads\.soql/ })).toBeVisible();
 });
+
+// ── 16. Result cells expose their full value on hover ─────────────────────
+
+test("a result cell shows its full value as a hover title", async ({ page }) => {
+  await gotoApp(page);
+  await openSoql(page);
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+  // The cell's title is its value (so truncated long values are readable),
+  // not a generic action hint.
+  await expect(
+    page.getByRole("cell", { name: "Account 0", exact: true }),
+  ).toHaveAttribute("title", "Account 0");
+});
