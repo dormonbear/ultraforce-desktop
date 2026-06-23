@@ -113,19 +113,43 @@ pub fn classify(tree: &Tree, src: &str, prefix_start: usize) -> CompletionContex
     CompletionContext::Unknown
 }
 
-/// Returns true when there is an unmatched `[` in the source before `prefix_start`,
-/// indicating the caret is inside an inline SOQL/SOSL literal.
+/// Returns true when there is an unmatched `[` in the source before `prefix_start`
+/// AND the content after that `[` begins with a SOQL/SOSL keyword (`SELECT` or `FIND`).
+/// This prevents array indexing like `arr[0` from being misclassified as SOQL.
 fn has_open_soql_bracket(src: &str, prefix_start: usize) -> bool {
     let prefix = &src[..prefix_start.min(src.len())];
+    // Walk backward tracking bracket depth; record position of each `[`.
+    let bytes = prefix.as_bytes();
     let mut depth: i32 = 0;
-    for ch in prefix.chars() {
-        match ch {
-            '[' => depth += 1,
-            ']' => depth -= 1,
+    let mut open_pos: Option<usize> = None;
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'[' => {
+                depth += 1;
+                open_pos = Some(i);
+            }
+            b']' => {
+                depth -= 1;
+                if depth < 1 {
+                    open_pos = None;
+                }
+            }
             _ => {}
         }
     }
-    depth > 0
+    if depth <= 0 {
+        return false;
+    }
+    // We have an unmatched `[`. Check that the first non-whitespace word after it
+    // is SELECT or FIND (case-insensitive) — indicating an inline SOQL/SOSL query.
+    if let Some(pos) = open_pos {
+        let after = &prefix[pos + 1..];
+        let first_word: &str = after.trim_start().split(|c: char| c.is_whitespace()).next().unwrap_or("");
+        let upper = first_word.to_ascii_uppercase();
+        upper == "SELECT" || upper == "FIND"
+    } else {
+        false
+    }
 }
 
 /// Returns true when the token immediately before the caret (ignoring whitespace)
@@ -194,6 +218,12 @@ mod tests {
     #[test]
     fn soql_inside_brackets() {
         assert_eq!(ctx("List<Account> a = [SELECT Id FR"), CompletionContext::Soql);
+    }
+
+    #[test]
+    fn array_index_is_not_soql() {
+        // `arr[0` is array indexing, not an inline SOQL query.
+        assert_ne!(ctx("void m(){ String[] arr; arr[0"), CompletionContext::Soql);
     }
 
 }
