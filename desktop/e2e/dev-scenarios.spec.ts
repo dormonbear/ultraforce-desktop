@@ -477,3 +477,20 @@ test("creating a new tab focuses the editor so you can type immediately", async 
     )
     .toBe(true);
 });
+
+// ── 15. Middle-click closes a tab ─────────────────────────────────────────
+
+test("middle-clicking a tab closes it", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  await page.getByText("leads.soql").click();
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /leads\.soql/ })).toBeVisible();
+
+  await page
+    .getByRole("tab", { name: /accounts\.soql/ })
+    .click({ button: "middle" });
+
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: /leads\.soql/ })).toBeVisible();
+});

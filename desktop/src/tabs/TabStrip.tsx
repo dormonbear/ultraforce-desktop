@@ -75,6 +75,13 @@ export function TabStrip({
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(t.id)}
+            onAuxClick={(e) => {
+              // Middle-click closes the tab (unless it's the last one).
+              if (e.button === 1 && !lone) {
+                e.preventDefault();
+                onClose(t.id);
+              }
+            }}
             onKeyDown={(e) => onKeyDown(e, t.id, idx)}
             className={`focus-accent group relative flex h-7 cursor-pointer items-center gap-2 rounded-md px-3 text-[12px] transition-colors ${
               active ? "text-primary" : "text-text-dim hover:text-foreground"
