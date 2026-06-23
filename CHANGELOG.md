@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.3.3](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.2...v0.3.3) (2026-06-23)
+
+
+### Features
+
+* **ui:** add Ultraforce brand logo and app icons ([2775e59](https://github.com/dormonbear/ultraforce-desktop/commit/2775e5968318cc389224f35c92a7f5c5a602e0fd))
+* **ui:** brand logo, app icons, motion polish + org dedupe fix ([0782c2f](https://github.com/dormonbear/ultraforce-desktop/commit/0782c2fe8368164ff4134c98bc603c64a90f34eb))
+* **ui:** motion polish for press feedback and easing ([6d38365](https://github.com/dormonbear/ultraforce-desktop/commit/6d38365133ca174a0b5caae624d4e976d65ab551))
+
+
+### Bug Fixes
+
+* **org:** dedupe orgs listed under multiple sf categories ([8f950e5](https://github.com/dormonbear/ultraforce-desktop/commit/8f950e5ebb7097e698939245558a8d4b4edc6a8d))
+
 ## [0.3.2](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.1...v0.3.2) (2026-06-22)
 
 
