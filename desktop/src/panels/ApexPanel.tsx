@@ -7,6 +7,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
+import { trimContextMenu } from "../monaco-contextmenu";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import {
   ResizableHandle,
@@ -111,6 +112,7 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
       run()
     );
     retriggerSuggestOnEdit(instance);
+    trimContextMenu(instance);
     flushPending();
   };
 

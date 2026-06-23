@@ -3,10 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
-import { configureMonaco } from "../monaco-soql";
+import { configureMonaco, registerSoqlFormatter } from "../monaco-soql";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import { EDITOR_OPTS } from "../monaco-opts";
+import { trimContextMenu } from "../monaco-contextmenu";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
 import { useTheme, monacoTheme } from "../theme";
@@ -29,6 +30,7 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
 
   function beforeMount(monaco: Monaco) {
     configureMonaco(monaco);
+    registerSoqlFormatter(monaco);
   }
 
   const onMount: OnMount = (editorInstance, monaco) => {
@@ -39,6 +41,7 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
       () => onRunRef.current()
     );
     retriggerSuggestOnEdit(editorInstance);
+    trimContextMenu(editorInstance);
     flushPending();
   };
 
