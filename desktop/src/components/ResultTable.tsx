@@ -15,6 +15,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronsUpDown,
+  Copy,
   Download,
   Rows3,
   Rows4,
@@ -329,6 +330,29 @@ export function ResultTable({
                               className="shrink-0 opacity-0 group-hover:opacity-40"
                             />
                           )}
+                        </button>
+                        {/* copy this column's values (respects filter/sort) */}
+                        <button
+                          type="button"
+                          aria-label={`Copy ${header.column.id} column`}
+                          title={`Copy all ${header.column.id} values`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const col = header.column.id;
+                            const vals = table
+                              .getRowModel()
+                              .rows.map((r) => String(r.getValue(col) ?? ""));
+                            navigator.clipboard.writeText(vals.join("\n")).then(
+                              () =>
+                                toast.success(
+                                  `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
+                                ),
+                              () => toast.error("Copy failed"),
+                            );
+                          }}
+                          className="absolute right-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                        >
+                          <Copy size={11} />
                         </button>
                         {/* resize handle */}
                         <span

@@ -369,3 +369,23 @@ test("SOQL results: TABLE view renders rows, TREE toggle switches view, Filter r
   // The mocked run_soql has tree: [] so we just verify the table toggle is still visible.
   await expect(page.getByRole("radio", { name: /table/i })).toBeVisible();
 });
+
+// ── 9. Copy a results column to the clipboard ─────────────────────────────
+
+test("a results column copies all its values to the clipboard", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openSoql(page);
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  // Each column header has a hover Copy action (the common "grab a column of
+  // Ids for an IN clause" flow). The mocked result has 12 Name values.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy Name column" }).click();
+  await expect(page.getByText(/Copied 12 Name values/).first()).toBeVisible();
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip.split("\n")).toHaveLength(12);
+  expect(clip).toContain("Account 0");
+});
