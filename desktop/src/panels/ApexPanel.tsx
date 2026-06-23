@@ -71,6 +71,10 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const { flushPending } = useMonacoReveal(editorRef, reveal);
 
   const run = useCallback(async () => {
+    if (!srcRef.current.trim()) {
+      toast.error("Write some Apex to run");
+      return;
+    }
     setRunning(true);
     onPatch({ error: null });
     const source = srcRef.current;

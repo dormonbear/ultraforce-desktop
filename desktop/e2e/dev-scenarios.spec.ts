@@ -508,3 +508,22 @@ test("a result cell shows its full value as a hover title", async ({ page }) => 
     page.getByRole("cell", { name: "Account 0", exact: true }),
   ).toHaveAttribute("title", "Account 0");
 });
+
+// ── 17. Running an empty editor nudges instead of erroring ────────────────
+
+test("running an empty query shows a hint and does not call the backend", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "New query" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByText("Write a query to run").first()).toBeVisible();
+
+  const ran = await page.evaluate(() => {
+    const calls = (window as unknown as { __ufCalls: { cmd: string }[] }).__ufCalls ?? [];
+    return calls.some((c) => c.cmd === "run_soql");
+  });
+  expect(ran).toBe(false);
+});

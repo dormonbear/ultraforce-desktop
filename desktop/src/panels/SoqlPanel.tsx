@@ -41,6 +41,10 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
   });
 
   const run = useCallback(async () => {
+    if (!query.trim()) {
+      toast.error("Write a query to run");
+      return;
+    }
     setRunning(true);
     onPatch({ error: null });
     const t0 = performance.now();
