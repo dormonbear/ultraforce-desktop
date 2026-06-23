@@ -127,6 +127,8 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     trimContextMenu(instance);
     flushPending();
     setMounted(true);
+    // Focus so a freshly opened/created tab is ready to type into.
+    instance.focus();
   };
 
   useEffect(() => {

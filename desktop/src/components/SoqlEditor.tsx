@@ -60,6 +60,8 @@ export function SoqlEditor({
     trimContextMenu(editorInstance);
     flushPending();
     setMounted(true);
+    // Focus so a freshly opened/created tab is ready to type into.
+    editorInstance.focus();
   };
 
   useEffect(() => {

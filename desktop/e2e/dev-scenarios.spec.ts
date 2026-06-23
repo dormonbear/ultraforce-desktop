@@ -458,3 +458,22 @@ test("a new empty SOQL tab shows a query placeholder hint", async ({ page }) => 
   // Monaco renders the placeholder example while the editor is empty.
   await expect(page.getByText(/SELECT Id, Name FROM Account/)).toBeVisible();
 });
+
+// ── 14. A freshly opened tab focuses the editor ───────────────────────────
+
+test("creating a new tab focuses the editor so you can type immediately", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByRole("button", { name: "New query" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const m = (window as unknown as { monaco?: any }).monaco;
+        const eds = m?.editor?.getEditors?.() ?? [];
+        return eds.some((e: any) => e.hasTextFocus?.());
+      }),
+    )
+    .toBe(true);
+});
