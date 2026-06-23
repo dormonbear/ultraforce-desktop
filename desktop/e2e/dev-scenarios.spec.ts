@@ -589,3 +589,39 @@ test("a file tab exposes its full path as a hover title", async ({ page }) => {
   // Disambiguates same-named files in different folders.
   await expect(tab).toHaveAttribute("title", "/ws/workspace/soql/accounts.soql");
 });
+
+// ── 21. The Apex editor/result split persists ─────────────────────────────
+
+test("resizing the Apex editor/result split persists the layout", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByLabel("Apex").click();
+  await page.getByText("hello.apex").click();
+
+  // Find the horizontal split handle (wider than tall) and drag it up.
+  const seps = page.locator('[role="separator"]');
+  const count = await seps.count();
+  let box: { x: number; y: number; width: number; height: number } | null = null;
+  for (let i = 0; i < count; i++) {
+    const b = await seps.nth(i).boundingBox();
+    if (b && b.width > b.height) {
+      box = b;
+      break;
+    }
+  }
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + box!.width / 2, box!.y - 80, { steps: 6 });
+  await page.mouse.up();
+
+  // The split layout is now persisted (like the SOQL panel).
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("react-resizable-panels:uf-apex-split:editor:result"),
+      ),
+    )
+    .not.toBeNull();
+});

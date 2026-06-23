@@ -10,6 +10,7 @@ import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { trimContextMenu } from "../monaco-contextmenu";
 import { copyText } from "../clipboard";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
+import { useDefaultLayout } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -70,6 +71,12 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const [mounted, setMounted] = useState(false);
   srcRef.current = src;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
+  // Persist the editor/result split across launches (matches the SOQL panel).
+  const layout = useDefaultLayout({
+    id: "uf-apex-split",
+    panelIds: ["editor", "result"],
+    storage: localStorage,
+  });
 
   const run = useCallback(async () => {
     if (!srcRef.current.trim()) {
@@ -182,8 +189,12 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   }, [src, mounted]);
 
   return (
-    <ResizablePanelGroup direction="vertical">
-      <ResizablePanel defaultSize={45} minSize={20}>
+    <ResizablePanelGroup
+      direction="vertical"
+      defaultLayout={layout.defaultLayout}
+      onLayoutChanged={layout.onLayoutChanged}
+    >
+      <ResizablePanel id="editor" defaultSize={45} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">ANONYMOUS APEX</div>
@@ -220,7 +231,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
 
       <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
 
-      <ResizablePanel defaultSize={55} minSize={20}>
+      <ResizablePanel id="result" defaultSize={55} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="micro-label px-4 py-2">RESULT</div>
 
