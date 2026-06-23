@@ -19,7 +19,11 @@ export class MonacoEditor {
   }
 
   async focus(): Promise<void> {
-    await this.root.locator(".view-lines").click();
+    // Wait for the editor to actually mount (a freshly opened tab's editor
+    // appears asynchronously) before clicking — otherwise early keystrokes drop.
+    const lines = this.root.locator(".view-lines");
+    await lines.waitFor({ state: "visible" });
+    await lines.click();
   }
 
   /** Select-all then type, replacing the buffer with `text`. */
@@ -27,6 +31,23 @@ export class MonacoEditor {
     await this.focus();
     await this.page.keyboard.press("ControlOrMeta+a");
     await this.page.keyboard.type(text);
+  }
+
+  /** Set the buffer programmatically via Monaco's `executeEdits` — fires
+   * onDidChangeModelContent → the React onChange prop, so controlled state /
+   * autosave update. Reliable where keyboard typing into a fresh editor drops
+   * or auto-completes characters. */
+  async setValueViaApi(text: string): Promise<void> {
+    await this.focus();
+    await this.page.evaluate((t) => {
+      const m = (window as unknown as { monaco?: any }).monaco;
+      const eds = m?.editor?.getEditors?.() ?? [];
+      const ed = eds.find((e: any) => e.hasTextFocus?.()) ?? eds[0];
+      const model = ed?.getModel?.();
+      if (model) {
+        ed.executeEdits("e2e", [{ range: model.getFullModelRange(), text: t }]);
+      }
+    }, text);
   }
 
   async type(text: string): Promise<void> {

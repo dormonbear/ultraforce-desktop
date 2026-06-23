@@ -23,11 +23,12 @@ import type { SoqlTab } from "../tabs/types";
 interface SoqlViewProps {
   tab: SoqlTab;
   onPatch: (partial: Partial<SoqlTab>) => void;
+  onSave?: () => void;
   reveal?: Reveal;
 }
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
-export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
+export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
   const { query, result, error, view, useToolingApi, allRows, plan } = tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
@@ -107,6 +108,7 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
           value={query}
           onChange={(v) => onPatch({ query: v })}
           onRun={run}
+          onSave={onSave}
           running={running}
           reveal={reveal}
         />

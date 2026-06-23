@@ -42,11 +42,12 @@ function StatusChip({ label, ok }: { label: string; ok: boolean }) {
 interface ApexViewProps {
   tab: ApexTab;
   onPatch: (partial: Partial<ApexTab>) => void;
+  onSave?: () => void;
   reveal?: Reveal;
 }
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
-export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
+export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const { theme } = useTheme();
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
@@ -59,6 +60,8 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
   } = useDebugConfig(org);
 
   const srcRef = useRef(src);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   // Flips once the editor has mounted so the diagnostics effect runs on first
@@ -116,6 +119,9 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
     monacoRef.current = monaco;
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
       run()
+    );
+    instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
+      onSaveRef.current?.()
     );
     retriggerSuggestOnEdit(instance);
     trimContextMenu(instance);

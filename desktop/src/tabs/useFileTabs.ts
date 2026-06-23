@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getJson, setJson } from "../store";
-import { saveFile } from "../fs/save";
+import { saveFile, flushFiles } from "../fs/save";
 import { basename } from "../fs/paths";
 import type { TabBase } from "./types";
 
@@ -22,8 +23,13 @@ interface Opts<T> {
  */
 export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>) {
   const { tool, contentKey, make } = opts;
+  const ext = tool === "apex" ? "apex" : "soql";
   const [tabs, setTabs] = useState<T[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  // Untitled tabs live only in memory (path ""): no autosave, not persisted.
+  const tabsRef = useRef<T[]>(tabs);
+  tabsRef.current = tabs;
+  const untitledCounter = useRef(0);
   // Transient request to scroll a tab's editor to a line (from content search).
   const [reveal, setReveal] = useState<{
     id: string;
@@ -66,8 +72,8 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     if (!hydrated.current) return;
     const active = tabs.find((t) => t.id === activeId) ?? null;
     void setJson<Persisted>(storeKey, {
-      openPaths: tabs.map((t) => t.path),
-      activePath: active?.path ?? null,
+      openPaths: tabs.filter((t) => t.path !== "").map((t) => t.path),
+      activePath: active && active.path !== "" ? active.path : null,
     });
   }, [tabs, activeId, storeKey]);
 
@@ -111,8 +117,9 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
         prev.map((t) => {
           if (t.id !== id) return t;
           const updated = { ...t, ...partial };
-          // Autosave only when the content field changed.
-          if (contentKey in partial) {
+          // Autosave only when the content field changed on a saved (path) tab;
+          // untitled tabs (path "") are held in memory until "Save As".
+          if (contentKey in partial && updated.path !== "") {
             saveFile(updated.path, String(updated[contentKey]));
           }
           return updated;
@@ -163,6 +170,39 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     });
   }, []);
 
+  // Open a new in-memory untitled tab (no path until "Save As").
+  const newUntitled = useCallback(() => {
+    untitledCounter.current += 1;
+    const tab: T = {
+      ...make("", ""),
+      title: `Untitled-${untitledCounter.current}`,
+    };
+    setTabs((prev) => [...prev, tab]);
+    setActiveId(tab.id);
+  }, [make]);
+
+  // Save a tab. A saved tab just flushes its debounced autosave; an untitled
+  // tab prompts "Save As", writes the chosen path, and becomes a normal tab.
+  const save = useCallback(
+    async (id: string) => {
+      const tab = tabsRef.current.find((t) => t.id === id);
+      if (!tab) return;
+      if (tab.path !== "") {
+        await flushFiles();
+        return;
+      }
+      const picked = await saveDialog({ defaultPath: `${tab.title}.${ext}` });
+      if (!picked) return;
+      await writeTextFile(picked, String(tab[contentKey]));
+      setTabs((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, path: picked, title: basename(picked) } : t,
+        ),
+      );
+    },
+    [contentKey, ext],
+  );
+
   const active = tabs.find((t) => t.id === activeId) ?? null;
   return {
     tabs,
@@ -171,6 +211,8 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     reveal,
     openFile,
     openOrReplace,
+    newUntitled,
+    save,
     close,
     select,
     patch,

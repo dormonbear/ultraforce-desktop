@@ -37,12 +37,20 @@ export function ApexTabs() {
     reveal,
     openFile,
     openOrReplace,
+    newUntitled,
+    save,
     close,
     select,
     patch,
     retitle,
     closeByPath,
   } = useFileTabs<ApexTab>({ tool: "apex", contentKey: "src", make: makeApexTab });
+
+  // Stable across content edits (only changes on tab switch) so the editor does
+  // not re-render on every keystroke.
+  const onSave = useCallback(() => {
+    if (active) void save(active.id);
+  }, [save, active?.id]);
 
   // History "open in tab" stages text via openTab; write it to scratch.apex.
   useEffect(() => {
@@ -105,19 +113,14 @@ export function ApexTabs() {
                 ariaLabel="Apex tabs"
                 onSelect={select}
                 onClose={close}
-                onAdd={() => {
-                  if (!root) return;
-                  const n =
-                    tabs.filter((t) => /untitled-\d+\.apex$/.test(t.path))
-                      .length + 1;
-                  void openOrReplace(joinPath(root, `untitled-${n}.apex`), "");
-                }}
+                onAdd={newUntitled}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
                 <ApexView
                   key={active.id}
                   tab={active}
                   onPatch={onPatch}
+                  onSave={onSave}
                   reveal={activeReveal}
                 />
               </div>

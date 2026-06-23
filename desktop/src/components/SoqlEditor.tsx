@@ -16,19 +16,29 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   onRun: () => void;
+  onSave?: () => void;
   running: boolean;
   reveal?: Reveal;
 }
 
-export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
+export function SoqlEditor({
+  value,
+  onChange,
+  onRun,
+  onSave,
+  running,
+  reveal,
+}: Props) {
   const { theme } = useTheme();
   const onRunRef = useRef(onRun);
+  const onSaveRef = useRef(onSave);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   // Flips once the editor has mounted so the diagnostics effect runs on first
   // open (editorRef is null on the initial render, before onMount).
   const [mounted, setMounted] = useState(false);
   onRunRef.current = onRun;
+  onSaveRef.current = onSave;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
 
   function beforeMount(monaco: Monaco) {
@@ -42,6 +52,9 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
     editorInstance.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
       () => onRunRef.current()
+    );
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
+      onSaveRef.current?.()
     );
     retriggerSuggestOnEdit(editorInstance);
     trimContextMenu(editorInstance);

@@ -216,20 +216,55 @@ test("soql_diagnostics marker produces a squiggly-error decoration in Monaco", a
 
 // ── 7. New tab button opens a fresh tab ───────────────────────────────────
 
-test("New tab button opens a fresh untitled tab", async ({ page }) => {
+test("New tab button opens a fresh in-memory untitled tab", async ({ page }) => {
   await gotoApp(page);
 
   // Open a file so the tab strip appears.
   await openSoql(page);
   const tabsBefore = await page.getByRole("tab").count();
 
-  // The "+" creates a new untitled-N.soql file tab (the no-op onAdd is fixed).
+  // The "+" opens an in-memory untitled tab (no file written until Save As).
   await page.getByRole("button", { name: "New tab" }).click();
 
   await expect.poll(() => page.getByRole("tab").count()).toBe(tabsBefore + 1);
-  await expect(
-    page.getByRole("tab", { name: /untitled-\d+\.soql/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+});
+
+// ── 7b. Save As writes an untitled tab and retitles it ────────────────────
+
+test("Save As writes an untitled tab to the chosen path and retitles it", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openSoql(page);
+  await page.getByRole("button", { name: "New tab" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+
+  // Put content in the untitled tab (via Monaco API so React state updates),
+  // then Save As. The save dialog is mocked to return /ws/export.csv
+  // (fixtures.ts), so the tab retitles to that basename and content is written.
+  const editor = new MonacoEditor(page);
+  await editor.setValueViaApi("SELECT Id FROM Account");
+  await expect.poll(() => editor.text()).toBe("SELECT Id FROM Account");
+
+  // Ctrl+S → Save As. Retry: Monaco registers the keybinding asynchronously, and
+  // headless Chromium matches CtrlCmd with Control (not Meta) — same pattern as
+  // the Ctrl+Enter run tests. Re-pressing after the rename is a harmless re-save.
+  await expect(async () => {
+    await editor.focus();
+    await page.keyboard.press("Control+s");
+    await expect(page.getByRole("tab", { name: /export\.csv/ })).toBeVisible({
+      timeout: 1500,
+    });
+  }).toPass({ timeout: 12000 });
+
+  const saved = await page.evaluate(
+    () =>
+      (window as unknown as { __ufReadFile: (p: string) => string | null }).__ufReadFile(
+        "/ws/export.csv",
+      ),
+  );
+  expect(saved).toBe("SELECT Id FROM Account");
 });
 
 // ── 8. SOQL results — TABLE/TREE toggle and row filter ────────────────────

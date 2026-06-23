@@ -12,10 +12,17 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   reporter: [["list"]],
+  // The suite runs serially on one shared dev server for ~3 min; the default
+  // 5 s assertion budget occasionally underruns late in the run (Monaco mount,
+  // completion providers, dialog round-trips). Give assertions/actions headroom
+  // so timing variance under load doesn't flake unrelated tests.
+  timeout: 45_000,
+  expect: { timeout: 10_000 },
   use: {
     // 127.0.0.1, not localhost: Vite 7 binds IPv6 (::1) only, while Playwright's
     // readiness probe hits IPv4 — pin both sides to IPv4 so they meet.
     baseURL: "http://127.0.0.1:1421",
+    actionTimeout: 15_000,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },

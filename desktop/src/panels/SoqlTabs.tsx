@@ -40,12 +40,20 @@ export function SoqlTabs() {
     reveal,
     openFile,
     openOrReplace,
+    newUntitled,
+    save,
     close,
     select,
     patch,
     retitle,
     closeByPath,
   } = useFileTabs<SoqlTab>({ tool: "soql", contentKey: "query", make: makeSoqlTab });
+
+  // Stable across content edits (only changes on tab switch) so the editor does
+  // not re-render on every keystroke.
+  const onSave = useCallback(() => {
+    if (active) void save(active.id);
+  }, [save, active?.id]);
 
   // History "open in tab" stages text via openTab; write it to scratch.soql.
   useEffect(() => {
@@ -108,19 +116,14 @@ export function SoqlTabs() {
                 ariaLabel="SOQL tabs"
                 onSelect={select}
                 onClose={close}
-                onAdd={() => {
-                  if (!root) return;
-                  const n =
-                    tabs.filter((t) => /untitled-\d+\.soql$/.test(t.path))
-                      .length + 1;
-                  void openOrReplace(joinPath(root, `untitled-${n}.soql`), "");
-                }}
+                onAdd={newUntitled}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
                 <SoqlView
                   key={active.id}
                   tab={active}
                   onPatch={onPatch}
+                  onSave={onSave}
                   reveal={activeReveal}
                 />
               </div>
