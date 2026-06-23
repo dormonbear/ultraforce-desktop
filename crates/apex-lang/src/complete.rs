@@ -37,6 +37,9 @@ pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
             for primitive in PRIMITIVES {
                 push_if_matches(&mut candidates, &prefix, primitive, CandidateKind::Type);
             }
+            for builtin in BUILTIN_TYPES {
+                push_if_matches(&mut candidates, &prefix, builtin, CandidateKind::Type);
+            }
             for local in &outline.locals {
                 push_if_matches(
                     &mut candidates,
@@ -118,6 +121,10 @@ const PRIMITIVES: &[&str] = &[
     "Blob", "Boolean", "Date", "Datetime", "Decimal", "Double", "Id", "Integer", "Long", "Object",
     "String", "Time",
 ];
+
+/// Built-in generic collection / interface types. Always completable,
+/// independent of whether the org stdlib OST has been warmed.
+const BUILTIN_TYPES: &[&str] = &["List", "Map", "Set", "Iterable", "Iterator", "SObject"];
 
 const ANNOTATIONS: &[&str] = &[
     "@AuraEnabled",
@@ -246,6 +253,19 @@ mod tests {
                 enum_values: vec![],
             }],
         }
+    }
+
+    #[test]
+    fn completes_builtin_collection_types() {
+        let ost = ost();
+        // `List` is not a primitive and may be absent from a cold stdlib OST, but
+        // must always be offered (and sort above org classes like `ListBuilder`).
+        let list = complete("List", 4, &ost);
+        assert!(list
+            .iter()
+            .any(|c| c.label == "List" && c.kind == CandidateKind::Type));
+        assert!(complete("Ma", 2, &ost).iter().any(|c| c.label == "Map"));
+        assert!(complete("Se", 2, &ost).iter().any(|c| c.label == "Set"));
     }
 
     #[test]
