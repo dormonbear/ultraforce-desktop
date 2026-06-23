@@ -8,9 +8,10 @@ import { gotoApp } from "./fixtures";
  * schema refresh, and apex completion.
  */
 
-test("brand wordmark reads Ultraforce", async ({ page }) => {
+test("brand mark is the Ultraforce logo", async ({ page }) => {
   await gotoApp(page);
-  await expect(page.getByText("Ultraforce", { exact: true })).toBeVisible();
+  // The wordmark became an SVG logo carrying its accessible name.
+  await expect(page.getByRole("img", { name: "Ultraforce" })).toBeVisible();
 });
 
 test("explorer lists files and opens one in a tab (persists across reload)", async ({
