@@ -277,6 +277,19 @@ test("Save As writes an untitled tab to the chosen path and retitles it", async 
   await expect(page.getByTestId("unsaved-dot")).toHaveCount(0);
 });
 
+// ── 7c. Empty panel offers a New action to start an untitled tab ──────────
+
+test("empty SOQL panel's New query button opens an untitled tab", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  // No file open → empty state with a New action (the "+" lives in the tab
+  // strip, which isn't shown when there are no tabs).
+  await expect(page.getByText("open a query from the sidebar")).toBeVisible();
+  await page.getByRole("button", { name: "New query" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+});
+
 // ── 8. SOQL results — TABLE/TREE toggle and row filter ────────────────────
 
 test("SOQL results: TABLE view renders rows, TREE toggle switches view, Filter rows prunes results", async ({

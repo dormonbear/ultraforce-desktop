@@ -132,8 +132,15 @@ export function SoqlTabs() {
               </div>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-              — open a query from the sidebar —
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-[13px] text-muted-foreground">
+              <span>— open a query from the sidebar —</span>
+              <button
+                type="button"
+                onClick={newUntitled}
+                className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
+              >
+                New query
+              </button>
             </div>
           )}
         </div>
