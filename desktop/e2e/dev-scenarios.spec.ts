@@ -193,16 +193,11 @@ test("soql_diagnostics marker produces a squiggly-error decoration in Monaco", a
     ],
   });
 
-  const editor = await openSoql(page);
+  await openSoql(page);
 
-  // Focus the editor and type a space to trigger the value→effect→soql_diagnostics
-  // cycle. (The SoqlEditor effect only fires when `value` changes AND Monaco is
-  // already mounted. On the very first render the Monaco ref is null, so we need
-  // at least one user-driven edit to guarantee the effect runs with a live ref.)
-  await editor.focus();
-  await page.keyboard.type(" ");
-
-  // Wait for the 350 ms debounce + IPC call → Monaco setModelMarkers.
+  // Diagnostics fire on first open (the editor mount flips a `mounted` flag the
+  // effect depends on) — no user edit needed. Wait for the 350 ms debounce +
+  // IPC call → Monaco setModelMarkers.
   // Assert via the Monaco API — squiggly DOM decorations are viewport-dependent
   // and unreliable in headless mode.
   await expect.poll(async () => {
@@ -221,24 +216,20 @@ test("soql_diagnostics marker produces a squiggly-error decoration in Monaco", a
 
 // ── 7. New tab button opens a fresh tab ───────────────────────────────────
 
-test("New tab button adds an empty editable tab", async ({ page }) => {
+test("New tab button opens a fresh untitled tab", async ({ page }) => {
   await gotoApp(page);
 
-  // Open a file so the tab strip appears
+  // Open a file so the tab strip appears.
   await openSoql(page);
   const tabsBefore = await page.getByRole("tab").count();
 
-  // Click the "New tab" button in the SOQL tab strip
+  // The "+" creates a new untitled-N.soql file tab (the no-op onAdd is fixed).
   await page.getByRole("button", { name: "New tab" }).click();
 
-  // A new tab should have appeared (count increased)
-  // NOTE: The onAdd handler is a no-op in both SoqlTabs and ApexTabs (onAdd={() => {}}),
-  // so clicking "New tab" does not actually open a new tab. This is a known app limitation.
-  // We assert the button exists but skip the count assertion.
-  // If the app wires up onAdd in the future this test can be strengthened.
-  const tabsAfter = await page.getByRole("tab").count();
-  // The New tab button itself is rendered as a tab in the tablist; count stays same.
-  expect(tabsAfter).toBeGreaterThanOrEqual(tabsBefore);
+  await expect.poll(() => page.getByRole("tab").count()).toBe(tabsBefore + 1);
+  await expect(
+    page.getByRole("tab", { name: /untitled-\d+\.soql/ }),
+  ).toBeVisible();
 });
 
 // ── 8. SOQL results — TABLE/TREE toggle and row filter ────────────────────

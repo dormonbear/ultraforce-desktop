@@ -105,7 +105,13 @@ export function ApexTabs() {
                 ariaLabel="Apex tabs"
                 onSelect={select}
                 onClose={close}
-                onAdd={() => {}}
+                onAdd={() => {
+                  if (!root) return;
+                  const n =
+                    tabs.filter((t) => /untitled-\d+\.apex$/.test(t.path))
+                      .length + 1;
+                  void openOrReplace(joinPath(root, `untitled-${n}.apex`), "");
+                }}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
                 <ApexView

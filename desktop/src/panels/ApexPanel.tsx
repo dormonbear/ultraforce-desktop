@@ -61,6 +61,9 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
   const srcRef = useRef(src);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  // Flips once the editor has mounted so the diagnostics effect runs on first
+  // open (editorRef is null on the initial render, before onMount).
+  const [mounted, setMounted] = useState(false);
   srcRef.current = src;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
 
@@ -117,6 +120,7 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
     retriggerSuggestOnEdit(instance);
     trimContextMenu(instance);
     flushPending();
+    setMounted(true);
   };
 
   useEffect(() => {
@@ -162,7 +166,7 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [src]);
+  }, [src, mounted]);
 
   return (
     <ResizablePanelGroup direction="vertical">

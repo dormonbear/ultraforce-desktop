@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
@@ -25,6 +25,9 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
   const onRunRef = useRef(onRun);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  // Flips once the editor has mounted so the diagnostics effect runs on first
+  // open (editorRef is null on the initial render, before onMount).
+  const [mounted, setMounted] = useState(false);
   onRunRef.current = onRun;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
 
@@ -43,6 +46,7 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
     retriggerSuggestOnEdit(editorInstance);
     trimContextMenu(editorInstance);
     flushPending();
+    setMounted(true);
   };
 
   useEffect(() => {
@@ -81,7 +85,7 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
       );
     }, 350);
     return () => clearTimeout(handle);
-  }, [value]);
+  }, [value, mounted]);
 
   return (
     <div className="flex h-full flex-col">
