@@ -23,7 +23,11 @@ test("run anonymous Apex success: COMPILED/SUCCESS chips and debug log appear", 
   await gotoApp(page);
   await openApex(page);
 
-  await page.getByText("RUN", { exact: false }).first().click();
+  // The RUN button advertises its keyboard shortcut (discoverability).
+  const runBtn = page.getByRole("button", { name: "RUN", exact: true });
+  await expect(runBtn).toHaveAttribute("title", /^Run \(/);
+
+  await runBtn.click();
 
   // Status chips
   await expect(page.getByText("COMPILED")).toBeVisible();

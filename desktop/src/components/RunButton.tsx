@@ -1,5 +1,6 @@
 import { Play, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { runShortcut } from "../platform";
 
 interface Props {
   onRun: () => void;
@@ -22,6 +23,7 @@ export function RunButton({
       type="button"
       onClick={onRun}
       disabled={running}
+      title={`Run (${runShortcut()})`}
       className="ml-3 h-8 cursor-pointer gap-1.5 px-3 text-[12px] uppercase tracking-wide disabled:opacity-40"
     >
       {running ? (
