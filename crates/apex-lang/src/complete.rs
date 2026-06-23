@@ -58,6 +58,16 @@ pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
                 .map(|ty| member_candidates(ty, &prefix, false))
                 .unwrap_or_default()
         }
+        CursorContext::DeclaratorName { type_text, prefix } => {
+            let mut candidates = Vec::new();
+            push_if_matches(
+                &mut candidates,
+                &prefix,
+                &default_var_name(&type_text),
+                CandidateKind::LocalVar,
+            );
+            sort_and_dedupe(candidates)
+        }
         CursorContext::ChainMember { chain, prefix } => resolve_expr_type(ost, &outline, &chain)
             .map(|ty| member_candidates(ty, &prefix, false))
             .unwrap_or_default(),
@@ -178,6 +188,35 @@ fn member_candidates(ty: &ApexType, prefix: &str, want_static: bool) -> Vec<Cand
     sort_and_dedupe(candidates)
 }
 
+/// Suggest a variable name for a declared type: `Account` -> `account`,
+/// `List<Account>`/`Set<Account>` -> `accounts`, `Map<..>` -> `map` of base.
+fn default_var_name(type_text: &str) -> String {
+    let t = type_text.trim();
+    if let Some(lt) = t.find('<') {
+        let outer = t[..lt].trim().rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+        let inner = &t[lt + 1..t.rfind('>').unwrap_or(t.len())];
+        if (outer == "list" || outer == "set") && !inner.contains(',') {
+            let elem = inner.trim().trim_end_matches("[]").rsplit('.').next().unwrap_or(inner).trim();
+            if !elem.is_empty() {
+                return format!("{}s", decapitalize(elem));
+            }
+        }
+        let base = t[..lt].trim().rsplit('.').next().unwrap_or(t);
+        return decapitalize(base);
+    }
+    let base = t.trim_end_matches("[]").rsplit('.').next().unwrap_or(t);
+    decapitalize(base)
+}
+
+/// Lower-case the first character, keep the rest.
+fn decapitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_ascii_lowercase().to_string() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
 fn push_if_matches(
     candidates: &mut Vec<Candidate>,
     prefix: &str,
@@ -253,6 +292,36 @@ mod tests {
                 enum_values: vec![],
             }],
         }
+    }
+
+    #[test]
+    fn suppresses_types_in_variable_name_position() {
+        let ost = ost();
+        // `List<Account> accou` — naming a variable, not a type position.
+        let src = "List<Account> accou";
+        let cands = complete(src, src.len(), &ost);
+        assert!(cands.iter().all(|c| c.kind != CandidateKind::Type));
+        assert!(cands.iter().any(|c| c.label == "accounts"));
+    }
+
+    #[test]
+    fn suggests_name_for_simple_type_declarator() {
+        let ost = ost();
+        let src = "Account acc";
+        let cands = complete(src, src.len(), &ost);
+        assert!(cands.iter().any(|c| c.label == "account"));
+        assert!(cands.iter().all(|c| c.kind != CandidateKind::Type));
+    }
+
+    #[test]
+    fn still_completes_types_in_expression_position() {
+        let ost = ost();
+        // After `new ` we still want type names, not name suggestions.
+        let src = "new Stri";
+        let cands = complete(src, src.len(), &ost);
+        assert!(cands
+            .iter()
+            .any(|c| c.label == "String" && c.kind == CandidateKind::Type));
     }
 
     #[test]
