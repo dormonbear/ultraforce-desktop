@@ -5,6 +5,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { toast } from "sonner";
 import { TabStrip } from "../tabs/TabStrip";
 import { useFileTabs } from "../tabs/useFileTabs";
 import { Explorer } from "../components/Explorer";
@@ -43,6 +44,7 @@ export function SoqlTabs() {
     newUntitled,
     save,
     close,
+    restore,
     select,
     patch,
     retitle,
@@ -54,6 +56,20 @@ export function SoqlTabs() {
   const onSave = useCallback(() => {
     if (active) void save(active.id);
   }, [save, active?.id]);
+
+  // Closing an unsaved untitled tab discards its content — offer a quick undo.
+  const handleClose = useCallback(
+    (id: string) => {
+      const t = tabs.find((x) => x.id === id);
+      close(id);
+      if (t && t.path === "" && t.query.trim() !== "") {
+        toast(`Closed ${t.title}`, {
+          action: { label: "Undo", onClick: () => restore(t) },
+        });
+      }
+    },
+    [tabs, close, restore],
+  );
 
   // History "open in tab" stages text via openTab; write it to scratch.soql.
   useEffect(() => {
@@ -115,7 +131,7 @@ export function SoqlTabs() {
                 activeId={activeId ?? ""}
                 ariaLabel="SOQL tabs"
                 onSelect={select}
-                onClose={close}
+                onClose={handleClose}
                 onAdd={newUntitled}
                 dirtyIds={tabs
                   .filter((t) => t.path === "" && t.query.trim() !== "")

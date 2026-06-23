@@ -111,6 +111,12 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
 
   const select = useCallback((id: string) => setActiveId(id), []);
 
+  // Re-insert a previously closed tab (powers "undo close" for unsaved tabs).
+  const restore = useCallback((tab: T) => {
+    setTabs((prev) => (prev.some((t) => t.id === tab.id) ? prev : [...prev, tab]));
+    setActiveId(tab.id);
+  }, []);
+
   const patch = useCallback(
     (id: string, partial: Partial<T>) => {
       setTabs((prev) =>
@@ -214,6 +220,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     newUntitled,
     save,
     close,
+    restore,
     select,
     patch,
     retitle,

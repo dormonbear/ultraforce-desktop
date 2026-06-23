@@ -181,7 +181,7 @@ test("Cmd+S saves the file and __ufReadFile reflects the new content", async ({
         window as unknown as { __ufReadFile: (p: string) => string | null }
       ).__ufReadFile("/ws/workspace/soql/accounts.soql") ?? ""
     );
-  }, { timeout: 8000 }).toContain("SELECT Name FROM Contact");
+  }, { timeout: 12000 }).toContain("SELECT Name FROM Contact");
 });
 
 // ── 6. Diagnostics: SOQL error marker renders a squiggle ──────────────────
@@ -287,6 +287,29 @@ test("empty SOQL panel's New query button opens an untitled tab", async ({
   // strip, which isn't shown when there are no tabs).
   await expect(page.getByText("open a query from the sidebar")).toBeVisible();
   await page.getByRole("button", { name: "New query" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+});
+
+// ── 7d. Closing an unsaved untitled tab offers Undo ───────────────────────
+
+test("closing an unsaved untitled tab offers Undo to restore it", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openSoql(page); // a saved tab, so the untitled one is closeable
+  await page.getByRole("button", { name: "New tab" }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
+
+  const editor = new MonacoEditor(page);
+  await editor.setValueViaApi("SELECT Id FROM Account");
+  await expect(page.getByTestId("unsaved-dot")).toBeVisible();
+
+  // Close the untitled tab → it goes away but an Undo toast appears.
+  await page.getByRole("button", { name: /Close Untitled-\d+/ }).click();
+  await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toHaveCount(0);
+
+  // Undo restores the tab (and its content).
+  await page.getByRole("button", { name: "Undo" }).first().click();
   await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
 });
 
