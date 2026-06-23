@@ -114,6 +114,9 @@ export function ApexTabs() {
                 onSelect={select}
                 onClose={close}
                 onAdd={newUntitled}
+                dirtyIds={tabs
+                  .filter((t) => t.path === "" && t.src.trim() !== "")
+                  .map((t) => t.id)}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
                 <ApexView

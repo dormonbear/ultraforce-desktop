@@ -247,6 +247,9 @@ test("Save As writes an untitled tab to the chosen path and retitles it", async 
   await editor.setValueViaApi("SELECT Id FROM Account");
   await expect.poll(() => editor.text()).toBe("SELECT Id FROM Account");
 
+  // The untitled tab now has unsaved content → an unsaved dot is shown.
+  await expect(page.getByTestId("unsaved-dot")).toBeVisible();
+
   // Ctrl+S → Save As. Retry: Monaco registers the keybinding asynchronously, and
   // headless Chromium matches CtrlCmd with Control (not Meta) — same pattern as
   // the Ctrl+Enter run tests. Re-pressing after the rename is a harmless re-save.
@@ -265,6 +268,9 @@ test("Save As writes an untitled tab to the chosen path and retitles it", async 
       ),
   );
   expect(saved).toBe("SELECT Id FROM Account");
+
+  // Saved to a path → no longer unsaved, dot clears.
+  await expect(page.getByTestId("unsaved-dot")).toHaveCount(0);
 });
 
 // ── 8. SOQL results — TABLE/TREE toggle and row filter ────────────────────

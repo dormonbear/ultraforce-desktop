@@ -117,6 +117,9 @@ export function SoqlTabs() {
                 onSelect={select}
                 onClose={close}
                 onAdd={newUntitled}
+                dirtyIds={tabs
+                  .filter((t) => t.path === "" && t.query.trim() !== "")
+                  .map((t) => t.id)}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
                 <SoqlView

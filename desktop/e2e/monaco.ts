@@ -44,8 +44,11 @@ export class MonacoEditor {
       const eds = m?.editor?.getEditors?.() ?? [];
       const ed = eds.find((e: any) => e.hasTextFocus?.()) ?? eds[0];
       const model = ed?.getModel?.();
-      if (model) {
+      if (model && ed) {
         ed.executeEdits("e2e", [{ range: model.getFullModelRange(), text: t }]);
+        // Park the caret at the end so a following trigger completes in context.
+        ed.setPosition(model.getPositionAt(t.length));
+        ed.focus();
       }
     }, text);
   }
