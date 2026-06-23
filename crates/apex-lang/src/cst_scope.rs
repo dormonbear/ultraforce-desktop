@@ -23,7 +23,7 @@ pub fn locals(tree: &Tree, src: &str) -> Vec<CstLocal> {
                     (n.child_by_field_name("type"), declared_name(n))
                 {
                     out.push(CstLocal {
-                        name: name_text(name, src),
+                        name: text(name, src),
                         declared_type: text(ty, src),
                     });
                 }
@@ -43,22 +43,21 @@ fn declared_name(n: tree_sitter::Node) -> Option<tree_sitter::Node> {
     if let Some(name) = n.child_by_field_name("name") {
         return Some(name);
     }
-    let mut stack = vec![n];
+    // Seed DFS with direct children only — avoids re-processing `n` itself
+    // and prevents returning a wrong nested name from deeper subtrees.
+    let mut stack: Vec<tree_sitter::Node> = (0..n.child_count())
+        .map(|i| n.child(i as u32).unwrap())
+        .collect();
     while let Some(c) = stack.pop() {
         if c.kind() == "variable_declarator" {
-            if let Some(name) = c.child_by_field_name("name") {
-                return Some(name);
-            }
+            // Return immediately on the first declarator found.
+            return c.child_by_field_name("name");
         }
         for i in 0..c.child_count() {
             stack.push(c.child(i as u32).unwrap());
         }
     }
     None
-}
-
-fn name_text(node: tree_sitter::Node, src: &str) -> String {
-    text(node, src)
 }
 
 fn text(node: tree_sitter::Node, src: &str) -> String {
