@@ -423,3 +423,28 @@ test("the header command-palette button opens the palette and runs a command", a
   await page.getByText("Go to Apex").click();
   await expect(page.getByLabel("Apex")).toHaveAttribute("aria-current", "page");
 });
+
+// ── 12. Run history is searchable and closes on Escape ────────────────────
+
+test("run history filters entries and closes on Escape", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Run history" }).click();
+  const drawer = page.getByRole("dialog", { name: "Run history" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText(/AnnualRevenue/)).toBeVisible();
+
+  // Filter prunes non-matching entries, then restores on a match.
+  const filter = drawer.getByPlaceholder(/Filter runs/);
+  await filter.fill("zzz-no-match");
+  await expect(drawer.getByText("— no matching runs —")).toBeVisible();
+  await filter.fill("AnnualRevenue");
+  await expect(drawer.getByText(/AnnualRevenue/)).toBeVisible();
+
+  // Escape closes the drawer.
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+});
