@@ -558,3 +558,23 @@ test("clicking an Apex compile error jumps the editor cursor to that line", asyn
   });
   expect(line).toBe(3);
 });
+
+// ── 19. Copy the whole result as tab-separated rows ───────────────────────
+
+test("the result toolbar copies all rows as TSV to the clipboard", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openSoql(page);
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy result" }).click();
+  await expect(page.getByText(/Copied 12 rows/).first()).toBeVisible();
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  const lines = clip.split("\n");
+  expect(lines).toHaveLength(13); // header + 12 rows
+  expect(lines[0]).toBe("Id\tName\tIndustry");
+  expect(lines[1].split("\t")[1]).toBe("Account 0");
+});

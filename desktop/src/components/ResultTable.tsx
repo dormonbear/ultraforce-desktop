@@ -242,6 +242,29 @@ export function ResultTable({
 
         <button
           type="button"
+          aria-label="Copy result"
+          title="Copy all rows (tab-separated — paste into a spreadsheet)"
+          onClick={() => {
+            const tsv = [
+              data.columns.join("\t"),
+              ...data.rows.map((r) =>
+                r.map((c) => (c == null ? "" : String(c))).join("\t"),
+              ),
+            ].join("\n");
+            void navigator.clipboard.writeText(tsv).then(
+              () =>
+                toast.success(
+                  `Copied ${data.rows.length} row${data.rows.length === 1 ? "" : "s"}`,
+                ),
+              () => toast.error("Copy failed"),
+            );
+          }}
+          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+        >
+          <Copy size={14} />
+        </button>
+        <button
+          type="button"
           onClick={() => void exportCsv()}
           title="Export CSV"
           className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
