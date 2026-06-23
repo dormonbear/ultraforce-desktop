@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, Loader2, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
@@ -247,9 +247,33 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               {/* Runtime exception */}
               {outcome.compiled && !outcome.success && (
                 <div className="rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-                  <span className="font-bold">
-                    {outcome.exception_message ?? "Execution failed"}
-                  </span>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-bold">
+                      {outcome.exception_message ?? "Execution failed"}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Copy exception"
+                      title="Copy the exception and stack trace"
+                      onClick={async () => {
+                        const text = [
+                          outcome.exception_message,
+                          outcome.exception_stack_trace,
+                        ]
+                          .filter(Boolean)
+                          .join("\n");
+                        try {
+                          await navigator.clipboard.writeText(text);
+                          toast.success("Exception copied");
+                        } catch {
+                          toast.error("Copy failed");
+                        }
+                      }}
+                      className="focus-accent shrink-0 cursor-pointer rounded-[2px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
                   {outcome.exception_stack_trace && (
                     <div className="mt-1">
                       <button

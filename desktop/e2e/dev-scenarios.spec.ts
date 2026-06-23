@@ -71,6 +71,14 @@ test("run anonymous Apex failure: exception message surfaces in UI", async ({
   await expect(
     page.getByText("System.NullPointerException: Attempt to de-reference a null object").first(),
   ).toBeVisible();
+
+  // The exception (message + stack trace) copies to the clipboard in one click.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy exception" }).click();
+  await expect(page.getByText("Exception copied").first()).toBeVisible();
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip).toContain("System.NullPointerException");
+  expect(clip).toContain("Class.MyClass.run: line 5");
 });
 
 // ── 3. Cmd/Ctrl+Enter triggers run_apex in the Apex panel ─────────────────
