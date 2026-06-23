@@ -16,6 +16,7 @@ const APEX_KEYWORDS = [
 
 let registered = false;
 let completionRegistered = false;
+let apexFormatRegistered = false;
 
 function monacoKind(monaco: Monaco, kind: string) {
   const K = monaco.languages.CompletionItemKind;
@@ -65,6 +66,25 @@ export function registerApexCompletion(monaco: Monaco): void {
           range,
         })),
       };
+    },
+  });
+}
+
+/** Register Format Document (Shift+Alt+F) for Apex, backed by `format_apex`. */
+export function registerApexFormatter(monaco: Monaco): void {
+  if (apexFormatRegistered) return;
+  apexFormatRegistered = true;
+  monaco.languages.registerDocumentFormattingEditProvider("apex", {
+    provideDocumentFormattingEdits: async (model) => {
+      let formatted: string;
+      try {
+        formatted = await invoke<string>("format_apex", {
+          src: model.getValue(),
+        });
+      } catch {
+        return [];
+      }
+      return [{ range: model.getFullModelRange(), text: formatted }];
     },
   });
 }
