@@ -14,7 +14,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { configureMonacoApex } from "../monaco-apex";
+import { configureMonacoApex, registerApexFormatter } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { DebugConfigRow } from "./DebugConfigRow";
@@ -104,7 +104,10 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
     }
   }, [onPatch, org]);
 
-  const beforeMount = (monaco: Monaco) => configureMonacoApex(monaco);
+  const beforeMount = (monaco: Monaco) => {
+    configureMonacoApex(monaco);
+    registerApexFormatter(monaco);
+  };
   const onMount: OnMount = (instance, monaco) => {
     editorRef.current = instance;
     monacoRef.current = monaco;
