@@ -3,6 +3,8 @@ import type { SoqlResultDto, ApexOutcomeDto, QueryPlanDto } from "../types";
 export interface TabBase {
   id: string;
   title: string;
+  /** File path, if any — shown as a hover tooltip to disambiguate same-named tabs. */
+  path?: string;
   /** True once the user has manually renamed the tab (stops auto-numbering). */
   renamed?: boolean;
 }

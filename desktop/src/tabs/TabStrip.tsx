@@ -74,6 +74,7 @@ export function TabStrip({
             id={`tab-${t.id}`}
             aria-selected={active}
             tabIndex={active ? 0 : -1}
+            title={t.path || undefined}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => {
               // Middle-click closes the tab (unless it's the last one).

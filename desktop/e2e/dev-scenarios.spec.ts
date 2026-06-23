@@ -578,3 +578,14 @@ test("the result toolbar copies all rows as TSV to the clipboard", async ({
   expect(lines[0]).toBe("Id\tName\tIndustry");
   expect(lines[1].split("\t")[1]).toBe("Account 0");
 });
+
+// ── 20. A file tab shows its full path on hover ───────────────────────────
+
+test("a file tab exposes its full path as a hover title", async ({ page }) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  const tab = page.getByRole("tab", { name: /accounts\.soql/ });
+  await expect(tab).toBeVisible();
+  // Disambiguates same-named files in different folders.
+  await expect(tab).toHaveAttribute("title", "/ws/workspace/soql/accounts.soql");
+});
