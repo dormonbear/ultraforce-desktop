@@ -7,6 +7,7 @@ import {
   Sun,
   Moon,
   History as HistoryIcon,
+  Command as CommandIcon,
 } from "lucide-react";
 import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
@@ -111,6 +112,25 @@ export default function App() {
           <IndexProgress />
           <SchemaRefresh />
           <WorkspaceSettings onChanged={() => setWsVersion((v) => v + 1)} />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCmdOpen(true)}
+                aria-label="Command palette"
+                className="size-7 cursor-pointer text-text-dim hover:text-foreground"
+              >
+                <CommandIcon size={15} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Command palette
+              <span className="ml-2 text-muted-foreground">
+                {isMac() ? "⌘K" : "Ctrl+K"}
+              </span>
+            </TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button

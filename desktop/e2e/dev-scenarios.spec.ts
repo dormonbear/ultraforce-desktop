@@ -408,3 +408,18 @@ test("Cmd/Ctrl+1..3 switches between the SOQL / Apex / Logs tools", async ({
   await page.keyboard.press("Control+1");
   await expect(page.getByLabel("SOQL")).toHaveAttribute("aria-current", "page");
 });
+
+// ── 11. Command palette is discoverable from the header ───────────────────
+
+test("the header command-palette button opens the palette and runs a command", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  // The palette (Cmd/Ctrl+K) now has a visible header affordance.
+  await page.getByRole("button", { name: "Command palette" }).click();
+  await expect(page.getByPlaceholder("Search commands...")).toBeVisible();
+
+  // Running a command works: Go to Apex switches the active tool.
+  await page.getByText("Go to Apex").click();
+  await expect(page.getByLabel("Apex")).toHaveAttribute("aria-current", "page");
+});
