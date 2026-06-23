@@ -478,6 +478,7 @@ mod tests {
         // CST path: receiver_text is `svc.self_()` — not a local name and not a type
         // name, so resolve_member_receiver returns None → empty candidates.
         // Call-chain type inference is not implemented in the CST path; accepted regression.
+        // Known P1 gap: call-chain receivers (a.b().c) aren't type-inferred yet — only simple-name and type-name receivers resolve. Empty is the correct P1 expectation.
         assert!(got.is_empty(), "expected empty for unresolvable call chain, got {got:?}");
     }
 
