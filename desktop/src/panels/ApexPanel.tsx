@@ -246,9 +246,23 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                     {outcome.compile_problem ?? "Compile failed"}
                   </span>
                   {outcome.line != null && (
-                    <span className="tnum ml-2 text-amber/80">
+                    <button
+                      type="button"
+                      title="Jump to this location in the editor"
+                      onClick={() => {
+                        const ed = editorRef.current;
+                        if (!ed || outcome.line == null) return;
+                        ed.revealLineInCenter(outcome.line);
+                        ed.setPosition({
+                          lineNumber: outcome.line,
+                          column: Math.max(1, outcome.column ?? 1),
+                        });
+                        ed.focus();
+                      }}
+                      className="tnum ml-2 cursor-pointer text-amber/80 underline-offset-2 hover:underline"
+                    >
                       Ln {outcome.line}:{outcome.column ?? 0}
-                    </span>
+                    </button>
                   )}
                 </div>
               )}

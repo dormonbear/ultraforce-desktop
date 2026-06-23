@@ -527,3 +527,34 @@ test("running an empty query shows a hint and does not call the backend", async 
   });
   expect(ran).toBe(false);
 });
+
+// ── 18. Clicking an Apex compile-error location jumps the cursor ──────────
+
+test("clicking an Apex compile error jumps the editor cursor to that line", async ({
+  page,
+}) => {
+  await gotoApp(page, {
+    run_apex: {
+      compiled: false,
+      success: false,
+      compile_problem: "Unexpected token ';'",
+      exception_message: null,
+      exception_stack_trace: null,
+      line: 3,
+      column: 1,
+      logs: "",
+    },
+  });
+  const editor = await openApex(page);
+  await editor.setValueViaApi("a;\nb;\nc;\nd;");
+  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await expect(page.getByText("Unexpected token ';'").first()).toBeVisible();
+
+  await page.getByRole("button", { name: /Ln 3:/ }).click();
+  const line = await page.evaluate(() => {
+    const m = (window as unknown as { monaco?: any }).monaco;
+    const ed = (m?.editor?.getEditors?.() ?? [])[0];
+    return ed?.getPosition?.()?.lineNumber;
+  });
+  expect(line).toBe(3);
+});
