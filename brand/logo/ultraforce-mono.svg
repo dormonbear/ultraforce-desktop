@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 128" role="img" aria-labelledby="title desc">
+  <title id="title">Ultraforce monochrome lockup</title>
+  <desc id="desc">Single-color Ultraforce velocity mark and wordmark.</desc>
+  <g fill="#1A1A1A">
+    <path d="M16 30H31L89 64L31 98H16L74 64Z"/>
+    <path d="M48 30H63L121 64L63 98H48L106 64Z"/>
+    <text x="154" y="80" font-family="Inter, Avenir Next, Helvetica Neue, Arial, sans-serif" font-size="48" font-weight="500" letter-spacing="-1">ultraforce</text>
+  </g>
+</svg>

@@ -174,10 +174,34 @@ body {
     0 0 0 3px var(--ring);
 }
 
+/* Strong ease-out for entering/exiting UI — the built-in curve is too weak. */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* tailwindcss-animate drives enter/exit via animation; give it the strong curve. */
+.animate-in,
+.animate-out {
+  animation-timing-function: var(--ease-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  /* Reduced motion = remove movement, keep fades/colors that aid comprehension. */
+  .animate-in,
+  .animate-out {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
+  }
+  /* Drop transform/size motion on transitions; keep opacity/color/shadow. */
   * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    transition-property: opacity, color, background-color, border-color,
+      box-shadow, fill, stroke !important;
   }
 }
 
@@ -187,7 +211,7 @@ body {
   }
 }
 .spin {
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.6s linear infinite;
 }
 
 /* Indeterminate sweep for the top progress strip (phases without a total). */

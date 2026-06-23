@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ultraforce Brand Kit</title>
+  <style>
+    :root {
+      --canvas: #F5F4F0;
+      --ink: #1A1A1A;
+      --coral: #E0532F;
+      --muted: #8A8A85;
+      --hairline: #E2E0DA;
+      --font-ui: Inter, "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--ink);
+      color: var(--ink);
+      font-family: var(--font-ui);
+      letter-spacing: 0;
+    }
+    .board {
+      min-height: 100vh;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(260px, 1fr));
+      grid-auto-rows: minmax(260px, 1fr);
+      gap: 18px;
+      background: var(--ink);
+    }
+    .panel {
+      position: relative;
+      min-height: 260px;
+      background: var(--canvas);
+      overflow: hidden;
+      padding: 26px;
+      border: 1px solid rgba(245, 244, 240, 0.08);
+    }
+    .label {
+      position: absolute;
+      left: 26px;
+      bottom: 21px;
+      font: 10px/1 var(--font-mono);
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .page {
+      position: absolute;
+      right: 26px;
+      bottom: 21px;
+      font: 10px/1 var(--font-mono);
+      color: var(--muted);
+    }
+    .uf-tile { width: 116px; height: 116px; }
+    .uf-icon { width: 148px; height: 148px; }
+    .cover {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+    }
+    .wordmark {
+      font-size: 58px;
+      font-weight: 500;
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .construction {
+      display: grid;
+      place-items: center;
+    }
+    .construction svg {
+      width: min(82%, 330px);
+      height: auto;
+    }
+    .app-frame {
+      position: absolute;
+      inset: 46px 34px 60px;
+      border: 1px solid var(--hairline);
+      background: #111;
+      color: var(--canvas);
+      box-shadow: 0 24px 60px rgba(26, 26, 26, 0.18);
+    }
+    .app-bar {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(245, 244, 240, 0.12);
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: rgba(245, 244, 240, 0.32); }
+    .run {
+      margin-left: auto;
+      height: 26px;
+      border: 0;
+      background: var(--coral);
+      color: white;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 12px;
+      font: 600 11px/1 var(--font-ui);
+    }
+    .query {
+      padding: 28px 22px;
+      font: 15px/1.8 var(--font-mono);
+      color: var(--canvas);
+    }
+    .query .kw { color: var(--coral); }
+    .essence {
+      display: flex;
+      align-items: center;
+    }
+    .tagline {
+      max-width: 620px;
+      font-size: clamp(54px, 7vw, 94px);
+      line-height: 0.9;
+      font-weight: 500;
+      letter-spacing: -0.04em;
+    }
+    .swatches {
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      align-items: center;
+      padding-bottom: 32px;
+    }
+    .swatch {
+      min-height: 154px;
+      border: 1px solid var(--hairline);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 12px;
+      font: 10px/1.5 var(--font-mono);
+      color: var(--ink);
+      text-transform: uppercase;
+    }
+    .swatch.dark { color: var(--canvas); }
+    .type-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 26px;
+    }
+    .type-main {
+      font-size: clamp(40px, 5vw, 68px);
+      line-height: 0.95;
+      font-weight: 500;
+      letter-spacing: -0.035em;
+    }
+    .type-mono {
+      font: 15px/1.8 var(--font-mono);
+      color: var(--muted);
+    }
+    .badge-panel {
+      display: grid;
+      place-items: center;
+      background:
+        linear-gradient(90deg, rgba(26, 26, 26, 0.04) 1px, transparent 1px),
+        linear-gradient(rgba(26, 26, 26, 0.04) 1px, transparent 1px),
+        var(--canvas);
+      background-size: 24px 24px;
+    }
+    .sticker {
+      width: 174px;
+      height: 174px;
+      border-radius: 38px;
+      background: var(--ink);
+      display: grid;
+      place-items: center;
+      transform: rotate(-5deg);
+      box-shadow: 0 28px 55px rgba(26, 26, 26, 0.22);
+      outline: 8px solid white;
+    }
+    .pattern {
+      background-color: var(--ink);
+      background-image:
+        linear-gradient(30deg, transparent 0 42%, rgba(224, 83, 47, 0.95) 42% 49%, transparent 49% 100%),
+        linear-gradient(150deg, transparent 0 42%, rgba(224, 83, 47, 0.72) 42% 49%, transparent 49% 100%);
+      background-size: 74px 48px;
+      background-position: 0 0, 18px 0;
+    }
+    .pattern::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 70% 20%, rgba(224, 83, 47, 0.22), transparent 32%), rgba(26, 26, 26, 0.08);
+    }
+    .chips {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      height: 38px;
+      border: 1px solid var(--hairline);
+      background: transparent;
+      color: var(--ink);
+      display: inline-flex;
+      align-items: center;
+      padding: 0 15px;
+      font: 11px/1 var(--font-mono);
+      letter-spacing: 0.08em;
+    }
+    .chip.active {
+      background: var(--coral);
+      border-color: var(--coral);
+      color: white;
+      font-family: var(--font-ui);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    @media (max-width: 920px) {
+      .board { grid-template-columns: 1fr; }
+      .cover { flex-direction: column; }
+      .wordmark { font-size: 46px; }
+      .swatches { grid-template-columns: 1fr; }
+      .swatch { min-height: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="board" aria-label="Ultraforce brand kit board">
+    <section class="panel cover">
+      <svg class="uf-tile" viewBox="0 0 128 128" aria-hidden="true">
+        <rect x="8" y="8" width="112" height="112" rx="25" fill="#1A1A1A"/>
+        <g fill="#E0532F" transform="translate(0 2) scale(0.86) translate(10 10)">
+          <path d="M16 30H31L89 64L31 98H16L74 64Z"/>
+          <path d="M48 30H63L121 64L63 98H48L106 64Z"/>
+        </g>
+      </svg>
+      <div class="wordmark">ultraforce</div>
+      <div class="label">Logo Cover</div><div class="page">01</div>
+    </section>
+
+    <section class="panel construction">
+      <svg viewBox="0 0 360 260" role="img" aria-label="Logo construction grid">
+        <rect x="40" y="30" width="280" height="200" fill="none" stroke="#E2E0DA"/>
+        <g stroke="#E2E0DA" stroke-width="1">
+          <path d="M40 64H320M40 98H320M40 132H320M40 166H320M40 200H320"/>
+          <path d="M72 30V230M104 30V230M136 30V230M168 30V230M200 30V230M232 30V230M264 30V230M296 30V230"/>
+          <path d="M88 64L236 132L88 200M152 64L300 132L152 200" stroke="#8A8A85"/>
+        </g>
+        <g fill="#E0532F" transform="translate(70 68) scale(1.35)">
+          <path d="M16 30H31L89 64L31 98H16L74 64Z"/>
+          <path d="M48 30H63L121 64L63 98H48L106 64Z"/>
+        </g>
+      </svg>
+      <div class="label">Construction</div><div class="page">02</div>
+    </section>
+
+    <section class="panel">
+      <div class="app-frame">
+        <div class="app-bar">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <button class="run" type="button">
+            <svg width="9" height="10" viewBox="0 0 9 10" aria-hidden="true"><path d="M1 1L8 5L1 9Z" fill="white"/></svg>
+            RUN
+          </button>
+        </div>
+        <div class="query"><span class="kw">select</span> id <span class="kw">from</span> account <span class="kw">limit</span> 200</div>
+      </div>
+      <div class="label">Digital Application</div><div class="page">03</div>
+    </section>
+
+    <section class="panel essence">
+      <div class="tagline">Run at full force.</div>
+      <div class="label">Brand Essence</div><div class="page">04</div>
+    </section>
+
+    <section class="panel">
+      <div class="swatches">
+        <div class="swatch" style="background:#F5F4F0">Canvas<br>#F5F4F0</div>
+        <div class="swatch dark" style="background:#1A1A1A">Ink<br>#1A1A1A</div>
+        <div class="swatch dark" style="background:#E0532F">Coral<br>#E0532F</div>
+        <div class="swatch dark" style="background:#8A8A85">Muted<br>#8A8A85</div>
+        <div class="swatch" style="background:#E2E0DA">Hairline<br>#E2E0DA</div>
+      </div>
+      <div class="label">Color System</div><div class="page">05</div>
+    </section>
+
+    <section class="panel type-panel">
+      <div class="type-main">Inter<br>JetBrains Mono</div>
+      <div class="type-mono">ABCDEFGHIJKLMNOPQRSTUVWXYZ<br>abcdefghijklmnopqrstuvwxyz<br>0123456789 / SELECT * FROM LOGS</div>
+      <div class="label">Typography</div><div class="page">06</div>
+    </section>
+
+    <section class="panel badge-panel">
+      <div class="sticker">
+        <svg width="126" height="126" viewBox="0 0 128 128" aria-hidden="true">
+          <g fill="#E0532F" transform="translate(0 2) scale(0.86) translate(10 10)">
+            <path d="M16 30H31L89 64L31 98H16L74 64Z"/>
+            <path d="M48 30H63L121 64L63 98H48L106 64Z"/>
+          </g>
+        </svg>
+      </div>
+      <div class="label">Physical Application</div><div class="page">07</div>
+    </section>
+
+    <section class="panel pattern">
+      <div class="label" style="color:#F5F4F0">Image Direction</div><div class="page" style="color:#F5F4F0">08</div>
+    </section>
+
+    <section class="panel">
+      <div class="chips">
+        <span class="chip">TABLE</span>
+        <span class="chip">TREE</span>
+        <span class="chip">TOOLING API</span>
+        <span class="chip active">RUN</span>
+      </div>
+      <div class="label">System Detail</div><div class="page">09</div>
+    </section>
+  </main>
+</body>
+</html>
