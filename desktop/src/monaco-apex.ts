@@ -36,6 +36,15 @@ function monacoKind(monaco: Monaco, kind: string) {
   }
 }
 
+/** Built-in Apex generics → snippet body that drops the cursor inside `<>`. */
+const GENERIC_SNIPPETS: Record<string, string> = {
+  List: "List<$0>",
+  Set: "Set<$0>",
+  Map: "Map<$1, $2>",
+  Iterable: "Iterable<$0>",
+  Iterator: "Iterator<$0>",
+};
+
 /** Register an Apex CompletionItemProvider backed by the `apex_complete` Tauri command. */
 export function registerApexCompletion(monaco: Monaco): void {
   if (completionRegistered) return;
@@ -59,12 +68,18 @@ export function registerApexCompletion(monaco: Monaco): void {
         endColumn: word.endColumn,
       };
       return {
-        suggestions: cands.map((c) => ({
-          label: c.label,
-          kind: monacoKind(monaco, c.kind),
-          insertText: c.label,
-          range,
-        })),
+        suggestions: cands.map((c) => {
+          const snippet = GENERIC_SNIPPETS[c.label];
+          return {
+            label: c.label,
+            kind: monacoKind(monaco, c.kind),
+            insertText: snippet ?? c.label,
+            insertTextRules: snippet
+              ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+              : undefined,
+            range,
+          };
+        }),
       };
     },
   });
