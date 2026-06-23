@@ -14,6 +14,7 @@ import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { SetupPage } from "./components/SetupPage";
 import { useOrgs } from "./org";
+import { isMac } from "./platform";
 import { CommandPalette } from "./components/CommandPalette";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
@@ -66,6 +67,21 @@ export default function App() {
 
   // History "open in tab" requests switch to the owning tool's panel.
   useEffect(() => onOpenTabRequest((tool) => setActive(tool)), []);
+
+  // Cmd/Ctrl+1..3 switches tools (1=SOQL, 2=Apex, 3=Logs).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > RAIL.length) return;
+      const item = RAIL[n - 1];
+      if (!item.enabled) return;
+      e.preventDefault();
+      setActive(item.id as ActivePanel);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Check GitHub Releases for a newer version once on startup.
   useEffect(() => {
@@ -130,7 +146,7 @@ export default function App() {
       <div className="flex min-h-0 flex-1">
         {/* Activity rail */}
         <nav className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-border py-2">
-          {RAIL.map(({ id, icon: Icon, label, enabled }) => {
+          {RAIL.map(({ id, icon: Icon, label, enabled }, index) => {
             const current = enabled && id === active;
             return (
               <Tooltip key={id}>
@@ -155,7 +171,15 @@ export default function App() {
                     <Icon size={18} />
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right">{label}</TooltipContent>
+                <TooltipContent side="right">
+                  {label}
+                  {enabled && (
+                    <span className="ml-2 text-muted-foreground">
+                      {isMac() ? "⌘" : "Ctrl+"}
+                      {index + 1}
+                    </span>
+                  )}
+                </TooltipContent>
               </Tooltip>
             );
           })}

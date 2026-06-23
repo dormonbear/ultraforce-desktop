@@ -389,3 +389,22 @@ test("a results column copies all its values to the clipboard", async ({
   expect(clip.split("\n")).toHaveLength(12);
   expect(clip).toContain("Account 0");
 });
+
+// ── 10. Cmd/Ctrl+number switches tools ────────────────────────────────────
+
+test("Cmd/Ctrl+1..3 switches between the SOQL / Apex / Logs tools", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  // Default tool is SOQL.
+  await expect(page.getByLabel("SOQL")).toHaveAttribute("aria-current", "page");
+
+  await page.keyboard.press("Control+2");
+  await expect(page.getByLabel("Apex")).toHaveAttribute("aria-current", "page");
+
+  await page.keyboard.press("Control+3");
+  await expect(page.getByLabel("Logs")).toHaveAttribute("aria-current", "page");
+
+  await page.keyboard.press("Control+1");
+  await expect(page.getByLabel("SOQL")).toHaveAttribute("aria-current", "page");
+});
