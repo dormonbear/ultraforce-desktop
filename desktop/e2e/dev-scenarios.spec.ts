@@ -625,3 +625,29 @@ test("resizing the Apex editor/result split persists the layout", async ({
     )
     .not.toBeNull();
 });
+
+// ── 22. First launch honors the OS color scheme ───────────────────────────
+
+test("first launch with no saved theme follows the OS dark preference", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await gotoApp(page);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.classList.contains("dark")),
+    )
+    .toBe(true);
+});
+
+test("first launch with no saved theme follows the OS light preference", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await gotoApp(page);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.classList.contains("dark")),
+    )
+    .toBe(false);
+});
