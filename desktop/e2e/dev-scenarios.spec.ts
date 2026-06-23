@@ -36,6 +36,14 @@ test("run anonymous Apex success: COMPILED/SUCCESS chips and debug log appear", 
   // The mocked log contains USER_DEBUG entries
   await expect(page.getByText("DEBUG LOG")).toBeVisible();
   await expect(page.getByText(/USER_DEBUG/).first()).toBeVisible();
+
+  // The log viewer offers a one-click "Copy log" (the full log, not just the
+  // virtualized visible lines) — copies to clipboard and confirms via a toast.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.getByRole("button", { name: "Copy log" }).click();
+  await expect(page.getByText("Log copied").first()).toBeVisible();
+  const clip = await page.evaluate(() => navigator.clipboard.readText());
+  expect(clip).toContain("USER_DEBUG");
 });
 
 // ── 2. Run anonymous Apex — failure path ──────────────────────────────────
