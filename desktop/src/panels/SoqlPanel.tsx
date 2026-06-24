@@ -29,7 +29,8 @@ interface SoqlViewProps {
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
 export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
-  const { query, result, error, view, useToolingApi, allRows, plan } = tab;
+  const { query, result, error, view, useToolingApi, allRows, plan, lastMs } =
+    tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
   // Persist the editor/results split to localStorage; restored on next launch.
@@ -54,8 +55,8 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         useToolingApi,
         allRows,
       });
-      onPatch({ result: dto });
       const ms = performance.now() - t0;
+      onPatch({ result: dto, lastMs: ms });
       void timing("run.soql", ms);
       void recordHistory({
         tool: "soql",
@@ -98,7 +99,9 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     : error
       ? "error"
       : result
-        ? `${result.total_size} row${result.total_size === 1 ? "" : "s"} returned`
+        ? `${result.total_size} row${result.total_size === 1 ? "" : "s"} returned${
+            lastMs != null ? ` · ${Math.round(lastMs)} ms` : ""
+          }`
         : "";
 
   return (

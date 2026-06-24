@@ -12,6 +12,8 @@ export interface TabBase {
 export interface SoqlTab extends TabBase {
   path: string;
   query: string;
+  /** Round-trip time of the last run, in ms (shown in the status line). */
+  lastMs?: number;
   result: SoqlResultDto | null;
   error: string | null;
   view: "table" | "tree";

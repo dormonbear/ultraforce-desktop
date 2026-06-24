@@ -651,3 +651,13 @@ test("first launch with no saved theme follows the OS light preference", async (
     )
     .toBe(false);
 });
+
+// ── 23. SOQL status line shows the run time ───────────────────────────────
+
+test("the SOQL status line reports rows and the run time", async ({ page }) => {
+  await gotoApp(page);
+  await openSoql(page);
+  await page.getByText("RUN", { exact: false }).first().click();
+  // "12 rows returned · NN ms"
+  await expect(page.getByText(/12 rows returned · \d+ ms/)).toBeVisible();
+});
