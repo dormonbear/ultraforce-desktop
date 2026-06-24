@@ -1,39 +1,105 @@
-# Ultraforce
+<p align="center">
+  <img src="brand/logo/ultraforce-lockup-stacked.svg" alt="Ultraforce" width="190">
+</p>
 
-A fast, local-first Salesforce developer desktop toolkit for running SOQL,
-executing anonymous Apex, and reading debug logs — with offline, IntelliSense-grade
-code completion for both SOQL and Apex.
+<p align="center">
+  <b>A fast, local-first Salesforce developer desktop toolkit.</b><br>
+  Run SOQL, execute anonymous Apex, and read debug logs — with offline,
+  IntelliSense-grade code completion for both SOQL and Apex.
+</p>
 
-Built on a Rust core (Cargo workspace) and a Tauri 2 + React 19 desktop shell.
-It drives the official Salesforce CLI (`sf`) under the hood, so it works against
-any org you are already authenticated to. All completion data is sourced from
-first-party Salesforce endpoints (Tooling API / object describes) — no bundled
-third-party metadata.
+<p align="center">
+  <a href="https://github.com/dormonbear/ultraforce-desktop/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/dormonbear/ultraforce-desktop?color=E0532F"></a>
+  <a href="https://github.com/dormonbear/ultraforce-desktop/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/dormonbear/ultraforce-desktop/total?color=E0532F"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/platform-macOS%20·%20Windows%20·%20Linux-555">
+  <a href="./LICENSE"><img alt="License" src="https://img.shields.io/github/license/dormonbear/ultraforce-desktop"></a>
+  <a href="https://github.com/dormonbear/ultraforce-desktop/actions/workflows/release.yml"><img alt="Release" src="https://github.com/dormonbear/ultraforce-desktop/actions/workflows/release.yml/badge.svg"></a>
+</p>
 
-> Status: personal developer tool, actively developed. APIs and UI may change.
+<p align="center">
+  <a href="#install"><b>Download</b></a> ·
+  <a href="#features">Features</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#development">Development</a>
+</p>
+
+> **Status:** personal developer tool, actively developed. APIs and UI may change.
+
+## Why Ultraforce
+
+- ⚡ **Local-first & fast.** A native Tauri 2 + Rust desktop app that drives the
+  official Salesforce CLI (`sf`) under the hood — it works against any org you
+  are already authenticated to, with no extra login.
+- 🧠 **Offline IntelliSense.** Context-aware completion for SOQL *and* Apex,
+  sourced only from first-party Salesforce endpoints (Tooling API / object
+  describes). Index an org once, then complete 100% offline.
+- 🔍 **Three core tasks, one window.** SOQL, anonymous Apex, and debug logs —
+  the everyday Salesforce-dev loop without a browser tab in sight.
+
+## Install
+
+Download the latest build for your OS from the
+[**Releases page**](https://github.com/dormonbear/ultraforce-desktop/releases/latest):
+
+| OS | Download |
+| --- | --- |
+| **macOS** (Apple Silicon) | `Ultraforce_<ver>_aarch64.dmg` |
+| **macOS** (Intel) | `Ultraforce_<ver>_x64.dmg` |
+| **Windows** | `Ultraforce_<ver>_x64-setup.exe` or `_x64_en-US.msi` |
+| **Linux** | `.AppImage`, `.deb`, or `.rpm` |
+
+The app drives the Salesforce CLI, so install and authenticate
+[`sf`](https://developer.salesforce.com/tools/salesforcecli) first
+(`sf org login web`).
+
+<details>
+<summary><b>First-launch bypass</b> (builds are not paid-code-signed)</summary>
+
+- **macOS** — if you see *"… is damaged and can't be opened"*, clear the download
+  quarantine flag, then open normally:
+  ```bash
+  xattr -cr /Applications/Ultraforce.app
+  ```
+  On builds that show the milder "unidentified developer" prompt, just
+  right-click the app → **Open** → **Open**.
+- **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
+
+</details>
+
+Updates are delivered in-app: Ultraforce checks the Releases page on launch and
+offers a one-click download-and-restart when a newer version is available.
 
 ## Features
 
 - **SOQL panel** — Monaco editor with context-aware completion (fields, objects,
-  relationships, SOQL functions, clause keywords), unknown-field diagnostics
-  driven by live object describes, and `TABLE` / `TREE` result views.
+  relationships, SOQL functions, clause keywords), unknown-field diagnostics from
+  live object describes, `TABLE` / `TREE` result views, and an `EXPLAIN` query plan.
 - **Anonymous Apex panel** — run anonymous Apex with per-category debug-level
-  pickers (a generated `TraceFlag` / `DebugLevel`), and inspect the result.
-- **Logs panel** — master/detail debug-log viewer with status badges, governor
-  limits, and tree / limits / raw tabs.
+  pickers (a generated `TraceFlag` / `DebugLevel`), jump-to-line compile errors,
+  and a colorized debug-log viewer with one-click copy.
 - **Apex completion** — member completion over an offline symbol table (OST):
   stdlib namespaces, every org Apex class (full symbol tables), and sObjects
   (fields + relationships) described on demand. Expression-chain inference,
-  generic-collection element unwrap, inheritance/interface flattening.
-- **Offline symbol table** — index an org once, then serve completion 100%
-  offline. Incremental delta-sync refreshes only what changed on org-select
-  (changed classes + sObjects, with deletion reconcile). Bulk object describes
-  use the Composite REST API to keep first-index time down.
+  generic-collection element unwrap, and inheritance/interface flattening.
+- **Logs panel** — master/detail debug-log viewer with status badges, governor
+  limits, and tree / limits / raw tabs.
 - **Explorer + workspace** — VS Code-style sidebar over real `*.soql` / `*.apex`
   files on disk, multi-tab editing with debounced autosave, name and full-text
   search with jump-to-line, and run history.
 
-## Architecture
+## How it works
+
+Ultraforce keeps an **offline symbol table (OST)** per org. Index an org once and
+completion is served entirely from local data — no per-keystroke network calls.
+Re-selecting an org runs an **incremental delta-sync** that refreshes only what
+changed (changed classes + sObjects, with deletion reconcile); bulk object
+describes use the Composite REST API to keep first-index time down.
+
+All completion and diagnostics data comes from first-party Salesforce endpoints
+(Tooling API completions, object describes) — no bundled third-party metadata.
+
+<details>
+<summary><b>Architecture</b></summary>
 
 ```
 crates/
@@ -53,41 +119,14 @@ the bulk of the logic is testable without a live org. A separate suite of
 real-org end-to-end tests (`#[ignore]` by default) runs against an authenticated
 dev org.
 
-## Install
-
-Download the latest build for your OS from the
-[Releases page](https://github.com/dormonbear/ultraforce-desktop/releases/latest):
-
-- **macOS** — `.dmg` (Apple Silicon `aarch64` or Intel `x64`)
-- **Windows** — `_x64_en-US.msi` or `_x64-setup.exe`
-- **Linux** — `.AppImage`, `.deb`, or `.rpm`
-
-The app drives the Salesforce CLI, so install and authenticate
-[`sf`](https://developer.salesforce.com/tools/salesforcecli) first
-(`sf org login web`).
-
-Builds are not paid-code-signed, so the first launch needs a one-time bypass:
-
-- **macOS** — if you see *"… is damaged and can't be opened"*, clear the download
-  quarantine flag, then open normally:
-  ```bash
-  xattr -cr /Applications/Ultraforce.app
-  ```
-  On builds that show the milder "unidentified developer" prompt, just
-  right-click the app → **Open** → **Open**.
-- **Windows** — on the SmartScreen prompt, click **More info → Run anyway**.
-
-Updates are delivered in-app: Ultraforce checks the Releases page on launch and
-offers a one-click download-and-restart when a newer version is available.
-
-## Requirements
-
-- [Rust](https://www.rust-lang.org/tools/install) (stable)
-- [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/)
-- [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`),
-  authenticated to at least one org (`sf org login web`)
+</details>
 
 ## Development
+
+**Requirements:** [Rust](https://www.rust-lang.org/tools/install) (stable),
+[Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/), and the
+[Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`)
+authenticated to at least one org (`sf org login web`).
 
 ```bash
 # Install frontend dependencies
@@ -107,13 +146,17 @@ pnpm -C desktop test        # vitest
 pnpm -C desktop e2e         # Playwright (mocked Tauri IPC)
 ```
 
-Real-org end-to-end tests are opt-in and target the org alias in `UF_E2E_ORG`
-(default `ultraforce`):
+<details>
+<summary>Real-org end-to-end tests (opt-in)</summary>
+
+These target the org alias in `UF_E2E_ORG` (default `ultraforce`):
 
 ```bash
 UF_E2E_ORG=<your-dev-org-alias> \
   cargo test -p features --test real_org_e2e -- --ignored --test-threads=1
 ```
+
+</details>
 
 ## License
 
