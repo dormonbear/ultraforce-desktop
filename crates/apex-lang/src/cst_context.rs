@@ -64,6 +64,13 @@ pub fn classify(tree: &Tree, src: &str, prefix_start: usize) -> CompletionContex
         return CompletionContext::Soql;
     }
 
+    // Error-tolerant member access: `recv.` with the caret right after the dot
+    // and no field typed yet. Without a field token the grammar forms neither
+    // field_access nor scoped_type_identifier, so fall back to text.
+    if let Some(receiver_text) = dot_receiver_before(src, prefix_start) {
+        return CompletionContext::Member { receiver_text };
+    }
+
     // Annotation (after `@`).
     if find_ancestor(node, &["annotation", "marker_annotation"]).is_some() {
         return CompletionContext::Annotation;
@@ -166,6 +173,24 @@ fn has_new_keyword_before(src: &str, prefix_start: usize) -> bool {
             .map_or(true, |&b| !b.is_ascii_alphanumeric() && b != b'_')
 }
 
+/// Receiver of an error-tolerant member access: the identifier immediately
+/// before a trailing `.`/`?.` at the caret (e.g. `acc.` -> "acc"). None when the
+/// text before the caret does not end in a dot or has no leading identifier.
+fn dot_receiver_before(src: &str, prefix_start: usize) -> Option<String> {
+    let before = src[..prefix_start.min(src.len())].trim_end();
+    let before = before.strip_suffix('.')?;
+    let before = before.strip_suffix('?').unwrap_or(before).trim_end();
+    let recv: String = before
+        .chars()
+        .rev()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect();
+    (!recv.is_empty()).then_some(recv)
+}
+
 fn in_expression(node: Node) -> bool {
     find_ancestor(
         node,
@@ -210,6 +235,16 @@ mod tests {
     #[test]
     fn member_after_dot() {
         match ctx("void m(){ acc.nam") {
+            CompletionContext::Member { receiver_text } => assert_eq!(receiver_text, "acc"),
+            other => panic!("expected Member, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn member_after_dot_empty_prefix() {
+        // Caret right after the dot, no field typed yet — the grammar forms no
+        // field_access node, so the text fallback must still yield Member.
+        match ctx("void m(){ acc.") {
             CompletionContext::Member { receiver_text } => assert_eq!(receiver_text, "acc"),
             other => panic!("expected Member, got {other:?}"),
         }
