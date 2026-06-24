@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { gotoApp } from "./fixtures";
+import { MonacoEditor } from "./monaco";
 
 /**
  * Fixed e2e journey over the mocked-IPC app (see fixtures.ts). The real
@@ -8,9 +9,10 @@ import { gotoApp } from "./fixtures";
  * schema refresh, and apex completion.
  */
 
-test("brand wordmark reads Ultraforce", async ({ page }) => {
+test("brand mark is the Ultraforce logo", async ({ page }) => {
   await gotoApp(page);
-  await expect(page.getByText("Ultraforce", { exact: true })).toBeVisible();
+  // The wordmark became an SVG logo carrying its accessible name.
+  await expect(page.getByRole("img", { name: "Ultraforce" })).toBeVisible();
 });
 
 test("explorer lists files and opens one in a tab (persists across reload)", async ({
@@ -253,16 +255,12 @@ test("soql editor surfaces relationship-field completion after a dot", async ({
 }) => {
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
-  const editor = page.locator(".monaco-editor").first();
-  await editor.click();
-  await page.keyboard.press("Control+a");
-  // Type a relationship path, then re-trigger completion until the widget shows —
-  // robust against Monaco's provider not being registered the instant we type.
-  // The mocked soql_complete returns a field reached through the Owner→User rel.
-  await page.keyboard.type("SELECT Owner.Em");
-  const email = page
-    .locator(".monaco-editor .suggest-widget")
-    .getByText("Email");
+  // Set the relationship path via the Monaco API — keyboard typing into an editor
+  // with live completion mangles the text (chars accepted mid-suggest). The
+  // mocked soql_complete returns a field reached through the Owner→User rel.
+  const editor = new MonacoEditor(page);
+  await editor.setValueViaApi("SELECT Owner.Em");
+  const email = editor.suggestWidget().getByText("Email");
   await expect(async () => {
     await page.keyboard.press("Control+Space");
     await expect(email).toBeVisible({ timeout: 1500 });
@@ -273,14 +271,14 @@ test("apex annotation completion offers @AuraEnabled", async ({ page }) => {
   await gotoApp(page);
   await page.getByLabel("Apex").click();
   await page.getByText("hello.apex").click();
-  const editor = page.locator(".monaco-editor").first();
-  await editor.click();
-  await page.keyboard.press("Control+a");
-  await page.keyboard.type("@Aura");
-  // Monaco suggest widget; mocked apex_complete returns @AuraEnabled.
-  await expect(
-    page.locator(".monaco-editor .suggest-widget").getByText("@AuraEnabled"),
-  ).toBeVisible({ timeout: 5000 });
+  // Set via the Monaco API (typing mangles under live completion), then trigger.
+  const editor = new MonacoEditor(page);
+  await editor.setValueViaApi("@Aura");
+  const item = editor.suggestWidget().getByText("@AuraEnabled");
+  await expect(async () => {
+    await page.keyboard.press("Control+Space");
+    await expect(item).toBeVisible({ timeout: 1500 });
+  }).toPass({ timeout: 12000 });
 });
 
 test("top bar shows indexing progress then clears when done", async ({

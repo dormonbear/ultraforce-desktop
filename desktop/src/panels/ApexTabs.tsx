@@ -5,6 +5,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { toast } from "sonner";
 import { TabStrip } from "../tabs/TabStrip";
 import { useFileTabs } from "../tabs/useFileTabs";
 import { Explorer } from "../components/Explorer";
@@ -37,12 +38,35 @@ export function ApexTabs() {
     reveal,
     openFile,
     openOrReplace,
+    newUntitled,
+    save,
     close,
+    restore,
     select,
     patch,
     retitle,
     closeByPath,
   } = useFileTabs<ApexTab>({ tool: "apex", contentKey: "src", make: makeApexTab });
+
+  // Stable across content edits (only changes on tab switch) so the editor does
+  // not re-render on every keystroke.
+  const onSave = useCallback(() => {
+    if (active) void save(active.id);
+  }, [save, active?.id]);
+
+  // Closing an unsaved untitled tab discards its content — offer a quick undo.
+  const handleClose = useCallback(
+    (id: string) => {
+      const t = tabs.find((x) => x.id === id);
+      close(id);
+      if (t && t.path === "" && t.src.trim() !== "") {
+        toast(`Closed ${t.title}`, {
+          action: { label: "Undo", onClick: () => restore(t) },
+        });
+      }
+    },
+    [tabs, close, restore],
+  );
 
   // History "open in tab" stages text via openTab; write it to scratch.apex.
   useEffect(() => {
@@ -104,21 +128,32 @@ export function ApexTabs() {
                 activeId={activeId ?? ""}
                 ariaLabel="Apex tabs"
                 onSelect={select}
-                onClose={close}
-                onAdd={() => {}}
+                onClose={handleClose}
+                onAdd={newUntitled}
+                dirtyIds={tabs
+                  .filter((t) => t.path === "" && t.src.trim() !== "")
+                  .map((t) => t.id)}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
                 <ApexView
                   key={active.id}
                   tab={active}
                   onPatch={onPatch}
+                  onSave={onSave}
                   reveal={activeReveal}
                 />
               </div>
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-              — open a script from the sidebar —
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-[13px] text-muted-foreground">
+              <span>— open a script from the sidebar —</span>
+              <button
+                type="button"
+                onClick={newUntitled}
+                className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
+              >
+                New script
+              </button>
             </div>
           )}
         </div>

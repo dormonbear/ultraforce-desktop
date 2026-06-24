@@ -3,17 +3,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, Loader2, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
+import { trimContextMenu } from "../monaco-contextmenu";
+import { copyText } from "../clipboard";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
+import { useDefaultLayout } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { configureMonacoApex } from "../monaco-apex";
+import { configureMonacoApex, registerApexFormatter } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { DebugConfigRow } from "./DebugConfigRow";
@@ -41,11 +44,12 @@ function StatusChip({ label, ok }: { label: string; ok: boolean }) {
 interface ApexViewProps {
   tab: ApexTab;
   onPatch: (partial: Partial<ApexTab>) => void;
+  onSave?: () => void;
   reveal?: Reveal;
 }
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
-export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
+export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const { theme } = useTheme();
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
@@ -58,12 +62,27 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
   } = useDebugConfig(org);
 
   const srcRef = useRef(src);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  // Flips once the editor has mounted so the diagnostics effect runs on first
+  // open (editorRef is null on the initial render, before onMount).
+  const [mounted, setMounted] = useState(false);
   srcRef.current = src;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
+  // Persist the editor/result split across launches (matches the SOQL panel).
+  const layout = useDefaultLayout({
+    id: "uf-apex-split",
+    panelIds: ["editor", "result"],
+    storage: localStorage,
+  });
 
   const run = useCallback(async () => {
+    if (!srcRef.current.trim()) {
+      toast.error("Write some Apex to run");
+      return;
+    }
     setRunning(true);
     onPatch({ error: null });
     const source = srcRef.current;
@@ -103,15 +122,25 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
     }
   }, [onPatch, org]);
 
-  const beforeMount = (monaco: Monaco) => configureMonacoApex(monaco);
+  const beforeMount = (monaco: Monaco) => {
+    configureMonacoApex(monaco);
+    registerApexFormatter(monaco);
+  };
   const onMount: OnMount = (instance, monaco) => {
     editorRef.current = instance;
     monacoRef.current = monaco;
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
       run()
     );
+    instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
+      onSaveRef.current?.()
+    );
     retriggerSuggestOnEdit(instance);
+    trimContextMenu(instance);
     flushPending();
+    setMounted(true);
+    // Focus so a freshly opened/created tab is ready to type into.
+    instance.focus();
   };
 
   useEffect(() => {
@@ -157,11 +186,15 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
       }
     }, 350);
     return () => clearTimeout(handle);
-  }, [src]);
+  }, [src, mounted]);
 
   return (
-    <ResizablePanelGroup direction="vertical">
-      <ResizablePanel defaultSize={45} minSize={20}>
+    <ResizablePanelGroup
+      direction="vertical"
+      defaultLayout={layout.defaultLayout}
+      onLayoutChanged={layout.onLayoutChanged}
+    >
+      <ResizablePanel id="editor" defaultSize={45} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">ANONYMOUS APEX</div>
@@ -184,7 +217,10 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
               beforeMount={beforeMount}
               onMount={onMount}
               onChange={(v) => onPatch({ src: v ?? "" })}
-              options={EDITOR_OPTS}
+              options={{
+                ...EDITOR_OPTS,
+                placeholder: "System.debug('Hello, World');",
+              }}
               loading={
                 <Loader2 size={18} className="spin text-muted-foreground" />
               }
@@ -195,7 +231,7 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
 
       <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
 
-      <ResizablePanel defaultSize={55} minSize={20}>
+      <ResizablePanel id="result" defaultSize={55} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="micro-label px-4 py-2">RESULT</div>
 
@@ -222,9 +258,23 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
                     {outcome.compile_problem ?? "Compile failed"}
                   </span>
                   {outcome.line != null && (
-                    <span className="tnum ml-2 text-amber/80">
+                    <button
+                      type="button"
+                      title="Jump to this location in the editor"
+                      onClick={() => {
+                        const ed = editorRef.current;
+                        if (!ed || outcome.line == null) return;
+                        ed.revealLineInCenter(outcome.line);
+                        ed.setPosition({
+                          lineNumber: outcome.line,
+                          column: Math.max(1, outcome.column ?? 1),
+                        });
+                        ed.focus();
+                      }}
+                      className="tnum ml-2 cursor-pointer text-amber/80 underline-offset-2 hover:underline"
+                    >
                       Ln {outcome.line}:{outcome.column ?? 0}
-                    </span>
+                    </button>
                   )}
                 </div>
               )}
@@ -232,9 +282,30 @@ export function ApexView({ tab, onPatch, reveal }: ApexViewProps) {
               {/* Runtime exception */}
               {outcome.compiled && !outcome.success && (
                 <div className="rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-                  <span className="font-bold">
-                    {outcome.exception_message ?? "Execution failed"}
-                  </span>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-bold">
+                      {outcome.exception_message ?? "Execution failed"}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label="Copy exception"
+                      title="Copy the exception and stack trace"
+                      onClick={() =>
+                        void copyText(
+                          [
+                            outcome.exception_message,
+                            outcome.exception_stack_trace,
+                          ]
+                            .filter(Boolean)
+                            .join("\n"),
+                          "Exception copied",
+                        )
+                      }
+                      className="focus-accent shrink-0 cursor-pointer rounded-[2px] text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <Copy size={13} />
+                    </button>
+                  </div>
                   {outcome.exception_stack_trace && (
                     <div className="mt-1">
                       <button

@@ -16,6 +16,7 @@ const APEX_KEYWORDS = [
 
 let registered = false;
 let completionRegistered = false;
+let apexFormatRegistered = false;
 
 function monacoKind(monaco: Monaco, kind: string) {
   const K = monaco.languages.CompletionItemKind;
@@ -34,6 +35,15 @@ function monacoKind(monaco: Monaco, kind: string) {
       return K.Text;
   }
 }
+
+/** Built-in Apex generics → snippet body that drops the cursor inside `<>`. */
+const GENERIC_SNIPPETS: Record<string, string> = {
+  List: "List<$0>",
+  Set: "Set<$0>",
+  Map: "Map<$1, $2>",
+  Iterable: "Iterable<$0>",
+  Iterator: "Iterator<$0>",
+};
 
 /** Register an Apex CompletionItemProvider backed by the `apex_complete` Tauri command. */
 export function registerApexCompletion(monaco: Monaco): void {
@@ -58,13 +68,38 @@ export function registerApexCompletion(monaco: Monaco): void {
         endColumn: word.endColumn,
       };
       return {
-        suggestions: cands.map((c) => ({
-          label: c.label,
-          kind: monacoKind(monaco, c.kind),
-          insertText: c.label,
-          range,
-        })),
+        suggestions: cands.map((c) => {
+          const snippet = GENERIC_SNIPPETS[c.label];
+          return {
+            label: c.label,
+            kind: monacoKind(monaco, c.kind),
+            insertText: snippet ?? c.label,
+            insertTextRules: snippet
+              ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+              : undefined,
+            range,
+          };
+        }),
       };
+    },
+  });
+}
+
+/** Register Format Document (Shift+Alt+F) for Apex, backed by `format_apex`. */
+export function registerApexFormatter(monaco: Monaco): void {
+  if (apexFormatRegistered) return;
+  apexFormatRegistered = true;
+  monaco.languages.registerDocumentFormattingEditProvider("apex", {
+    provideDocumentFormattingEdits: async (model) => {
+      let formatted: string;
+      try {
+        formatted = await invoke<string>("format_apex", {
+          src: model.getValue(),
+        });
+      } catch {
+        return [];
+      }
+      return [{ range: model.getFullModelRange(), text: formatted }];
     },
   });
 }

@@ -1,12 +1,13 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
-import { configureMonaco } from "../monaco-soql";
+import { configureMonaco, registerSoqlFormatter } from "../monaco-soql";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import { EDITOR_OPTS } from "../monaco-opts";
+import { trimContextMenu } from "../monaco-contextmenu";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
 import { useTheme, monacoTheme } from "../theme";
@@ -15,20 +16,34 @@ interface Props {
   value: string;
   onChange: (value: string) => void;
   onRun: () => void;
+  onSave?: () => void;
   running: boolean;
   reveal?: Reveal;
 }
 
-export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
+export function SoqlEditor({
+  value,
+  onChange,
+  onRun,
+  onSave,
+  running,
+  reveal,
+}: Props) {
   const { theme } = useTheme();
   const onRunRef = useRef(onRun);
+  const onSaveRef = useRef(onSave);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  // Flips once the editor has mounted so the diagnostics effect runs on first
+  // open (editorRef is null on the initial render, before onMount).
+  const [mounted, setMounted] = useState(false);
   onRunRef.current = onRun;
+  onSaveRef.current = onSave;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
 
   function beforeMount(monaco: Monaco) {
     configureMonaco(monaco);
+    registerSoqlFormatter(monaco);
   }
 
   const onMount: OnMount = (editorInstance, monaco) => {
@@ -38,8 +53,15 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
       monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
       () => onRunRef.current()
     );
+    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
+      onSaveRef.current?.()
+    );
     retriggerSuggestOnEdit(editorInstance);
+    trimContextMenu(editorInstance);
     flushPending();
+    setMounted(true);
+    // Focus so a freshly opened/created tab is ready to type into.
+    editorInstance.focus();
   };
 
   useEffect(() => {
@@ -78,7 +100,7 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
       );
     }, 350);
     return () => clearTimeout(handle);
-  }, [value]);
+  }, [value, mounted]);
 
   return (
     <div className="flex h-full flex-col">
@@ -95,7 +117,10 @@ export function SoqlEditor({ value, onChange, onRun, running, reveal }: Props) {
           beforeMount={beforeMount}
           onMount={onMount}
           onChange={(v) => onChange(v ?? "")}
-          options={EDITOR_OPTS}
+          options={{
+            ...EDITOR_OPTS,
+            placeholder: "SELECT Id, Name FROM Account WHERE …",
+          }}
           loading={<Loader2 size={18} className="spin text-muted-foreground" />}
         />
       </div>

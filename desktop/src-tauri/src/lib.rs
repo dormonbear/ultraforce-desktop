@@ -99,6 +99,12 @@ fn format_soql(query: String) -> String {
     soql_lang::format_soql(&query)
 }
 
+/// Re-indent anonymous Apex by brace depth. Pure, no IO.
+#[tauri::command]
+fn format_apex(src: String) -> String {
+    apex_lang::format_apex(&src)
+}
+
 /// Fetch the SOQL query plan (EXPLAIN): cost / cardinality / leading operation.
 #[tauri::command]
 async fn query_plan(
@@ -642,6 +648,7 @@ pub fn run() {
             apex_diagnostics,
             query_plan,
             format_soql,
+            format_apex,
             parse_log,
             sf_status,
             login_org

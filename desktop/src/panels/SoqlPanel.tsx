@@ -23,12 +23,14 @@ import type { SoqlTab } from "../tabs/types";
 interface SoqlViewProps {
   tab: SoqlTab;
   onPatch: (partial: Partial<SoqlTab>) => void;
+  onSave?: () => void;
   reveal?: Reveal;
 }
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
-export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
-  const { query, result, error, view, useToolingApi, allRows, plan } = tab;
+export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
+  const { query, result, error, view, useToolingApi, allRows, plan, lastMs } =
+    tab;
   const [running, setRunning] = useState(false);
   const { selected: org } = useOrgs();
   // Persist the editor/results split to localStorage; restored on next launch.
@@ -40,6 +42,10 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
   });
 
   const run = useCallback(async () => {
+    if (!query.trim()) {
+      toast.error("Write a query to run");
+      return;
+    }
     setRunning(true);
     onPatch({ error: null });
     const t0 = performance.now();
@@ -49,8 +55,8 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
         useToolingApi,
         allRows,
       });
-      onPatch({ result: dto });
       const ms = performance.now() - t0;
+      onPatch({ result: dto, lastMs: ms });
       void timing("run.soql", ms);
       void recordHistory({
         tool: "soql",
@@ -93,7 +99,9 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
     : error
       ? "error"
       : result
-        ? `${result.total_size} row${result.total_size === 1 ? "" : "s"} returned`
+        ? `${result.total_size} row${result.total_size === 1 ? "" : "s"} returned${
+            lastMs != null ? ` · ${Math.round(lastMs)} ms` : ""
+          }`
         : "";
 
   return (
@@ -107,6 +115,7 @@ export function SoqlView({ tab, onPatch, reveal }: SoqlViewProps) {
           value={query}
           onChange={(v) => onPatch({ query: v })}
           onRun={run}
+          onSave={onSave}
           running={running}
           reveal={reveal}
         />

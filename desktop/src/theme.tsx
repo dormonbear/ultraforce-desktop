@@ -11,7 +11,13 @@ export type Theme = "light" | "dark";
 const KEY = "sf-toolkit-theme";
 
 function initialTheme(): Theme {
-  return localStorage.getItem(KEY) === "dark" ? "dark" : "light";
+  const stored = localStorage.getItem(KEY);
+  if (stored === "dark" || stored === "light") return stored;
+  // No saved preference yet → honor the OS color scheme on first launch.
+  return typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
 }
 
 const ThemeCtx = createContext<{ theme: Theme; toggle: () => void }>({

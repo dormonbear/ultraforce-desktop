@@ -24,6 +24,9 @@ pub enum CursorContext {
     StaticMember { type_name: String, prefix: String },
     InstanceMember { receiver: String, prefix: String },
     ChainMember { chain: Vec<Segment>, prefix: String },
+    /// The caret is naming a new variable: `Type ident<caret>`. Offer variable
+    /// names, never type names. `type_text` is the declared type as written.
+    DeclaratorName { type_text: String, prefix: String },
     Unknown,
 }
 
@@ -117,6 +120,15 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
         };
     }
 
+    // Variable-declaration name position (`Type ident<caret>`): suggest names,
+    // not types. Detected even with an empty prefix (right after the type).
+    if let Some((start, end)) = declarator_type_range(&non_ws) {
+        return CursorContext::DeclaratorName {
+            type_text: input[start..end].to_string(),
+            prefix: prefix.to_string(),
+        };
+    }
+
     // Not member access: an empty prefix here has nothing to complete.
     if prefix.is_empty() {
         return CursorContext::Unknown;
@@ -125,6 +137,63 @@ pub fn context_at(input: &str, cursor: usize) -> CursorContext {
     CursorContext::TopLevel {
         prefix: prefix.to_string(),
     }
+}
+
+/// If the tokens before the caret are a complete type expression sitting at a
+/// statement-start position, return its byte range — i.e. the caret is naming a
+/// new variable. Handles `Account`, `ns.Type`, and one level of generics
+/// (`List<Account>`, `Map<Id, Account>`). Returns `None` otherwise.
+fn declarator_type_range(non_ws: &[&Token]) -> Option<(usize, usize)> {
+    let last = non_ws.last()?;
+    let end = last.end;
+
+    // Locate the base type identifier, stepping over a trailing `<...>`.
+    let base_idx = if last.text == ">" {
+        let mut depth = 0i32;
+        let mut open = None;
+        for k in (0..non_ws.len()).rev() {
+            match non_ws[k].text.as_str() {
+                ">" => depth += 1,
+                "<" => {
+                    depth -= 1;
+                    if depth == 0 {
+                        open = Some(k);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let open = open?;
+        if open == 0 || non_ws[open - 1].kind != TokenKind::Ident {
+            return None;
+        }
+        open - 1
+    } else if last.kind == TokenKind::Ident {
+        non_ws.len() - 1
+    } else {
+        return None;
+    };
+
+    // Walk left over a dotted namespace (`Schema.Account`).
+    let mut start = base_idx;
+    while start >= 2
+        && non_ws[start - 1].text == "."
+        && non_ws[start - 2].kind == TokenKind::Ident
+    {
+        start -= 2;
+    }
+
+    // The type must begin a statement / parameter (or the input).
+    let boundary = start == 0
+        || matches!(non_ws[start - 1].text.as_str(), ";" | "{" | "}")
+        || non_ws[start - 1].kind == TokenKind::LParen
+        || non_ws[start - 1].kind == TokenKind::Comma;
+    if !boundary {
+        return None;
+    }
+
+    Some((non_ws[start].start, end))
 }
 
 /// The type name whose members the cursor wants, if any -- for ensure-describe in the wiring layer.

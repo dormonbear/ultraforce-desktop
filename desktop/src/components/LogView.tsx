@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search } from "lucide-react";
+import { Search, Copy } from "lucide-react";
+import { copyText } from "../clipboard";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -94,6 +95,15 @@ export function LogView({ raw }: { raw: string }) {
           />
           Highlight
         </label>
+        <button
+          type="button"
+          aria-label="Copy log"
+          title="Copy the full log to the clipboard"
+          onClick={() => void copyText(raw, "Log copied")}
+          className="focus-accent flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
+        >
+          <Copy size={13} />
+        </button>
       </div>
       <div
         ref={parentRef}

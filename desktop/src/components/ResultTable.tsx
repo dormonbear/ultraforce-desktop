@@ -15,6 +15,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronsUpDown,
+  Copy,
   Download,
   Rows3,
   Rows4,
@@ -24,6 +25,7 @@ import {
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
+import { copyText } from "../clipboard";
 import { toCsv } from "./csv";
 import {
   Table,
@@ -241,6 +243,26 @@ export function ResultTable({
 
         <button
           type="button"
+          aria-label="Copy result"
+          title="Copy all rows (tab-separated — paste into a spreadsheet)"
+          onClick={() => {
+            const tsv = [
+              data.columns.join("\t"),
+              ...data.rows.map((r) =>
+                r.map((c) => (c == null ? "" : String(c))).join("\t"),
+              ),
+            ].join("\n");
+            void copyText(
+              tsv,
+              `Copied ${data.rows.length} row${data.rows.length === 1 ? "" : "s"}`,
+            );
+          }}
+          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+        >
+          <Copy size={14} />
+        </button>
+        <button
+          type="button"
           onClick={() => void exportCsv()}
           title="Export CSV"
           className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
@@ -330,6 +352,26 @@ export function ResultTable({
                             />
                           )}
                         </button>
+                        {/* copy this column's values (respects filter/sort) */}
+                        <button
+                          type="button"
+                          aria-label={`Copy ${header.column.id} column`}
+                          title={`Copy all ${header.column.id} values`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const col = header.column.id;
+                            const vals = table
+                              .getRowModel()
+                              .rows.map((r) => String(r.getValue(col) ?? ""));
+                            void copyText(
+                              vals.join("\n"),
+                              `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
+                            );
+                          }}
+                          className="absolute right-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                        >
+                          <Copy size={11} />
+                        </button>
                         {/* resize handle */}
                         <span
                           onMouseDown={header.getResizeHandler()}
@@ -372,7 +414,9 @@ export function ResultTable({
                     return (
                       <TableCell
                         key={cell.id}
-                        title="Click to copy"
+                        // Show the full value on hover (cells truncate); the cell
+                        // is still click-to-copy.
+                        title={text || undefined}
                         onClick={() => copyCell(text)}
                         style={{ width: cell.column.getSize() }}
                         className={cn(

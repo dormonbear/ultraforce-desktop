@@ -11,6 +11,8 @@ interface TabStripProps {
   onAdd: () => void;
   /** Commit a new title for a tab (double-click to start editing). */
   onRename?: (id: string, title: string) => void;
+  /** Ids of tabs with unsaved content (shown with a dot). */
+  dirtyIds?: string[];
 }
 
 /** Presentational tablist mirroring the activity-rail accent treatment. */
@@ -22,6 +24,7 @@ export function TabStrip({
   onClose,
   onAdd,
   onRename,
+  dirtyIds,
 }: TabStripProps) {
   const lone = tabs.length === 1;
   const [editing, setEditing] = useState<string | null>(null);
@@ -71,7 +74,15 @@ export function TabStrip({
             id={`tab-${t.id}`}
             aria-selected={active}
             tabIndex={active ? 0 : -1}
+            title={t.path || undefined}
             onClick={() => onSelect(t.id)}
+            onAuxClick={(e) => {
+              // Middle-click closes the tab (unless it's the last one).
+              if (e.button === 1 && !lone) {
+                e.preventDefault();
+                onClose(t.id);
+              }
+            }}
             onKeyDown={(e) => onKeyDown(e, t.id, idx)}
             className={`focus-accent group relative flex h-7 cursor-pointer items-center gap-2 rounded-md px-3 text-[12px] transition-colors ${
               active ? "text-primary" : "text-text-dim hover:text-foreground"
@@ -97,12 +108,19 @@ export function TabStrip({
               />
             ) : (
               <span
-                className="tnum whitespace-nowrap"
+                className="tnum flex items-center gap-1.5 whitespace-nowrap"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   startEdit(t);
                 }}
               >
+                {dirtyIds?.includes(t.id) && (
+                  <span
+                    data-testid="unsaved-dot"
+                    title="Unsaved changes"
+                    className="size-1.5 shrink-0 rounded-full bg-current"
+                  />
+                )}
                 {t.title}
               </span>
             )}
