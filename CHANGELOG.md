@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.3.4](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.3...v0.3.4) (2026-06-24)
+
+
+### Features
+
+* **apex-lang:** add tree-sitter-sfapex CST parse layer (P0) ([e301a06](https://github.com/dormonbear/ultraforce-desktop/commit/e301a063ee922c13510f5d73047521aaf0a29db6))
+* **apex-lang:** collect CST local/param declarations for completion ([9326ce7](https://github.com/dormonbear/ultraforce-desktop/commit/9326ce7f37e9cb0055edfba4f2bb57b3c7815fe2))
+* **apex-lang:** CST caret-position classification (classify) ([747cf65](https://github.com/dormonbear/ultraforce-desktop/commit/747cf6567f2d375ba7d777f9f9dce04c784f4cef))
+* **apex-lang:** CST navigation helpers (node_at_offset, find_ancestor) ([97e8b47](https://github.com/dormonbear/ultraforce-desktop/commit/97e8b470ac3543aa189852d44cb1535639d9c5da))
+* **apex-lang:** expose format_apex module ([32632aa](https://github.com/dormonbear/ultraforce-desktop/commit/32632aa16a433e695be1376cf105319528a93b6e))
+* **apex-lang:** rewrite completion on the tree-sitter CST (P1) ([beb36ea](https://github.com/dormonbear/ultraforce-desktop/commit/beb36eab714a847b13660c0588ac17582899220d))
+* **apex:** click a compile-error location to jump the editor cursor there ([ba820ca](https://github.com/dormonbear/ultraforce-desktop/commit/ba820cae5ca3231a537c26428837e5233d2dc3c5))
+* **apex:** one-click copy of a runtime exception + stack trace ([6dea96e](https://github.com/dormonbear/ultraforce-desktop/commit/6dea96eb0f4c6b8ded8eb3f4868b6bbb63e64ad9))
+* **apex:** persist the editor/result split layout ([69654a3](https://github.com/dormonbear/ultraforce-desktop/commit/69654a3682734fa4a9bfe78ba83aee0d49e5497c))
+* **desktop:** add format_apex Tauri command ([d6e8751](https://github.com/dormonbear/ultraforce-desktop/commit/d6e8751daad160332ef760c36aa012aac31d337a))
+* **desktop:** enable Format Document in Apex panel ([b1062a0](https://github.com/dormonbear/ultraforce-desktop/commit/b1062a04900e63a7847ad4473a5d77008c42101f))
+* **desktop:** insert generic &lt;&gt; when completing Apex collection types ([cfb892c](https://github.com/dormonbear/ultraforce-desktop/commit/cfb892cd1474106531b344c114451c2f5f43ef1f))
+* **desktop:** register Apex Format Document provider ([85917fa](https://github.com/dormonbear/ultraforce-desktop/commit/85917faba0cf55fc9b55f59c28813e93f26ca9b6))
+* **editor:** focus the editor when a tab opens ([30850ca](https://github.com/dormonbear/ultraforce-desktop/commit/30850caf5b7ac355e7e2c54828ba811b8d088179))
+* **editor:** placeholder hints in empty SOQL/Apex editors ([842bcc7](https://github.com/dormonbear/ultraforce-desktop/commit/842bcc783194378af9501347b0c353c3285c122a))
+* **format:** SOQL casing/whitespace, apex formatter module, trimmed Monaco menu ([057f18f](https://github.com/dormonbear/ultraforce-desktop/commit/057f18f6466afb9274d886897a11b42b4a2e8b6b))
+* **history:** filter the run-history drawer and close it on Escape ([0dbf0f2](https://github.com/dormonbear/ultraforce-desktop/commit/0dbf0f28d76257ddb40b56d276c144f7d48a989c))
+* **logs:** one-click Copy on the log viewer ([f625005](https://github.com/dormonbear/ultraforce-desktop/commit/f6250051e2f9c6b94006cf885df102c93865539b))
+* **results:** copy a whole column's values from a query result ([8348e78](https://github.com/dormonbear/ultraforce-desktop/commit/8348e78a0161b48a27150d5056074dd69dd8ab60))
+* **results:** copy the whole result as tab-separated rows ([c688e53](https://github.com/dormonbear/ultraforce-desktop/commit/c688e536d6509cc4da6dd7db92ed4224a045794e))
+* **results:** show a cell's full value on hover ([453b455](https://github.com/dormonbear/ultraforce-desktop/commit/453b455ab620c2c48a08b130dcb139def0cab4e7))
+* **run:** nudge instead of a backend error when running an empty editor ([27bb4ba](https://github.com/dormonbear/ultraforce-desktop/commit/27bb4ba97b6e2c74c3c333b56d31080cfd261dc7))
+* **soql:** show run time in the status line ([083138e](https://github.com/dormonbear/ultraforce-desktop/commit/083138e6c698554a77848994a8c880e196e29d5b))
+* **tabs:** in-memory untitled tabs with Save As (Cmd+S) ([4d2765f](https://github.com/dormonbear/ultraforce-desktop/commit/4d2765f4948d11209dd5baca232c5c4a173c0876))
+* **tabs:** middle-click a tab to close it ([00bb10e](https://github.com/dormonbear/ultraforce-desktop/commit/00bb10ec22442fae137db374fba4cde7f5294052))
+* **tabs:** show a file tab's full path on hover ([83e739c](https://github.com/dormonbear/ultraforce-desktop/commit/83e739c83036e9a70f62f2bad8ea96b941f0990e))
+* **tabs:** undo closing an unsaved untitled tab ([1cde9d8](https://github.com/dormonbear/ultraforce-desktop/commit/1cde9d80feb6e82183e26b7d049527f3f9ceb331))
+* **tabs:** unsaved indicator on untitled tabs; de-flake completion e2e ([ee14f6d](https://github.com/dormonbear/ultraforce-desktop/commit/ee14f6da4d1a5d50b85107da993d01e19b07e189))
+* **theme:** default to the OS color scheme on first launch ([4b6657c](https://github.com/dormonbear/ultraforce-desktop/commit/4b6657c406493e25022b3a4d250caf317711e5c8))
+* tree-sitter Apex completion, formatters, and in-app UX polish ([217a0c6](https://github.com/dormonbear/ultraforce-desktop/commit/217a0c61fd030dc20fd4f96dd14eaa64e963a0e6))
+* **ui:** Cmd/Ctrl+1..3 to switch tools, shown in rail tooltips ([6a66206](https://github.com/dormonbear/ultraforce-desktop/commit/6a662064500dc7e989ed6f7c7de8b264f2aed30d))
+* **ui:** discoverable command-palette button in the header ([fa22a75](https://github.com/dormonbear/ultraforce-desktop/commit/fa22a750b0ed9dd0c4e6c4967b7cb0a155a27380))
+* **ui:** New action in the empty SOQL/Apex panel ([d9d5da0](https://github.com/dormonbear/ultraforce-desktop/commit/d9d5da0f677ea8e6795120d9c6dbee540f20e930))
+* **ui:** surface the Run keyboard shortcut on the RUN button ([39e2ff9](https://github.com/dormonbear/ultraforce-desktop/commit/39e2ff9ccd28316321de9941b9e5f850c155a881))
+
+
+### Bug Fixes
+
+* **apex-lang:** always offer built-in List/Set/Map types in completion ([659d46a](https://github.com/dormonbear/ultraforce-desktop/commit/659d46a9b418470f76df2fb3625d16c13d9daeee))
+* **apex-lang:** complete members after a bare `a.` (empty prefix) ([35164ef](https://github.com/dormonbear/ultraforce-desktop/commit/35164efad2781e13d3a7b80816432169ad823f16))
+* **apex-lang:** require SELECT/FIND for SOQL bracket classification ([a437fee](https://github.com/dormonbear/ultraforce-desktop/commit/a437fee3c0c7207cdf9dccdc0f1499836a31c45a))
+* **apex-lang:** suppress type completion in variable-name position ([6fdc835](https://github.com/dormonbear/ultraforce-desktop/commit/6fdc83574718f1dba45b1eb9b90af5b18fb0e9a9))
+* **ui:** diagnostics on first open + working New tab button ([3ee4a88](https://github.com/dormonbear/ultraforce-desktop/commit/3ee4a88351e69f51b269334f06f34b3d458fb17f))
+
 ## [0.3.3](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.2...v0.3.3) (2026-06-23)
 
 
