@@ -12,6 +12,6 @@ pub use error::SfError;
 pub use invoker::SfInvoker;
 pub use json::{parse_envelope, SfEnvelope};
 pub use models::{ApexLogRef, QueryResult};
-pub use org::{OrgRef, OrgRegistry};
+pub use org::{AuthInfo, OrgRef, OrgRegistry};
 pub use runner::{CommandRunner, ProcessRunner, RawOutput};
 pub use version::SfVersion;

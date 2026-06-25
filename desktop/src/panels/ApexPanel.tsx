@@ -9,6 +9,8 @@ import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { trimContextMenu } from "../monaco-contextmenu";
 import { copyText } from "../clipboard";
+import { parseSfError, isCliUnavailable } from "../errorFormat";
+import { CliGuidanceForError } from "../components/CliGuidance";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
@@ -106,7 +108,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       });
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
-      toast.error(message);
+      toast.error(parseSfError(message).detail);
       onPatch({ error: message, outcome: null });
       const ms = performance.now() - t0;
       void timing("run.apex", ms);
@@ -235,10 +237,32 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         <div className="flex h-full flex-col">
           <div className="micro-label px-4 py-2">RESULT</div>
 
-          {error ? (
-            <pre className="mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-              {error}
-            </pre>
+          {error && isCliUnavailable(error) ? (
+            <CliGuidanceForError onRetry={run} />
+          ) : error ? (
+            (() => {
+              const e = parseSfError(error);
+              return (
+                <div className="mx-4 mb-4 rounded-md border border-destructive/40 bg-card p-3">
+                  <div className="text-[13px] font-medium text-destructive">
+                    {e.title}
+                  </div>
+                  <div className="mt-1 whitespace-pre-wrap text-[12px] text-foreground">
+                    {e.detail}
+                  </div>
+                  {e.raw !== e.detail && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-text-dim">
+                        Raw error
+                      </summary>
+                      <pre className="mt-1 overflow-auto whitespace-pre-wrap text-[11px] text-text-dim">
+                        {e.raw}
+                      </pre>
+                    </details>
+                  )}
+                </div>
+              );
+            })()
           ) : !outcome ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
               — run apex —

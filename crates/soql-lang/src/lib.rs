@@ -13,4 +13,6 @@ pub use complete::{
 pub use diagnostics::{diagnostics, missing_limit, Diagnostic, Severity};
 pub use format::format_soql;
 pub use lexer::{lex, Token, TokenKind};
-pub use parse::{outline, subquery_groups, where_conditions, Condition, FieldRef, SoqlOutline};
+pub use parse::{
+    count_query, outline, subquery_groups, where_conditions, Condition, FieldRef, SoqlOutline,
+};

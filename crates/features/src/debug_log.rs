@@ -1,7 +1,7 @@
-use serde::Deserialize;
 use sf_core::{ApexLogRef, SfError, SfInvoker};
 
 use log_parser::header::LogHeader;
+use log_parser::exceptions::{exceptions, ApexException};
 use log_parser::limits::{extract_limits, LimitRollup};
 use log_parser::parse::ParsedLog;
 use log_parser::statements::{statements, Statement};
@@ -20,12 +20,12 @@ pub async fn list_logs(
     invoker.run_json(&args).await
 }
 
-#[derive(Deserialize)]
-struct LogBody {
-    log: String,
-}
-
 /// Fetch one debug log's raw body by Id via `sf apex get log -i <id>`.
+///
+/// Deliberately NOT `--json`: the sf CLI crashes (`RangeError: Maximum call
+/// stack size exceeded`) trying to JSON-serialise very large logs (10 MB+),
+/// returning empty stdout. The plain command streams the raw body directly, but
+/// colourises it with ANSI escapes, which we strip.
 pub async fn get_log_body(
     invoker: &SfInvoker,
     id: &str,
@@ -36,12 +36,46 @@ pub async fn get_log_body(
         args.push("--target-org");
         args.push(org);
     }
-    let bodies: Vec<LogBody> = invoker.run_json(&args).await?;
-    bodies
-        .into_iter()
-        .next()
-        .map(|b| b.log)
-        .ok_or_else(|| SfError::Unexpected("empty `apex get log` result".to_string()))
+    let out = invoker.run_raw(&args).await?;
+    if out.status != 0 {
+        let msg = out.stderr.trim();
+        return Err(SfError::Command {
+            status: out.status,
+            name: "apex get log".to_string(),
+            message: if msg.is_empty() {
+                "empty `apex get log` result".to_string()
+            } else {
+                msg.to_string()
+            },
+        });
+    }
+    Ok(strip_ansi(&out.stdout))
+}
+
+/// Remove ANSI CSI escape sequences (`ESC [ … <final>`) the sf CLI adds when it
+/// colourises non-JSON log output. Fast-paths clean text.
+fn strip_ansi(s: &str) -> String {
+    if !s.contains('\u{1b}') {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // Skip "[ <params> <final>" where final is 0x40..=0x7E.
+            if chars.clone().next() == Some('[') {
+                chars.next();
+                for p in chars.by_ref() {
+                    if ('\u{40}'..='\u{7e}').contains(&p) {
+                        break;
+                    }
+                }
+                continue;
+            }
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// One execution unit's derived views.
@@ -50,6 +84,7 @@ pub struct UnitView {
     pub tree: Vec<ExecNode>,
     pub statements: Vec<Statement>,
     pub limits: Vec<LimitRollup>,
+    pub exceptions: Vec<ApexException>,
 }
 
 /// A parsed debug log ready for display: header plus per-unit tree + limits.
@@ -70,6 +105,7 @@ impl DebugLogView {
                 tree: build_tree(u),
                 statements: statements(u),
                 limits: extract_limits(u),
+                exceptions: exceptions(u),
             })
             .collect();
         DebugLogView {
@@ -110,19 +146,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_log_body_extracts_log_field() {
-        let json = r#"{"status":0,"result":[{"log":"67.0 APEX_CODE,DEBUG\n16:00:00.0 (1)|EXECUTION_STARTED"}]}"#;
-        let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(json)));
+    async fn get_log_body_returns_raw_and_strips_ansi() {
+        // Non-JSON `apex get log` streams the raw body, colourised with ANSI.
+        let colored = "\x1b[1m67.0 APEX_CODE,DEBUG\x1b[22m\n\x1b[94m16\x1b[39m:00:00.0 (1)|EXECUTION_STARTED";
+        let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(colored)));
         let body = get_log_body(&invoker, "07L1", None).await.unwrap();
         assert!(body.contains("EXECUTION_STARTED"));
+        assert!(!body.contains('\x1b'), "ANSI codes not stripped: {body:?}");
+        assert!(body.starts_with("67.0 APEX_CODE"), "got: {body:?}");
     }
 
     #[tokio::test]
-    async fn get_log_body_errors_on_empty_result() {
-        let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(r#"{"status":0,"result":[]}"#)));
+    async fn get_log_body_errors_on_nonzero_status() {
+        let invoker = SfInvoker::new(Arc::new(MockRunner::new(|_, _| {
+            Ok(sf_core::runner::RawOutput {
+                status: 1,
+                stdout: String::new(),
+                stderr: "No log found for id x".to_string(),
+            })
+        })));
         let err = get_log_body(&invoker, "x", None).await.unwrap_err();
         assert!(
-            matches!(err, sf_core::SfError::Unexpected(_)),
+            matches!(err, sf_core::SfError::Command { .. }),
             "got: {err:?}"
         );
     }
@@ -146,9 +191,8 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_and_parse_wires_get_and_parse() {
-        let log_json = serde_json::to_string(SAMPLE).unwrap();
-        let json = format!(r#"{{"status":0,"result":[{{"log":{log_json}}}]}}"#);
-        let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(json)));
+        // Raw (non-JSON) body streamed straight back.
+        let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(SAMPLE)));
         let v = fetch_and_parse(&invoker, "07L1", None).await.unwrap();
         assert_eq!(v.units.len(), 1);
         assert_eq!(v.header.unwrap().api_version, "67.0");

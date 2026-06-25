@@ -1,6 +1,6 @@
 //! Parse-lite: extract a structural outline (FROM object + SELECT field list).
 
-use crate::lexer::{lex, TokenKind};
+use crate::lexer::{lex, Token, TokenKind};
 
 /// A reference to a (possibly dotted) field in the SELECT list, with span.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -143,6 +143,61 @@ pub fn subquery_groups(input: &str) -> Vec<(usize, String)> {
     out
 }
 
+/// If `input` is a plain record query with no row cap, return an equivalent
+/// `SELECT COUNT() …` query for a pre-flight row-count check. Returns `None`
+/// when a count pre-flight does not apply: a top-level `LIMIT` (already capped),
+/// `GROUP BY` (aggregated), an aggregate function in the SELECT list, or no
+/// top-level `FROM`. The original WHERE is kept; ORDER BY / OFFSET / WITH / FOR
+/// tails are dropped (a count needs none of them).
+pub fn count_query(input: &str) -> Option<String> {
+    const AGGS: &[&str] = &["COUNT", "COUNT_DISTINCT", "SUM", "AVG", "MIN", "MAX"];
+    let toks: Vec<Token> = lex(input)
+        .into_iter()
+        .filter(|t| t.kind != TokenKind::Whitespace)
+        .collect();
+
+    let mut depth: i32 = 0;
+    let mut select_seen = false;
+    let mut from_start: Option<usize> = None;
+    let mut cut: Option<usize> = None;
+
+    for idx in 0..toks.len() {
+        let t = &toks[idx];
+        match t.kind {
+            TokenKind::LParen => depth += 1,
+            TokenKind::RParen => depth -= 1,
+            TokenKind::Keyword if depth == 0 => {
+                let kw = t.text.to_ascii_uppercase();
+                match kw.as_str() {
+                    "SELECT" if from_start.is_none() => select_seen = true,
+                    "FROM" if from_start.is_none() => from_start = Some(t.start),
+                    "LIMIT" | "GROUP" if from_start.is_some() => return None,
+                    "ORDER" | "OFFSET" | "WITH" | "FOR"
+                        if from_start.is_some() && cut.is_none() =>
+                    {
+                        cut = Some(t.start);
+                    }
+                    _ => {}
+                }
+            }
+            // An aggregate call in the SELECT list means the result is already
+            // collapsed to a few rows — no point pre-counting.
+            TokenKind::Ident if depth == 0 && select_seen && from_start.is_none() => {
+                if AGGS.iter().any(|a| a.eq_ignore_ascii_case(&t.text))
+                    && toks.get(idx + 1).map(|n| n.kind) == Some(TokenKind::LParen)
+                {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let from_start = from_start?;
+    let end = cut.unwrap_or(input.len());
+    Some(format!("SELECT COUNT() {}", input[from_start..end].trim_end()))
+}
+
 /// A WHERE condition: a (possibly dotted) field, an operator, and the operator span.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Condition {
@@ -255,6 +310,58 @@ pub fn where_conditions(input: &str) -> Vec<Condition> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn count_query_rewrites_plain_select() {
+        assert_eq!(
+            count_query("SELECT Id, Name FROM Account"),
+            Some("SELECT COUNT() FROM Account".into())
+        );
+    }
+
+    #[test]
+    fn count_query_keeps_where_drops_order_by() {
+        assert_eq!(
+            count_query("SELECT Id FROM Account WHERE Name = 'x' ORDER BY Name DESC"),
+            Some("SELECT COUNT() FROM Account WHERE Name = 'x'".into())
+        );
+    }
+
+    #[test]
+    fn count_query_is_case_insensitive_and_keeps_where() {
+        assert_eq!(
+            count_query("select id from account where industry = 'Tech'"),
+            Some("SELECT COUNT() from account where industry = 'Tech'".into())
+        );
+    }
+
+    #[test]
+    fn count_query_skips_when_already_limited() {
+        assert_eq!(count_query("SELECT Id FROM Account LIMIT 200"), None);
+    }
+
+    #[test]
+    fn count_query_skips_aggregate_and_group_by() {
+        assert_eq!(count_query("SELECT COUNT() FROM Account"), None);
+        assert_eq!(
+            count_query("SELECT Name, COUNT(Id) FROM Account GROUP BY Name"),
+            None
+        );
+    }
+
+    #[test]
+    fn count_query_ignores_subquery_clauses() {
+        // The inner LIMIT / FROM belong to the child subquery, not the root.
+        assert_eq!(
+            count_query("SELECT Id, (SELECT Id FROM Contacts LIMIT 5) FROM Account"),
+            Some("SELECT COUNT() FROM Account".into())
+        );
+    }
+
+    #[test]
+    fn count_query_needs_a_from() {
+        assert_eq!(count_query("SELECT Id"), None);
+    }
 
     #[test]
     fn outlines_simple_query() {

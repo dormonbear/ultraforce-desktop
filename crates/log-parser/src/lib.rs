@@ -2,6 +2,7 @@
 
 pub mod entry;
 pub mod event;
+pub mod exceptions;
 pub mod header;
 pub mod limits;
 pub mod parse;

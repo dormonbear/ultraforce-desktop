@@ -3,7 +3,7 @@ use crate::SfInvoker;
 use semver::Version;
 
 /// Minimum supported `sf` major.minor.patch.
-const MIN_SF_VERSION: (u64, u64, u64) = (2, 0, 0);
+pub const MIN_SF_VERSION: (u64, u64, u64) = (2, 0, 0);
 
 /// Detected `sf` CLI version and the minimum-version gate.
 pub struct SfVersion {
@@ -32,6 +32,14 @@ impl SfVersion {
 
     pub fn meets_minimum(&self) -> bool {
         (self.version.major, self.version.minor, self.version.patch) >= MIN_SF_VERSION
+    }
+
+    /// The minimum supported version as a display string, e.g. "2.0.0".
+    pub fn min_version_str() -> String {
+        format!(
+            "{}.{}.{}",
+            MIN_SF_VERSION.0, MIN_SF_VERSION.1, MIN_SF_VERSION.2
+        )
     }
 }
 

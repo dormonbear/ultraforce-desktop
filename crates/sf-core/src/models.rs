@@ -28,6 +28,15 @@ pub struct ApexLogRef {
     pub duration_ms: i64,
     #[serde(rename = "Application", default)]
     pub application: String,
+    #[serde(rename = "LogUser", default)]
+    pub log_user: LogUserRef,
+}
+
+/// Nested `LogUser` relationship from `sf apex list log` (just the Name).
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct LogUserRef {
+    #[serde(rename = "Name", default)]
+    pub name: String,
 }
 
 #[cfg(test)]

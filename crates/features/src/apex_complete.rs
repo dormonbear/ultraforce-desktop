@@ -80,6 +80,7 @@ impl ApexCompleter {
         org_id: &str,
         src: &str,
         cursor: usize,
+        objects: &[String],
     ) -> Result<Vec<Candidate>, SfError> {
         if let Some((s, e)) = apex_lang::soql_region_at(src, cursor) {
             // SOQL bind variable: cursor sits at `:partial` — offer in-scope
@@ -94,7 +95,7 @@ impl ApexCompleter {
                     .collect());
             }
             return self
-                .complete_soql(invoker, org_id, &src[s..e], cursor.saturating_sub(s))
+                .complete_soql(invoker, org_id, &src[s..e], cursor.saturating_sub(s), objects)
                 .await;
         }
 
@@ -158,22 +159,24 @@ impl ApexCompleter {
         out
     }
 
-    /// SOQL field completion inside an Apex `[SELECT …]` literal. Empty when there is no FROM object
-    /// or its describe fails (benign).
+    /// SOQL field/keyword completion inside an Apex `[SELECT …]` literal. When the
+    /// FROM object is unknown (or its describe fails) we still complete against an
+    /// empty schema so clause keywords — notably `SELECT` while typing — appear.
     async fn complete_soql(
         &self,
         invoker: &SfInvoker,
         org_id: &str,
         inner: &str,
         rel_cursor: usize,
+        objects: &[String],
     ) -> Result<Vec<Candidate>, SfError> {
-        let Some(object) = soql_lang::outline(inner).from_object else {
-            return Ok(Vec::new());
+        let schema = match soql_lang::outline(inner).from_object {
+            Some(object) => self.describe_schema(invoker, org_id, &object).await,
+            None => None,
         };
-        let Some(schema) = self.describe_schema(invoker, org_id, &object).await else {
-            return Ok(Vec::new());
-        };
-        let fields = soql_lang::complete(inner, rel_cursor, &schema, &[], &|_| None);
+        let empty = SObjectSchema::default();
+        let schema = schema.as_ref().unwrap_or(&empty);
+        let fields = soql_lang::complete(inner, rel_cursor, schema, objects, &|_| None);
         Ok(fields
             .into_iter()
             .map(|c| Candidate {
@@ -477,7 +480,7 @@ mod tests {
         let completer = ApexCompleter::new(dir.clone());
 
         let c1 = completer
-            .complete(&invoker, "myorg", "String.va", 9)
+            .complete(&invoker, "myorg", "String.va", 9, &[])
             .await
             .unwrap();
         assert!(c1.iter().any(|c| c.label == "valueOf"), "{c1:?}");
@@ -489,7 +492,7 @@ mod tests {
 
         // Second call, same org -> served from the in-memory Ost, no new sf calls.
         let c2 = completer
-            .complete(&invoker, "myorg", "Stri", 4)
+            .complete(&invoker, "myorg", "Stri", 4, &[])
             .await
             .unwrap();
         assert!(c2.iter().any(|c| c.label == "String"), "{c2:?}");
@@ -531,7 +534,7 @@ mod tests {
 
         let input = "Account a; a.Na";
         let got = completer
-            .complete(&invoker, "myorg", input, input.len())
+            .complete(&invoker, "myorg", input, input.len(), &[])
             .await
             .unwrap();
         assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
@@ -565,7 +568,7 @@ mod tests {
         let invoker = SfInvoker::new(std::sync::Arc::new(panicking));
         let src = "Account a; a.";
         let got = completer
-            .complete(&invoker, "myorg", src, src.len())
+            .complete(&invoker, "myorg", src, src.len(), &[])
             .await
             .unwrap();
         assert!(
@@ -655,7 +658,7 @@ mod tests {
         let src = "class C { void m(List<Account> ls) { ls.get(0).Owner.Em } }";
         let cursor = src.find("Em }").unwrap() + 2;
         let got = completer
-            .complete(&invoker, "myorg", src, cursor)
+            .complete(&invoker, "myorg", src, cursor, &[])
             .await
             .unwrap();
         assert!(
@@ -698,7 +701,7 @@ mod tests {
 
         // Top-level: the stub name is offered.
         let top = completer
-            .complete(&invoker, "myorg", "Fo", 2)
+            .complete(&invoker, "myorg", "Fo", 2, &[])
             .await
             .unwrap();
         assert!(top.iter().any(|c| c.label == "Foo"), "stub name: {top:?}");
@@ -706,7 +709,7 @@ mod tests {
         // Member access upgrades the stub and surfaces its static method.
         let input = "Foo.ba";
         let got = completer
-            .complete(&invoker, "myorg", input, input.len())
+            .complete(&invoker, "myorg", input, input.len(), &[])
             .await
             .unwrap();
         assert!(
@@ -734,10 +737,49 @@ mod tests {
         let src = "Account a = [SELECT Na FROM Account];";
         let cursor = src.find("Na").unwrap() + 2;
         let got = completer
-            .complete(&invoker, "myorg", src, cursor)
+            .complete(&invoker, "myorg", src, cursor, &[])
             .await
             .unwrap();
         assert!(got.iter().any(|c| c.label == "Name"), "{got:?}");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn completes_select_keyword_and_from_object_inside_apex_literal() {
+        // describe never succeeds here; both completions are schema-free.
+        let runner = MockRunner::new(|_p, _a| {
+            Ok(sf_core::RawOutput {
+                status: 1,
+                stdout: r#"{"status":1}"#.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = sf_core::SfInvoker::new(Arc::new(runner));
+        let dir = std::env::temp_dir().join(format!("soql-kw-test-{}", std::process::id()));
+        let completer = ApexCompleter::new(dir.clone());
+        let objects = vec!["Vendor__c".to_string(), "Account".to_string()];
+
+        // Partial SELECT while typing -> the SELECT keyword.
+        let src = "List<Account> l = [\n    SELE\n]";
+        let cur = src.find("SELE").unwrap() + 4;
+        let got = completer
+            .complete(&invoker, "myorg", src, cur, &objects)
+            .await
+            .unwrap();
+        assert!(
+            got.iter().any(|c| c.label.eq_ignore_ascii_case("SELECT")),
+            "{got:?}"
+        );
+
+        // FROM <partial> -> matching sObject names from the org cache.
+        let src = "List<Account> l = [SELECT Id FROM Vend]";
+        let cur = src.len() - 1;
+        let got = completer
+            .complete(&invoker, "myorg", src, cur, &objects)
+            .await
+            .unwrap();
+        assert!(got.iter().any(|c| c.label == "Vendor__c"), "{got:?}");
 
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -760,7 +802,7 @@ mod tests {
             "class C { void m(Id accId) { Account a = [SELECT Id FROM Account WHERE Id = :acc]; } }";
         let cursor = src.find(":acc").unwrap() + ":acc".len();
         let got = completer
-            .complete(&invoker, "myorg", src, cursor)
+            .complete(&invoker, "myorg", src, cursor, &[])
             .await
             .unwrap();
         assert!(

@@ -122,7 +122,28 @@ const RESP: Record<string, unknown> = {
     ],
     source_query: "SELECT Id FROM Account",
   },
-  list_logs: [],
+  list_logs: [
+    {
+      id: "07L1",
+      operation: "/services/data/v67.0/tooling/runTestsSynchronous",
+      status: "Success",
+      start_time: "2026-06-25T01:57:29+0000",
+      application: "Unknown",
+      user: "Xu Jerry",
+      duration_ms: 46070,
+      log_length: 118636,
+    },
+    {
+      id: "07L2",
+      operation: "/opalrest",
+      status: "Assertion Failed: memres",
+      start_time: "2026-06-25T01:54:30+0000",
+      application: "Unknown",
+      user: "Gong Nick",
+      duration_ms: 9129,
+      log_length: 407132,
+    },
+  ],
   parse_log: {
     raw: "minimal opened log body",
     api_version: "60.0",
@@ -140,8 +161,28 @@ const RESP: Record<string, unknown> = {
         hotspots: [],
         statements: [],
         limits: [],
+        exceptions: [],
       },
     ],
+  },
+  // Selecting a list row fetches+parses via get_log (same shape as parse_log).
+  get_log: {
+    raw: "fetched log body",
+    api_version: "60.0",
+    units: [
+      {
+        tree: [],
+        hotspots: [],
+        statements: [],
+        limits: [],
+        exceptions: [],
+      },
+    ],
+  },
+  fetch_apex_source: {
+    name: "MyClass",
+    kind: "class",
+    body: "public class MyClass {\n  void doWork() {\n    // ...\n  }\n}",
   },
   refresh_schema_cache: 42,
   index_org: null,
@@ -162,7 +203,12 @@ const RESP: Record<string, unknown> = {
   soql_diagnostics: [],
   apex_soql_diagnostics: [],
   apex_diagnostics: [],
-  sf_status: { installed: true, version: "@salesforce/cli/2.0.0" },
+  sf_status: {
+    state: "ok",
+    version: "@salesforce/cli/2.127.2",
+    min_version: "2.0.0",
+    found_at: null,
+  },
   login_org: null,
   warm_schema: 42,
 };

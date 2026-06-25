@@ -30,6 +30,17 @@ struct OrgDisplay {
     api_version: Option<String>,
 }
 
+/// The bits needed to call the org's REST API directly: a live access token,
+/// the instance host, and the API version. From `sf org display`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthInfo {
+    pub access_token: String,
+    pub instance_url: String,
+    #[serde(default)]
+    pub api_version: Option<String>,
+}
+
 /// Discovery over `sf org list`.
 pub struct OrgRegistry;
 
@@ -66,6 +77,21 @@ impl OrgRegistry {
         }
         let d: OrgDisplay = invoker.run_json(&args).await?;
         Ok(d.api_version)
+    }
+
+    /// The access token / instance URL / API version for `target` (or the default
+    /// org when `None`), so callers can hit the REST API directly. `sf org
+    /// display` returns a refreshed token.
+    pub async fn auth_info(
+        invoker: &SfInvoker,
+        target: Option<&str>,
+    ) -> Result<AuthInfo, SfError> {
+        let mut args = vec!["org", "display"];
+        if let Some(t) = target {
+            args.push("--target-org");
+            args.push(t);
+        }
+        invoker.run_json(&args).await
     }
 }
 
@@ -119,6 +145,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(def.unwrap().username, "b@x.com");
+    }
+
+    #[tokio::test]
+    async fn reads_auth_info_for_rest_calls() {
+        let json = r#"{"status":0,"result":{
+            "accessToken":"00D5j!AQEA","instanceUrl":"https://x.my.salesforce.com","apiVersion":"67.0"
+        }}"#;
+        let a = OrgRegistry::auth_info(&invoker_returning(json), Some("me@x.com"))
+            .await
+            .unwrap();
+        assert_eq!(a.access_token, "00D5j!AQEA");
+        assert_eq!(a.instance_url, "https://x.my.salesforce.com");
+        assert_eq!(a.api_version.as_deref(), Some("67.0"));
     }
 
     #[tokio::test]

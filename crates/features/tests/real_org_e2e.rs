@@ -178,7 +178,7 @@ async fn e2e_apex_completion_sobject() {
     // describe is fetched on demand (no bulk org-class fetch).
     let src = "Account a; a.Na";
     let cands = completer
-        .complete(&invoker(), &org(), src, src.len())
+        .complete(&invoker(), &org(), src, src.len(), &[])
         .await
         .expect("apex completion should succeed");
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
@@ -194,7 +194,7 @@ async fn e2e_apex_top_level_class_names() {
     let completer = ApexCompleter::with_default_root();
     let src = "Experience";
     let cands = completer
-        .complete(&invoker(), &org(), src, src.len())
+        .complete(&invoker(), &org(), src, src.len(), &[])
         .await
         .expect("apex completion should succeed");
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
@@ -213,7 +213,7 @@ async fn e2e_apex_class_member_on_demand() {
     // Empty prefix — the `.` trigger fires with nothing typed yet.
     let src = "ExperienceController.";
     let cands = completer
-        .complete(&invoker(), &org(), src, src.len())
+        .complete(&invoker(), &org(), src, src.len(), &[])
         .await
         .expect("apex completion should succeed");
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
@@ -359,7 +359,7 @@ async fn e2e_index_org_offline() {
     })));
     let src = "Account a; a.";
     let cands = completer
-        .complete(&panicking, &o, src, src.len())
+        .complete(&panicking, &o, src, src.len(), &[])
         .await
         .expect("offline complete");
     assert!(

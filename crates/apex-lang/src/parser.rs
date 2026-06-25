@@ -260,15 +260,58 @@ pub fn soql_region_at(input: &str, cursor: usize) -> Option<(usize, usize)> {
         j += 1;
     }
 
+    // Array/list indexing (`arr[0]`, `getList()[i]`, `new Account[]`) is NOT
+    // SOQL. Apex has no bracket collection literal, so a '[' opens SOQL/SOSL
+    // unless it indexes a value — i.e. the preceding token is a plain
+    // identifier, ')' or ']'. A leading DML/return keyword (`delete [...]`) or
+    // an operator/paren (`= [...]`, `query([...])`) means SOQL.
+    if !precedes_inline_soql(&input[..open]) {
+        return None;
+    }
+
     let inner = &input[open + 1..close];
-    let is_soql = inner
+    // The leading keyword may be partial while typing (e.g. "SELE") or absent
+    // (cursor right after '['). Accept an empty or SELECT/FIND-prefix word.
+    let lead: String = inner
         .trim_start()
-        .get(..6)
-        .is_some_and(|s| s.eq_ignore_ascii_case("select"));
+        .chars()
+        .take_while(|c| c.is_ascii_alphabetic())
+        .collect::<String>()
+        .to_ascii_uppercase();
+    let is_soql = lead.is_empty()
+        || "SELECT".starts_with(&lead)
+        || lead.starts_with("SELECT")
+        || "FIND".starts_with(&lead)
+        || lead.starts_with("FIND");
     if is_soql {
         Some((open + 1, close))
     } else {
         None
+    }
+}
+
+/// Whether a '[' following `before` opens an inline SOQL/SOSL query rather than
+/// indexing a value.
+fn precedes_inline_soql(before: &str) -> bool {
+    let trimmed = before.trim_end();
+    match trimmed.chars().next_back() {
+        None => true,
+        Some(')') | Some(']') => false,
+        Some(c) if c.is_alphanumeric() || c == '_' => {
+            let word: String = trimmed
+                .chars()
+                .rev()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            matches!(
+                word.to_ascii_lowercase().as_str(),
+                "return" | "delete" | "insert" | "update" | "upsert" | "undelete" | "merge"
+            )
+        }
+        Some(_) => true,
     }
 }
 
@@ -566,6 +609,24 @@ mod tests {
         // unclosed bracket while typing -> region runs to EOF
         let u = "List<Account> l = [SELECT Id FROM Acc";
         assert!(soql_region_at(u, u.len()).is_some());
+
+        // partial leading keyword while typing "SELECT" -> still a SOQL region
+        let p = "List<Account> l = [\n    SELE\n]";
+        let cur = p.find("SELE").unwrap() + 4;
+        assert!(soql_region_at(p, cur).is_some());
+
+        // bare '[' at an expression start (cursor right after it) -> SOQL
+        let b = "List<Account> l = [";
+        assert!(soql_region_at(b, b.len()).is_some());
+
+        // DML keyword before the bracket -> SOQL, not indexing
+        let d = "delete [SELECT Id FROM Account];";
+        assert!(soql_region_at(d, d.find("SELECT").unwrap() + 2).is_some());
+
+        // index var whose name is a SELECT/FIND prefix is NOT soql (preceded by
+        // a plain identifier, so it indexes a value)
+        assert!(soql_region_at("x = arr[s];", "x = arr[s".len()).is_none());
+        assert!(soql_region_at("x = getList()[0];", "x = getList()[0".len()).is_none());
     }
 
     #[test]

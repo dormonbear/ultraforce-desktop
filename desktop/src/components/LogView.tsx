@@ -7,13 +7,54 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 const LINE_H = 18;
 
-/** Color class for a log line based on its event token (2nd `|` field). */
-function lineClass(line: string): string {
-  if (/\|(FATAL_ERROR|EXCEPTION_THROWN)\|/.test(line)) return "text-destructive";
-  if (/\|USER_DEBUG\|/.test(line)) return "text-primary";
-  if (/\|(LIMIT_USAGE|HEAP_ALLOCATE|CUMULATIVE_LIMIT)/.test(line))
+/** Color for an event name (the 2nd `|` field). */
+function eventColor(ev: string): string {
+  if (/FATAL_ERROR|EXCEPTION_THROWN/.test(ev)) return "text-destructive";
+  if (ev === "USER_DEBUG") return "text-primary";
+  if (/SOQL_EXECUTE|SOSL_EXECUTE|DML_|CALLOUT_/.test(ev)) return "text-success";
+  if (/METHOD_|CONSTRUCTOR_|CODE_UNIT_|EXECUTION_/.test(ev))
+    return "text-foreground";
+  if (/LIMIT|HEAP_ALLOCATE|CUMULATIVE|STATEMENT_EXECUTE|VARIABLE_/.test(ev))
     return "text-muted-foreground";
   return "text-text-dim";
+}
+
+/** Per-token syntax highlight of one debug-log line:
+ * `HH:MM:SS.d (nanos)|EVENT|field|field…`. Timestamp dim, event coloured by
+ * category, `[..]` line/scope refs amber, 15/18-char SF Ids green, separators
+ * faint. Non-event lines (header) render plain. */
+function renderLine(line: string): ReactNode {
+  const ts = line.match(/^\d{2}:\d{2}:\d{2}\.\d+ \(\d+\)/);
+  if (!ts) return <span className="text-foreground">{line}</span>;
+  const out: ReactNode[] = [];
+  let k = 0;
+  out.push(
+    <span key={k++} className="text-text-dim opacity-70">
+      {ts[0]}
+    </span>,
+  );
+  line
+    .slice(ts[0].length)
+    .split("|")
+    .forEach((f, i) => {
+      if (i > 0)
+        out.push(
+          <span key={k++} className="text-text-dim opacity-40">
+            |
+          </span>,
+        );
+      if (f === "") return;
+      let cls = "text-foreground";
+      if (i === 1) cls = `font-medium ${eventColor(f)}`;
+      else if (/^\[.*\]$/.test(f)) cls = "text-amber";
+      else if (/^[a-zA-Z0-9]{15,18}$/.test(f)) cls = "text-success";
+      out.push(
+        <span key={k++} className={cls}>
+          {f}
+        </span>,
+      );
+    });
+  return out;
 }
 
 /** Wrap every (case-insensitive) occurrence of `q` in the line with a <mark>. */
@@ -91,7 +132,7 @@ export function LogView({ raw }: { raw: string }) {
           <Checkbox
             checked={highlight}
             onCheckedChange={(v) => setHighlight(v === true)}
-            aria-label="Highlight matches"
+            aria-label="Toggle syntax highlighting"
           />
           Highlight
         </label>
@@ -120,13 +161,15 @@ export function LogView({ raw }: { raw: string }) {
               return (
                 <div
                   key={vi.key}
-                  className={`absolute left-0 top-0 w-full whitespace-pre ${lineClass(l)}`}
+                  className={`absolute left-0 top-0 w-full whitespace-pre ${
+                    highlight ? "" : "text-text-dim"
+                  }`}
                   style={{
                     height: LINE_H,
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  {highlight ? highlightAll(l, q) : l}
+                  {highlight ? renderLine(l) : highlightAll(l, q)}
                 </div>
               );
             })}

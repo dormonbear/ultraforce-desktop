@@ -140,6 +140,7 @@ test("opening a local .log file parses and renders it", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Logs" }).click();
   await page.getByRole("button", { name: "OPEN" }).click();
+  await page.getByRole("radio", { name: "tree" }).click();
   // parse_log (mocked) returns a unit with a CODE_UNIT_STARTED tree node.
   await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
   await expect(page.getByText("MyClass.run")).toBeVisible();
@@ -152,9 +153,10 @@ test("opening a local .log file parses and renders it", async ({ page }) => {
   await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
 });
 
-test("Logs panel exposes debug levels and applies a preset", async ({ page }) => {
+test("Apex panel exposes debug levels and applies a preset", async ({ page }) => {
   await gotoApp(page);
-  await page.getByRole("button", { name: "Logs" }).click();
+  await page.getByRole("button", { name: "Apex" }).click();
+  await page.getByRole("treeitem", { name: "hello.apex" }).click();
 
   // The config row is present once get_debug_config (mocked) resolves on mount.
   await expect(page.getByText("DEBUG LEVELS")).toBeVisible();
@@ -176,7 +178,8 @@ test("Logs panel exposes debug levels and applies a preset", async ({ page }) =>
 
 test("switching org re-fetches the debug config", async ({ page }) => {
   await gotoApp(page);
-  await page.getByRole("button", { name: "Logs" }).click();
+  await page.getByRole("button", { name: "Apex" }).click();
+  await page.getByRole("treeitem", { name: "hello.apex" }).click();
   await expect(page.getByText("DEBUG LEVELS")).toBeVisible();
 
   const getCalls = () =>
@@ -211,10 +214,9 @@ test("Configure Logging dialog adds a trace flag and saves the diff", async ({
   const newRow = page
     .getByRole("row")
     .filter({ has: page.getByLabel("Traced entity") });
-  await newRow.getByLabel("Traced entity").click();
-  await page.getByRole("option", { name: /Carol/ }).click();
-  await newRow.getByLabel("Debug level").click();
-  await page.getByRole("option", { name: "FINE_LOGS" }).click();
+  // Native <select>s (light enough for the ~2000-entity list) → selectOption.
+  await newRow.getByLabel("Traced entity").selectOption("005BBB");
+  await newRow.getByLabel("Debug level").selectOption({ label: "FINE_LOGS" });
 
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
 

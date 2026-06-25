@@ -5,6 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use sf_core::{SfError, SfInvoker};
 use std::fmt;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// A parsed SOQL query response.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -256,6 +257,169 @@ pub async fn run_query_table(
 ) -> Result<TableModel, SfError> {
     let result = run_query(invoker, soql, target_org, opts).await?;
     Ok(result.to_table())
+}
+
+/// One page of a REST `query`/`queryMore` response.
+#[derive(Debug, Clone, Deserialize)]
+struct QueryPage {
+    #[serde(rename = "totalSize")]
+    total_size: u64,
+    done: bool,
+    records: Vec<Record>,
+    #[serde(rename = "nextRecordsUrl", default)]
+    next_records_url: Option<String>,
+}
+
+/// A single entry of the REST error array (`[{ errorCode, message }]`).
+#[derive(Debug, Deserialize)]
+struct RestError {
+    #[serde(rename = "errorCode", default)]
+    error_code: Option<String>,
+    #[serde(default)]
+    message: Option<String>,
+}
+
+/// Map a non-2xx REST body into the same [`SfError::Command`] shape the CLI path
+/// produces, so the UI renders it identically. The body is `[{errorCode,message}]`.
+fn parse_rest_error(status: i32, body: &str) -> SfError {
+    if let Some(first) = serde_json::from_str::<Vec<RestError>>(body)
+        .ok()
+        .and_then(|v| v.into_iter().next())
+    {
+        return SfError::Command {
+            status,
+            name: first.error_code.unwrap_or_else(|| "Error".into()),
+            message: first.message.unwrap_or_default(),
+        };
+    }
+    SfError::Command {
+        status,
+        name: "Error".into(),
+        message: body.to_string(),
+    }
+}
+
+/// Drive the `query`/`queryMore` pages: accumulate records, report progress after
+/// each page via `on_progress(fetched, total)`, and stop between pages when
+/// `cancel` is set (returning the rows gathered so far with `done = false`).
+/// `fetch` resolves an absolute URL to a page. Pure of HTTP/IO so it is testable.
+async fn paginate<F, Fut>(
+    first_url: String,
+    base_url: &str,
+    fetch: F,
+    on_progress: &(dyn Fn(u64, u64) + Send + Sync),
+    cancel: &AtomicBool,
+) -> Result<QueryResult, SfError>
+where
+    F: Fn(String) -> Fut,
+    Fut: std::future::Future<Output = Result<QueryPage, SfError>>,
+{
+    let mut url = first_url;
+    let mut records: Vec<Record> = Vec::new();
+    let mut total = 0u64;
+    loop {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(QueryResult {
+                total_size: total,
+                done: false,
+                records,
+            });
+        }
+        // Race the page fetch against cancellation so an in-flight request is
+        // dropped (aborted) the moment the user cancels — not just between pages.
+        let page = tokio::select! {
+            biased;
+            res = fetch(url) => res?,
+            _ = poll_cancelled(cancel) => {
+                return Ok(QueryResult { total_size: total, done: false, records });
+            }
+        };
+        total = page.total_size;
+        records.extend(page.records);
+        on_progress(records.len() as u64, total);
+        match page.next_records_url {
+            Some(next) if !page.done => url = format!("{base_url}{next}"),
+            _ => {
+                return Ok(QueryResult {
+                    total_size: total,
+                    done: page.done,
+                    records,
+                })
+            }
+        }
+    }
+}
+
+/// Resolves once `cancel` flips true (polled). Used to race against an in-flight
+/// page fetch in [`paginate`] so cancellation interrupts the request itself.
+async fn poll_cancelled(cancel: &AtomicBool) {
+    while !cancel.load(Ordering::Relaxed) {
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+}
+
+async fn fetch_page(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+) -> Result<QueryPage, SfError> {
+    let resp = client
+        .get(url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| SfError::Unexpected(format!("HTTP request failed: {e}")))?;
+    let status = resp.status();
+    let body = resp
+        .text()
+        .await
+        .map_err(|e| SfError::Unexpected(format!("reading response failed: {e}")))?;
+    if !status.is_success() {
+        return Err(parse_rest_error(status.as_u16() as i32, &body));
+    }
+    serde_json::from_str::<QueryPage>(&body).map_err(SfError::Parse)
+}
+
+/// Execute a SOQL query against the org's REST API, paginating `query`/`queryMore`
+/// ourselves so the caller gets `totalSize` after the first page, incremental
+/// progress via `on_progress(fetched, total)`, and mid-flight cancellation
+/// (returns partial rows with `done = false`). `auth` carries the token / host /
+/// API version (the caller fetches & caches it so this stays off the CLI hot
+/// path). Unlike [`run_query`], which lets the CLI fetch everything at once.
+pub async fn run_query_rest(
+    auth: &sf_core::AuthInfo,
+    soql: &str,
+    opts: QueryOptions,
+    on_progress: &(dyn Fn(u64, u64) + Send + Sync),
+    cancel: &AtomicBool,
+) -> Result<QueryResult, SfError> {
+    let api = auth.api_version.as_deref().unwrap_or("62.0");
+    let resource = if opts.use_tooling_api {
+        "tooling/query"
+    } else if opts.all_rows {
+        "queryAll"
+    } else {
+        "query"
+    };
+    let base = auth.instance_url.trim_end_matches('/').to_string();
+    let mut first = reqwest::Url::parse(&format!("{base}/services/data/v{api}/{resource}/"))
+        .map_err(|e| SfError::Unexpected(format!("bad instance URL: {e}")))?;
+    first.query_pairs_mut().append_pair("q", soql);
+
+    let client = reqwest::Client::new();
+    let token = auth.access_token.clone();
+    paginate(
+        first.to_string(),
+        &base,
+        move |url| {
+            let client = client.clone();
+            let token = token.clone();
+            async move { fetch_page(&client, &url, &token).await }
+        },
+        on_progress,
+        cancel,
+    )
+    .await
 }
 
 /// Context-aware completion for the standalone SOQL editor.
@@ -698,6 +862,119 @@ mod tests {
         .unwrap();
         let args = seen.lock().unwrap().clone();
         assert!(args.iter().any(|a| a == "--all-rows"), "got: {args:?}");
+    }
+
+    fn rec() -> Record {
+        Record {
+            sobject_type: "Account".into(),
+            fields: vec![],
+        }
+    }
+
+    #[tokio::test]
+    async fn paginate_follows_next_url_and_reports_progress() {
+        use std::collections::VecDeque;
+        let pages = Mutex::new(VecDeque::from(vec![
+            QueryPage {
+                total_size: 3,
+                done: false,
+                records: vec![rec(), rec()],
+                next_records_url: Some("/services/data/v62.0/query/01g-next".into()),
+            },
+            QueryPage {
+                total_size: 3,
+                done: true,
+                records: vec![rec()],
+                next_records_url: None,
+            },
+        ]));
+        let progress = Mutex::new(Vec::<(u64, u64)>::new());
+        let urls = Mutex::new(Vec::<String>::new());
+        let cancel = AtomicBool::new(false);
+        let res = paginate(
+            "https://x.my.salesforce.com/first".into(),
+            "https://x.my.salesforce.com",
+            |url| {
+                urls.lock().unwrap().push(url);
+                let p = pages.lock().unwrap().pop_front().unwrap();
+                async move { Ok::<_, SfError>(p) }
+            },
+            &|fetched, total| progress.lock().unwrap().push((fetched, total)),
+            &cancel,
+        )
+        .await
+        .unwrap();
+        assert_eq!(res.total_size, 3);
+        assert!(res.done);
+        assert_eq!(res.records.len(), 3);
+        // Progress is reported once per page, cumulative.
+        assert_eq!(*progress.lock().unwrap(), vec![(2, 3), (3, 3)]);
+        // The second fetch follows nextRecordsUrl joined onto the base.
+        assert_eq!(
+            urls.lock().unwrap()[1],
+            "https://x.my.salesforce.com/services/data/v62.0/query/01g-next"
+        );
+    }
+
+    #[tokio::test]
+    async fn paginate_stops_immediately_when_pre_cancelled() {
+        let cancel = AtomicBool::new(true);
+        let res = paginate(
+            "u".into(),
+            "b",
+            |_| async { panic!("must not fetch when cancelled") },
+            &|_, _| {},
+            &cancel,
+        )
+        .await
+        .unwrap();
+        assert!(!res.done);
+        assert!(res.records.is_empty());
+    }
+
+    #[tokio::test]
+    async fn paginate_returns_partial_when_cancelled_mid_flight() {
+        use std::collections::VecDeque;
+        let pages = Mutex::new(VecDeque::from(vec![QueryPage {
+            total_size: 10,
+            done: false,
+            records: vec![rec(), rec()],
+            next_records_url: Some("/n".into()),
+        }]));
+        let cancel = AtomicBool::new(false);
+        let res = paginate(
+            "u".into(),
+            "b",
+            |_| {
+                let p = pages.lock().unwrap().pop_front().unwrap();
+                cancel.store(true, Ordering::Relaxed); // cancel after page 1
+                async move { Ok::<_, SfError>(p) }
+            },
+            &|_, _| {},
+            &cancel,
+        )
+        .await
+        .unwrap();
+        assert!(!res.done);
+        assert_eq!(res.records.len(), 2);
+    }
+
+    #[test]
+    fn parse_rest_error_maps_to_command_with_code_and_message() {
+        let body = r#"[{"errorCode":"INVALID_TYPE","message":"\nFROM X\n^\nsObject type 'X' is not supported."}]"#;
+        match parse_rest_error(400, body) {
+            SfError::Command {
+                status,
+                name,
+                message,
+            } => {
+                assert_eq!(status, 400);
+                assert_eq!(name, "INVALID_TYPE");
+                assert!(message.contains("not supported"));
+                assert!(message.contains('\n'));
+            }
+            other => panic!("expected Command, got {other:?}"),
+        }
     }
 
     #[tokio::test]
