@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A single Salesforce object's describe, trimmed to the fields we care about.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub struct SObjectSchema {
     pub name: String,
     #[serde(default)]

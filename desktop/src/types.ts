@@ -55,9 +55,16 @@ export interface OrgDto {
   is_default: boolean;
 }
 
+export type SfCliState = "ok" | "outdated" | "not_found" | "path_issue";
+
 export interface SfStatus {
-  installed: boolean;
+  state: SfCliState;
+  /** Raw `sf --version` output when the CLI was found. */
   version: string | null;
+  /** Minimum version Ultraforce supports, e.g. "2.0.0". */
+  min_version: string;
+  /** Where a login-shell probe found `sf` when it isn't on the app's PATH. */
+  found_at: string | null;
 }
 
 export interface ApexOutcomeDto {
@@ -77,6 +84,9 @@ export interface LogRefDto {
   status: string;
   start_time: string;
   application: string;
+  user: string;
+  duration_ms: number;
+  log_length: number;
 }
 
 export interface ExecNodeDto {
@@ -113,11 +123,17 @@ export interface StatementDto {
   dur_ns: number | null;
 }
 
+export interface ExceptionDto {
+  kind: string;
+  message: string;
+}
+
 export interface UnitDto {
   tree: ExecNodeDto[];
   hotspots: HotspotDto[];
   statements: StatementDto[];
   limits: LimitRollupDto[];
+  exceptions: ExceptionDto[];
 }
 
 export interface LogViewDto {

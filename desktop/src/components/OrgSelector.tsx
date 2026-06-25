@@ -1,15 +1,19 @@
-import { Globe, Check, ChevronDown, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Globe, Check, ChevronDown, Loader2, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOrgs } from "../org";
+import { ConnectOrgDialog } from "./ConnectOrg";
 
 /** Top-bar org picker: lists `sf` orgs and sets the target org for all calls. */
 export function OrgSelector() {
   const { orgs, selected, loading, error, select } = useOrgs();
+  const [connectOpen, setConnectOpen] = useState(false);
 
   const cur = orgs.find((o) => o.username === selected);
   const label = error
@@ -23,6 +27,7 @@ export function OrgSelector() {
           : "no orgs";
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Select Salesforce org"
@@ -63,7 +68,17 @@ export function OrgSelector() {
             </span>
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={() => setConnectOpen(true)}
+          className="flex cursor-pointer items-center gap-2 text-text-dim"
+        >
+          <Plus size={12} />
+          Connect another org…
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <ConnectOrgDialog open={connectOpen} onOpenChange={setConnectOpen} />
+    </>
   );
 }

@@ -17,6 +17,81 @@ pub struct AppState {
     /// `warm_schema`/`refresh_schema_cache` so keystroke completion never blocks
     /// on a live (multi-second) `sf sobject list`.
     sobjects: std::sync::Mutex<std::collections::HashMap<String, Arc<Vec<String>>>>,
+    /// In-flight SOQL runs, keyed by the frontend's query id, so `cancel_soql`
+    /// can signal the paginating loop to stop.
+    query_cancels:
+        std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicBool>>>,
+    /// Cached REST credentials per org (key: org or "" for default). Avoids a
+    /// ~1-2s `sf org display` on every query — refreshed on a 401.
+    auth_cache: std::sync::Mutex<std::collections::HashMap<String, sf_core::AuthInfo>>,
+}
+
+/// REST credentials for `org`, cached so only the first query per org pays the
+/// `sf org display` cost. Subsequent queries (and cancellation) are instant.
+async fn cached_auth(
+    state: &AppState,
+    org: Option<&str>,
+) -> Result<sf_core::AuthInfo, sf_core::SfError> {
+    let key = org.unwrap_or("").to_string();
+    if let Some(a) = state.auth_cache.lock().unwrap().get(&key) {
+        return Ok(a.clone());
+    }
+    let auth = sf_core::OrgRegistry::auth_info(&state.invoker, org).await?;
+    state.auth_cache.lock().unwrap().insert(key, auth.clone());
+    Ok(auth)
+}
+
+/// A stale/expired access token: re-fetch and retry once.
+fn session_expired(e: &sf_core::SfError) -> bool {
+    matches!(
+        e,
+        sf_core::SfError::Command { status, name, .. }
+            if *status == 401 || name.eq_ignore_ascii_case("INVALID_SESSION_ID")
+    )
+}
+
+/// Resolves once `flag` is set — used to make even the first query's (otherwise
+/// blocking) `sf org display` cancellable.
+async fn poll_cancel(flag: &std::sync::atomic::AtomicBool) {
+    while !flag.load(std::sync::atomic::Ordering::Relaxed) {
+        tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+    }
+}
+
+/// An empty, "not done" result — what a cancelled run yields before any rows.
+fn cancelled_result() -> features::soql::QueryResult {
+    features::soql::QueryResult {
+        total_size: 0,
+        done: false,
+        records: vec![],
+    }
+}
+
+/// Run a REST SOQL query with the cached token, transparently refreshing the
+/// token once if it has expired.
+async fn rest_query(
+    state: &AppState,
+    org: Option<&str>,
+    soql: &str,
+    opts: features::soql::QueryOptions,
+    on_progress: &(dyn Fn(u64, u64) + Send + Sync),
+    cancel: &std::sync::atomic::AtomicBool,
+) -> Result<features::soql::QueryResult, sf_core::SfError> {
+    // Race token fetch against cancel so the first query's `sf org display`
+    // doesn't block Cancel; pagination cancel (with partial rows) is handled
+    // inside `run_query_rest`.
+    let auth = tokio::select! {
+        a = cached_auth(state, org) => a?,
+        _ = poll_cancel(cancel) => return Ok(cancelled_result()),
+    };
+    match features::soql::run_query_rest(&auth, soql, opts, on_progress, cancel).await {
+        Err(e) if session_expired(&e) => {
+            state.auth_cache.lock().unwrap().remove(org.unwrap_or(""));
+            let auth = cached_auth(state, org).await?;
+            features::soql::run_query_rest(&auth, soql, opts, on_progress, cancel).await
+        }
+        other => other,
+    }
 }
 
 /// Read the currently selected target org as an owned value (guard not held across `.await`).
@@ -50,27 +125,63 @@ struct SyncResultDto {
     removed: usize,
 }
 
+/// Incremental progress for a running SOQL query, emitted as `soql-progress`.
+#[derive(Clone, serde::Serialize)]
+struct SoqlProgress {
+    id: String,
+    fetched: u64,
+    total: u64,
+}
+
 #[tauri::command]
 async fn run_soql(
     query: String,
     use_tooling_api: Option<bool>,
     all_rows: Option<bool>,
+    query_id: String,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SoqlResultDto, String> {
     let start = Instant::now();
     tracing::info!("run_soql start");
     let org = current_org(&state);
-    let result = features::soql::run_query(
-        &state.invoker,
-        &query,
+
+    // Register a cancel flag the `cancel_soql` command can flip mid-flight.
+    let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    state
+        .query_cancels
+        .lock()
+        .unwrap()
+        .insert(query_id.clone(), cancel.clone());
+
+    let progress_id = query_id.clone();
+    let on_progress = move |fetched: u64, total: u64| {
+        let _ = app.emit(
+            "soql-progress",
+            SoqlProgress {
+                id: progress_id.clone(),
+                fetched,
+                total,
+            },
+        );
+    };
+
+    let result = rest_query(
+        &state,
         org.as_deref(),
+        &query,
         features::soql::QueryOptions {
             use_tooling_api: use_tooling_api.unwrap_or(false),
             all_rows: all_rows.unwrap_or(false),
         },
+        &on_progress,
+        &cancel,
     )
-    .await
-    .map_err(|e| {
+    .await;
+
+    state.query_cancels.lock().unwrap().remove(&query_id);
+
+    let result = result.map_err(|e| {
         tracing::warn!(
             elapsed_ms = start.elapsed().as_millis(),
             outcome = "err",
@@ -91,6 +202,112 @@ async fn run_soql(
         done: result.done,
         tree: result.records.iter().map(dto::map_record).collect(),
     })
+}
+
+/// Signal a running [`run_soql`] (by its `query_id`) to stop paginating; it then
+/// resolves with the rows gathered so far.
+#[tauri::command]
+fn cancel_soql(query_id: String, state: State<'_, AppState>) {
+    if let Some(flag) = state.query_cancels.lock().unwrap().get(&query_id) {
+        flag.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// Pre-flight row count for a query that has no row cap. `Ok(None)` when a count
+/// doesn't apply (already `LIMIT`ed, aggregated, or `GROUP BY`); otherwise the
+/// total from `SELECT COUNT() …`, so the UI can warn before fetching a huge set.
+#[tauri::command]
+async fn count_soql(
+    query: String,
+    use_tooling_api: Option<bool>,
+    query_id: String,
+    state: State<'_, AppState>,
+) -> Result<Option<u64>, String> {
+    let Some(count_q) = soql_lang::count_query(&query) else {
+        return Ok(None);
+    };
+    let org = current_org(&state);
+
+    // Share the cancel registry so `cancel_soql` can abort the pre-flight count
+    // (a COUNT() on a huge object is itself slow).
+    let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    state
+        .query_cancels
+        .lock()
+        .unwrap()
+        .insert(query_id.clone(), cancel.clone());
+
+    let noop = |_: u64, _: u64| {};
+    let result = rest_query(
+        &state,
+        org.as_deref(),
+        &count_q,
+        features::soql::QueryOptions {
+            use_tooling_api: use_tooling_api.unwrap_or(false),
+            all_rows: false,
+        },
+        &noop,
+        &cancel,
+    )
+    .await;
+
+    state.query_cancels.lock().unwrap().remove(&query_id);
+
+    let result = result.map_err(|e| format!("{e:?}"))?;
+    // Cancelled mid-count → no usable total; tell the UI to skip the warning.
+    if !result.done {
+        return Ok(None);
+    }
+    Ok(Some(result.total_size))
+}
+
+#[derive(serde::Deserialize)]
+struct ApexBodyRow {
+    #[serde(rename = "Body")]
+    body: Option<String>,
+}
+#[derive(serde::Deserialize)]
+struct ApexBodyResult {
+    records: Vec<ApexBodyRow>,
+}
+
+/// Source code (read-only) for an Apex class or trigger, for "jump to source".
+#[derive(serde::Serialize)]
+struct ApexSourceDto {
+    name: String,
+    kind: String,
+    body: String,
+}
+
+/// Fetch an Apex class or trigger's source from the org via the Tooling API, so
+/// a log finding can show the offending code. Tries ApexClass, then ApexTrigger.
+#[tauri::command]
+async fn fetch_apex_source(
+    name: String,
+    state: State<'_, AppState>,
+) -> Result<ApexSourceDto, String> {
+    let org = current_org(&state);
+    let escaped = name.replace('\'', "\\'");
+    for (kind, sobject) in [("class", "ApexClass"), ("trigger", "ApexTrigger")] {
+        let soql = format!("SELECT Body FROM {sobject} WHERE Name = '{escaped}' LIMIT 1");
+        let mut args = vec!["data", "query", "--use-tooling-api", "-q", &soql];
+        if let Some(o) = org.as_deref() {
+            args.push("--target-org");
+            args.push(o);
+        }
+        if let Ok(result) = state.invoker.run_json::<ApexBodyResult>(&args).await {
+            if let Some(body) = result.records.into_iter().next().and_then(|r| r.body) {
+                return Ok(ApexSourceDto {
+                    name,
+                    kind: kind.to_string(),
+                    body,
+                });
+            }
+        }
+    }
+    Err(format!(
+        "No Apex class or trigger named '{name}' found in this org"
+    ))
 }
 
 /// Pretty-print a SOQL query (one top-level clause per line). Pure, no IO.
@@ -171,6 +388,9 @@ struct LogRefDto {
     status: String,
     start_time: String,
     application: String,
+    user: String,
+    duration_ms: i64,
+    log_length: i64,
 }
 
 #[tauri::command]
@@ -187,6 +407,9 @@ async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, String>
             status: l.status,
             start_time: l.start_time,
             application: l.application,
+            user: l.log_user.name,
+            duration_ms: l.duration_ms,
+            log_length: l.log_length,
         })
         .collect())
 }
@@ -235,29 +458,74 @@ async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, Strin
     Ok(orgs.iter().map(dto::OrgDto::from).collect())
 }
 
-/// Whether the `sf` CLI is reachable, plus its version. Lets the setup page tell
-/// "CLI not installed" apart from "installed but no org authed".
+/// Classified health of the `sf` CLI, so the UI can give the right guidance:
+/// install it, upgrade it, or fix a PATH problem — instead of a bare error.
 #[derive(serde::Serialize)]
 struct SfStatusDto {
-    installed: bool,
+    /// "ok" | "outdated" | "not_found" | "path_issue"
+    state: &'static str,
+    /// Raw `sf --version` output when the CLI was found.
     version: Option<String>,
+    /// Minimum version Ultraforce supports, e.g. "2.0.0".
+    min_version: String,
+    /// Where a login-shell probe found `sf` when it isn't on the app's PATH.
+    found_at: Option<String>,
+}
+
+/// Pure state decision. `meets_min` is `Some(true/false)` when `sf --version`
+/// ran, `None` when the CLI wasn't on PATH; `probe_found` is whether a login
+/// shell located `sf` anyway.
+fn cli_state(meets_min: Option<bool>, probe_found: bool) -> &'static str {
+    match meets_min {
+        Some(true) => "ok",
+        Some(false) => "outdated",
+        None if probe_found => "path_issue",
+        None => "not_found",
+    }
+}
+
+/// Look for `sf` via the user's login shell (handles zsh/bash/fish rc files and
+/// version managers the app's own PATH may miss). Returns its path if found.
+/// Bounded by a short timeout so a slow shell rc can't hang the health check.
+#[cfg(unix)]
+async fn probe_sf_via_login_shell() -> Option<String> {
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    let fut = tokio::process::Command::new(shell)
+        .args(["-ilc", "command -v sf"])
+        .output();
+    let out = tokio::time::timeout(std::time::Duration::from_secs(5), fut)
+        .await
+        .ok()?
+        .ok()?;
+    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (out.status.success() && !path.is_empty()).then_some(path)
+}
+
+#[cfg(not(unix))]
+async fn probe_sf_via_login_shell() -> Option<String> {
+    None
 }
 
 #[tauri::command]
 async fn sf_status(state: State<'_, AppState>) -> Result<SfStatusDto, String> {
-    match state.invoker.run_raw(&["--version"]).await {
-        Ok(out) => {
-            let v = out.stdout.trim().to_string();
+    let min_version = sf_core::SfVersion::min_version_str();
+    match sf_core::SfVersion::detect(&state.invoker).await {
+        Ok(v) => Ok(SfStatusDto {
+            state: cli_state(Some(v.meets_minimum()), false),
+            version: Some(v.raw),
+            min_version,
+            found_at: None,
+        }),
+        // Not on PATH (or unparseable version) → see if it's installed elsewhere.
+        Err(_) => {
+            let found_at = probe_sf_via_login_shell().await;
             Ok(SfStatusDto {
-                installed: true,
-                version: (!v.is_empty()).then_some(v),
+                state: cli_state(None, found_at.is_some()),
+                version: None,
+                min_version,
+                found_at,
             })
         }
-        Err(sf_core::SfError::NotFound) => Ok(SfStatusDto {
-            installed: false,
-            version: None,
-        }),
-        Err(e) => Err(e.to_string()),
     }
 }
 
@@ -378,9 +646,17 @@ async fn apex_complete(
     let start = Instant::now();
     tracing::info!("apex_complete start");
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    // sObject names (cached via warm_schema) so inline-SOQL FROM completion works.
+    let objects = state
+        .sobjects
+        .lock()
+        .unwrap()
+        .get(&org)
+        .cloned()
+        .unwrap_or_default();
     let cands = state
         .apex
-        .complete(&state.invoker, &org, &src, offset)
+        .complete(&state.invoker, &org, &src, offset, &objects)
         .await
         .map_err(|e| {
             tracing::warn!(
@@ -616,17 +892,24 @@ pub fn run() {
     let _guard = init_tracing();
     #[cfg(target_os = "macos")]
     inherit_login_path();
+    #[cfg(target_os = "macos")]
+    use_file_keystore();
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
         apex: features::apex_complete::ApexCompleter::with_default_root(),
         sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
+        query_cancels: std::sync::Mutex::new(std::collections::HashMap::new()),
+        auth_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
     };
 
     tauri::Builder::default()
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             run_soql,
+            cancel_soql,
+            count_soql,
+            fetch_apex_source,
             run_apex,
             list_logs,
             get_log,
@@ -681,6 +964,49 @@ fn inherit_login_path() {
     }
 }
 
+/// The `~/.sfdx/key.json` body `sf` reads when `SF_USE_GENERIC_UNIX_KEYCHAIN` is
+/// set. Pure, so the exact shape `@salesforce/core` expects is unit-testable.
+/// `key` is a hex string `sf` generated, so no JSON escaping is needed.
+fn key_json(key: &str) -> String {
+    format!("{{\n  \"account\": \"local\",\n  \"key\": \"{key}\",\n  \"service\": \"sfdx\"\n}}")
+}
+
+/// ponytail: a GUI-launched subprocess can't always reach the macOS login
+/// keychain (locked, fresh/corporate account, missing keychain) — `sf` then
+/// fails OAuth with "A keychain cannot be found to store". Force `sf` to keep
+/// its crypto key in a file (`~/.sfdx/key.json`) instead of the OS keychain. To
+/// stay compatible with orgs already authed via the OS keychain, seed that file
+/// once from the existing keychain key if one is present.
+#[cfg(target_os = "macos")]
+fn use_file_keystore() {
+    use std::os::unix::fs::PermissionsExt;
+    std::env::set_var("SF_USE_GENERIC_UNIX_KEYCHAIN", "true");
+    let Some(home) = dirs::home_dir() else { return };
+    // `sf`'s file keystore lives at `Global.DIR/key.json` = `~/.sfdx/key.json`.
+    let key_file = home.join(".sfdx").join("key.json");
+    if key_file.exists() {
+        return;
+    }
+    // Migrate the existing key from the OS keychain if there is one; otherwise
+    // leave it and `sf` will create `key.json` itself on the first login.
+    let Ok(out) = std::process::Command::new("/usr/bin/security")
+        .args(["find-generic-password", "-a", "local", "-s", "sfdx", "-w"])
+        .output()
+    else {
+        return;
+    };
+    let key = String::from_utf8_lossy(&out.stdout);
+    let key = key.trim();
+    if !out.status.success() || key.is_empty() {
+        return;
+    }
+    if std::fs::create_dir_all(key_file.parent().unwrap()).is_ok()
+        && std::fs::write(&key_file, key_json(key)).is_ok()
+    {
+        let _ = std::fs::set_permissions(&key_file, std::fs::Permissions::from_mode(0o600));
+    }
+}
+
 fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
     let log_dir = dirs::data_dir()
         .unwrap_or_else(std::env::temp_dir)
@@ -702,7 +1028,25 @@ fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::build_login_args;
+    use super::{build_login_args, cli_state, key_json};
+
+    #[test]
+    fn cli_state_classifies_each_case() {
+        assert_eq!(cli_state(Some(true), false), "ok");
+        assert_eq!(cli_state(Some(false), false), "outdated");
+        assert_eq!(cli_state(None, true), "path_issue");
+        assert_eq!(cli_state(None, false), "not_found");
+        // A found version always wins, even if a probe would also find it.
+        assert_eq!(cli_state(Some(true), true), "ok");
+    }
+
+    #[test]
+    fn key_json_matches_sf_generic_keystore_shape() {
+        let v: serde_json::Value = serde_json::from_str(&key_json("deadbeef")).unwrap();
+        assert_eq!(v["account"], "local");
+        assert_eq!(v["service"], "sfdx");
+        assert_eq!(v["key"], "deadbeef");
+    }
 
     #[test]
     fn login_args_default_is_web_login_with_set_default() {

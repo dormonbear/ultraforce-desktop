@@ -3,20 +3,41 @@ import { invoke } from "@tauri-apps/api/core";
 import { configureMonaco } from "./monaco-soql";
 import type { ApexCandidateDto } from "./types";
 
+// Apex is case-insensitive; the tokenizer matches with `ignoreCase`.
 const APEX_KEYWORDS = [
-  "System",
-  "debug",
-  "Integer",
-  "String",
-  "new",
-  "for",
-  "if",
-  "return",
+  // declarations & modifiers
+  "class", "interface", "enum", "extends", "implements", "public", "private",
+  "protected", "global", "static", "final", "virtual", "abstract", "override",
+  "transient", "with", "without", "inherited", "sharing", "testmethod",
+  "get", "set",
+  // control flow
+  "void", "return", "if", "else", "for", "while", "do", "break", "continue",
+  "new", "this", "super", "try", "catch", "finally", "throw", "instanceof",
+  "switch", "on", "when", "null", "true", "false",
+  // DML
+  "insert", "update", "delete", "undelete", "upsert", "merge", "runas",
+  // inline SOQL/SOSL keywords
+  "select", "from", "where", "limit", "order", "by", "group", "having", "and",
+  "or", "not", "like", "in", "asc", "desc", "nulls", "first", "last", "offset",
+];
+
+const APEX_TYPES = [
+  "Integer", "Long", "Decimal", "Double", "Boolean", "String", "Id", "Date",
+  "Datetime", "Time", "Blob", "Object", "SObject", "List", "Set", "Map",
 ];
 
 let registered = false;
-let completionRegistered = false;
 let apexFormatRegistered = false;
+
+/** Suggestion ordering: in-scope vars/fields before methods, then types, then
+ * keywords. Smaller sorts first; the label keeps it stable within a tier. */
+const KIND_RANK: Record<string, string> = {
+  localVar: "1",
+  property: "2",
+  method: "3",
+  type: "4",
+  keyword: "5",
+};
 
 function monacoKind(monaco: Monaco, kind: string) {
   const K = monaco.languages.CompletionItemKind;
@@ -45,11 +66,14 @@ const GENERIC_SNIPPETS: Record<string, string> = {
   Iterator: "Iterator<$0>",
 };
 
-/** Register an Apex CompletionItemProvider backed by the `apex_complete` Tauri command. */
+/** Register an Apex CompletionItemProvider backed by the `apex_complete` Tauri command.
+ * HMR-safe: the disposable is kept on the (singleton) monaco instance and the
+ * previous provider is disposed first, so a dev hot-reload can't stack providers
+ * (which would duplicate every suggestion). */
 export function registerApexCompletion(monaco: Monaco): void {
-  if (completionRegistered) return;
-  completionRegistered = true;
-  monaco.languages.registerCompletionItemProvider("apex", {
+  const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
+  slot.__ufApexCompletion?.dispose();
+  slot.__ufApexCompletion = monaco.languages.registerCompletionItemProvider("apex", {
     triggerCharacters: ["."],
     provideCompletionItems: async (model, position) => {
       const offset = model.getOffsetAt(position);
@@ -77,6 +101,7 @@ export function registerApexCompletion(monaco: Monaco): void {
             insertTextRules: snippet
               ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
               : undefined,
+            sortText: (KIND_RANK[c.kind] ?? "5") + c.label.toLowerCase(),
             range,
           };
         }),
@@ -118,21 +143,31 @@ export function configureMonacoApex(monaco: Monaco): void {
 
   monaco.languages.register({ id: "apex" });
   monaco.languages.setMonarchTokensProvider("apex", {
+    ignoreCase: true,
     keywords: APEX_KEYWORDS,
+    typeKeywords: APEX_TYPES,
     tokenizer: {
       root: [
         [/\/\/.*$/, "comment.soql"],
-        [/'[^']*'/, "string.soql"],
+        [/\/\*/, "comment.soql", "@comment"],
+        [/@\w+/, "keyword.soql"],
+        [/'(?:[^'\\]|\\.)*'/, "string.soql"],
         [/\b\d+(\.\d+)?\b/, "number.soql"],
         [
           /[a-zA-Z_]\w*/,
           {
             cases: {
               "@keywords": "keyword.soql",
+              "@typeKeywords": "type.soql",
               "@default": "identifier",
             },
           },
         ],
+      ],
+      comment: [
+        [/[^/*]+/, "comment.soql"],
+        [/\*\//, "comment.soql", "@pop"],
+        [/[/*]/, "comment.soql"],
       ],
     },
   });

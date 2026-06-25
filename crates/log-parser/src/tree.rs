@@ -76,11 +76,21 @@ pub fn build_tree(unit: &ExecUnit) -> Vec<ExecNode> {
     roots
 }
 
+/// Cap on the OUTPUT tree depth. Runaway recursion (e.g. a self-calling Apex
+/// method) can nest thousands of scopes deep; the recursive consumers of this
+/// tree (DTO mapping, React rendering) would overflow their stacks. Beyond this
+/// depth we flatten deeper nodes under the deepest allowed ancestor instead of
+/// nesting further — no node is dropped, durations stay correct, and the
+/// recursion is still surfaced by the Insights detectors.
+const MAX_DEPTH: usize = 256;
+
 fn attach(roots: &mut Vec<ExecNode>, stack: &mut [ExecNode], node: ExecNode) {
-    if let Some(parent) = stack.last_mut() {
-        parent.children.push(node);
-    } else {
+    // Parent is the current top of stack; clamp its index so output depth ≤ cap.
+    let parent_idx = stack.len().min(MAX_DEPTH);
+    if parent_idx == 0 {
         roots.push(node);
+    } else {
+        stack[parent_idx - 1].children.push(node);
     }
 }
 
@@ -106,6 +116,35 @@ mod tests {
         assert_eq!(roots[0].children[0].dur_ns, Some(20)); // 40 - 20
         assert_eq!(roots[0].children[0].self_ns, Some(20)); // 20 total - 0 (leaf has no dur)
         assert_eq!(roots[0].children[0].children.len(), 1); // USER_DEBUG leaf
+    }
+
+    #[test]
+    fn caps_output_depth_for_runaway_recursion() {
+        // 1000 nested scopes (simulating runaway Apex recursion).
+        let n = 1000;
+        let mut t = String::from("67.0 X,Y\n16:00:00.0 (0)|EXECUTION_STARTED\n");
+        for i in 0..n {
+            t.push_str(&format!("16:00:00.0 ({})|CODE_UNIT_STARTED|x\n", i + 1));
+        }
+        for i in 0..n {
+            t.push_str(&format!("16:00:00.0 ({})|CODE_UNIT_FINISHED|x\n", n + i + 1));
+        }
+        t.push_str(&format!("16:00:00.0 ({})|EXECUTION_FINISHED\n", 2 * n + 1));
+
+        let log = ParsedLog::parse(&t);
+        let roots = build_tree(&log.units[0]);
+
+        // Measure depth iteratively (a recursive walk would itself overflow).
+        let mut max_depth = 0usize;
+        let mut stack: Vec<(&ExecNode, usize)> = roots.iter().map(|r| (r, 1)).collect();
+        let mut count = 0usize;
+        while let Some((node, d)) = stack.pop() {
+            count += 1;
+            max_depth = max_depth.max(d);
+            stack.extend(node.children.iter().map(|c| (c, d + 1)));
+        }
+        assert!(max_depth <= MAX_DEPTH + 1, "depth {max_depth} exceeds cap");
+        assert_eq!(count, n + 1, "no nodes dropped"); // n code units + 1 execution
     }
 
     #[test]

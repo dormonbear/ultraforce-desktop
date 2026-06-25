@@ -8,7 +8,7 @@ export const EDITOR_OPTS: editor.IStandaloneEditorConstructionOptions = {
   fontLigatures: true,
   renderLineHighlight: "all",
   scrollBeyondLastLine: false,
-  padding: { top: 10 },
+  padding: { top: 2 },
   lineNumbersMinChars: 3,
   scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
   overviewRulerLanes: 0,

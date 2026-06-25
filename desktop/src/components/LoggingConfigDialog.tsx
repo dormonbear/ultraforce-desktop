@@ -1,3 +1,4 @@
+import { Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,16 +38,22 @@ export function LoggingConfigDialog({ open, onOpenChange, org }: Props) {
           </div>
         )}
 
-        <div className="max-h-[60vh] space-y-4 overflow-y-auto pr-1">
-          <section>
-            <div className="micro-label mb-1">Trace Flags</div>
-            <TraceFlagsTable cfg={cfg} />
-          </section>
-          <section>
-            <div className="micro-label mb-1">Debug Levels</div>
-            <DebugLevelsTable cfg={cfg} />
-          </section>
-        </div>
+        {cfg.loading ? (
+          <div className="flex items-center justify-center gap-2 py-16 text-[13px] text-text-dim">
+            <Loader2 size={16} className="spin" /> Loading trace flags & debug levels…
+          </div>
+        ) : (
+          <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
+            <section>
+              <div className="micro-label mb-1">Trace Flags</div>
+              <TraceFlagsTable cfg={cfg} />
+            </section>
+            <section>
+              <div className="micro-label mb-1">Debug Levels</div>
+              <DebugLevelsTable cfg={cfg} />
+            </section>
+          </div>
+        )}
 
         <DialogFooter>
           <Button
@@ -56,7 +63,11 @@ export function LoggingConfigDialog({ open, onOpenChange, org }: Props) {
           >
             Cancel
           </Button>
-          <Button onClick={onSave} disabled={cfg.saving} className="cursor-pointer">
+          <Button
+            onClick={onSave}
+            disabled={cfg.saving || cfg.loading}
+            className="cursor-pointer"
+          >
             {cfg.saving ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

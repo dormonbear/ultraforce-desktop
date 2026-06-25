@@ -496,13 +496,22 @@ pub struct StatementDto {
     pub dur_ns: Option<u64>,
 }
 
-/// One execution unit: its tree, hotspots, SOQL/DML statements, and limit rollups.
+/// One thrown exception or fatal error.
+#[derive(serde::Serialize)]
+pub struct ExceptionDto {
+    pub kind: String,
+    pub message: String,
+}
+
+/// One execution unit: its tree, hotspots, SOQL/DML statements, limit rollups,
+/// and any exceptions/fatal errors.
 #[derive(serde::Serialize)]
 pub struct UnitDto {
     pub tree: Vec<ExecNodeDto>,
     pub hotspots: Vec<HotspotDto>,
     pub statements: Vec<StatementDto>,
     pub limits: Vec<LimitRollupDto>,
+    pub exceptions: Vec<ExceptionDto>,
 }
 
 /// A readable name for a log event. For `Other(s)` the raw event name is used.
@@ -602,6 +611,14 @@ fn map_unit(unit: &UnitView) -> UnitDto {
             })
             .collect(),
         limits: unit.limits.iter().map(map_rollup).collect(),
+        exceptions: unit
+            .exceptions
+            .iter()
+            .map(|e| ExceptionDto {
+                kind: e.kind.clone(),
+                message: e.message.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -733,6 +750,7 @@ mod tests {
                 tree: vec![root],
                 statements: vec![],
                 limits: vec![],
+                exceptions: vec![],
             }],
         };
         let units = map_units(&view);
@@ -780,6 +798,7 @@ mod tests {
                         },
                     ],
                 }],
+                exceptions: vec![],
             }],
         };
         let units = map_units(&view);

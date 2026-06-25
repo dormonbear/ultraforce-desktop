@@ -24,7 +24,6 @@ const SOQL_KEYWORDS = [
 ];
 
 let registered = false;
-let soqlCompletionRegistered = false;
 
 /** Map a backend completion kind to a Monaco icon. */
 function kindIcon(
@@ -46,11 +45,13 @@ function kindIcon(
   }
 }
 
-/** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command. */
+/** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command.
+ * HMR-safe: dispose the previous provider (kept on the singleton monaco) before
+ * re-registering, so a dev hot-reload can't stack providers (duplicate suggestions). */
 export function registerSoqlCompletion(monaco: Monaco): void {
-  if (soqlCompletionRegistered) return;
-  soqlCompletionRegistered = true;
-  monaco.languages.registerCompletionItemProvider("soql", {
+  const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
+  slot.__ufSoqlCompletion?.dispose();
+  slot.__ufSoqlCompletion = monaco.languages.registerCompletionItemProvider("soql", {
     triggerCharacters: [" ", ",", "."],
     provideCompletionItems: async (model, position) => {
       const offset = model.getOffsetAt(position);
@@ -84,13 +85,11 @@ export function registerSoqlCompletion(monaco: Monaco): void {
   });
 }
 
-let soqlQuickfixRegistered = false;
-
-/** Register a "Add LIMIT 200" quickfix for the no-LIMIT warning marker. */
+/** Register a "Add LIMIT 200" quickfix for the no-LIMIT warning marker. HMR-safe. */
 export function registerSoqlQuickfix(monaco: Monaco): void {
-  if (soqlQuickfixRegistered) return;
-  soqlQuickfixRegistered = true;
-  monaco.languages.registerCodeActionProvider("soql", {
+  const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
+  slot.__ufSoqlQuickfix?.dispose();
+  slot.__ufSoqlQuickfix = monaco.languages.registerCodeActionProvider("soql", {
     provideCodeActions: (model, _range, context) => {
       const actions = context.markers
         .filter((m) => m.message.includes("LIMIT"))
@@ -126,13 +125,11 @@ export function registerSoqlQuickfix(monaco: Monaco): void {
   });
 }
 
-let soqlFormatRegistered = false;
-
-/** Register Format Document (Shift+Alt+F) for SOQL, backed by `format_soql`. */
+/** Register Format Document (Shift+Alt+F) for SOQL, backed by `format_soql`. HMR-safe. */
 export function registerSoqlFormatter(monaco: Monaco): void {
-  if (soqlFormatRegistered) return;
-  soqlFormatRegistered = true;
-  monaco.languages.registerDocumentFormattingEditProvider("soql", {
+  const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
+  slot.__ufSoqlFormatter?.dispose();
+  slot.__ufSoqlFormatter = monaco.languages.registerDocumentFormattingEditProvider("soql", {
     provideDocumentFormattingEdits: async (model) => {
       let formatted: string;
       try {
@@ -156,6 +153,7 @@ export function configureMonaco(monaco: Monaco): void {
     inherit: true,
     rules: [
       { token: "keyword.soql", foreground: "8839ef", fontStyle: "bold" },
+      { token: "type.soql", foreground: "179299" },
       { token: "string.soql", foreground: "40a02b" },
       { token: "number.soql", foreground: "fe640b" },
       { token: "comment.soql", foreground: "9ca0b0", fontStyle: "italic" },
@@ -183,6 +181,7 @@ export function configureMonaco(monaco: Monaco): void {
     inherit: true,
     rules: [
       { token: "keyword.soql", foreground: "cba6f7", fontStyle: "bold" },
+      { token: "type.soql", foreground: "94e2d5" },
       { token: "string.soql", foreground: "a6e3a1" },
       { token: "number.soql", foreground: "fab387" },
       { token: "comment.soql", foreground: "6c7086", fontStyle: "italic" },
