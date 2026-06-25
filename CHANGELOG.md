@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.5](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.4...v0.3.5) (2026-06-25)
+
+
+### Features
+
+* apex log analyser, inline SOQL completion, IC2 logging config, large-log fix ([d63756d](https://github.com/dormonbear/ultraforce-desktop/commit/d63756d85feb3d1d3dca01f346b9b7030c426137))
+* apex log analyser, inline SOQL completion, IC2 logging config, large-log fix ([3cd1c6c](https://github.com/dormonbear/ultraforce-desktop/commit/3cd1c6c0bdfc57d3a31d69041cc4df78b09aee4e))
+
 ## [0.3.4](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.3...v0.3.4) (2026-06-24)
 
 
