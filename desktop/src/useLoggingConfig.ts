@@ -12,7 +12,7 @@ import type {
 } from "./types";
 
 /** An editable DebugLevel row. `id===null` = locally added, not yet saved. */
-export type LevelRow = {
+type LevelRow = {
   _key: string;
   id: string | null;
   developerName: string;
@@ -20,7 +20,7 @@ export type LevelRow = {
 };
 
 /** An editable TraceFlag row. `debugLevelKey` references a `LevelRow._key`. */
-export type FlagRow = {
+type FlagRow = {
   _key: string;
   id: string | null;
   logType: string;

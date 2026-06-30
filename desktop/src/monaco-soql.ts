@@ -48,7 +48,7 @@ function kindIcon(
 /** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command.
  * HMR-safe: dispose the previous provider (kept on the singleton monaco) before
  * re-registering, so a dev hot-reload can't stack providers (duplicate suggestions). */
-export function registerSoqlCompletion(monaco: Monaco): void {
+function registerSoqlCompletion(monaco: Monaco): void {
   const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
   slot.__ufSoqlCompletion?.dispose();
   slot.__ufSoqlCompletion = monaco.languages.registerCompletionItemProvider("soql", {
@@ -86,7 +86,7 @@ export function registerSoqlCompletion(monaco: Monaco): void {
 }
 
 /** Register a "Add LIMIT 200" quickfix for the no-LIMIT warning marker. HMR-safe. */
-export function registerSoqlQuickfix(monaco: Monaco): void {
+function registerSoqlQuickfix(monaco: Monaco): void {
   const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
   slot.__ufSoqlQuickfix?.dispose();
   slot.__ufSoqlQuickfix = monaco.languages.registerCodeActionProvider("soql", {

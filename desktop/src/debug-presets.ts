@@ -11,8 +11,6 @@ export const LOG_LEVELS = [
   "DEBUG",
 ] as const;
 
-export type LogLevel = (typeof LOG_LEVELS)[number];
-
 export const CATEGORY_FIELDS = [
   { key: "apexCode", label: "Apex Code" },
   { key: "apexProfiling", label: "Apex Profiling" },
