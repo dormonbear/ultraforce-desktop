@@ -8,6 +8,7 @@ const node = (label: string, detail: string, children: ExecNodeDto[] = []): Exec
   dur_ns: null,
   self_ns: null,
   children,
+  source: null,
 });
 
 const unit = (tree: ExecNodeDto[]): UnitDto => ({

@@ -9,6 +9,7 @@ const node = (label: string, children: ExecNodeDto[] = []): ExecNodeDto => ({
   dur_ns: 1000,
   self_ns: 100,
   children,
+  source: null,
 });
 
 const unit = (over: Partial<UnitDto> = {}): UnitDto => ({
@@ -143,7 +144,7 @@ describe("detectInsights", () => {
       durNs: number,
       selfNs: number,
       children: ExecNodeDto[] = [],
-    ): ExecNodeDto => ({ label, detail: "", dur_ns: durNs, self_ns: selfNs, children });
+    ): ExecNodeDto => ({ label, detail: "", dur_ns: durNs, self_ns: selfNs, children, source: null });
     // root 1000 → A 900 → B 850 (self 800); a tiny sibling that's off the path.
     const tree = [
       dnode("root", 1000, 50, [

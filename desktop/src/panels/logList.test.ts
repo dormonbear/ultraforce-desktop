@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LogRefDto } from "../types";
-import { filterLogs, fmtDuration, fmtSize, fmtTime, logUsers } from "./logList";
+import { filterLogs, fmtDuration, fmtSize, fmtTime } from "./logList";
 
 const mk = (o: Partial<LogRefDto>): LogRefDto => ({
   id: "1",
@@ -20,19 +20,14 @@ describe("filterLogs", () => {
     mk({ id: "b", operation: "/opalrest", user: "Bob", status: "Assertion Failed: x" }),
   ];
 
-  it("filters by status", () => {
-    expect(filterLogs(logs, { query: "", status: "failed", user: "" }).map((l) => l.id)).toEqual(["b"]);
-    expect(filterLogs(logs, { query: "", status: "success", user: "" }).map((l) => l.id)).toEqual(["a"]);
+  it("matches operation or user, case-insensitive", () => {
+    expect(filterLogs(logs, { query: "alice" }).map((l) => l.id)).toEqual(["a"]);
+    expect(filterLogs(logs, { query: "opal" }).map((l) => l.id)).toEqual(["b"]);
+    expect(filterLogs(logs, { query: "Bob" }).map((l) => l.id)).toEqual(["b"]);
   });
 
-  it("filters by user and query (operation or user)", () => {
-    expect(filterLogs(logs, { query: "", status: "all", user: "Bob" }).map((l) => l.id)).toEqual(["b"]);
-    expect(filterLogs(logs, { query: "alice", status: "all", user: "" }).map((l) => l.id)).toEqual(["a"]);
-    expect(filterLogs(logs, { query: "opal", status: "all", user: "" }).map((l) => l.id)).toEqual(["b"]);
-  });
-
-  it("lists distinct sorted users", () => {
-    expect(logUsers(logs)).toEqual(["Alice", "Bob"]);
+  it("returns all logs when query is empty", () => {
+    expect(filterLogs(logs, { query: "" }).map((l) => l.id)).toEqual(["a", "b"]);
   });
 });
 

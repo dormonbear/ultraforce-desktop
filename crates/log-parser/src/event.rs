@@ -18,6 +18,8 @@ pub enum LogEvent {
     CalloutResponse,
     UserDebug,
     HeapAllocate,
+    VariableScopeBegin,
+    VariableAssignment,
     CumulativeLimitUsage,
     CumulativeLimitUsageEnd,
     LimitUsageForNs,
@@ -53,6 +55,8 @@ impl LogEvent {
             "CALLOUT_RESPONSE" => LogEvent::CalloutResponse,
             "USER_DEBUG" => LogEvent::UserDebug,
             "HEAP_ALLOCATE" => LogEvent::HeapAllocate,
+            "VARIABLE_SCOPE_BEGIN" => LogEvent::VariableScopeBegin,
+            "VARIABLE_ASSIGNMENT" => LogEvent::VariableAssignment,
             "CUMULATIVE_LIMIT_USAGE" => LogEvent::CumulativeLimitUsage,
             "CUMULATIVE_LIMIT_USAGE_END" => LogEvent::CumulativeLimitUsageEnd,
             "LIMIT_USAGE_FOR_NS" => LogEvent::LimitUsageForNs,
@@ -77,6 +81,23 @@ impl LogEvent {
             Other(name) => scope_kind_by_suffix(name),
             _ => ScopeKind::Leaf,
         }
+    }
+
+    /// Whether this event carries an Apex `Class.method()` / `Class.<init>()`
+    /// signature in its params, so a class name can be extracted from it. Data
+    /// events (e.g. `USER_DEBUG`) carry free text that must NOT be parsed as a
+    /// class — their source class is inherited from the enclosing scope instead.
+    pub fn names_class(&self) -> bool {
+        use LogEvent::*;
+        matches!(
+            self,
+            CodeUnitStarted
+                | CodeUnitFinished
+                | MethodEntry
+                | MethodExit
+                | ConstructorEntry
+                | ConstructorExit
+        )
     }
 }
 
@@ -105,6 +126,24 @@ mod tests {
             LogEvent::from_name("LIMIT_USAGE_FOR_NS"),
             LogEvent::LimitUsageForNs
         );
+    }
+
+    #[test]
+    fn maps_variable_events() {
+        assert_eq!(
+            LogEvent::from_name("VARIABLE_SCOPE_BEGIN"),
+            LogEvent::VariableScopeBegin
+        );
+        assert_eq!(
+            LogEvent::from_name("VARIABLE_ASSIGNMENT"),
+            LogEvent::VariableAssignment
+        );
+    }
+
+    #[test]
+    fn variable_events_are_leaves() {
+        assert_eq!(LogEvent::VariableScopeBegin.scope_kind(), ScopeKind::Leaf);
+        assert_eq!(LogEvent::VariableAssignment.scope_kind(), ScopeKind::Leaf);
     }
 
     #[test]

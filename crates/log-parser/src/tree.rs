@@ -1,6 +1,7 @@
 use crate::entry::LogEntry;
 use crate::event::ScopeKind;
 use crate::parse::ExecUnit;
+use crate::source::{resolve_sources, SourceRef};
 
 /// A node in the nested execution tree.
 #[derive(Debug, Clone)]
@@ -13,6 +14,9 @@ pub struct ExecNode {
     /// Self time: `dur_ns` minus the total time of direct children — the time
     /// spent in this frame itself, the key signal for finding hotspots.
     pub self_ns: Option<u64>,
+    /// Apex source this node maps to (class + line), or `None` when it can't be
+    /// resolved (no enclosing class / no `[N]`).
+    pub source: Option<SourceRef>,
 }
 
 /// Self time = total minus the summed duration of direct children.
@@ -24,49 +28,31 @@ fn self_time(dur_ns: Option<u64>, children: &[ExecNode]) -> Option<u64> {
 
 /// Build a nested tree from a flat unit by pairing scope start/end events.
 pub fn build_tree(unit: &ExecUnit) -> Vec<ExecNode> {
+    let sources = resolve_sources(&unit.entries);
     let mut roots: Vec<ExecNode> = Vec::new();
     let mut stack: Vec<ExecNode> = Vec::new();
+    // Build a fresh node for entry `i`, carrying its resolved source.
+    let node_at = |i: usize| ExecNode {
+        entry: unit.entries[i].clone(),
+        children: Vec::new(),
+        dur_ns: None,
+        self_ns: None,
+        source: sources[i].clone(),
+    };
 
-    for entry in &unit.entries {
+    for (i, entry) in unit.entries.iter().enumerate() {
         match entry.event.scope_kind() {
-            ScopeKind::Start => {
-                stack.push(ExecNode {
-                    entry: entry.clone(),
-                    children: Vec::new(),
-                    dur_ns: None,
-                    self_ns: None,
-                });
-            }
+            ScopeKind::Start => stack.push(node_at(i)),
             ScopeKind::End => {
                 if let Some(mut node) = stack.pop() {
                     node.dur_ns = Some(entry.nanos.saturating_sub(node.entry.nanos));
                     node.self_ns = self_time(node.dur_ns, &node.children);
                     attach(&mut roots, &mut stack, node);
                 } else {
-                    attach(
-                        &mut roots,
-                        &mut stack,
-                        ExecNode {
-                            entry: entry.clone(),
-                            children: Vec::new(),
-                            dur_ns: None,
-                            self_ns: None,
-                        },
-                    );
+                    attach(&mut roots, &mut stack, node_at(i));
                 }
             }
-            ScopeKind::Leaf => {
-                attach(
-                    &mut roots,
-                    &mut stack,
-                    ExecNode {
-                        entry: entry.clone(),
-                        children: Vec::new(),
-                        dur_ns: None,
-                        self_ns: None,
-                    },
-                );
-            }
+            ScopeKind::Leaf => attach(&mut roots, &mut stack, node_at(i)),
         }
     }
     // Flush any unclosed scopes, deepest first, into their parents/roots.
@@ -145,6 +131,31 @@ mod tests {
         }
         assert!(max_depth <= MAX_DEPTH + 1, "depth {max_depth} exceeds cap");
         assert_eq!(count, n + 1, "no nodes dropped"); // n code units + 1 execution
+    }
+
+    #[test]
+    fn attaches_source_to_each_node() {
+        let text = "67.0 X,Y\n\
+            16:00:00.0 (10)|EXECUTION_STARTED\n\
+            16:00:00.0 (20)|METHOD_ENTRY|[5]|01p|MyClass.doWork()\n\
+            16:00:00.0 (30)|USER_DEBUG|[8]|DEBUG|hi\n\
+            16:00:00.0 (40)|METHOD_EXIT|[5]|MyClass.doWork()\n\
+            16:00:00.0 (50)|EXECUTION_FINISHED\n";
+        let log = ParsedLog::parse(text);
+        let roots = build_tree(&log.units[0]);
+        let exec = &roots[0];
+        assert_eq!(exec.source, None); // EXECUTION has no class
+        let method = &exec.children[0];
+        assert_eq!(
+            method.source,
+            Some(SourceRef { class_name: "MyClass".into(), line: Some(5) })
+        );
+        let debug = &method.children[0];
+        // statement inherits the enclosing class, keeps its own line
+        assert_eq!(
+            debug.source,
+            Some(SourceRef { class_name: "MyClass".into(), line: Some(8) })
+        );
     }
 
     #[test]

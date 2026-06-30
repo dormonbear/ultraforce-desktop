@@ -259,3 +259,10 @@ body {
 .uf-scroll > [data-slot="table-container"] {
   overflow: visible;
 }
+
+/* SourceDialog jump-to-source: persistent whole-line highlight on the target
+ * line, with a left accent bar (Monaco decoration, applied via className). */
+.apex-target-line {
+  background-color: color-mix(in srgb, var(--primary) 16%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--primary);
+}

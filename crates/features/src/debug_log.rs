@@ -4,6 +4,7 @@ use log_parser::header::LogHeader;
 use log_parser::exceptions::{exceptions, ApexException};
 use log_parser::limits::{extract_limits, LimitRollup};
 use log_parser::parse::ParsedLog;
+use log_parser::source::{resolve_sources, SourceRef};
 use log_parser::statements::{statements, Statement};
 use log_parser::tree::{build_tree, ExecNode};
 
@@ -92,25 +93,38 @@ pub struct UnitView {
 pub struct DebugLogView {
     pub header: Option<LogHeader>,
     pub units: Vec<UnitView>,
+    /// Source mapping for every raw log line, aligned to `text.lines()`
+    /// (0-based). `None` for lines that map to no Apex source.
+    pub raw_sources: Vec<Option<SourceRef>>,
 }
 
 impl DebugLogView {
     /// Pure pipeline: raw log text → view model.
     pub fn from_log(text: &str) -> DebugLogView {
         let parsed = ParsedLog::parse(text);
+        let mut raw_sources: Vec<Option<SourceRef>> = vec![None; text.lines().count()];
         let units = parsed
             .units
             .iter()
-            .map(|u| UnitView {
-                tree: build_tree(u),
-                statements: statements(u),
-                limits: extract_limits(u),
-                exceptions: exceptions(u),
+            .map(|u| {
+                // Map each entry's resolved source back onto its raw line.
+                for (entry, src) in u.entries.iter().zip(resolve_sources(&u.entries)) {
+                    if src.is_some() && entry.line_no < raw_sources.len() {
+                        raw_sources[entry.line_no] = src;
+                    }
+                }
+                UnitView {
+                    tree: build_tree(u),
+                    statements: statements(u),
+                    limits: extract_limits(u),
+                    exceptions: exceptions(u),
+                }
             })
             .collect();
         DebugLogView {
             header: parsed.header,
             units,
+            raw_sources,
         }
     }
 }
@@ -179,6 +193,28 @@ mod tests {
 \x20\x20Number of SOQL queries: 2 out of 100\n\
 16:00:00.0 (40)|CODE_UNIT_FINISHED|x\n\
 16:00:00.0 (50)|EXECUTION_FINISHED\n";
+
+    #[test]
+    fn from_log_maps_raw_lines_to_sources() {
+        let text = "67.0 X\n\
+16:00:00.0 (10)|EXECUTION_STARTED\n\
+16:00:00.0 (20)|METHOD_ENTRY|[5]|01p|MyClass.doWork()\n\
+16:00:00.0 (30)|USER_DEBUG|[8]|DEBUG|hi\n\
+16:00:00.0 (40)|METHOD_EXIT|[5]|MyClass.doWork()\n\
+16:00:00.0 (50)|EXECUTION_FINISHED\n";
+        let v = DebugLogView::from_log(text);
+        assert_eq!(v.raw_sources[0], None); // header
+        assert_eq!(v.raw_sources[1], None); // EXECUTION_STARTED, no class
+        assert_eq!(
+            v.raw_sources[2],
+            Some(SourceRef { class_name: "MyClass".into(), line: Some(5) })
+        );
+        // USER_DEBUG inherits the method's class, keeps its own line
+        assert_eq!(
+            v.raw_sources[3],
+            Some(SourceRef { class_name: "MyClass".into(), line: Some(8) })
+        );
+    }
 
     #[test]
     fn from_log_builds_view() {

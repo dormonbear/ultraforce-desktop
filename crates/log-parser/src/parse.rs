@@ -17,14 +17,15 @@ pub struct ParsedLog {
 
 impl ParsedLog {
     pub fn parse(text: &str) -> ParsedLog {
-        let mut lines = text.lines();
-        let header = lines.next().and_then(LogHeader::parse);
+        let mut lines = text.lines().enumerate();
+        let header = lines.next().and_then(|(_, l)| LogHeader::parse(l));
         let mut units: Vec<ExecUnit> = Vec::new();
         let mut current: Option<ExecUnit> = None;
 
-        for line in lines {
+        for (idx, line) in lines {
             let line = line.trim_end();
-            if let Some(entry) = parse_entry(line) {
+            if let Some(mut entry) = parse_entry(line) {
+                entry.line_no = idx;
                 match entry.event {
                     LogEvent::ExecutionStarted => {
                         if let Some(u) = current.take() {
@@ -104,6 +105,31 @@ mod tests {
         let log = ParsedLog::parse(text);
         assert_eq!(log.units.len(), 1);
         assert_eq!(log.units[0].entries.len(), 1);
+    }
+
+    #[test]
+    fn records_raw_line_numbers() {
+        // line 0 = header, 1 = EXEC_STARTED, 2 = USER_DEBUG, 3 = EXEC_FINISHED
+        let text = "67.0 X,Y\n\
+            16:00:00.0 (1)|EXECUTION_STARTED\n\
+            16:00:00.0 (2)|USER_DEBUG|x\n\
+            16:00:00.0 (3)|EXECUTION_FINISHED\n";
+        let e = &ParsedLog::parse(text).units[0].entries;
+        assert_eq!(e[0].line_no, 1);
+        assert_eq!(e[1].line_no, 2);
+        assert_eq!(e[2].line_no, 3);
+    }
+
+    #[test]
+    fn continuation_line_does_not_shift_next_entry_line_no() {
+        // header=0, LIMIT=1, continuation=2, EXEC_FINISHED=3
+        let text = "67.0 X\n\
+            16:00:00.0 (1)|LIMIT_USAGE_FOR_NS|(default)|\n\
+            \x20\x20Number of SOQL queries: 1 out of 100\n\
+            16:00:00.0 (2)|EXECUTION_FINISHED\n";
+        let e = &ParsedLog::parse(text).units[0].entries;
+        assert_eq!(e[0].line_no, 1); // LIMIT_USAGE_FOR_NS
+        assert_eq!(e[1].line_no, 3); // EXEC_FINISHED (continuation consumed line 2)
     }
 
     #[test]

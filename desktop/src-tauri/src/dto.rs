@@ -9,7 +9,9 @@ use features::debug_traces::{
     RecordResult, SaveOutcome, TraceFlagDraft, TraceFlagInfo, TraceFlagMod,
 };
 use features::soql::{FieldValue, Record};
+use log_parser::debug_session::{DebugSession, Frame, Step, VarValue};
 use log_parser::event::LogEvent;
+use log_parser::source::SourceRef;
 use log_parser::limits::{LimitEntry, LimitRollup};
 use log_parser::tree::ExecNode;
 use sf_core::OrgRef;
@@ -452,6 +454,104 @@ fn map_field_value(v: &FieldValue) -> FieldValueDto {
 /// Max length of a node's joined `detail` string before truncation.
 const MAX_DETAIL_LEN: usize = 300;
 
+/// A class + (optional) line a log line maps to in Apex source.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceRefDto {
+    pub class_name: String,
+    pub line: Option<u32>,
+}
+
+/// Map a parser `SourceRef` into its DTO.
+pub fn map_source(s: &SourceRef) -> SourceRefDto {
+    SourceRefDto {
+        class_name: s.class_name.clone(),
+        line: s.line,
+    }
+}
+
+// ---- Step debugger (offline log replay) ----
+
+/// One variable visible in a frame at a step.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VarDto {
+    pub name: String,
+    pub type_name: Option<String>,
+    pub value: String,
+}
+
+/// One call-stack frame at a step.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrameDto {
+    pub class_name: String,
+    pub line: Option<u32>,
+    pub signature: String,
+    pub variables: Vec<VarDto>,
+}
+
+/// One stop point in the replay (lightweight). Its full call stack + variables
+/// are fetched on demand via `debug_frames_at(unit_index, entry_index)`.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StepDto {
+    pub unit_index: usize,
+    pub entry_index: usize,
+    pub source: SourceRefDto,
+    pub depth: usize,
+    pub is_frame_start: bool,
+}
+
+/// The replay outline for a whole log: ordered stop points plus whether the log
+/// carries any variable data (so the UI can prompt for FINEST when it doesn't).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DebugSessionDto {
+    pub steps: Vec<StepDto>,
+    pub has_variables: bool,
+}
+
+fn map_var(v: &VarValue) -> VarDto {
+    VarDto {
+        name: v.name.clone(),
+        type_name: v.type_name.clone(),
+        value: v.value.clone(),
+    }
+}
+
+fn map_frame(f: &Frame) -> FrameDto {
+    FrameDto {
+        class_name: f.class_name.clone(),
+        line: f.line,
+        signature: f.signature.clone(),
+        variables: f.variables.iter().map(map_var).collect(),
+    }
+}
+
+fn map_step(s: &Step) -> StepDto {
+    StepDto {
+        unit_index: s.unit_index,
+        entry_index: s.entry_index,
+        source: map_source(&s.source),
+        depth: s.depth,
+        is_frame_start: s.is_frame_start,
+    }
+}
+
+/// Map a parser `DebugSession` outline into its serializable DTO.
+pub fn map_session(s: &DebugSession) -> DebugSessionDto {
+    DebugSessionDto {
+        steps: s.steps.iter().map(map_step).collect(),
+        has_variables: s.has_variables,
+    }
+}
+
+/// Map a single step's reconstructed call stack into its serializable DTO.
+pub fn map_frames(frames: &[Frame]) -> Vec<FrameDto> {
+    frames.iter().map(map_frame).collect()
+}
+
 /// One node in the execution tree, ready for the frontend.
 #[derive(serde::Serialize)]
 pub struct ExecNodeDto {
@@ -460,6 +560,8 @@ pub struct ExecNodeDto {
     pub dur_ns: Option<u64>,
     pub self_ns: Option<u64>,
     pub children: Vec<ExecNodeDto>,
+    /// Apex source this node maps to, or `None` when unresolved.
+    pub source: Option<SourceRefDto>,
 }
 
 /// One governor-limit reading.
@@ -533,6 +635,8 @@ pub fn event_label(event: &LogEvent) -> &str {
         LogEvent::CalloutResponse => "CALLOUT_RESPONSE",
         LogEvent::UserDebug => "USER_DEBUG",
         LogEvent::HeapAllocate => "HEAP_ALLOCATE",
+        LogEvent::VariableScopeBegin => "VARIABLE_SCOPE_BEGIN",
+        LogEvent::VariableAssignment => "VARIABLE_ASSIGNMENT",
         LogEvent::CumulativeLimitUsage => "CUMULATIVE_LIMIT_USAGE",
         LogEvent::CumulativeLimitUsageEnd => "CUMULATIVE_LIMIT_USAGE_END",
         LogEvent::LimitUsageForNs => "LIMIT_USAGE_FOR_NS",
@@ -565,6 +669,7 @@ fn map_node(node: &ExecNode) -> ExecNodeDto {
         dur_ns: node.dur_ns,
         self_ns: node.self_ns,
         children: node.children.iter().map(map_node).collect(),
+        source: node.source.as_ref().map(map_source),
     }
 }
 
@@ -638,6 +743,7 @@ mod tests {
             nanos: 0,
             event,
             params: params.iter().map(|s| s.to_string()).collect(),
+            line_no: 0,
         }
     }
 
@@ -652,7 +758,26 @@ mod tests {
             children,
             dur_ns,
             self_ns: dur_ns,
+            source: None,
         }
+    }
+
+    #[test]
+    fn map_node_carries_source() {
+        use log_parser::parse::ParsedLog;
+        use log_parser::tree::build_tree;
+        let text = "67.0 X\n\
+16:00:00.0 (10)|EXECUTION_STARTED\n\
+16:00:00.0 (20)|METHOD_ENTRY|[5]|01p|MyClass.doWork()\n\
+16:00:00.0 (30)|METHOD_EXIT|[5]|MyClass.doWork()\n\
+16:00:00.0 (40)|EXECUTION_FINISHED\n";
+        let roots = build_tree(&ParsedLog::parse(text).units[0]);
+        let dto = map_node(&roots[0]);
+        assert!(dto.source.is_none()); // EXECUTION: no class
+        let method = &dto.children[0];
+        let s = method.source.as_ref().expect("method has source");
+        assert_eq!(s.class_name, "MyClass");
+        assert_eq!(s.line, Some(5));
     }
 
     #[test]
@@ -752,6 +877,7 @@ mod tests {
                 limits: vec![],
                 exceptions: vec![],
             }],
+            raw_sources: vec![],
         };
         let units = map_units(&view);
         assert_eq!(units.len(), 1);
@@ -800,6 +926,7 @@ mod tests {
                 }],
                 exceptions: vec![],
             }],
+            raw_sources: vec![],
         };
         let units = map_units(&view);
         let limits = &units[0].limits;

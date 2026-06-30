@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -8,10 +9,11 @@ import {
   Loader2,
   FolderOpen,
   Download,
+  HardDriveDownload,
   Search,
   SlidersHorizontal,
   ChevronRight,
-  GitCompare,
+  Bug,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,11 +28,9 @@ import {
 import { groupStatements, totalNs } from "./queryStats";
 import { detectInsights, type Severity } from "./insights";
 import { collectUserDebug } from "./debugLines";
-import { diffLogs } from "./logDiff";
 import { parseSourceRef, type SourceRef } from "./sourceRef";
 import {
   filterLogs,
-  logUsers,
   fmtDuration,
   fmtSize,
   fmtTime,
@@ -38,6 +38,15 @@ import {
   type LogFilter,
 } from "./logList";
 import { SourceDialog } from "../components/SourceDialog";
+import { LogDebugger } from "../components/LogDebugger";
+import {
+  loadCachedList,
+  saveCachedList,
+  listCachedIds,
+  readCachedBody,
+  writeCachedBody,
+  loadLogView,
+} from "./logCache";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -46,6 +55,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
+import { clearApexSourceCache } from "../components/useApexSource";
 import { LoggingConfigDialog } from "../components/LoggingConfigDialog";
 import { useOrgs } from "../org";
 import type {
@@ -68,7 +78,6 @@ type DetailTab =
   | "queries"
   | "limits"
   | "debug"
-  | "diff"
   | "raw";
 
 /** Format a nanosecond duration as a compact millisecond string. */
@@ -86,9 +95,6 @@ function formatBytes(bytes: number): string {
 /** A child whose duration is at least this fraction of its parent's is on the
  * "hot path" and gets auto-expanded; cheaper branches start collapsed. */
 const HOT_PATH_FRACTION = 0.5;
-
-/** Node labels whose detail names an Apex method/class we can jump to. */
-const SOURCE_LABELS = new Set(["METHOD_ENTRY", "CONSTRUCTOR_ENTRY", "CODE_UNIT_STARTED"]);
 
 /** One execution-tree node: collapsible, with the hot path auto-expanded so the
  * bottleneck chain is visible without drowning in cheap branches. `forceOpen`
@@ -109,8 +115,9 @@ function TreeNode({
 }) {
   const dur = node.dur_ns ?? 0;
   const hasChildren = node.children.length > 0;
-  const sourceRef =
-    onSource && SOURCE_LABELS.has(node.label) ? parseSourceRef(node.detail) : null;
+  // Backend resolves every node's source (class + line); any node that has one
+  // is clickable, not just method/constructor/code-unit entries.
+  const sourceRef = onSource ? node.source : null;
   // Auto-expand the top level and any child that dominates its parent's time.
   const autoExpand =
     depth === 0 || parentDur == null || (parentDur > 0 && dur / parentDur >= HOT_PATH_FRACTION);
@@ -396,88 +403,6 @@ function HotspotsView({
   );
 }
 
-/** A signed delta with color: an increase (regression) is red, a decrease green. */
-function deltaCell(a: number, b: number): { text: string; cls: string } {
-  const d = b - a;
-  if (d === 0) return { text: "0", cls: "text-text-dim/60" };
-  return {
-    text: `${d > 0 ? "+" : ""}${d}`,
-    cls: d > 0 ? "text-destructive" : "text-emerald-500",
-  };
-}
-
-/** A/B diff: the current log (B) vs a loaded baseline (A) — query families and
- * limits that changed, biggest change first. Localizes regressions. */
-function DiffView({ baseline, current }: { baseline: UnitDto[]; current: UnitDto[] }) {
-  const d = diffLogs(baseline, current);
-  const t = d.totals;
-  return (
-    <div className="flex flex-col gap-4 text-[12px]">
-      <div className="text-text-dim">
-        Baseline (A) → Current (B):{" "}
-        <span className="text-foreground">{t.soqlA}→{t.soqlB}</span> SOQL ·{" "}
-        <span className="text-foreground">{t.dmlA}→{t.dmlB}</span> DML ·{" "}
-        <span className="text-foreground">{t.exceptionsA}→{t.exceptionsB}</span> exceptions
-      </div>
-
-      <section>
-        <div className="micro-label pb-1">QUERY CHANGES</div>
-        {d.queries.length === 0 ? (
-          <div className="text-muted-foreground">— no query changes —</div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="text-muted-foreground">
-                <th className="py-1 text-left font-normal">STATEMENT</th>
-                <th className="py-1 text-right font-normal">A</th>
-                <th className="py-1 text-right font-normal">B</th>
-                <th className="py-1 text-right font-normal">Δ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {d.queries.slice(0, 50).map((q, i) => {
-                const dl = deltaCell(q.countA, q.countB);
-                return (
-                  <tr key={i} className="border-t border-border/50 text-text-dim">
-                    <td className="max-w-0 truncate py-0.5 pr-2 text-foreground" title={q.fp}>
-                      <span className="text-text-dim/70">{q.kind === "dml" ? "DML " : "SOQL "}</span>
-                      {q.fp}
-                    </td>
-                    <td className="tnum py-0.5 text-right">{q.countA}</td>
-                    <td className="tnum py-0.5 text-right">{q.countB}</td>
-                    <td className={`tnum py-0.5 text-right ${dl.cls}`}>{dl.text}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      {d.limits.length > 0 && (
-        <section>
-          <div className="micro-label pb-1">LIMIT CHANGES</div>
-          <table className="w-full">
-            <tbody>
-              {d.limits.map((l, i) => {
-                const dl = deltaCell(l.usedA, l.usedB);
-                return (
-                  <tr key={i} className="border-t border-border/50 text-text-dim">
-                    <td className="py-0.5 pr-2 text-foreground">{l.name}</td>
-                    <td className="tnum py-0.5 text-right">{l.usedA}</td>
-                    <td className="tnum py-0.5 text-right">{l.usedB}</td>
-                    <td className={`tnum py-0.5 text-right ${dl.cls}`}>{dl.text}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </section>
-      )}
-    </div>
-  );
-}
-
 /** Debug output: every USER_DEBUG message in order, away from the raw-log noise. */
 function DebugView({ units }: { units: UnitDto[] }) {
   const lines = collectUserDebug(units);
@@ -573,18 +498,33 @@ export function LogsPanel() {
   const [view, setView] = useState<LogViewDto | null>(null);
   const [viewError, setViewError] = useState<string | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
-  // A baseline log loaded via "Compare" — the current view is diffed against it.
-  const [baseline, setBaseline] = useState<LogViewDto | null>(null);
   // Apex source to show (jump-to-source from a method node / hotspot).
   const [sourceRef, setSourceRef] = useState<SourceRef | null>(null);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [tab, setTab] = useState<DetailTab>("raw");
   const [treeFilter, setTreeFilter] = useState("");
   const [filter, setFilter] = useState<LogFilter>(EMPTY_FILTER);
-  const users = logUsers(logs);
   const visibleLogs = filterLogs(logs, filter);
+
+  // Virtualize the log list — it can run to thousands of rows.
+  const listParentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: visibleLogs.length,
+    getScrollElement: () => listParentRef.current,
+    estimateSize: () => 57,
+    overscan: 10,
+  });
   // Parsed-log cache (logs are immutable once written). Avoids re-fetching a
   // large log from the org on every click; cleared on org switch / REFRESH.
   const viewCache = useRef<Map<string, LogViewDto>>(new Map());
+  // Id of the log whose Apex source cache is currently held (null = local file).
+  const lastLogId = useRef<string | null>(null);
+  // Log ids whose body is cached on disk — drives the "downloaded" list marker.
+  const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    void listCachedIds().then(setCachedIds);
+  }, []);
 
   const refresh = useCallback(async () => {
     setListLoading(true);
@@ -593,26 +533,43 @@ export function LogsPanel() {
     try {
       const rows = await invoke<LogRefDto[]>("list_logs");
       setLogs(rows);
+      void saveCachedList(org ?? "default", rows);
     } catch (e) {
       setListError(typeof e === "string" ? e : String(e));
     } finally {
       setListLoading(false);
     }
-  }, []);
+  }, [org]);
 
-  // Reload the list whenever the active org changes (and on mount), and drop
-  // any selection from the previous org.
+  // On org change (and mount): show the persisted list head immediately so
+  // reopening the app needs no download, then refresh from the org in the
+  // background. Drops any selection from the previous org.
   useEffect(() => {
     setSelectedId(null);
     setView(null);
     setViewError(null);
+    // Different org → different source; drop the Apex source cache.
+    clearApexSourceCache();
+    lastLogId.current = null;
+    let alive = true;
+    void loadCachedList(org ?? "default").then((rows) => {
+      // Don't clobber a fresh background refresh with an empty/stale cache.
+      if (alive && rows.length) setLogs(rows);
+    });
     void refresh();
+    return () => {
+      alive = false;
+    };
   }, [refresh, org]);
 
   const select = useCallback(async (id: string) => {
+    // Switching to a different log: drop the previous log's Apex source cache.
+    if (lastLogId.current !== id) {
+      clearApexSourceCache();
+      lastLogId.current = id;
+    }
     setSelectedId(id);
     setViewError(null);
-    setBaseline(null);
     setTab("raw");
     const cached = viewCache.current.get(id);
     if (cached) {
@@ -623,9 +580,22 @@ export function LogsPanel() {
     setView(null);
     setViewLoading(true);
     try {
-      const dto = await invoke<LogViewDto>("get_log", { id });
+      // Cache-first (logs are immutable): parse a locally cached body, else
+      // download from the org and write it to cache for next time.
+      const dto = await loadLogView(id, {
+        readCache: readCachedBody,
+        // parse_log omits raw; re-attach the body we already hold (no 16MB echo).
+        parse: async (body) => ({
+          raw: body,
+          ...(await invoke<Omit<LogViewDto, "raw">>("parse_log", { body })),
+        }),
+        getLog: (logId) => invoke<LogViewDto>("get_log", { id: logId }),
+        writeCache: writeCachedBody,
+      });
       viewCache.current.set(id, dto);
       setView(dto);
+      // loadLogView writes the body to disk on a download; reflect that marker.
+      setCachedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     } catch (e) {
       setViewError(typeof e === "string" ? e : String(e));
     } finally {
@@ -640,33 +610,21 @@ export function LogsPanel() {
     });
     if (typeof path !== "string") return;
     setSelectedId(null);
+    // A freshly opened local log: start with an empty Apex source cache.
+    clearApexSourceCache();
+    lastLogId.current = null;
     setViewLoading(true);
     setViewError(null);
     setView(null);
-    setBaseline(null);
     setTab("raw");
     try {
       const body = await readTextFile(path);
-      setView(await invoke<LogViewDto>("parse_log", { body }));
+      const parsed = await invoke<Omit<LogViewDto, "raw">>("parse_log", { body });
+      setView({ raw: body, ...parsed });
     } catch (e) {
       setViewError(typeof e === "string" ? e : String(e));
     } finally {
       setViewLoading(false);
-    }
-  }, []);
-
-  /** Load a baseline .log to diff the current log against. */
-  const compareLoad = useCallback(async () => {
-    const path = await openDialog({
-      filters: [{ name: "Debug log", extensions: ["log", "txt"] }],
-    });
-    if (typeof path !== "string") return;
-    try {
-      const body = await readTextFile(path);
-      setBaseline(await invoke<LogViewDto>("parse_log", { body }));
-      setTab("diff");
-    } catch (e) {
-      toast.error(`Compare failed: ${typeof e === "string" ? e : String(e)}`);
     }
   }, []);
 
@@ -689,9 +647,13 @@ export function LogsPanel() {
   return (
     <ResizablePanelGroup direction="horizontal">
       {/* minSize = the natural width of the header toolbar (LOGS · OPEN ·
-          COMPARE · SAVE · REFRESH · LOGGING) so those buttons never clip.
+          SAVE · REFRESH · LOGGING) so those buttons never clip.
           NOTE: this resizable lib wants string px/% sizes, not bare numbers. */}
-      <ResizablePanel defaultSize="40%" minSize="450px">
+      <ResizablePanel
+        defaultSize="40%"
+        minSize="450px"
+        groupResizeBehavior="preserve-pixel-size"
+      >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">LOGS</div>
@@ -704,17 +666,6 @@ export function LogsPanel() {
             >
               <FolderOpen size={12} />
               OPEN
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={compareLoad}
-              disabled={!view}
-              title="Load a baseline log to diff the current one against"
-              className={`h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide hover:text-foreground ${baseline ? "text-primary" : "text-text-dim"}`}
-            >
-              <GitCompare size={12} />
-              COMPARE
             </Button>
             <Button
               variant="ghost"
@@ -773,103 +724,91 @@ export function LogsPanel() {
                   className="h-7 pl-7 text-[12px]"
                 />
               </div>
-              <ToggleGroup
-                type="single"
-                value={filter.status}
-                onValueChange={(v) =>
-                  v && setFilter((f) => ({ ...f, status: v as LogFilter["status"] }))
-                }
-                className="gap-1"
-              >
-                <ToggleGroupItem value="all" className="h-7 px-2 text-[11px]">
-                  All
-                </ToggleGroupItem>
-                <ToggleGroupItem value="success" className="h-7 px-2 text-[11px]">
-                  OK
-                </ToggleGroupItem>
-                <ToggleGroupItem value="failed" className="h-7 px-2 text-[11px]">
-                  Fail
-                </ToggleGroupItem>
-              </ToggleGroup>
-              {users.length > 1 && (
-                <select
-                  value={filter.user}
-                  onChange={(e) =>
-                    setFilter((f) => ({ ...f, user: e.target.value }))
-                  }
-                  className="h-7 rounded-md border border-border bg-card px-2 text-[12px] text-foreground"
-                >
-                  <option value="">All users</option>
-                  {users.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              )}
             </div>
           )}
 
-          <ScrollArea className="min-h-0 flex-1">
-            {listError ? (
-              <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-                {listError}
-              </pre>
-            ) : logs.length === 0 && !listLoading ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-                — no logs —
-              </div>
-            ) : visibleLogs.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-                — no matches —
-              </div>
-            ) : (
-              visibleLogs.map((log) => {
-                const ok = isSuccess(log.status);
-                const selected = log.id === selectedId;
-                const time = fmtTime(log.start_time);
-                return (
-                  <button
-                    key={log.id}
-                    type="button"
-                    onClick={() => select(log.id)}
-                    className={`focus-accent relative flex w-full flex-col gap-0.5 border-b border-border px-4 py-2 text-left hover:bg-accent cursor-pointer ${
-                      selected ? "bg-primary/10" : ""
-                    }`}
-                  >
-                    {selected && (
-                      <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
-                    )}
-                    <div className="flex w-full items-center gap-2">
-                      <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                          ok ? "bg-success" : "bg-destructive"
-                        }`}
-                      />
-                      <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                        {log.operation}
-                      </span>
-                      <Badge
-                        variant={ok ? "success" : "destructive"}
-                        title={log.status}
-                        className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
-                      >
-                        {ok ? "Success" : "Failed"}
-                      </Badge>
-                    </div>
-                    <div className="tnum flex w-full items-center gap-2 pl-3.5 text-[10px] text-text-dim">
-                      {log.user && (
-                        <span className="max-w-[45%] truncate">{log.user}</span>
+          {listError ? (
+            <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
+              {listError}
+            </pre>
+          ) : logs.length === 0 && !listLoading ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
+              — no logs —
+            </div>
+          ) : visibleLogs.length === 0 ? (
+            <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
+              — no matches —
+            </div>
+          ) : (
+            <div ref={listParentRef} className="uf-scroll min-h-0 flex-1 overflow-y-auto">
+              <div
+                style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}
+              >
+                {rowVirtualizer.getVirtualItems().map((vi) => {
+                  const log = visibleLogs[vi.index];
+                  const ok = isSuccess(log.status);
+                  const selected = log.id === selectedId;
+                  const cached = cachedIds.has(log.id);
+                  const time = fmtTime(log.start_time);
+                  return (
+                    <button
+                      key={log.id}
+                      data-index={vi.index}
+                      ref={rowVirtualizer.measureElement}
+                      type="button"
+                      onClick={() => select(log.id)}
+                      className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-3 pr-4 text-left hover:bg-accent cursor-pointer ${
+                        selected ? "bg-primary/10" : ""
+                      }`}
+                      style={{ transform: `translateY(${vi.start}px)` }}
+                    >
+                      {selected && (
+                        <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
                       )}
-                      <span>{fmtDuration(log.duration_ms)}</span>
-                      <span>{fmtSize(log.log_length)}</span>
-                      {time && <span className="ml-auto">{time}</span>}
-                    </div>
-                  </button>
-                );
-              })
-            )}
-          </ScrollArea>
+                      {/* Vertical timeline rail (continuous across rows) + status node. */}
+                      <div className="relative flex w-4 shrink-0 items-center justify-center">
+                        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+                        <span
+                          className={`relative z-10 h-2 w-2 rounded-full ring-2 ring-background ${
+                            ok ? "bg-success" : "bg-destructive"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <div className="flex w-full items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+                            {log.operation}
+                          </span>
+                          {cached && (
+                            <HardDriveDownload
+                              size={12}
+                              className="shrink-0 text-text-dim"
+                              aria-label="Cached locally"
+                            />
+                          )}
+                          <Badge
+                            variant={ok ? "success" : "destructive"}
+                            title={log.status}
+                            className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+                          >
+                            {ok ? "Success" : "Failed"}
+                          </Badge>
+                        </div>
+                        <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
+                          {log.user && (
+                            <span className="max-w-[45%] truncate">{log.user}</span>
+                          )}
+                          <span>{fmtDuration(log.duration_ms)}</span>
+                          <span>{fmtSize(log.log_length)}</span>
+                          {time && <span className="ml-auto">{time}</span>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </ResizablePanel>
 
@@ -894,9 +833,18 @@ export function LogsPanel() {
           ) : view ? (
             <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
               <div className="flex items-center justify-between pb-2">
-                <div className="tnum text-[12px] text-text-dim">
-                  API {view.api_version ?? "—"} · {view.units.length}{" "}
-                  {view.units.length === 1 ? "unit" : "units"}
+                <div className="flex items-center gap-3">
+                  <div className="tnum text-[12px] text-text-dim">
+                    API {view.api_version ?? "—"} · {view.units.length}{" "}
+                    {view.units.length === 1 ? "unit" : "units"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDebugOpen(true)}
+                    className="focus-accent flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <Bug size={13} /> Debug
+                  </button>
                 </div>
                 <ToggleGroup
                   type="single"
@@ -914,7 +862,6 @@ export function LogsPanel() {
                     "queries",
                     "limits",
                     "debug",
-                    ...(baseline ? (["diff"] as const) : []),
                   ] as DetailTab[]).map((t) => (
                     <ToggleGroupItem
                       key={t}
@@ -941,7 +888,16 @@ export function LogsPanel() {
 
               {tab === "raw" ? (
                 <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
-                  <LogView raw={view.raw} />
+                  <LogView
+                    raw={view.raw}
+                    resolveSource={(line) =>
+                      invoke<SourceRef | null>("source_at_line", {
+                        body: view.raw,
+                        line,
+                      })
+                    }
+                    onSource={setSourceRef}
+                  />
                 </div>
               ) : (
                 <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
@@ -983,14 +939,6 @@ export function LogsPanel() {
                     <QueriesView units={view.units} />
                   ) : tab === "debug" ? (
                     <DebugView units={view.units} />
-                  ) : tab === "diff" ? (
-                    baseline ? (
-                      <DiffView baseline={baseline.units} current={view.units} />
-                    ) : (
-                      <div className="py-4 text-center text-[13px] text-muted-foreground">
-                        — load a baseline log with Compare —
-                      </div>
-                    )
                   ) : (
                     <LimitsView units={view.units} />
                   )}
@@ -1002,6 +950,13 @@ export function LogsPanel() {
         </div>
       </ResizablePanel>
       <SourceDialog target={sourceRef} onClose={() => setSourceRef(null)} />
+      {view && (
+        <LogDebugger
+          raw={view.raw}
+          open={debugOpen}
+          onClose={() => setDebugOpen(false)}
+        />
+      )}
     </ResizablePanelGroup>
   );
 }

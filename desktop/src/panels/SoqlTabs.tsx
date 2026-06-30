@@ -109,7 +109,13 @@ export function SoqlTabs() {
       onLayoutChanged={layout.onLayoutChanged}
       className="h-full"
     >
-      <ResizablePanel id="sidebar" defaultSize="240px" minSize="160px" maxSize="420px">
+      <ResizablePanel
+        id="sidebar"
+        defaultSize="240px"
+        minSize="160px"
+        maxSize="420px"
+        groupResizeBehavior="preserve-pixel-size"
+      >
         {root && (
           <Explorer
             root={root}
