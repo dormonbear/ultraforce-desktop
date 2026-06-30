@@ -1,4 +1,4 @@
-import { Database, History, Moon, ScrollText, Terminal } from "lucide-react";
+import { Database, History, Moon, ScrollText, Settings, Terminal } from "lucide-react";
 import {
   CommandDialog,
   CommandEmpty,
@@ -11,7 +11,7 @@ import {
 import { useTheme } from "../theme";
 import { useOrgs } from "../org";
 
-type PanelId = "soql" | "apex" | "logs";
+type PanelId = "soql" | "apex" | "logs" | "settings";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -24,6 +24,7 @@ const PANELS: Array<{ id: PanelId; label: string; icon: typeof Database }> = [
   { id: "soql", label: "Go to SOQL", icon: Database },
   { id: "apex", label: "Go to Apex", icon: Terminal },
   { id: "logs", label: "Go to Logs", icon: ScrollText },
+  { id: "settings", label: "Go to Settings", icon: Settings },
 ];
 
 export function CommandPalette({
