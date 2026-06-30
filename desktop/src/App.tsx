@@ -4,10 +4,9 @@ import {
   Terminal,
   ScrollText,
   Table as TableIcon,
-  Sun,
-  Moon,
   History as HistoryIcon,
   Command as CommandIcon,
+  Settings,
 } from "lucide-react";
 import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
@@ -21,7 +20,7 @@ import { HistoryDrawer } from "./components/HistoryDrawer";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
 import { SyncToast } from "./components/SyncToast";
 import { SchemaRefresh } from "./components/SchemaRefresh";
-import { WorkspaceSettings } from "./components/WorkspaceSettings";
+import { SettingsPage } from "./components/SettingsPage";
 import { onOpenTabRequest } from "./openTab";
 import { checkForUpdates } from "./updater";
 import { useTheme } from "./theme";
@@ -34,7 +33,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type ActivePanel = "soql" | "apex" | "logs";
+type ActivePanel = "soql" | "apex" | "logs" | "settings";
 
 const RAIL = [
   { id: "soql", icon: Database, label: "SOQL", enabled: true },
@@ -52,17 +51,21 @@ export default function App() {
   const [histOpen, setHistOpen] = useState(false);
   // Bumped when a workspace root changes, to remount the affected tool panel.
   const [wsVersion, setWsVersion] = useState(0);
-  const { theme, toggle } = useTheme();
-  const themeTitle = theme === "dark" ? "Switch to light" : "Switch to dark";
+  const { theme } = useTheme();
   const { loading: orgLoading, orgs } = useOrgs();
   // No usable org (CLI missing / not authed) → guide the user instead of panels.
   const needsSetup = !orgLoading && orgs.length === 0;
 
   useEffect(() => {
+    // fallow-ignore-next-line complexity
     const onKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key.toLowerCase() === "k") {
         e.preventDefault();
         setCmdOpen((open) => !open);
+      } else if (e.key === ",") {
+        e.preventDefault();
+        setActive("settings");
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -118,7 +121,6 @@ export default function App() {
         <div className="flex items-center gap-2">
           <IndexProgress />
           <SchemaRefresh />
-          <WorkspaceSettings onChanged={() => setWsVersion((v) => v + 1)} />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -151,20 +153,6 @@ export default function App() {
               </Button>
             </TooltipTrigger>
             <TooltipContent>Run history</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggle}
-                aria-label="Toggle color theme"
-                className="size-7 cursor-pointer text-text-dim hover:text-foreground"
-              >
-                {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{themeTitle}</TooltipContent>
           </Tooltip>
           <OrgSelector />
         </div>
@@ -210,11 +198,39 @@ export default function App() {
               </Tooltip>
             );
           })}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="Settings"
+                aria-current={active === "settings" ? "page" : undefined}
+                onClick={() => setActive("settings")}
+                className={`focus-accent relative mt-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-md ${
+                  active === "settings"
+                    ? "text-primary"
+                    : "text-text-dim hover:text-foreground"
+                }`}
+              >
+                {active === "settings" && (
+                  <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
+                )}
+                <Settings size={18} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              Settings
+              <span className="ml-2 text-muted-foreground">
+                {isMac() ? "⌘," : "Ctrl+,"}
+              </span>
+            </TooltipContent>
+          </Tooltip>
         </nav>
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {needsSetup ? (
+          {active === "settings" ? (
+            <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
+          ) : needsSetup ? (
             <SetupPage />
           ) : (
             <>
