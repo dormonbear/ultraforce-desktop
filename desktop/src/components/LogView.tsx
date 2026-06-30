@@ -4,6 +4,7 @@ import { Search, Copy } from "lucide-react";
 import { copyText } from "../clipboard";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import type { SourceRef } from "../panels/sourceRef";
 
 const LINE_H = 18;
 
@@ -80,25 +81,50 @@ function highlightAll(line: string, q: string): ReactNode {
   return out;
 }
 
-/** Raw Salesforce debug log with per-event coloring + search/Debug-Only filter. */
-export function LogView({ raw }: { raw: string }) {
+/** True for a debug-log event line (`HH:MM:SS.d (nanos)|EVENT|…`), which may map
+ * to Apex source. Header / continuation lines never do, so they aren't clickable. */
+function isEventLine(line: string): boolean {
+  return /^\d{2}:\d{2}:\d{2}\.\d+ \(\d+\)\|/.test(line);
+}
+
+/** Raw Salesforce debug log with per-event coloring + search/Debug-Only filter.
+ * When `resolveSource` and `onSource` are given, event lines are clickable and
+ * their Apex source is resolved on demand (no line-length array shipped on open),
+ * jumping to source when the clicked line maps to one. */
+export function LogView({
+  raw,
+  resolveSource,
+  onSource,
+}: {
+  raw: string;
+  resolveSource?: (rawLineIndex: number) => Promise<SourceRef | null>;
+  onSource?: (ref: SourceRef) => void;
+}) {
   const [q, setQ] = useState("");
   const [debugOnly, setDebugOnly] = useState(false);
   const [highlight, setHighlight] = useState(true);
 
   const lines = useMemo(() => raw.split("\n"), [raw]);
-  const filtered = useMemo(() => {
+  // Filtered original-line indices, or null when nothing is filtered. The null
+  // fast-path skips allocating a per-line array on open — the common case for a
+  // freshly opened large log (no query, no Debug-Only).
+  const filtered = useMemo<number[] | null>(() => {
+    if (!q && !debugOnly) return null;
     const needle = q.toLowerCase();
-    return lines.filter((l) => {
-      if (debugOnly && !l.includes("|USER_DEBUG|")) return false;
-      if (needle && !l.toLowerCase().includes(needle)) return false;
-      return true;
-    });
+    const out: number[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (debugOnly && !l.includes("|USER_DEBUG|")) continue;
+      if (needle && !l.toLowerCase().includes(needle)) continue;
+      out.push(i);
+    }
+    return out;
   }, [lines, q, debugOnly]);
+  const count = filtered ? filtered.length : lines.length;
 
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
-    count: filtered.length,
+    count,
     getScrollElement: () => parentRef.current,
     estimateSize: () => LINE_H,
     overscan: 24,
@@ -150,20 +176,33 @@ export function LogView({ raw }: { raw: string }) {
         ref={parentRef}
         className="min-h-0 flex-1 overflow-auto bg-background px-3 py-2 font-mono text-[12px] leading-relaxed"
       >
-        {filtered.length === 0 ? (
+        {count === 0 ? (
           <div className="text-muted-foreground">— no matching lines —</div>
         ) : (
           <div
             style={{ height: virtualizer.getTotalSize(), position: "relative" }}
           >
             {virtualizer.getVirtualItems().map((vi) => {
-              const l = filtered[vi.index];
+              const i = filtered ? filtered[vi.index] : vi.index;
+              const l = lines[i];
+              const clickable =
+                resolveSource != null && onSource != null && isEventLine(l);
               return (
                 <div
                   key={vi.key}
+                  role={clickable ? "button" : undefined}
+                  title={clickable ? "Jump to Apex source" : undefined}
+                  onClick={
+                    clickable
+                      ? async () => {
+                          const ref = await resolveSource(i);
+                          if (ref) onSource(ref);
+                        }
+                      : undefined
+                  }
                   className={`absolute left-0 top-0 w-full whitespace-pre ${
                     highlight ? "" : "text-text-dim"
-                  }`}
+                  } ${clickable ? "cursor-pointer hover:bg-primary/10" : ""}`}
                   style={{
                     height: LINE_H,
                     transform: `translateY(${vi.start}px)`,

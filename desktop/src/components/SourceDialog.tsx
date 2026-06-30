@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useRef } from "react";
+import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -7,16 +8,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { configureMonacoApex } from "../monaco-apex";
+import { EDITOR_OPTS } from "../monaco-opts";
+import { useTheme, monacoTheme } from "../theme";
 import type { SourceRef } from "../panels/sourceRef";
-
-interface ApexSource {
-  name: string;
-  kind: string;
-  body: string;
-}
+import { revealLine, useApexSource } from "./useApexSource";
 
 /** Read-only viewer for an Apex class/trigger's source, fetched from the org on
- * open, scrolled to (and highlighting) the target line — "jump to source". */
+ * open. Syntax-highlighted via Monaco (Apex language) and scrolled to + line-
+ * highlighting the target line — "jump to source". */
 export function SourceDialog({
   target,
   onClose,
@@ -24,31 +24,47 @@ export function SourceDialog({
   target: SourceRef | null;
   onClose: () => void;
 }) {
-  const [src, setSrc] = useState<ApexSource | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const lineRef = useRef<HTMLDivElement | null>(null);
+  const { theme } = useTheme();
+  const { src, error } = useApexSource(target?.className ?? null);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const decoRef = useRef<editor.IEditorDecorationsCollection | null>(null);
 
+  // Scroll to the target line and mark it with a persistent whole-line highlight
+  // (Monaco's cursor-line highlight alone is too faint to spot a jumped-to line).
+  const highlight = useCallback(
+    (ed: editor.IStandaloneCodeEditor | null, line: number | null) => {
+      revealLine(ed, line);
+      if (!ed) return;
+      if (line == null) {
+        decoRef.current?.clear();
+        return;
+      }
+      const deco = [
+        {
+          range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
+          options: { isWholeLine: true, className: "apex-target-line" },
+        },
+      ];
+      if (decoRef.current) decoRef.current.set(deco);
+      else decoRef.current = ed.createDecorationsCollection(deco);
+    },
+    [],
+  );
+
+  // Re-highlight once the source loads / the target changes.
   useEffect(() => {
-    if (!target) return;
-    setSrc(null);
-    setError(null);
-    let alive = true;
-    invoke<ApexSource>("fetch_apex_source", { name: target.className })
-      .then((s) => alive && setSrc(s))
-      .catch((e) => alive && setError(typeof e === "string" ? e : String(e)));
-    return () => {
-      alive = false;
-    };
-  }, [target]);
+    highlight(editorRef.current, target?.line ?? null);
+  }, [src, target, highlight]);
 
-  useEffect(() => {
-    if (src) lineRef.current?.scrollIntoView({ block: "center" });
-  }, [src]);
+  const onMount: OnMount = (instance) => {
+    editorRef.current = instance;
+    decoRef.current = null;
+    highlight(instance, target?.line ?? null);
+  };
 
-  const lines = src ? src.body.split("\n") : [];
   return (
     <Dialog open={target != null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl gap-3">
+      <DialogContent className="flex h-[85vh] max-h-[85vh] w-[85vw] max-w-[85vw] flex-col gap-3 sm:max-w-[85vw]">
         <DialogHeader>
           <DialogTitle>
             {target?.className}
@@ -63,23 +79,21 @@ export function SourceDialog({
         )}
         {error && <div className="py-4 text-[12px] text-destructive">{error}</div>}
         {src && (
-          <div className="max-h-[60vh] overflow-auto rounded-md border border-border bg-card font-mono text-[11px] leading-relaxed">
-            {lines.map((l, i) => {
-              const n = i + 1;
-              const hot = target?.line === n;
-              return (
-                <div
-                  key={i}
-                  ref={hot ? lineRef : undefined}
-                  className={`flex gap-3 px-2 ${hot ? "bg-primary/15" : ""}`}
-                >
-                  <span className="w-10 shrink-0 select-none text-right text-text-dim/50">
-                    {n}
-                  </span>
-                  <span className="whitespace-pre text-foreground">{l || " "}</span>
-                </div>
-              );
-            })}
+          <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+            <Editor
+              height="100%"
+              language="apex"
+              theme={monacoTheme(theme)}
+              value={src.body}
+              beforeMount={(monaco: Monaco) => configureMonacoApex(monaco)}
+              onMount={onMount}
+              options={{
+                ...EDITOR_OPTS,
+                readOnly: true,
+                lineNumbers: "on",
+              }}
+              loading={<Loader2 size={18} className="spin text-muted-foreground" />}
+            />
           </div>
         )}
       </DialogContent>

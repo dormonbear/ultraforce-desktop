@@ -1,33 +1,17 @@
 import type { LogRefDto } from "../types";
 
-/** A log is "success" only when Status is exactly Success; everything else
- * (assertion failures, errors) counts as failed. */
-export function logOk(status: string): boolean {
-  return status.toLowerCase() === "success";
-}
-
 export interface LogFilter {
   query: string; // matches operation or user, case-insensitive
-  status: "all" | "success" | "failed";
-  user: string; // exact LogUser.Name, or "" for all
 }
 
-export const EMPTY_FILTER: LogFilter = { query: "", status: "all", user: "" };
-
-/** Distinct, sorted user names present in the logs (for the user dropdown). */
-export function logUsers(logs: LogRefDto[]): string[] {
-  return [...new Set(logs.map((l) => l.user).filter(Boolean))].sort();
-}
+export const EMPTY_FILTER: LogFilter = { query: "" };
 
 export function filterLogs(logs: LogRefDto[], f: LogFilter): LogRefDto[] {
   const q = f.query.trim().toLowerCase();
-  return logs.filter((l) => {
-    if (f.status === "success" && !logOk(l.status)) return false;
-    if (f.status === "failed" && logOk(l.status)) return false;
-    if (f.user && l.user !== f.user) return false;
-    if (q && !`${l.operation} ${l.user}`.toLowerCase().includes(q)) return false;
-    return true;
-  });
+  if (!q) return logs;
+  return logs.filter((l) =>
+    `${l.operation} ${l.user}`.toLowerCase().includes(q),
+  );
 }
 
 /** "46070" ms → "46.1s"; sub-second stays in ms. */

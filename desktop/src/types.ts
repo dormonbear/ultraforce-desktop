@@ -1,3 +1,5 @@
+import type { SourceRef } from "./panels/sourceRef";
+
 export interface FieldValueDto {
   kind: "null" | "scalar" | "parent" | "children";
   scalar?: string;
@@ -95,6 +97,8 @@ export interface ExecNodeDto {
   dur_ns: number | null;
   self_ns: number | null;
   children: ExecNodeDto[];
+  /** Apex source this node maps to (class + line), or null when unresolved. */
+  source: SourceRef | null;
 }
 
 export interface LimitEntryDto {

@@ -1,0 +1,6 @@
+set -e
+
+# Node project lives in desktop/; hook runs from repo root.
+cd desktop
+pnpm exec oxlint src
+pnpm exec fallow audit

@@ -7,6 +7,9 @@ pub struct LogEntry {
     pub nanos: u64,
     pub event: LogEvent,
     pub params: Vec<String>,
+    /// 0-based line number of this entry in the raw log text (set by
+    /// `ParsedLog::parse`; `parse_entry` alone leaves it 0).
+    pub line_no: usize,
 }
 
 /// Parse `HH:MM:SS.frac (nanos)` and return the nanos value, or None if the
@@ -55,6 +58,7 @@ pub fn parse_entry(line: &str) -> Option<LogEntry> {
         nanos,
         event: LogEvent::from_name(ev),
         params,
+        line_no: 0,
     })
 }
 

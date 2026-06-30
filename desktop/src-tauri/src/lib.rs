@@ -24,6 +24,12 @@ pub struct AppState {
     /// Cached REST credentials per org (key: org or "" for default). Avoids a
     /// ~1-2s `sf org display` on every query — refreshed on a 401.
     auth_cache: std::sync::Mutex<std::collections::HashMap<String, sf_core::AuthInfo>>,
+    /// Last parsed log (keyed by a hash of its raw body), so the step-debugger's
+    /// `debug_frames_at` doesn't re-parse a large log on every step.
+    debug_parse: std::sync::Mutex<Option<(u64, Arc<log_parser::parse::ParsedLog>)>>,
+    /// Last full `DebugLogView` (keyed by a hash of its raw body), so opening a
+    /// log parses it once across `parse_log` + `log_sources` (was twice).
+    debug_view: std::sync::Mutex<Option<(u64, Arc<features::debug_log::DebugLogView>)>>,
 }
 
 /// REST credentials for `org`, cached so only the first query per org pays the
@@ -422,13 +428,42 @@ struct LogViewDto {
     units: Vec<UnitDto>,
 }
 
-/// Parse a raw debug-log body into the view DTO (execution tree + limits + raw).
-fn build_log_view(body: String) -> LogViewDto {
-    let view = features::debug_log::DebugLogView::from_log(&body);
-    LogViewDto {
+/// Parsed view WITHOUT the raw body: the caller already holds the body it passed
+/// to `parse_log`, so echoing 16MB+ back over IPC (and re-deserializing it) is
+/// pure waste. The frontend re-attaches `raw` from the body it owns.
+#[derive(serde::Serialize)]
+struct ParsedLogDto {
+    api_version: Option<String>,
+    units: Vec<UnitDto>,
+}
+
+/// The full `DebugLogView` for a body, cached single-entry (keyed by a hash of
+/// the body) so `parse_log`, `log_sources`, and `get_log` over the same log parse
+/// it once instead of each re-parsing 200k+ lines.
+fn cached_log_view(state: &AppState, body: &str) -> Arc<features::debug_log::DebugLogView> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    let key = hasher.finish();
+
+    let mut cache = state.debug_view.lock().unwrap();
+    if let Some((cached_key, view)) = cache.as_ref() {
+        if *cached_key == key {
+            return view.clone();
+        }
+    }
+    let view = Arc::new(features::debug_log::DebugLogView::from_log(body));
+    *cache = Some((key, view.clone()));
+    view
+}
+
+/// The parsed view (execution tree + limits) without the raw body. Per-line source
+/// mapping is excluded — loaded lazily via `log_sources` so opening a large log
+/// isn't blocked by serializing a line-length array.
+fn parsed_dto(view: &features::debug_log::DebugLogView) -> ParsedLogDto {
+    ParsedLogDto {
         api_version: view.header.as_ref().map(|h| h.api_version.clone()),
-        units: map_units(&view),
-        raw: body,
+        units: map_units(view),
     }
 }
 
@@ -438,14 +473,83 @@ async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, S
     let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
         .await
         .map_err(|e| format!("{e:?}"))?;
-    Ok(build_log_view(body))
+    let view = cached_log_view(&state, &body);
+    let parsed = parsed_dto(&view);
+    // The org fetch is the only path where the frontend doesn't already have the
+    // body, so this is the one place that returns `raw`.
+    Ok(LogViewDto {
+        raw: body,
+        api_version: parsed.api_version,
+        units: parsed.units,
+    })
 }
 
-/// Parse a raw debug-log body supplied by the caller (e.g. an opened local
-/// `.log` file) — same view as `get_log` without the org fetch.
+/// Parse a raw debug-log body supplied by the caller (a reopened cached log or an
+/// opened local `.log` file). Returns no `raw` — the caller re-attaches the body
+/// it already holds.
 #[tauri::command]
-fn parse_log(body: String) -> LogViewDto {
-    build_log_view(body)
+fn parse_log(body: String, state: State<'_, AppState>) -> ParsedLogDto {
+    parsed_dto(&cached_log_view(&state, &body))
+}
+
+/// Resolve the Apex source for a single raw log line on demand (click-to-source).
+/// `line` is the 0-based index into `raw.split('\n')`. Returns `None` when the
+/// line maps to no source. Avoids shipping a line-length source array over IPC.
+#[tauri::command]
+fn source_at_line(
+    body: String,
+    line: usize,
+    state: State<'_, AppState>,
+) -> Option<dto::SourceRefDto> {
+    cached_log_view(&state, &body)
+        .raw_sources
+        .get(line)
+        .and_then(|o| o.as_ref())
+        .map(dto::map_source)
+}
+
+/// Parse a raw log body, reusing the cached parse when the body is unchanged so
+/// the step-debugger doesn't re-parse a large log on every step.
+fn parsed_log(state: &AppState, raw: &str) -> Arc<log_parser::parse::ParsedLog> {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    raw.hash(&mut hasher);
+    let key = hasher.finish();
+
+    let mut cache = state.debug_parse.lock().unwrap();
+    if let Some((cached_key, parsed)) = cache.as_ref() {
+        if *cached_key == key {
+            return parsed.clone();
+        }
+    }
+    let parsed = Arc::new(log_parser::parse::ParsedLog::parse(raw));
+    *cache = Some((key, parsed.clone()));
+    parsed
+}
+
+/// Build the offline step-debugger outline for a raw log body: the ordered stop
+/// points across all execution units (lightweight — no per-step call-stack
+/// snapshots, so opening over a large log stays cheap). Call stacks + variables
+/// are fetched per step via `debug_frames_at`.
+#[tauri::command]
+fn debug_session(raw: String, state: State<'_, AppState>) -> dto::DebugSessionDto {
+    let parsed = parsed_log(&state, &raw);
+    dto::map_session(&log_parser::debug_session::build_outline(&parsed.units))
+}
+
+/// Reconstruct the call stack (with variables) at one stop point, on demand.
+#[tauri::command]
+fn debug_frames_at(
+    raw: String,
+    unit_index: usize,
+    entry_index: usize,
+    state: State<'_, AppState>,
+) -> Vec<dto::FrameDto> {
+    let parsed = parsed_log(&state, &raw);
+    match parsed.units.get(unit_index) {
+        Some(unit) => dto::map_frames(&log_parser::debug_session::frames_at(unit, entry_index)),
+        None => Vec::new(),
+    }
 }
 
 /// List the available Salesforce orgs via `sf org list`.
@@ -901,6 +1005,8 @@ pub fn run() {
         sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
         query_cancels: std::sync::Mutex::new(std::collections::HashMap::new()),
         auth_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
+        debug_parse: std::sync::Mutex::new(None),
+        debug_view: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()
@@ -933,6 +1039,9 @@ pub fn run() {
             format_soql,
             format_apex,
             parse_log,
+            source_at_line,
+            debug_session,
+            debug_frames_at,
             sf_status,
             login_org
         ])

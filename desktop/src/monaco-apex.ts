@@ -70,7 +70,7 @@ const GENERIC_SNIPPETS: Record<string, string> = {
  * HMR-safe: the disposable is kept on the (singleton) monaco instance and the
  * previous provider is disposed first, so a dev hot-reload can't stack providers
  * (which would duplicate every suggestion). */
-export function registerApexCompletion(monaco: Monaco): void {
+function registerApexCompletion(monaco: Monaco): void {
   const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
   slot.__ufApexCompletion?.dispose();
   slot.__ufApexCompletion = monaco.languages.registerCompletionItemProvider("apex", {

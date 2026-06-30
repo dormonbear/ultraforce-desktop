@@ -1,12 +1,19 @@
 /target
+/node_modules
 .git_signing_key_tmp*
 
 # Local scratch / external analysis (not part of the project)
+.DS_Store
 .playwright-mcp/
 node-compile-cache/
 reference-source/
 reference-analysis/
+ic2-source/
+illuminated-cloud-analysis/
+playwright-transform-cache-*/
+playwright_chromiumdev_profile-*/
 CLAUDE.local.md
+app-initial.png
 sf-apex-panel.png
 sf-logs-panel.png
 sf-toolkit-desktop.png
