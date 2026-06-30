@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.7](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.6...v0.3.7) (2026-06-30)
+
+
+### Bug Fixes
+
+* **ci:** drop pnpm version input so action-setup uses packageManager ([#26](https://github.com/dormonbear/ultraforce-desktop/issues/26)) ([293133e](https://github.com/dormonbear/ultraforce-desktop/commit/293133e3fc47a3d10a0c78371d9f0b6348454070))
+
 ## [0.3.6](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.5...v0.3.6) (2026-06-30)
 
 
