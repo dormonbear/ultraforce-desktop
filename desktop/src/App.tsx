@@ -228,10 +228,12 @@ export default function App() {
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {active === "settings" ? (
-            <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
-          ) : needsSetup ? (
-            <SetupPage />
+          {needsSetup ? (
+            active === "settings" ? (
+              <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
+            ) : (
+              <SetupPage />
+            )
           ) : (
             <>
               {visited.includes("soql") && (
@@ -248,6 +250,9 @@ export default function App() {
                 <div className="h-full" hidden={active !== "logs"}>
                   <LogsPanel />
                 </div>
+              )}
+              {active === "settings" && (
+                <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
               )}
             </>
           )}

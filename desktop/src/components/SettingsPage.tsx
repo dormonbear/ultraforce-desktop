@@ -45,10 +45,12 @@ export function SettingsPage({ onChanged }: Props) {
     setNs(value);
     await setNamespacePolicy(value);
     if (org) {
-      await invoke("reindex_org", { org, namespaces: value }).catch((e) =>
-        toast.error(`Reindex failed: ${typeof e === "string" ? e : String(e)}`),
-      );
-      toast.success("Reindexing org…");
+      try {
+        await invoke("reindex_org", { org, namespaces: value });
+        toast.success("Reindexing org…");
+      } catch (e) {
+        toast.error(`Reindex failed: ${typeof e === "string" ? e : String(e)}`);
+      }
     }
   };
 
