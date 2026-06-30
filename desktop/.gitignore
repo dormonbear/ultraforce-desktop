@@ -9,3 +9,6 @@ src-tauri/icons/ios/
 
 # Local Claude Design sync bundle (Cursor design-system handoff source)
 .design-bundle/
+
+# Test coverage output
+coverage/
