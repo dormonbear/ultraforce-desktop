@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.5...v0.3.6) (2026-06-30)
+
+
+### Features
+
+* **logs:** step-debugger, jump-to-source, and large-log performance ([#24](https://github.com/dormonbear/ultraforce-desktop/issues/24)) ([f2a62e4](https://github.com/dormonbear/ultraforce-desktop/commit/f2a62e463dbae32504055a897e38af3c09e3b7b3))
+
 ## [0.3.5](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.4...v0.3.5) (2026-06-25)
 
 
