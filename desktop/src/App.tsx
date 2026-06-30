@@ -45,6 +45,9 @@ const RAIL = [
 
 export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
+  // Tools mount on first visit and stay mounted (hidden when inactive) so run
+  // results survive a tool switch. Logs is lazy too: no network call until opened.
+  const [visited, setVisited] = useState<ActivePanel[]>([active]);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [histOpen, setHistOpen] = useState(false);
   // Bumped when a workspace root changes, to remount the affected tool panel.
@@ -65,6 +68,10 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
+
+  useEffect(() => {
+    setVisited((v) => (v.includes(active) ? v : [...v, active]));
+  }, [active]);
 
   // History "open in tab" requests switch to the owning tool's panel.
   useEffect(() => onOpenTabRequest((tool) => setActive(tool)), []);
@@ -211,9 +218,21 @@ export default function App() {
             <SetupPage />
           ) : (
             <>
-              {active === "soql" && <SoqlTabs key={`soql-${wsVersion}`} />}
-              {active === "apex" && <ApexTabs key={`apex-${wsVersion}`} />}
-              {active === "logs" && <LogsPanel />}
+              {visited.includes("soql") && (
+                <div className="h-full" hidden={active !== "soql"}>
+                  <SoqlTabs key={`soql-${wsVersion}`} />
+                </div>
+              )}
+              {visited.includes("apex") && (
+                <div className="h-full" hidden={active !== "apex"}>
+                  <ApexTabs key={`apex-${wsVersion}`} />
+                </div>
+              )}
+              {visited.includes("logs") && (
+                <div className="h-full" hidden={active !== "logs"}>
+                  <LogsPanel />
+                </div>
+              )}
             </>
           )}
         </main>
