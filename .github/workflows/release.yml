@@ -61,9 +61,9 @@ jobs:
         with:
           workspaces: "./desktop/src-tauri -> target"
 
+      # pnpm version comes from package.json `packageManager` (single source);
+      # specifying `version:` here too makes action-setup@v4 error on a mismatch.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
