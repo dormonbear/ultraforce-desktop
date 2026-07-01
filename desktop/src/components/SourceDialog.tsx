@@ -91,6 +91,9 @@ export function SourceDialog({
                 ...EDITOR_OPTS,
                 readOnly: true,
                 lineNumbers: "on",
+                // Read-only source peek: no right-click menu (drops Monaco's
+                // "Command Palette" entry). Cmd/Ctrl+C still copies a selection.
+                contextmenu: false,
               }}
               loading={<Loader2 size={18} className="spin text-muted-foreground" />}
             />
