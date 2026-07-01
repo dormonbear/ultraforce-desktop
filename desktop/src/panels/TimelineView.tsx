@@ -20,7 +20,7 @@ export function TimelineView({
   onSource,
 }: {
   units: UnitDto[];
-  onSource: (r: SourceRef) => void;
+  onSource?: (r: SourceRef) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rects = useMemo(() => flameLayout(units.flatMap((u) => u.tree)), [units]);
@@ -166,7 +166,7 @@ export function TimelineView({
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
     const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
-    if (hit?.source) onSource(hit.source as unknown as SourceRef);
+    if (hit?.source && onSource) onSource(hit.source as unknown as SourceRef);
   }
 
   // Minimap scrubbing: mousedown recenters the viewport on the cursor, and a

@@ -565,6 +565,13 @@ fn debug_frames_at(
     }
 }
 
+/// Read a log file the user dropped onto the window (arbitrary path, outside the
+/// fs plugin's dialog-granted scope).
+#[tauri::command]
+fn read_log_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
 /// List the available Salesforce orgs via `sf org list`.
 #[tauri::command]
 async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, String> {
@@ -1077,7 +1084,8 @@ pub fn run() {
             debug_session,
             debug_frames_at,
             sf_status,
-            login_org
+            login_org,
+            read_log_file
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())

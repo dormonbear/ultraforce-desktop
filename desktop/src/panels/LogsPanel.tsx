@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import {
   RefreshCw,
   Loader2,
-  FolderOpen,
-  Download,
   HardDriveDownload,
   Search,
   SlidersHorizontal,
@@ -18,6 +17,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { TimeBreakdownBar } from "./TimeBreakdownBar";
 import {
   usagePct,
@@ -229,7 +234,7 @@ function HotspotsView({
   onSource,
 }: {
   units: UnitDto[];
-  onSource: (ref: SourceRef) => void;
+  onSource?: (ref: SourceRef) => void;
 }) {
   const all = units.flatMap((u) => u.hotspots);
   if (all.length === 0) {
@@ -279,7 +284,7 @@ function HotspotsView({
                 style={{ width: `${maxSelf > 0 ? (h.self_ns / maxSelf) * 100 : 0}%` }}
                 aria-hidden
               />
-              {ref ? (
+              {ref && onSource ? (
                 <button
                   type="button"
                   onClick={() => onSource(ref)}
@@ -395,6 +400,11 @@ export function LogsPanel() {
   const [tab, setTab] = useState<DetailTab>("raw");
   const [filter, setFilter] = useState<LogFilter>(EMPTY_FILTER);
   const visibleLogs = filterLogs(logs, filter);
+  // True when the shown log came from drag-drop (no org) — disables Apex
+  // source navigation, which needs an org to resolve class/trigger bodies.
+  const [orgless, setOrgless] = useState(false);
+  // A .log/.txt file is being dragged over the window (drives the overlay).
+  const [dragOver, setDragOver] = useState(false);
 
   // Virtualize the log list — it can run to thousands of rows.
   const listParentRef = useRef<HTMLDivElement>(null);
@@ -439,6 +449,7 @@ export function LogsPanel() {
     setView(null);
     setSourceLines(new Set());
     setViewError(null);
+    setOrgless(false);
     // Different org → different source; drop the Apex source cache.
     clearApexSourceCache();
     lastLogId.current = null;
@@ -468,6 +479,7 @@ export function LogsPanel() {
       lastLogId.current = id;
     }
     setSelectedId(id);
+    setOrgless(false);
     setViewError(null);
     setTab("raw");
     const cached = viewCache.current.get(id);
@@ -505,48 +517,97 @@ export function LogsPanel() {
     }
   }, [loadSourceLines]);
 
-  /** Open a local `.log` file, parse it (no org fetch), and show it. */
-  const openLocal = useCallback(async () => {
-    const path = await openDialog({
-      filters: [{ name: "Debug log", extensions: ["log", "txt"] }],
-    });
-    if (typeof path !== "string") return;
+  /** Show a local log body (drag-dropped), parsed but never sent to an org.
+   * Unlike `select`, this skips `loadSourceLines` — a dragged file has no
+   * reliable org, so raw click-to-source and hotspot/timeline source jumps
+   * stay disabled for it (see `orgless`). */
+  const showLocalLog = useCallback(async (body: string) => {
     setSelectedId(null);
     // A freshly opened local log: start with an empty Apex source cache.
     clearApexSourceCache();
     lastLogId.current = null;
+    setOrgless(true);
     setViewLoading(true);
     setViewError(null);
     setView(null);
     setSourceLines(new Set());
     setTab("raw");
     try {
-      const body = await readTextFile(path);
       const parsed = await invoke<Omit<LogViewDto, "raw">>("parse_log", { body });
       setView({ raw: body, ...parsed });
-      loadSourceLines(body);
     } catch (e) {
       setViewError(typeof e === "string" ? e : String(e));
     } finally {
       setViewLoading(false);
     }
-  }, [loadSourceLines]);
+  }, []);
 
-  /** Save the currently-viewed log's raw body to disk. */
-  const saveLog = useCallback(async () => {
-    if (!view) return;
-    const path = await saveDialog({
-      defaultPath: "debug.log",
-      filters: [{ name: "Debug log", extensions: ["log"] }],
+  // Drag-and-drop a .log/.txt file onto the window to open it. Dropped paths
+  // are arbitrary (outside the fs plugin's dialog-granted scope), so the body
+  // is read via the `read_log_file` backend command, not `readTextFile`.
+  useEffect(() => {
+    const un = getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload;
+      if (payload.type === "over") {
+        setDragOver(true);
+      } else if (payload.type === "leave") {
+        setDragOver(false);
+      } else if (payload.type === "drop") {
+        setDragOver(false);
+        const path = payload.paths.find((p) => /\.(log|txt)$/i.test(p));
+        if (!path) {
+          toast.error("Drop a .log or .txt file");
+          return;
+        }
+        void (async () => {
+          try {
+            const body = await invoke<string>("read_log_file", { path });
+            await showLocalLog(body);
+          } catch (e) {
+            toast.error(`Open failed: ${typeof e === "string" ? e : String(e)}`);
+          }
+        })();
+      }
     });
-    if (!path) return;
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [showLocalLog]);
+
+  /** Resolve `log`'s raw body via the same cache-first/org-download path as
+   * `select`, without disturbing the currently viewed log. */
+  const getBody = useCallback(async (log: LogRefDto): Promise<string> => {
+    const cached = viewCache.current.get(log.id);
+    if (cached) return cached.raw;
+    const dto = await loadLogView(log.id, {
+      readCache: readCachedBody,
+      parse: async (body) => ({
+        raw: body,
+        ...(await invoke<Omit<LogViewDto, "raw">>("parse_log", { body })),
+      }),
+      getLog: (logId) => invoke<LogViewDto>("get_log", { id: logId }),
+      writeCache: writeCachedBody,
+    });
+    viewCache.current.set(log.id, dto);
+    setCachedIds((prev) => (prev.has(log.id) ? prev : new Set(prev).add(log.id)));
+    return dto.raw;
+  }, []);
+
+  /** Save one log row's body to disk, via a right-click context menu. */
+  const saveLogRow = useCallback(async (log: LogRefDto) => {
     try {
-      await writeTextFile(path, view.raw);
+      const body = await getBody(log);
+      const path = await saveDialog({
+        defaultPath: `${log.operation || "debug"}.log`,
+        filters: [{ name: "Debug log", extensions: ["log"] }],
+      });
+      if (!path) return;
+      await writeTextFile(path, body);
       toast.success("Log saved");
     } catch (e) {
       toast.error(`Save failed: ${typeof e === "string" ? e : String(e)}`);
     }
-  }, [view]);
+  }, [getBody]);
 
   const quickSelfTrace = useCallback(async () => {
     if (tracingBusy) return;
@@ -563,38 +624,17 @@ export function LogsPanel() {
 
   return (
     <ResizablePanelGroup direction="horizontal">
-      {/* minSize = the natural width of the header toolbar (LOGS · OPEN ·
-          SAVE · REFRESH · LOGGING) so those buttons never clip.
+      {/* minSize = the natural width of the header toolbar (LOGS · REFRESH ·
+          LOGGING) so those buttons never clip.
           NOTE: this resizable lib wants string px/% sizes, not bare numbers. */}
       <ResizablePanel
         defaultSize="40%"
         minSize="450px"
         groupResizeBehavior="preserve-pixel-size"
       >
-        <div className="flex h-full flex-col">
+        <div className="relative flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">Logs</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={openLocal}
-              title="Open a local .log file"
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
-            >
-              <FolderOpen size={12} />
-              Open
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={saveLog}
-              disabled={!view}
-              title="Save the viewed log to a file"
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
-            >
-              <Download size={12} />
-              Save
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -679,65 +719,81 @@ export function LogsPanel() {
                   const cached = cachedIds.has(log.id);
                   const time = fmtTime(log.start_time);
                   return (
-                    <button
-                      key={log.id}
-                      data-index={vi.index}
-                      ref={rowVirtualizer.measureElement}
-                      type="button"
-                      onClick={() => {
-                        setCfgOpen(false);
-                        select(log.id);
-                      }}
-                      className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-4 pr-4 text-left hover:bg-accent cursor-pointer ${
-                        selected ? "bg-primary/10" : ""
-                      }`}
-                      style={{ transform: `translateY(${vi.start}px)` }}
-                    >
-                      {selected && (
-                        <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
-                      )}
-                      {/* Vertical timeline rail (continuous across rows) + status node. */}
-                      <div className="relative flex w-4 shrink-0 items-center justify-center">
-                        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
-                        <span
-                          className={`relative z-10 h-2 w-2 rounded-full ring-2 ring-background ${
-                            ok ? "bg-success" : "bg-destructive"
+                    <ContextMenu key={log.id}>
+                      <ContextMenuTrigger asChild>
+                        <button
+                          data-index={vi.index}
+                          ref={rowVirtualizer.measureElement}
+                          type="button"
+                          onClick={() => {
+                            setCfgOpen(false);
+                            select(log.id);
+                          }}
+                          className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-4 pr-4 text-left hover:bg-accent cursor-pointer ${
+                            selected ? "bg-primary/10" : ""
                           }`}
-                        />
-                      </div>
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <div className="flex w-full items-center gap-2">
-                          <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                            {log.operation}
-                          </span>
-                          {cached && (
-                            <HardDriveDownload
-                              size={12}
-                              className="shrink-0 text-text-dim"
-                              aria-label="Cached locally"
+                          style={{ transform: `translateY(${vi.start}px)` }}
+                        >
+                          {selected && (
+                            <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
+                          )}
+                          {/* Vertical timeline rail (continuous across rows) + status node. */}
+                          <div className="relative flex w-4 shrink-0 items-center justify-center">
+                            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+                            <span
+                              className={`relative z-10 h-2 w-2 rounded-full ring-2 ring-background ${
+                                ok ? "bg-success" : "bg-destructive"
+                              }`}
                             />
-                          )}
-                          <Badge
-                            variant={ok ? "success" : "destructive"}
-                            title={log.status}
-                            className="shrink-0 px-1.5 py-0 text-[10px]"
-                          >
-                            {ok ? "Success" : "Failed"}
-                          </Badge>
-                        </div>
-                        <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
-                          {log.user && (
-                            <span className="max-w-[45%] truncate">{log.user}</span>
-                          )}
-                          <span>{fmtDuration(log.duration_ms)}</span>
-                          <span>{fmtSize(log.log_length)}</span>
-                          {time && <span className="ml-auto">{time}</span>}
-                        </div>
-                      </div>
-                    </button>
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <div className="flex w-full items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+                                {log.operation}
+                              </span>
+                              {cached && (
+                                <HardDriveDownload
+                                  size={12}
+                                  className="shrink-0 text-text-dim"
+                                  aria-label="Cached locally"
+                                />
+                              )}
+                              <Badge
+                                variant={ok ? "success" : "destructive"}
+                                title={log.status}
+                                className="shrink-0 px-1.5 py-0 text-[10px]"
+                              >
+                                {ok ? "Success" : "Failed"}
+                              </Badge>
+                            </div>
+                            <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
+                              {log.user && (
+                                <span className="max-w-[45%] truncate">{log.user}</span>
+                              )}
+                              <span>{fmtDuration(log.duration_ms)}</span>
+                              <span>{fmtSize(log.log_length)}</span>
+                              {time && <span className="ml-auto">{time}</span>}
+                            </div>
+                          </div>
+                        </button>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => void saveLogRow(log)}>
+                          Save log…
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background/80">
+              <span className="text-[12px] font-medium text-text-dim">
+                Drop a .log file to view
+              </span>
             </div>
           )}
         </div>
@@ -751,7 +807,14 @@ export function LogsPanel() {
             <LoggingConfigPanel org={org} onClose={() => setCfgOpen(false)} />
           ) : (
             <>
-              <div className="micro-label px-4 py-2">Log detail</div>
+              <div className="micro-label px-4 py-2">
+                Log detail
+                {orgless && (
+                  <span className="text-[11px] font-normal text-text-dim/70">
+                    · local file (no org — source navigation off)
+                  </span>
+                )}
+              </div>
 
               {!selectedId && !view && !viewLoading && !viewError ? (
                 <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
@@ -823,7 +886,7 @@ export function LogsPanel() {
                           jumpableLines={sourceLines}
                         />
                       ) : (
-                        <TimelineView units={view.units} onSource={setSourceRef} />
+                        <TimelineView units={view.units} onSource={orgless ? undefined : setSourceRef} />
                       )}
                     </div>
                   ) : (
@@ -833,7 +896,7 @@ export function LogsPanel() {
                       {tab === "insights" ? (
                         <InsightsView units={view.units} onGoto={setTab} />
                       ) : tab === "hotspots" ? (
-                        <HotspotsView units={view.units} onSource={setSourceRef} />
+                        <HotspotsView units={view.units} onSource={orgless ? undefined : setSourceRef} />
                       ) : tab === "queries" ? (
                         <QueriesView units={view.units} />
                       ) : (
