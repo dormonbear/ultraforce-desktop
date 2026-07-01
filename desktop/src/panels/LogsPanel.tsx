@@ -55,7 +55,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
 import { TimelineView } from "./TimelineView";
 import { clearApexSourceCache } from "../components/useApexSource";
-import { LoggingConfigDialog } from "../components/LoggingConfigDialog";
+import { LoggingConfigPanel } from "../components/LoggingConfigPanel";
 import { useOrgs } from "../org";
 import type {
   HotspotDto,
@@ -605,10 +605,6 @@ export function LogsPanel() {
             </Button>
           </div>
 
-          {cfgOpen && (
-            <LoggingConfigDialog open onOpenChange={setCfgOpen} org={org} />
-          )}
-
           {logs.length > 0 && (
             <div className="flex items-center gap-2 border-b border-border px-4 py-2">
               <div className="relative flex-1">
@@ -657,7 +653,10 @@ export function LogsPanel() {
                       data-index={vi.index}
                       ref={rowVirtualizer.measureElement}
                       type="button"
-                      onClick={() => select(log.id)}
+                      onClick={() => {
+                        setCfgOpen(false);
+                        select(log.id);
+                      }}
                       className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-4 pr-4 text-left hover:bg-accent cursor-pointer ${
                         selected ? "bg-primary/10" : ""
                       }`}
@@ -717,99 +716,105 @@ export function LogsPanel() {
 
       <ResizablePanel minSize="360px">
         <div className="flex h-full flex-col">
-          <div className="micro-label px-4 py-2">Log detail</div>
+          {cfgOpen ? (
+            <LoggingConfigPanel org={org} onClose={() => setCfgOpen(false)} />
+          ) : (
+            <>
+              <div className="micro-label px-4 py-2">Log detail</div>
 
-          {!selectedId && !view && !viewLoading && !viewError ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-              Select a log
-            </div>
-          ) : viewLoading ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground">
-              <Loader2 size={18} className="spin" />
-            </div>
-          ) : viewError ? (
-            <pre className="select-text mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-              {viewError}
-            </pre>
-          ) : view ? (
-            <div className="select-text flex min-h-0 flex-1 flex-col px-4 pb-4">
-              <div className="flex items-center justify-between pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="tnum text-[12px] text-text-dim">
-                    API {view.api_version ?? "—"} · {view.units.length}{" "}
-                    {view.units.length === 1 ? "unit" : "units"}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDebugOpen(true)}
-                    className="focus-accent flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
-                  >
-                    <Bug size={13} /> Debug
-                  </button>
+              {!selectedId && !view && !viewLoading && !viewError ? (
+                <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
+                  Select a log
                 </div>
-                <ToggleGroup
-                  type="single"
-                  value={tab}
-                  onValueChange={(next) => {
-                    if (next) setTab(next as DetailTab);
-                  }}
-                  className="gap-1"
-                >
-                  {([
-                    "raw",
-                    "insights",
-                    "timeline",
-                    "hotspots",
-                    "queries",
-                    "limits",
-                  ] as DetailTab[]).map((t) => (
-                    <ToggleGroupItem
-                      key={t}
-                      value={t}
-                      className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium capitalize text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+              ) : viewLoading ? (
+                <div className="flex flex-1 items-center justify-center text-muted-foreground">
+                  <Loader2 size={18} className="spin" />
+                </div>
+              ) : viewError ? (
+                <pre className="select-text mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
+                  {viewError}
+                </pre>
+              ) : view ? (
+                <div className="select-text flex min-h-0 flex-1 flex-col px-4 pb-4">
+                  <div className="flex items-center justify-between pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="tnum text-[12px] text-text-dim">
+                        API {view.api_version ?? "—"} · {view.units.length}{" "}
+                        {view.units.length === 1 ? "unit" : "units"}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDebugOpen(true)}
+                        className="focus-accent flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+                      >
+                        <Bug size={13} /> Debug
+                      </button>
+                    </div>
+                    <ToggleGroup
+                      type="single"
+                      value={tab}
+                      onValueChange={(next) => {
+                        if (next) setTab(next as DetailTab);
+                      }}
+                      className="gap-1"
                     >
-                      {t}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </div>
+                      {([
+                        "raw",
+                        "insights",
+                        "timeline",
+                        "hotspots",
+                        "queries",
+                        "limits",
+                      ] as DetailTab[]).map((t) => (
+                        <ToggleGroupItem
+                          key={t}
+                          value={t}
+                          className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium capitalize text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                        >
+                          {t}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
+                  </div>
 
-              {tab === "raw" || tab === "timeline" ? (
-                <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
-                  {tab === "raw" ? (
-                    <LogView
-                      raw={view.raw}
-                      resolveSource={(line) =>
-                        invoke<SourceRef | null>("source_at_line", {
-                          body: view.raw,
-                          line,
-                        })
-                      }
-                      onSource={setSourceRef}
-                      jumpableLines={sourceLines}
-                    />
+                  {tab === "raw" || tab === "timeline" ? (
+                    <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+                      {tab === "raw" ? (
+                        <LogView
+                          raw={view.raw}
+                          resolveSource={(line) =>
+                            invoke<SourceRef | null>("source_at_line", {
+                              body: view.raw,
+                              line,
+                            })
+                          }
+                          onSource={setSourceRef}
+                          jumpableLines={sourceLines}
+                        />
+                      ) : (
+                        <TimelineView units={view.units} onSource={setSourceRef} />
+                      )}
+                    </div>
                   ) : (
-                    <TimelineView units={view.units} onSource={setSourceRef} />
+                    <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
+                      <div className="p-3">
+                      <TimeBreakdownBar units={view.units} />
+                      {tab === "insights" ? (
+                        <InsightsView units={view.units} onGoto={setTab} />
+                      ) : tab === "hotspots" ? (
+                        <HotspotsView units={view.units} onSource={setSourceRef} />
+                      ) : tab === "queries" ? (
+                        <QueriesView units={view.units} />
+                      ) : (
+                        <LimitsView units={view.units} />
+                      )}
+                      </div>
+                    </ScrollArea>
                   )}
                 </div>
-              ) : (
-                <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
-                  <div className="p-3">
-                  <TimeBreakdownBar units={view.units} />
-                  {tab === "insights" ? (
-                    <InsightsView units={view.units} onGoto={setTab} />
-                  ) : tab === "hotspots" ? (
-                    <HotspotsView units={view.units} onSource={setSourceRef} />
-                  ) : tab === "queries" ? (
-                    <QueriesView units={view.units} />
-                  ) : (
-                    <LimitsView units={view.units} />
-                  )}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-          ) : null}
+              ) : null}
+            </>
+          )}
         </div>
       </ResizablePanel>
       <SourceDialog target={sourceRef} onClose={() => setSourceRef(null)} />

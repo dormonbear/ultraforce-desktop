@@ -2,6 +2,7 @@ import { Plus, Trash2, RefreshCw, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { isExpired } from "../traceTime";
+import { isoToLocalInput, localInputToIso } from "../dateInput";
 import type { useLoggingConfig } from "../useLoggingConfig";
 
 type Cfg = ReturnType<typeof useLoggingConfig>;
@@ -130,18 +131,26 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                 <td className="px-2 py-0.5 text-text-dim">{r.creatorName || "—"}</td>
                 <td className="px-2 py-0.5">
                   <Input
+                    type="datetime-local"
+                    step="1"
                     aria-label="Start date"
-                    value={r.startDate ?? ""}
-                    onChange={(e) => cfg.updateFlag(r._key, { startDate: e.target.value })}
+                    value={isoToLocalInput(r.startDate ?? "")}
+                    onChange={(e) =>
+                      cfg.updateFlag(r._key, { startDate: localInputToIso(e.target.value) })
+                    }
                     placeholder="—"
                     className="h-6 w-48 text-[11px]"
                   />
                 </td>
                 <td className="px-2 py-0.5">
                   <Input
+                    type="datetime-local"
+                    step="1"
                     aria-label="Expiration date"
-                    value={r.expirationDate ?? ""}
-                    onChange={(e) => cfg.updateFlag(r._key, { expirationDate: e.target.value })}
+                    value={isoToLocalInput(r.expirationDate ?? "")}
+                    onChange={(e) =>
+                      cfg.updateFlag(r._key, { expirationDate: localInputToIso(e.target.value) })
+                    }
                     className={`h-6 w-48 text-[11px] ${expired ? "text-destructive" : ""}`}
                   />
                 </td>
