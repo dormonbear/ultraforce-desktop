@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { filterTree } from "./logTree";
+import { TimeBreakdownBar } from "./TimeBreakdownBar";
 import {
   usagePct,
   limitSeverity,
@@ -908,6 +909,7 @@ export function LogsPanel() {
               ) : (
                 <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
                   <div className="p-3">
+                  <TimeBreakdownBar units={view.units} />
                   {tab === "tree" ? (
                     (() => {
                       const units = view.units.map((u) => ({
