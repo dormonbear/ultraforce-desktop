@@ -73,6 +73,8 @@ export function TimelineView({
 
   const drag = useRef<{ x: number; start: number; end: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number; rect: FlameRect } | null>(null);
+  const [measure, setMeasure] = useState<{ x0: number; x1: number } | null>(null);
+  const measuring = useRef<number | null>(null);
 
   function onWheel(e: React.WheelEvent<HTMLCanvasElement>) {
     e.preventDefault();
@@ -93,14 +95,23 @@ export function TimelineView({
   }
 
   function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
-    if (e.shiftKey) return; // reserved for measure (later task)
+    if (e.shiftKey) {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      measuring.current = e.clientX - rect.left;
+      setMeasure({ x0: measuring.current, x1: measuring.current });
+      return;
+    }
     drag.current = { x: e.clientX, start: view.start, end: view.end };
   }
   function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
-    const d = drag.current;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
+    if (measuring.current != null) {
+      setMeasure({ x0: measuring.current, x1: e.clientX - rect.left });
+      return;
+    }
+    const d = drag.current;
     if (!d) {
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top + canvas.parentElement!.scrollTop;
@@ -115,7 +126,10 @@ export function TimelineView({
     if (end > span.end) { end = span.end; start = end - (d.end - d.start); }
     setView({ start, end });
   }
-  function onMouseUp() { drag.current = null; }
+  function onMouseUp() {
+    drag.current = null;
+    measuring.current = null;
+  }
 
   if (rects.length === 0) {
     return (
@@ -189,6 +203,24 @@ export function TimelineView({
               {hover.rect.kind} · {(hover.rect.w / 1_000_000).toFixed(3)} ms
             </div>
           </div>
+        )}
+        {measure && (
+          <>
+            <div
+              className="pointer-events-none absolute inset-y-0 z-10 border-x border-amber-400 bg-amber-400/10"
+              style={{ left: Math.min(measure.x0, measure.x1), width: Math.abs(measure.x1 - measure.x0) }}
+            />
+            <div
+              className="pointer-events-none absolute top-1 z-10 rounded bg-amber-400 px-1 text-[10px] text-black"
+              style={{ left: Math.min(measure.x0, measure.x1) }}
+            >
+              {(() => {
+                const w = canvasRef.current?.clientWidth ?? 1;
+                const dt = (Math.abs(measure.x1 - measure.x0) / w) * (view.end - view.start);
+                return `${(dt / 1_000_000).toFixed(3)} ms`;
+              })()}
+            </div>
+          </>
         )}
       </div>
     </div>
