@@ -632,7 +632,7 @@ export function LogsPanel() {
               ) : (
                 <Timer size={12} />
               )}
-              Trace 30m
+              Set My Trace
             </Button>
           </div>
 
