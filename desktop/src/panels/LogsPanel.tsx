@@ -354,6 +354,7 @@ function HotspotsView({
     }
   }
   const rows = [...merged.values()].sort((a, b) => b.self_ns - a.self_ns);
+  const maxSelf = rows[0].self_ns; // rows are sorted desc by self_ns; non-empty (see `all` check above)
   return (
     <table className="w-full text-[12px]">
       <thead>
@@ -371,9 +372,14 @@ function HotspotsView({
           return (
           <tr key={i} className="border-t border-border/50 text-text-dim">
             <td
-              className="max-w-0 truncate py-0.5 pr-2 text-foreground"
+              className="relative max-w-0 truncate py-0.5 pr-2 text-foreground"
               title={h.signature}
             >
+              <span
+                className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-primary/10"
+                style={{ width: `${maxSelf > 0 ? (h.self_ns / maxSelf) * 100 : 0}%` }}
+                aria-hidden
+              />
               {ref ? (
                 <button
                   type="button"
