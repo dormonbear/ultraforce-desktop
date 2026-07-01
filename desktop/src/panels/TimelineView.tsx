@@ -77,23 +77,30 @@ export function TimelineView({
   const [measure, setMeasure] = useState<{ x0: number; x1: number } | null>(null);
   const measuring = useRef<number | null>(null);
 
-  function onWheel(e: React.WheelEvent<HTMLCanvasElement>) {
-    e.preventDefault();
+  // Native (non-passive) wheel listener: React 19 registers `onWheel` as a
+  // passive root listener, so e.preventDefault() there is a no-op and the
+  // overflow-auto container still scrolls while zooming.
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const px = e.clientX - rect.left;
-    const t = xToTime(px, view.start, view.end, rect.width);
-    const factor = e.deltaY < 0 ? 0.8 : 1.25; // in / out
-    const newSpan = (view.end - view.start) * factor;
-    const ratio = (t - view.start) / (view.end - view.start);
-    let start = t - ratio * newSpan;
-    let end = start + newSpan;
-    // clamp to full span
-    if (start < span.start) { start = span.start; end = start + newSpan; }
-    if (end > span.end) { end = span.end; start = Math.max(span.start, end - newSpan); }
-    setView({ start, end });
-  }
+    function handler(e: WheelEvent) {
+      e.preventDefault();
+      const rect = canvas!.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const t = xToTime(px, view.start, view.end, rect.width);
+      const factor = e.deltaY < 0 ? 0.8 : 1.25; // in / out
+      const newSpan = (view.end - view.start) * factor;
+      const ratio = (t - view.start) / (view.end - view.start);
+      let start = t - ratio * newSpan;
+      let end = start + newSpan;
+      // clamp to full span
+      if (start < span.start) { start = span.start; end = start + newSpan; }
+      if (end > span.end) { end = span.end; start = Math.max(span.start, end - newSpan); }
+      setView({ start, end });
+    }
+    canvas.addEventListener("wheel", handler, { passive: false });
+    return () => canvas.removeEventListener("wheel", handler);
+  }, [view, span]);
 
   function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
     moved.current = false;
@@ -101,6 +108,8 @@ export function TimelineView({
       const rect = canvasRef.current!.getBoundingClientRect();
       measuring.current = e.clientX - rect.left;
       setMeasure({ x0: measuring.current, x1: measuring.current });
+      moved.current = true;
+      setHover(null);
       return;
     }
     drag.current = { x: e.clientX, start: view.start, end: view.end };
@@ -116,7 +125,7 @@ export function TimelineView({
     const d = drag.current;
     if (!d) {
       const px = e.clientX - rect.left;
-      const py = e.clientY - rect.top + canvas.parentElement!.scrollTop;
+      const py = e.clientY - rect.top;
       const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
       setHover(hit ? { x: e.clientX - rect.left, y: e.clientY - rect.top, rect: hit } : null);
       return;
@@ -139,7 +148,7 @@ export function TimelineView({
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left;
-    const py = e.clientY - rect.top + canvas.parentElement!.scrollTop;
+    const py = e.clientY - rect.top;
     const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
     if (hit?.source) onSource(hit.source as unknown as SourceRef);
   }
@@ -200,7 +209,6 @@ export function TimelineView({
         <canvas
           ref={canvasRef}
           className="block w-full"
-          onWheel={onWheel}
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
