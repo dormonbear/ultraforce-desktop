@@ -1,5 +1,52 @@
 # Changelog
 
+## [0.3.8](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.7...v0.3.8) (2026-07-01)
+
+
+### Features
+
+* **editor:** selectable syntax highlighting schemes with live preview ([f5b4cb5](https://github.com/dormonbear/ultraforce-desktop/commit/f5b4cb5bea08d0c2218b1c471110750ec3ef39f8))
+* **log:** add start_ns to frontend ExecNodeDto type ([64e7e71](https://github.com/dormonbear/ultraforce-desktop/commit/64e7e71b4a16bd2dc475d8b6ea2eb52a376dd628))
+* **log:** configure logging inline in the panel; format trace-flag dates ([2124b4c](https://github.com/dormonbear/ultraforce-desktop/commit/2124b4cb39c7c3cc0d8fc742f58ba27cdd6179a5))
+* **log:** drag the timeline minimap to scrub the viewport ([9286581](https://github.com/dormonbear/ultraforce-desktop/commit/92865819cc25b2dd35c0b3891d785450487abc49))
+* **log:** drag-drop to open logs, right-click to save; disable source nav for org-less logs ([71be24e](https://github.com/dormonbear/ultraforce-desktop/commit/71be24ebeefbd339a6915b9b483fcdf9c774d6b6))
+* **log:** expose start_ns on ExecNodeDto for flame chart ([4ecc19a](https://github.com/dormonbear/ultraforce-desktop/commit/4ecc19a179d9e2b591a8f1efc7067bd68ceb44fc))
+* **log:** flame layout + geometry helpers ([915b2cd](https://github.com/dormonbear/ultraforce-desktop/commit/915b2cd29b35ca2c42ed1136f5c05157b095613b))
+* **log:** flame-chart timeline tab (base render) ([093bed7](https://github.com/dormonbear/ultraforce-desktop/commit/093bed7a0b6abc2d2e9b073396ecedea7bb5c872))
+* **log:** flameColor helper ([28bcbae](https://github.com/dormonbear/ultraforce-desktop/commit/28bcbae011d4dd7203c44935bdf6dffa4b63cbc9))
+* **log:** one-click 30-minute self-trace button ([1a2ca1a](https://github.com/dormonbear/ultraforce-desktop/commit/1a2ca1ad0f3cc63e3107c0070d646d87a39760fd))
+* **log:** only mark source-resolvable raw lines as clickable ([6bee501](https://github.com/dormonbear/ultraforce-desktop/commit/6bee50138fe6c8922edd842d80c4c32e26b24114))
+* **log:** query-family bars via fingerprinting in queries view ([5edd8c1](https://github.com/dormonbear/ultraforce-desktop/commit/5edd8c16d2e08140bc8cfc6ac4f9d5ad4d01f2ca))
+* **log:** remove debug tab (USER_DEBUG still visible in raw) ([05499aa](https://github.com/dormonbear/ultraforce-desktop/commit/05499aad6bd69c1f69bf51c5f64adf9733c277ec))
+* **log:** remove execution-tree tab (superseded by timeline flame chart) ([08c1bba](https://github.com/dormonbear/ultraforce-desktop/commit/08c1bbafb6b2d81157c2b1e59f34d7183785ccca))
+* **log:** searchable trace-flag pickers, org debug-level presets & self-trace countdown ([8f89b51](https://github.com/dormonbear/ultraforce-desktop/commit/8f89b51da8cb83186e7cad2a3e4aaa0c6234d812))
+* **log:** self-time share bars in hotspots view ([4031ad2](https://github.com/dormonbear/ultraforce-desktop/commit/4031ad2010f720e449a9aafe268e00ccb62034ac))
+* **log:** soqlFingerprint + query-family grouping ([e580eff](https://github.com/dormonbear/ultraforce-desktop/commit/e580effcc78b0448bc92992b7169c5a42cf04a4d))
+* **log:** time-breakdown stacked bar in analysis panel ([900f5b2](https://github.com/dormonbear/ultraforce-desktop/commit/900f5b2ded054cb80875865aed184c4f57a9be07))
+* **log:** timeBreakdown data module ([bb7a6da](https://github.com/dormonbear/ultraforce-desktop/commit/bb7a6da1ad4358aa51b31cde3d506b9c36633c8c))
+* **log:** timeline click-to-source ([05fb340](https://github.com/dormonbear/ultraforce-desktop/commit/05fb3402ed00899c7cbd0818642608071aa8857a))
+* **log:** timeline hover tooltip ([662b131](https://github.com/dormonbear/ultraforce-desktop/commit/662b13144091b228a521cca9e78b32c354653d67))
+* **log:** timeline minimap with viewport lens ([1582d6d](https://github.com/dormonbear/ultraforce-desktop/commit/1582d6df4bf1752373234c754bfecb9641dbbc72))
+* **log:** timeline shift-drag measure ([5531468](https://github.com/dormonbear/ultraforce-desktop/commit/553146852507528a91e3f178e5749babda46f26b))
+* **log:** timeline zoom and pan ([692de19](https://github.com/dormonbear/ultraforce-desktop/commit/692de19f835093d707551f6da4728d4dc624880c))
+* **log:** trace-flag UX, org presets, syntax themes & UI polish ([4535d4c](https://github.com/dormonbear/ultraforce-desktop/commit/4535d4ca57792d44985ac17affe2b1eda6a12485))
+* **settings:** add Settings entry to command palette ([b05f9a7](https://github.com/dormonbear/ultraforce-desktop/commit/b05f9a7a5fe8399906da86baa52982cc53d1bae1))
+* **settings:** add SettingsPage with appearance, workspace, indexing, about ([c297821](https://github.com/dormonbear/ultraforce-desktop/commit/c297821f6fb370f835004e4bdd260e8f8e278965))
+* **settings:** dedicated Settings page in bottom-left rail ([662b57a](https://github.com/dormonbear/ultraforce-desktop/commit/662b57a0a3480f6de525f9a36673f284450ef21a))
+* **settings:** move config to bottom-rail Settings page, drop top-bar gear and theme buttons ([2bde828](https://github.com/dormonbear/ultraforce-desktop/commit/2bde8280fd3891a34cc59b2b0b82d76f26f34a99))
+* **soql:** drop tree view, inline query options, explain highlight + loading ([671ad48](https://github.com/dormonbear/ultraforce-desktop/commit/671ad4898aaea9b3311e46e55ab9bcd873683c32))
+* **ui:** brand Lottie loader, unified native-select skin, clearer dark scrollbar ([71b8af9](https://github.com/dormonbear/ultraforce-desktop/commit/71b8af9a826c37bdf363a782c1a939fd7ce3faf1))
+* **ui:** Salesforce-blue theme, frameless title bar, export & Apex history, jobs-aesthetic polish ([577b693](https://github.com/dormonbear/ultraforce-desktop/commit/577b69388c1ff707aa9e79112b5e2b5cb316a856))
+
+
+### Bug Fixes
+
+* **log:** drop Monaco Command Palette from read-only source viewer ([c0e4aa3](https://github.com/dormonbear/ultraforce-desktop/commit/c0e4aa3115e9556a98767f2f3dbdab6213f7b72a))
+* **log:** redraw flame canvas on resize so labels don't scale with width ([98ceaf9](https://github.com/dormonbear/ultraforce-desktop/commit/98ceaf909e9e83874e5e40000292189c369e3b9b))
+* **log:** statement/method column fills width in queries & hotspots tables ([c66b813](https://github.com/dormonbear/ultraforce-desktop/commit/c66b8135277665144514d349c2c0fc7b1ae645e3))
+* **log:** timeline hit-test scroll offset, measure-vs-click, passive wheel; drop dead query exports ([175f3f1](https://github.com/dormonbear/ultraforce-desktop/commit/175f3f11601777996307f33e991941976c95ec08))
+* **settings:** keep tool panels mounted behind Settings; fix reindex success toast on failure ([9acbf0e](https://github.com/dormonbear/ultraforce-desktop/commit/9acbf0e4f21b2bb488fc3e54c741a9bfc3a46d95))
+
 ## [0.3.7](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.6...v0.3.7) (2026-06-30)
 
 
