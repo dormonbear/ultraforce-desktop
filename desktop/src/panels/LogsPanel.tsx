@@ -385,6 +385,9 @@ export function LogsPanel() {
   const [viewLoading, setViewLoading] = useState(false);
   // Apex source to show (jump-to-source from a method node / hotspot).
   const [sourceRef, setSourceRef] = useState<SourceRef | null>(null);
+  // Raw-line indices that resolve to Apex source — drives which raw-view lines
+  // render as clickable (see LogView's jumpableLines).
+  const [sourceLines, setSourceLines] = useState<Set<number>>(new Set());
   const [debugOpen, setDebugOpen] = useState(false);
   const [tab, setTab] = useState<DetailTab>("raw");
   const [filter, setFilter] = useState<LogFilter>(EMPTY_FILTER);
@@ -431,6 +434,7 @@ export function LogsPanel() {
   useEffect(() => {
     setSelectedId(null);
     setView(null);
+    setSourceLines(new Set());
     setViewError(null);
     // Different org → different source; drop the Apex source cache.
     clearApexSourceCache();
@@ -446,6 +450,14 @@ export function LogsPanel() {
     };
   }, [refresh, org]);
 
+  /** Fetch the raw-line indices that resolve to Apex source for the given log
+   * body, so the raw viewer can mark only those lines clickable. */
+  const loadSourceLines = useCallback((raw: string) => {
+    invoke<number[]>("source_line_indices", { body: raw })
+      .then((idx) => setSourceLines(new Set(idx)))
+      .catch(() => setSourceLines(new Set()));
+  }, []);
+
   const select = useCallback(async (id: string) => {
     // Switching to a different log: drop the previous log's Apex source cache.
     if (lastLogId.current !== id) {
@@ -458,10 +470,12 @@ export function LogsPanel() {
     const cached = viewCache.current.get(id);
     if (cached) {
       setView(cached);
+      loadSourceLines(cached.raw);
       setViewLoading(false);
       return;
     }
     setView(null);
+    setSourceLines(new Set());
     setViewLoading(true);
     try {
       // Cache-first (logs are immutable): parse a locally cached body, else
@@ -478,6 +492,7 @@ export function LogsPanel() {
       });
       viewCache.current.set(id, dto);
       setView(dto);
+      loadSourceLines(dto.raw);
       // loadLogView writes the body to disk on a download; reflect that marker.
       setCachedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     } catch (e) {
@@ -485,7 +500,7 @@ export function LogsPanel() {
     } finally {
       setViewLoading(false);
     }
-  }, []);
+  }, [loadSourceLines]);
 
   /** Open a local `.log` file, parse it (no org fetch), and show it. */
   const openLocal = useCallback(async () => {
@@ -500,17 +515,19 @@ export function LogsPanel() {
     setViewLoading(true);
     setViewError(null);
     setView(null);
+    setSourceLines(new Set());
     setTab("raw");
     try {
       const body = await readTextFile(path);
       const parsed = await invoke<Omit<LogViewDto, "raw">>("parse_log", { body });
       setView({ raw: body, ...parsed });
+      loadSourceLines(body);
     } catch (e) {
       setViewError(typeof e === "string" ? e : String(e));
     } finally {
       setViewLoading(false);
     }
-  }, []);
+  }, [loadSourceLines]);
 
   /** Save the currently-viewed log's raw body to disk. */
   const saveLog = useCallback(async () => {
@@ -769,6 +786,7 @@ export function LogsPanel() {
                         })
                       }
                       onSource={setSourceRef}
+                      jumpableLines={sourceLines}
                     />
                   ) : (
                     <TimelineView units={view.units} onSource={setSourceRef} />

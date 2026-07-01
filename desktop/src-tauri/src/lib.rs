@@ -508,6 +508,19 @@ fn source_at_line(
         .map(dto::map_source)
 }
 
+/// Raw line indices (0-based into `raw.split('\n')`) that resolve to Apex source,
+/// so the viewer can mark just those lines clickable. Compact: only the resolved
+/// indices, not the full per-line array.
+#[tauri::command]
+fn source_line_indices(body: String, state: State<'_, AppState>) -> Vec<u32> {
+    cached_log_view(&state, &body)
+        .raw_sources
+        .iter()
+        .enumerate()
+        .filter_map(|(i, o)| o.as_ref().map(|_| i as u32))
+        .collect()
+}
+
 /// Parse a raw log body, reusing the cached parse when the body is unchanged so
 /// the step-debugger doesn't re-parse a large log on every step.
 fn parsed_log(state: &AppState, raw: &str) -> Arc<log_parser::parse::ParsedLog> {
@@ -1040,6 +1053,7 @@ pub fn run() {
             format_apex,
             parse_log,
             source_at_line,
+            source_line_indices,
             debug_session,
             debug_frames_at,
             sf_status,

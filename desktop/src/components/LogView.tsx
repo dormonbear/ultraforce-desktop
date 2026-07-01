@@ -81,24 +81,20 @@ function highlightAll(line: string, q: string): ReactNode {
   return out;
 }
 
-/** True for a debug-log event line (`HH:MM:SS.d (nanos)|EVENT|…`), which may map
- * to Apex source. Header / continuation lines never do, so they aren't clickable. */
-function isEventLine(line: string): boolean {
-  return /^\d{2}:\d{2}:\d{2}\.\d+ \(\d+\)\|/.test(line);
-}
-
 /** Raw Salesforce debug log with per-event coloring + search/Debug-Only filter.
- * When `resolveSource` and `onSource` are given, event lines are clickable and
- * their Apex source is resolved on demand (no line-length array shipped on open),
- * jumping to source when the clicked line maps to one. */
+ * When `resolveSource` and `onSource` are given, lines present in `jumpableLines`
+ * (raw-line indices the backend resolved to Apex source) are clickable and their
+ * Apex source is resolved on demand, jumping to source when clicked. */
 export function LogView({
   raw,
   resolveSource,
   onSource,
+  jumpableLines,
 }: {
   raw: string;
   resolveSource?: (rawLineIndex: number) => Promise<SourceRef | null>;
   onSource?: (ref: SourceRef) => void;
+  jumpableLines?: Set<number>;
 }) {
   const [q, setQ] = useState("");
   const [debugOnly, setDebugOnly] = useState(false);
@@ -186,7 +182,9 @@ export function LogView({
               const i = filtered ? filtered[vi.index] : vi.index;
               const l = lines[i];
               const clickable =
-                resolveSource != null && onSource != null && isEventLine(l);
+                resolveSource != null &&
+                onSource != null &&
+                (jumpableLines?.has(i) ?? false);
               return (
                 <div
                   key={vi.key}
