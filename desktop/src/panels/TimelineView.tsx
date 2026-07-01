@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UnitDto } from "../types";
 import type { SourceRef } from "./sourceRef";
-import { flameLayout, flameSpan, flameDepth, timeToX, xToTime } from "./flame";
+import { flameLayout, flameSpan, flameDepth, timeToX, xToTime, minimapSkyline } from "./flame";
 import { flameColor } from "./flameColor";
 
 const ROW_H = 18;
@@ -21,6 +21,10 @@ export function TimelineView({
   // Viewport in ns; starts at the full span.
   const [view, setView] = useState<{ start: number; end: number }>(span);
   useEffect(() => setView(span), [span]);
+
+  const MINI_N = 120;
+  const sky = useMemo(() => minimapSkyline(rects, span.start, span.end, MINI_N), [rects, span]);
+  const skyMax = useMemo(() => Math.max(1, ...sky), [sky]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -106,6 +110,38 @@ export function TimelineView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className="relative mb-1.5 h-8 w-full cursor-pointer overflow-hidden rounded bg-border/40"
+        onMouseDown={(e) => {
+          const el = e.currentTarget;
+          const r = el.getBoundingClientRect();
+          const frac = (e.clientX - r.left) / r.width;
+          const t = span.start + frac * (span.end - span.start);
+          const w = view.end - view.start;
+          let start = t - w / 2;
+          let end = start + w;
+          if (start < span.start) { start = span.start; end = start + w; }
+          if (end > span.end) { end = span.end; start = end - w; }
+          setView({ start, end });
+        }}
+      >
+        <div className="flex h-full w-full items-end">
+          {sky.map((d, i) => (
+            <span
+              key={i}
+              className="flex-1 bg-slate-500/60"
+              style={{ height: `${(d / skyMax) * 100}%` }}
+            />
+          ))}
+        </div>
+        <div
+          className="pointer-events-none absolute inset-y-0 border-x-2 border-primary bg-primary/10"
+          style={{
+            left: `${((view.start - span.start) / (span.end - span.start)) * 100}%`,
+            width: `${((view.end - view.start) / (span.end - span.start)) * 100}%`,
+          }}
+        />
+      </div>
       <div className="flex items-center gap-2 pb-1.5 text-[11px] text-text-dim">
         <button
           type="button"
