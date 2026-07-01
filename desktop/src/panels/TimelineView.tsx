@@ -169,6 +169,33 @@ export function TimelineView({
     if (hit?.source) onSource(hit.source as unknown as SourceRef);
   }
 
+  // Minimap scrubbing: mousedown recenters the viewport on the cursor, and a
+  // drag pans it left/right. Window listeners keep the drag alive even if the
+  // cursor leaves the thin strip. Viewport width is fixed at grab time (pan, not
+  // zoom), so span + w are captured once and there's no stale-view closure.
+  function onMiniDown(e: React.MouseEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    const w = view.end - view.start;
+    const panTo = (clientX: number) => {
+      const r = el.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+      const t = span.start + frac * (span.end - span.start);
+      let start = t - w / 2;
+      let end = start + w;
+      if (start < span.start) { start = span.start; end = start + w; }
+      if (end > span.end) { end = span.end; start = end - w; }
+      setView({ start, end });
+    };
+    panTo(e.clientX);
+    const onMove = (ev: MouseEvent) => panTo(ev.clientX);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
   if (rects.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
@@ -180,19 +207,8 @@ export function TimelineView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
-        className="relative mb-1.5 h-8 w-full cursor-pointer overflow-hidden rounded bg-border/40"
-        onMouseDown={(e) => {
-          const el = e.currentTarget;
-          const r = el.getBoundingClientRect();
-          const frac = (e.clientX - r.left) / r.width;
-          const t = span.start + frac * (span.end - span.start);
-          const w = view.end - view.start;
-          let start = t - w / 2;
-          let end = start + w;
-          if (start < span.start) { start = span.start; end = start + w; }
-          if (end > span.end) { end = span.end; start = end - w; }
-          setView({ start, end });
-        }}
+        className="relative mb-1.5 h-8 w-full cursor-ew-resize overflow-hidden rounded bg-border/40"
+        onMouseDown={onMiniDown}
       >
         <div className="flex h-full w-full items-end">
           {sky.map((d, i) => (
