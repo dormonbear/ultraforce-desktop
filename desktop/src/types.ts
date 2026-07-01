@@ -96,6 +96,8 @@ export interface ExecNodeDto {
   detail: string;
   dur_ns: number | null;
   self_ns: number | null;
+  /** Absolute start offset in ns from log start. */
+  start_ns: number;
   children: ExecNodeDto[];
   /** Apex source this node maps to (class + line), or null when unresolved. */
   source: SourceRef | null;

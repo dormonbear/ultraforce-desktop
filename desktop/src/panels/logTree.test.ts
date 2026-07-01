@@ -6,7 +6,7 @@ const node = (
   label: string,
   detail = "",
   children: ExecNodeDto[] = [],
-): ExecNodeDto => ({ label, detail, dur_ns: null, self_ns: null, children, source: null });
+): ExecNodeDto => ({ label, detail, dur_ns: null, self_ns: null, start_ns: 0, children, source: null });
 
 const tree: ExecNodeDto[] = [
   node("CODE_UNIT_STARTED", "Trigger.AccountTrigger", [

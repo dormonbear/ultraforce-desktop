@@ -8,6 +8,7 @@ const node = (label: string, children: ExecNodeDto[] = []): ExecNodeDto => ({
   detail: "",
   dur_ns: 1000,
   self_ns: 100,
+  start_ns: 0,
   children,
   source: null,
 });
@@ -144,7 +145,7 @@ describe("detectInsights", () => {
       durNs: number,
       selfNs: number,
       children: ExecNodeDto[] = [],
-    ): ExecNodeDto => ({ label, detail: "", dur_ns: durNs, self_ns: selfNs, children, source: null });
+    ): ExecNodeDto => ({ label, detail: "", dur_ns: durNs, self_ns: selfNs, start_ns: 0, children, source: null });
     // root 1000 → A 900 → B 850 (self 800); a tiny sibling that's off the path.
     const tree = [
       dnode("root", 1000, 50, [
