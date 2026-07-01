@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UnitDto } from "../types";
 import type { SourceRef } from "./sourceRef";
-import { flameLayout, flameSpan, flameDepth, timeToX } from "./flame";
+import { flameLayout, flameSpan, flameDepth, timeToX, xToTime } from "./flame";
 import { flameColor } from "./flameColor";
 
 const ROW_H = 18;
@@ -58,6 +58,44 @@ export function TimelineView({
     }
   }, [rects, view, maxDepth]);
 
+  const drag = useRef<{ x: number; start: number; end: number } | null>(null);
+
+  function onWheel(e: React.WheelEvent<HTMLCanvasElement>) {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const t = xToTime(px, view.start, view.end, rect.width);
+    const factor = e.deltaY < 0 ? 0.8 : 1.25; // in / out
+    const newSpan = (view.end - view.start) * factor;
+    const ratio = (t - view.start) / (view.end - view.start);
+    let start = t - ratio * newSpan;
+    let end = start + newSpan;
+    // clamp to full span
+    if (start < span.start) { start = span.start; end = start + newSpan; }
+    if (end > span.end) { end = span.end; start = Math.max(span.start, end - newSpan); }
+    setView({ start, end });
+  }
+
+  function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (e.shiftKey) return; // reserved for measure (later task)
+    drag.current = { x: e.clientX, start: view.start, end: view.end };
+  }
+  function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const d = drag.current;
+    const canvas = canvasRef.current;
+    if (!d || !canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const dt = ((e.clientX - d.x) / rect.width) * (d.end - d.start);
+    let start = d.start - dt;
+    let end = d.end - dt;
+    if (start < span.start) { start = span.start; end = start + (d.end - d.start); }
+    if (end > span.end) { end = span.end; start = end - (d.end - d.start); }
+    setView({ start, end });
+  }
+  function onMouseUp() { drag.current = null; }
+
   if (rects.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
@@ -68,8 +106,26 @@ export function TimelineView({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-2 pb-1.5 text-[11px] text-text-dim">
+        <button
+          type="button"
+          onClick={() => setView(span)}
+          className="focus-accent cursor-pointer rounded px-1.5 py-0.5 hover:text-foreground"
+        >
+          Reset zoom
+        </button>
+        <span>scroll to zoom · drag to pan</span>
+      </div>
       <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card">
-        <canvas ref={canvasRef} className="block w-full" />
+        <canvas
+          ref={canvasRef}
+          className="block w-full"
+          onWheel={onWheel}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseUp}
+        />
       </div>
     </div>
   );
