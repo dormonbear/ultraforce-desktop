@@ -32,7 +32,16 @@ impl CommandRunner for ProcessRunner {
         args: &[String],
         timeout: Duration,
     ) -> Result<RawOutput, SfError> {
-        let fut = tokio::process::Command::new(program).args(args).output();
+        // NO_COLOR/FORCE_COLOR=0 stop the CLI emitting ANSI escapes that would
+        // otherwise show as garbled control codes in our UI. AUTOUPDATE_DISABLE
+        // silences the "update available" banner on stderr.
+        let fut = tokio::process::Command::new(program)
+            .args(args)
+            .env("NO_COLOR", "1")
+            .env("FORCE_COLOR", "0")
+            .env("SF_AUTOUPDATE_DISABLE", "true")
+            .env("SFDX_AUTOUPDATE_DISABLE", "true")
+            .output();
         let out = match tokio::time::timeout(timeout, fut).await {
             Err(_) => return Err(SfError::Timeout(timeout)),
             Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => {

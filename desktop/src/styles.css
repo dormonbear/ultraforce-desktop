@@ -18,7 +18,7 @@
   --card-foreground: #26251e;
   --popover: #ffffff;
   --popover-foreground: #26251e;
-  --primary: #f54e00;
+  --primary: #0176d3;
   --primary-foreground: #ffffff;
   --secondary: #fafaf7;
   --secondary-foreground: #26251e;
@@ -32,7 +32,7 @@
   --success-foreground: #ffffff;
   --border: #e6e5e0;
   --input: #e6e5e0;
-  --ring: #f54e00;
+  --ring: #0176d3;
   --radius: 0.5rem;
   /* Cursor extras for un-migrated bespoke components. */
   --c-surface-strong: #e6e5e0;
@@ -43,32 +43,33 @@
 }
 
 .dark {
-  --background: #1a1916;
-  --foreground: #f2f1ec;
-  --card: #26241f;
-  --card-foreground: #f2f1ec;
-  --popover: #26241f;
-  --popover-foreground: #f2f1ec;
-  --primary: #ff5a14;
-  --primary-foreground: #1a1611;
-  --secondary: #211f1b;
-  --secondary-foreground: #f2f1ec;
-  --muted: #211f1b;
-  --muted-foreground: #8c887d;
-  --accent: #383530;
-  --accent-foreground: #f2f1ec;
-  --destructive: #ff6d8a;
-  --destructive-foreground: #1a1611;
-  --success: #3fb488;
-  --success-foreground: #1a1611;
-  --border: #33302a;
-  --input: #33302a;
-  --ring: #ff5a14;
-  --c-surface-strong: #383530;
-  --c-line: #48443c;
-  --c-text-dim: #bdb9ae;
-  --c-amber: #d9a23f;
-  --c-blue: #bdb9ae;
+  /* Salesforce-inspired cool near-black neutrals + Lightning blue accent. */
+  --background: #16181d;
+  --foreground: #e9eaee;
+  --card: #1e2127;
+  --card-foreground: #e9eaee;
+  --popover: #1e2127;
+  --popover-foreground: #e9eaee;
+  --primary: #1b96ff;
+  --primary-foreground: #03182e;
+  --secondary: #1b1e23;
+  --secondary-foreground: #e9eaee;
+  --muted: #1b1e23;
+  --muted-foreground: #8a909c;
+  --accent: #2b2f37;
+  --accent-foreground: #e9eaee;
+  --destructive: #fe5c4c;
+  --destructive-foreground: #0a0c10;
+  --success: #45c65a;
+  --success-foreground: #0a0c10;
+  --border: #2a2e36;
+  --input: #2a2e36;
+  --ring: #1b96ff;
+  --c-surface-strong: #2b2f37;
+  --c-line: #3a3f49;
+  --c-text-dim: #aeb4be;
+  --c-amber: #f6a821;
+  --c-blue: #aeb4be;
 }
 
 @theme inline {
@@ -107,7 +108,7 @@
   --color-text: var(--foreground);
   --color-text-dim: var(--c-text-dim);
   --color-text-faint: var(--muted-foreground);
-  --color-accent-press: #d04200;
+  --color-accent-press: #0b6fc2;
   --color-red: var(--destructive);
   --color-amber: var(--c-amber);
   --color-blue: var(--c-blue);
@@ -142,17 +143,30 @@ body {
   transition:
     background 0.2s ease,
     color 0.2s ease;
+  /* Desktop-app feel: UI chrome (labels, tabs, buttons) is not text-selectable.
+     Real content opts back in via `.select-text` (data, logs, errors, editor). */
+  -webkit-user-select: none;
+  user-select: none;
 }
 
-/* Micro-label: 11/600 uppercase, tracked, with a trailing hairline rule. */
+/* Editable fields and explicitly-marked content stay selectable. */
+input,
+textarea,
+.select-text,
+.select-text * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Section label: 11.5/600 sentence-case, with a trailing hairline rule.
+ * Hierarchy comes from size/weight/space — not all-caps shouting. */
 .micro-label {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
-  letter-spacing: 0.88px;
-  text-transform: uppercase;
+  letter-spacing: 0;
   color: var(--muted-foreground);
   user-select: none;
 }
@@ -165,6 +179,14 @@ body {
 
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Hide the scrollbar but keep scrolling (used by the horizontal tab strip). */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .focus-accent:focus-visible {

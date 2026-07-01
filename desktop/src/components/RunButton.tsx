@@ -5,9 +5,9 @@ import { runShortcut } from "../platform";
 interface Props {
   onRun: () => void;
   running: boolean;
-  /** Label shown when idle (default "RUN"). */
+  /** Label shown when idle (default "Run"). */
   label?: string;
-  /** Label shown while running (default "RUNNING"). */
+  /** Label shown while running (default "Running"). */
   runningLabel?: string;
 }
 
@@ -15,8 +15,8 @@ interface Props {
 export function RunButton({
   onRun,
   running,
-  label = "RUN",
-  runningLabel = "RUNNING",
+  label = "Run",
+  runningLabel = "Running",
 }: Props) {
   return (
     <Button
@@ -24,7 +24,7 @@ export function RunButton({
       onClick={onRun}
       disabled={running}
       title={`Run (${runShortcut()})`}
-      className="ml-3 h-8 cursor-pointer gap-1.5 px-3 text-[12px] uppercase tracking-wide disabled:opacity-40"
+      className="ml-3 h-8 cursor-pointer gap-1.5 px-3 text-[13px] font-medium disabled:opacity-40"
     >
       {running ? (
         <Loader2 size={14} className="spin" />

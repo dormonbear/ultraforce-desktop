@@ -9,8 +9,20 @@ export function toCsv(columns: string[], rows: string[][]): string {
 
 /** Quote a field when it contains a comma, quote, CR, or LF; double inner quotes. */
 function escape(field: string): string {
-  if (/[",\r\n]/.test(field)) {
-    return `"${field.replace(/"/g, '""')}"`;
+  const f = guardFormula(field);
+  if (/[",\r\n]/.test(f)) {
+    return `"${f.replace(/"/g, '""')}"`;
   }
-  return field;
+  return f;
+}
+
+/**
+ * Prefix a leading apostrophe to values a spreadsheet would auto-evaluate as a
+ * formula (CSV/TSV injection). Guards `= + @` and CR/Tab always, and `-` only
+ * when it doesn't start a plain number (so `-5`, `-5.2` stay numeric).
+ */
+export function guardFormula(field: string): string {
+  return /^[=+@\t\r]/.test(field) || /^-(?![\d.])/.test(field)
+    ? `'${field}`
+    : field;
 }

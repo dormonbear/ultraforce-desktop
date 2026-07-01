@@ -79,7 +79,7 @@ export function DebugConfigRow({
           size={14}
           className={`shrink-0 text-text-dim transition-transform ${open ? "rotate-90" : ""}`}
         />
-        <span className="micro-label min-w-[118px] shrink-0">DEBUG LEVELS</span>
+        <span className="micro-label min-w-[118px] shrink-0">Debug levels</span>
         <span className="text-[12px] text-foreground">{activePreset ?? "Custom"}</span>
         <span className="ml-auto flex min-w-0 items-center gap-2 text-[11px]">
           {applying && (
@@ -95,7 +95,7 @@ export function DebugConfigRow({
       {open && (
         <div className="mt-2 grid gap-2 border-t border-border pt-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="micro-label w-24 shrink-0">PRESET</span>
+            <span className="w-28 shrink-0 text-[11px] text-text-dim">Preset</span>
             <PresetMenu
               value={activePreset}
               onChoose={(name) => onApply(presetLevels(name))}
@@ -105,7 +105,7 @@ export function DebugConfigRow({
           <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
             {CATEGORY_FIELDS.map(({ key, label }) => (
               <label key={key} className="flex items-center gap-2">
-                <span className="w-28 shrink-0 truncate text-[11px] uppercase text-text-dim">
+                <span className="w-28 shrink-0 truncate text-[11px] text-text-dim">
                   {label}
                 </span>
                 <Select

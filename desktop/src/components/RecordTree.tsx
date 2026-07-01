@@ -26,7 +26,7 @@ function FieldRow({ field, depth }: { field: FieldDto; depth: number }) {
         >
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
           <span className="text-foreground">{field.name}</span>
-          <span className="text-muted-foreground">▸ {v.parent.sobject_type}</span>
+          <span className="text-muted-foreground">{v.parent.sobject_type}</span>
         </button>
         {open && <RecordNode record={v.parent} depth={depth + 1} />}
       </>
@@ -67,7 +67,7 @@ function RecordNode({ record, depth }: { record: RecordDto; depth: number }) {
     <div>
       <div
         style={{ paddingLeft: `${depth * 14 + 12}px` }}
-        className="micro-label py-0.5 text-primary"
+        className="micro-label py-0.5"
       >
         {record.sobject_type}
       </div>
@@ -83,12 +83,12 @@ export function RecordTree({ records }: { records: RecordDto[] }) {
   if (records.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-        — no rows —
+        No rows
       </div>
     );
   }
   return (
-    <div className="h-full overflow-auto py-1 text-[12px]">
+    <div className="select-text h-full overflow-auto py-1 text-[12px]">
       {records.map((r, i) => (
         <RecordNode key={recordKey(r, i)} record={r} depth={0} />
       ))}

@@ -179,7 +179,7 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           {cfg.flags.length === 0 && (
             <tr>
               <td colSpan={7} className="px-2 py-3 text-center text-text-dim">
-                — no trace flags —
+                No trace flags
               </td>
             </tr>
           )}

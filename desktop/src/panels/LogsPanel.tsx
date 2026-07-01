@@ -126,7 +126,7 @@ function TreeNode({
   return (
     <>
       <div
-        className="flex items-baseline gap-1.5 border-b border-border/50 py-0.5 text-[12px]"
+        className="flex items-baseline gap-1.5 py-0.5 text-[12px]"
         style={{ paddingLeft: `${depth * 14}px` }}
       >
         {hasChildren && !forceOpen ? (
@@ -193,7 +193,7 @@ function TreeNode({
 }
 
 const SEVERITY_BAR: Record<LimitSeverity, string> = {
-  ok: "bg-primary",
+  ok: "bg-text-dim",
   warn: "bg-amber-500",
   crit: "bg-destructive",
 };
@@ -236,7 +236,7 @@ function InsightsView({
   if (findings.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no issues detected —
+        No issues detected
       </div>
     );
   }
@@ -255,7 +255,7 @@ function InsightsView({
                 <button
                   type="button"
                   onClick={() => onGoto(goto)}
-                  className="ml-auto shrink-0 cursor-pointer text-[10px] uppercase tracking-wide text-text-dim/70 hover:text-primary"
+                  className="ml-auto shrink-0 cursor-pointer text-[11px] text-text-dim/70 hover:text-primary"
                 >
                   View {goto} →
                 </button>
@@ -284,7 +284,7 @@ function LimitsView({ units }: { units: UnitDto[] }) {
   if (rollups.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no limit usage —
+        No limit usage
       </div>
     );
   }
@@ -336,7 +336,7 @@ function HotspotsView({
   if (all.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no method frames —
+        No method frames
       </div>
     );
   }
@@ -358,11 +358,11 @@ function HotspotsView({
     <table className="w-full text-[12px]">
       <thead>
         <tr className="text-muted-foreground">
-          <th className="py-1 text-left font-normal">METHOD</th>
-          <th className="py-1 text-right font-normal">SELF</th>
-          <th className="py-1 text-right font-normal">TOTAL</th>
-          <th className="py-1 text-right font-normal">HEAP</th>
-          <th className="py-1 text-right font-normal">CALLS</th>
+          <th className="py-1 text-left font-normal">Method</th>
+          <th className="py-1 text-right font-normal">Self</th>
+          <th className="py-1 text-right font-normal">Total</th>
+          <th className="py-1 text-right font-normal">Heap</th>
+          <th className="py-1 text-right font-normal">Calls</th>
         </tr>
       </thead>
       <tbody>
@@ -409,7 +409,7 @@ function DebugView({ units }: { units: UnitDto[] }) {
   if (lines.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no debug output —
+        No debug output
       </div>
     );
   }
@@ -432,7 +432,7 @@ function QueriesView({ units }: { units: UnitDto[] }) {
   if (all.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no SOQL or DML —
+        No SOQL or DML
       </div>
     );
   }
@@ -456,10 +456,10 @@ function QueriesView({ units }: { units: UnitDto[] }) {
       <table className="w-full text-[12px]">
         <thead>
           <tr className="text-muted-foreground">
-            <th className="py-1 text-left font-normal">STATEMENT</th>
-            <th className="py-1 text-right font-normal">TIME</th>
+            <th className="py-1 text-left font-normal">Statement</th>
+            <th className="py-1 text-right font-normal">Time</th>
             <th className="py-1 text-right font-normal">×</th>
-            <th className="py-1 text-right font-normal">ROWS</th>
+            <th className="py-1 text-right font-normal">Rows</th>
           </tr>
         </thead>
         <tbody>
@@ -656,16 +656,16 @@ export function LogsPanel() {
       >
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
-            <div className="micro-label flex-1">LOGS</div>
+            <div className="micro-label flex-1">Logs</div>
             <Button
               variant="ghost"
               size="sm"
               onClick={openLocal}
               title="Open a local .log file"
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
             >
               <FolderOpen size={12} />
-              OPEN
+              Open
             </Button>
             <Button
               variant="ghost"
@@ -673,34 +673,34 @@ export function LogsPanel() {
               onClick={saveLog}
               disabled={!view}
               title="Save the viewed log to a file"
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
             >
               <Download size={12} />
-              SAVE
+              Save
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={refresh}
               disabled={listLoading}
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
             >
               {listLoading ? (
                 <Loader2 size={12} className="spin" />
               ) : (
                 <RefreshCw size={12} />
               )}
-              REFRESH
+              Refresh
             </Button>
             <Button
               variant="ghost"
               size="sm"
               aria-label="Configure logging"
               onClick={() => setCfgOpen(true)}
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
             >
               <SlidersHorizontal size={12} />
-              LOGGING
+              Logging
             </Button>
           </div>
 
@@ -709,7 +709,7 @@ export function LogsPanel() {
           )}
 
           {logs.length > 0 && (
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2">
               <div className="relative flex-1">
                 <Search
                   size={12}
@@ -733,11 +733,11 @@ export function LogsPanel() {
             </pre>
           ) : logs.length === 0 && !listLoading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-              — no logs —
+              No logs
             </div>
           ) : visibleLogs.length === 0 ? (
             <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-              — no matches —
+              No matches
             </div>
           ) : (
             <div ref={listParentRef} className="uf-scroll min-h-0 flex-1 overflow-y-auto">
@@ -757,7 +757,7 @@ export function LogsPanel() {
                       ref={rowVirtualizer.measureElement}
                       type="button"
                       onClick={() => select(log.id)}
-                      className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-3 pr-4 text-left hover:bg-accent cursor-pointer ${
+                      className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-4 pr-4 text-left hover:bg-accent cursor-pointer ${
                         selected ? "bg-primary/10" : ""
                       }`}
                       style={{ transform: `translateY(${vi.start}px)` }}
@@ -789,7 +789,7 @@ export function LogsPanel() {
                           <Badge
                             variant={ok ? "success" : "destructive"}
                             title={log.status}
-                            className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+                            className="shrink-0 px-1.5 py-0 text-[10px]"
                           >
                             {ok ? "Success" : "Failed"}
                           </Badge>
@@ -816,22 +816,22 @@ export function LogsPanel() {
 
       <ResizablePanel minSize="360px">
         <div className="flex h-full flex-col">
-          <div className="micro-label px-4 py-2">LOG DETAIL</div>
+          <div className="micro-label px-4 py-2">Log detail</div>
 
           {!selectedId && !view && !viewLoading && !viewError ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-              — select a log —
+              Select a log
             </div>
           ) : viewLoading ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground">
               <Loader2 size={18} className="spin" />
             </div>
           ) : viewError ? (
-            <pre className="mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
+            <pre className="select-text mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
               {viewError}
             </pre>
           ) : view ? (
-            <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
+            <div className="select-text flex min-h-0 flex-1 flex-col px-4 pb-4">
               <div className="flex items-center justify-between pb-2">
                 <div className="flex items-center gap-3">
                   <div className="tnum text-[12px] text-text-dim">
@@ -866,7 +866,7 @@ export function LogsPanel() {
                     <ToggleGroupItem
                       key={t}
                       value={t}
-                      className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                      className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium capitalize text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
                     >
                       {t}
                     </ToggleGroupItem>
@@ -910,14 +910,14 @@ export function LogsPanel() {
                       if (units.every((u) => u.tree.length === 0)) {
                         return (
                           <div className="py-4 text-center text-[13px] text-muted-foreground">
-                            {treeFilter ? "— no matching events —" : "— no execution tree —"}
+                            {treeFilter ? "No matching events" : "No execution tree"}
                           </div>
                         );
                       }
                       return units.map((unit, ui) => (
                         <div key={ui} className={ui > 0 ? "mt-4" : ""}>
                           {units.length > 1 && unit.tree.length > 0 && (
-                            <div className="micro-label pb-1">UNIT {ui + 1}</div>
+                            <div className="micro-label pb-1">Unit {ui + 1}</div>
                           )}
                           {unit.tree.map((node, ni) => (
                             <TreeNode

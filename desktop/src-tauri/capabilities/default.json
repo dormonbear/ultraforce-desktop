@@ -5,6 +5,7 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-start-dragging",
     "store:default",
     "dialog:default",
     "updater:default",
@@ -13,6 +14,7 @@
     "fs:allow-read-dir",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
+    "fs:allow-write-file",
     "fs:allow-rename",
     "fs:allow-remove",
     "fs:allow-exists",

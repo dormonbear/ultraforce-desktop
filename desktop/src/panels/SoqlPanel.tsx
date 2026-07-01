@@ -8,6 +8,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import { SlidersHorizontal } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Dialog,
@@ -16,6 +17,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { SoqlEditor } from "../components/SoqlEditor";
 import type { Reveal } from "../monaco-reveal";
@@ -23,10 +30,10 @@ import { ResultTable } from "../components/ResultTable";
 import { RecordTree } from "../components/RecordTree";
 import { QueryPlanView } from "../components/QueryPlanView";
 import { useOrgs } from "../org";
-import { recordHistory } from "../history";
 import { timing } from "../metrics";
 import { parseSfError, isCliUnavailable } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
+import { SfErrorDetail } from "../components/SfErrorDetail";
 import type { SoqlResultDto, QueryPlanDto } from "../types";
 import type { SoqlTab } from "../tabs/types";
 
@@ -98,27 +105,12 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         if (!dto.done)
           toast.info(`Cancelled — showing ${dto.rows.length.toLocaleString()} rows`);
         void timing("run.soql", ms);
-        void recordHistory({
-          tool: "soql",
-          org,
-          text: q,
-          status: "success",
-          durationMs: ms,
-          rowCount: dto.total_size,
-        });
       } catch (e) {
         const message = typeof e === "string" ? e : String(e);
         toast.error(parseSfError(message).detail);
         onPatch({ error: message });
         const ms = performance.now() - t0;
         void timing("run.soql", ms);
-        void recordHistory({
-          tool: "soql",
-          org,
-          text: q,
-          status: "error",
-          durationMs: ms,
-        });
       } finally {
         unlisten();
         queryIdRef.current = null;
@@ -223,7 +215,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       <ResizablePanel id="results" minSize="160px">
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <ToggleGroup
                 type="single"
                 value={view}
@@ -236,44 +228,52 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                   <ToggleGroupItem
                     key={v}
                     value={v}
-                    className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                    className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] capitalize text-text-dim transition-colors hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
                   >
                     {v}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <label
-                className="flex cursor-pointer items-center gap-1.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground"
-                title="Query Tooling API objects (ApexClass, ApexTrigger, …)"
-              >
-                <input
-                  type="checkbox"
-                  checked={useToolingApi}
-                  onChange={(e) => onPatch({ useToolingApi: e.target.checked })}
-                  className="size-3 cursor-pointer accent-primary"
-                />
-                Tooling API
-              </label>
-              <label
-                className="flex cursor-pointer items-center gap-1.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground"
-                title="Include deleted/archived rows (queryAll, --all-rows)"
-              >
-                <input
-                  type="checkbox"
-                  checked={allRows}
-                  onChange={(e) => onPatch({ allRows: e.target.checked })}
-                  className="size-3 cursor-pointer accent-primary"
-                />
-                All rows
-              </label>
               <button
                 type="button"
                 onClick={() => void explain()}
-                title="EXPLAIN: show the query plan (cost, cardinality, leading operation)"
-                className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground"
+                title="Show the query plan (cost, cardinality, leading operation)"
+                className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] text-text-dim transition-colors hover:text-foreground"
               >
                 Explain
               </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    title="Query options"
+                    className={`focus-accent inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] transition-colors ${
+                      useToolingApi || allRows
+                        ? "text-primary"
+                        : "text-text-dim hover:text-foreground"
+                    }`}
+                  >
+                    <SlidersHorizontal size={13} />
+                    Options
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuCheckboxItem
+                    checked={useToolingApi}
+                    onCheckedChange={(v) => onPatch({ useToolingApi: !!v })}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    Tooling API
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={allRows}
+                    onCheckedChange={(v) => onPatch({ allRows: !!v })}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    All rows
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             {running || counting ? (
               <div className="flex items-center gap-2 text-[11px] text-text-dim">
@@ -300,7 +300,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 <button
                   type="button"
                   onClick={cancel}
-                  className="focus-accent cursor-pointer rounded-md border border-border px-2 py-0.5 uppercase tracking-wide text-text-dim transition-colors hover:border-destructive hover:text-destructive"
+                  className="focus-accent cursor-pointer rounded-md border border-border px-2 py-0.5 text-text-dim transition-colors hover:border-destructive hover:text-destructive"
                 >
                   Cancel
                 </button>
@@ -315,32 +315,10 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
             ) : error && isCliUnavailable(error) ? (
               <CliGuidanceForError onRetry={run} />
             ) : error ? (
-              (() => {
-                const e = parseSfError(error);
-                return (
-                  <div className="m-4 rounded-md border border-destructive/40 bg-card p-3">
-                    <div className="text-[13px] font-medium text-destructive">
-                      {e.title}
-                    </div>
-                    <div className="mt-1 whitespace-pre-wrap text-[12px] text-foreground">
-                      {e.detail}
-                    </div>
-                    {e.raw !== e.detail && (
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-text-dim">
-                          Raw error
-                        </summary>
-                        <pre className="mt-1 overflow-auto whitespace-pre-wrap text-[11px] text-text-dim">
-                          {e.raw}
-                        </pre>
-                      </details>
-                    )}
-                  </div>
-                );
-              })()
+              <SfErrorDetail error={error} className="m-4" />
             ) : !result ? (
               <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-                — run a query —
+                Run a query to see results
               </div>
             ) : view === "table" ? (
               <ResultTable data={result} />

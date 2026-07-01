@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useOrgs } from "../org";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -55,12 +56,12 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
   return (
     <div className="flex w-full max-w-md flex-col gap-3 rounded-md border border-border bg-card p-4 text-[12px]">
       <label className="flex flex-col gap-1">
-        <span className="uppercase tracking-wide text-text-dim">Environment</span>
+        <span className="text-text-dim">Environment</span>
         <select
           value={env}
           onChange={(e) => setEnv(e.target.value as Env)}
           disabled={busy}
-          className="cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground"
+          className="cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="production">Production / Developer (login.salesforce.com)</option>
           <option value="sandbox">Sandbox (test.salesforce.com)</option>
@@ -70,25 +71,23 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
 
       {env === "custom" && (
         <label className="flex flex-col gap-1">
-          <span className="uppercase tracking-wide text-text-dim">Instance URL</span>
-          <input
+          <span className="text-text-dim">Instance URL</span>
+          <Input
             value={customUrl}
             onChange={(e) => setCustomUrl(e.target.value)}
             placeholder="https://mydomain.my.salesforce.com"
             disabled={busy}
-            className="rounded-md border border-border bg-transparent px-2 py-1 text-foreground"
           />
         </label>
       )}
 
       <label className="flex flex-col gap-1">
-        <span className="uppercase tracking-wide text-text-dim">Alias (optional)</span>
-        <input
+        <span className="text-text-dim">Alias (optional)</span>
+        <Input
           value={alias}
           onChange={(e) => setAlias(e.target.value)}
           placeholder="my-org"
           disabled={busy}
-          className="rounded-md border border-border bg-transparent px-2 py-1 text-foreground"
         />
       </label>
 

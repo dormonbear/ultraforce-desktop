@@ -105,7 +105,7 @@ export function SoqlEditor({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-4 py-2">
-        <div className="micro-label flex-1">QUERY</div>
+        <div className="micro-label flex-1">Query</div>
         <RunButton onRun={onRun} running={running} />
       </div>
       <div className="min-h-0 flex-1">
