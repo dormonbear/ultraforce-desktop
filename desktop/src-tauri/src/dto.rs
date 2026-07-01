@@ -562,6 +562,8 @@ pub struct ExecNodeDto {
     pub children: Vec<ExecNodeDto>,
     /// Apex source this node maps to, or `None` when unresolved.
     pub source: Option<SourceRefDto>,
+    /// Absolute start offset in ns from log start (from `entry.nanos`).
+    pub start_ns: u64,
 }
 
 /// One governor-limit reading.
@@ -670,6 +672,7 @@ fn map_node(node: &ExecNode) -> ExecNodeDto {
         self_ns: node.self_ns,
         children: node.children.iter().map(map_node).collect(),
         source: node.source.as_ref().map(map_source),
+        start_ns: node.entry.nanos,
     }
 }
 
@@ -778,6 +781,19 @@ mod tests {
         let s = method.source.as_ref().expect("method has source");
         assert_eq!(s.class_name, "MyClass");
         assert_eq!(s.line, Some(5));
+    }
+
+    #[test]
+    fn maps_start_ns_from_entry_nanos() {
+        use log_parser::parse::ParsedLog;
+        use log_parser::tree::build_tree;
+        let text = "67.0 X\n\
+                    16:55:57.42 (42826462)|METHOD_ENTRY|[1]|Foo.bar()\n\
+                    16:55:57.43 (52826462)|METHOD_EXIT|[1]|Foo.bar()";
+        let unit = ParsedLog::parse(text).units[0].clone();
+        let roots = build_tree(&unit);
+        let dto = map_node(&roots[0]);
+        assert_eq!(dto.start_ns, 42_826_462);
     }
 
     #[test]
