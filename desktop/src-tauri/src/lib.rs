@@ -724,9 +724,28 @@ async fn set_debug_config(
 ) -> Result<dto::DebugConfigDto, String> {
     let org = current_org(&state);
     let core = features::debug_config::CategoryLevels::from(&levels);
-    let cfg = features::debug_config::set_debug_config(&state.invoker, &core, org.as_deref())
-        .await
-        .map_err(|e| format!("{e:?}"))?;
+    let cfg =
+        features::debug_config::set_debug_config(&state.invoker, &core, org.as_deref(), 24 * 60)
+            .await
+            .map_err(|e| format!("{e:?}"))?;
+    Ok(dto::DebugConfigDto::from(&cfg))
+}
+
+/// One-click: trace the running user for `minutes` (default 30) at a full-debug
+/// level. Reuses set_debug_config (upserts the ULTRAFORCE_DEBUG level + TraceFlag).
+#[tauri::command]
+async fn quick_self_trace(
+    minutes: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<dto::DebugConfigDto, String> {
+    let org = current_org(&state);
+    let mins = minutes.unwrap_or(30) as u64;
+    let levels =
+        features::debug_config::preset_levels(features::debug_config::Preset::FullDebugging);
+    let cfg =
+        features::debug_config::set_debug_config(&state.invoker, &levels, org.as_deref(), mins)
+            .await
+            .map_err(|e| format!("{e:?}"))?;
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
@@ -1036,6 +1055,7 @@ pub fn run() {
             set_target_org,
             get_debug_config,
             set_debug_config,
+            quick_self_trace,
             load_logging_config,
             save_logging_config,
             apex_complete,

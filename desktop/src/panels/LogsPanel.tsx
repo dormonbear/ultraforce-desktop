@@ -13,6 +13,7 @@ import {
   Search,
   SlidersHorizontal,
   Bug,
+  Timer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ import { clearApexSourceCache } from "../components/useApexSource";
 import { LoggingConfigPanel } from "../components/LoggingConfigPanel";
 import { useOrgs } from "../org";
 import type {
+  DebugConfigDto,
   HotspotDto,
   LogRefDto,
   LogViewDto,
@@ -375,6 +377,7 @@ function QueriesView({ units }: { units: UnitDto[] }) {
 export function LogsPanel() {
   const { selected: org } = useOrgs();
   const [cfgOpen, setCfgOpen] = useState(false);
+  const [tracingBusy, setTracingBusy] = useState(false);
   const [logs, setLogs] = useState<LogRefDto[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
@@ -545,6 +548,19 @@ export function LogsPanel() {
     }
   }, [view]);
 
+  const quickSelfTrace = useCallback(async () => {
+    if (tracingBusy) return;
+    setTracingBusy(true);
+    try {
+      await invoke<DebugConfigDto>("quick_self_trace", { minutes: 30 });
+      toast.success("Tracing you for 30 min");
+    } catch (e) {
+      toast.error(`Trace failed: ${typeof e === "string" ? e : String(e)}`);
+    } finally {
+      setTracingBusy(false);
+    }
+  }, [tracingBusy]);
+
   return (
     <ResizablePanelGroup direction="horizontal">
       {/* minSize = the natural width of the header toolbar (LOGS · OPEN ·
@@ -602,6 +618,21 @@ export function LogsPanel() {
             >
               <SlidersHorizontal size={12} />
               Logging
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Trace myself for 30 minutes"
+              onClick={quickSelfTrace}
+              disabled={tracingBusy}
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
+            >
+              {tracingBusy ? (
+                <Loader2 size={12} className="spin" />
+              ) : (
+                <Timer size={12} />
+              )}
+              Trace 30m
             </Button>
           </div>
 

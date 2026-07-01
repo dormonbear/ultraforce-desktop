@@ -260,6 +260,7 @@ pub async fn set_debug_config(
     invoker: &SfInvoker,
     levels: &CategoryLevels,
     target_org: Option<&str>,
+    expiry_minutes: u64,
 ) -> Result<DebugConfig, SfError> {
     let user_id = running_user_id(invoker, target_org).await?;
     let existing = existing_trace_flag(invoker, &user_id, target_org).await?;
@@ -286,7 +287,7 @@ pub async fn set_debug_config(
                 ))
                 .await?;
             // refresh the TraceFlag window
-            let exp = expiration();
+            let exp = expiration(expiry_minutes);
             let tf_values = format!("ExpirationDate={exp}");
             let _: CreateResult = invoker
                 .run_json(&with_org(
@@ -326,7 +327,7 @@ pub async fn set_debug_config(
                     target_org,
                 ))
                 .await?;
-            let exp = expiration();
+            let exp = expiration(expiry_minutes);
             let tf_values = format!(
                 "TracedEntityId={user_id} DebugLevelId={dl_id} LogType=DEVELOPER_LOG ExpirationDate={exp}",
                 dl_id = dl.id
@@ -416,14 +417,14 @@ pub async fn get_debug_config(
     })
 }
 
-/// Now + 24h as an sf datetime literal. No new crate: epoch → civil UTC by hand.
-fn expiration() -> String {
+/// Now + `minutes` as an sf datetime literal. No new crate: epoch → civil UTC by hand.
+fn expiration(minutes: u64) -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
-        + 24 * 3600;
+        + minutes * 60;
     format_iso_utc(secs)
 }
 
@@ -520,9 +521,14 @@ mod tests {
             seen.clone(),
         );
         let invoker = SfInvoker::new(Arc::new(runner));
-        let cfg = set_debug_config(&invoker, &preset_levels(Preset::ApexOnly), Some("me@x.com"))
-            .await
-            .unwrap();
+        let cfg = set_debug_config(
+            &invoker,
+            &preset_levels(Preset::ApexOnly),
+            Some("me@x.com"),
+            24 * 60,
+        )
+        .await
+        .unwrap();
         assert_eq!(cfg.debug_level_id.as_deref(), Some("7dlDL"));
         assert_eq!(cfg.trace_flag_id.as_deref(), Some("7tfTF"));
         let calls = seen.lock().unwrap().clone();
@@ -556,7 +562,7 @@ mod tests {
             seen.clone(),
         );
         let invoker = SfInvoker::new(Arc::new(runner));
-        set_debug_config(&invoker, &preset_levels(Preset::None), None)
+        set_debug_config(&invoker, &preset_levels(Preset::None), None, 24 * 60)
             .await
             .unwrap();
         let flat: Vec<String> = seen.lock().unwrap().iter().flatten().cloned().collect();
