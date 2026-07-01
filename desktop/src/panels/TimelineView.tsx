@@ -17,7 +17,7 @@ const ROW_H = 18;
 
 export function TimelineView({
   units,
-  onSource: _onSource,
+  onSource,
 }: {
   units: UnitDto[];
   onSource: (r: SourceRef) => void;
@@ -72,6 +72,7 @@ export function TimelineView({
   }, [rects, view, maxDepth]);
 
   const drag = useRef<{ x: number; start: number; end: number } | null>(null);
+  const moved = useRef(false);
   const [hover, setHover] = useState<{ x: number; y: number; rect: FlameRect } | null>(null);
   const [measure, setMeasure] = useState<{ x0: number; x1: number } | null>(null);
   const measuring = useRef<number | null>(null);
@@ -95,6 +96,7 @@ export function TimelineView({
   }
 
   function onMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    moved.current = false;
     if (e.shiftKey) {
       const rect = canvasRef.current!.getBoundingClientRect();
       measuring.current = e.clientX - rect.left;
@@ -119,6 +121,7 @@ export function TimelineView({
       setHover(hit ? { x: e.clientX - rect.left, y: e.clientY - rect.top, rect: hit } : null);
       return;
     }
+    moved.current = true;
     const dt = ((e.clientX - d.x) / rect.width) * (d.end - d.start);
     let start = d.start - dt;
     let end = d.end - dt;
@@ -129,6 +132,16 @@ export function TimelineView({
   function onMouseUp() {
     drag.current = null;
     measuring.current = null;
+  }
+  function onClick(e: React.MouseEvent<HTMLCanvasElement>) {
+    if (moved.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top + canvas.parentElement!.scrollTop;
+    const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
+    if (hit?.source) onSource(hit.source as unknown as SourceRef);
   }
 
   if (rects.length === 0) {
@@ -192,6 +205,7 @@ export function TimelineView({
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
           onMouseLeave={() => { onMouseUp(); setHover(null); }}
+          onClick={onClick}
         />
         {hover && (
           <div
