@@ -8,8 +8,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { SlidersHorizontal } from "lucide-react";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Dialog,
   DialogContent,
@@ -17,18 +15,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { SoqlEditor } from "../components/SoqlEditor";
 import type { Reveal } from "../monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
-import { RecordTree } from "../components/RecordTree";
 import { QueryPlanView } from "../components/QueryPlanView";
+import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
 import { timing } from "../metrics";
 import { parseSfError, isCliUnavailable } from "../errorFormat";
@@ -51,11 +43,12 @@ interface SoqlViewProps {
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
 export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
-  const { query, result, error, view, useToolingApi, allRows, plan, lastMs } =
-    tab;
+  const { query, result, error, useToolingApi, allRows, plan, lastMs } = tab;
   const [running, setRunning] = useState(false);
   // True while the pre-flight COUNT() is in flight (before the real query).
   const [counting, setCounting] = useState(false);
+  // True while the Explain query-plan request is in flight.
+  const [explaining, setExplaining] = useState(false);
   // Set when a no-LIMIT query would return more than LARGE_THRESHOLD rows; holds
   // the count for the confirm dialog.
   const [largeConfirm, setLargeConfirm] = useState<{ count: number } | null>(null);
@@ -161,12 +154,15 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
   }, []);
 
   const explain = useCallback(async () => {
+    setExplaining(true);
     try {
       const dto = await invoke<QueryPlanDto>("query_plan", { query });
       onPatch({ plan: dto });
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
       toast.error(parseSfError(message).detail);
+    } finally {
+      setExplaining(false);
     }
   }, [query, onPatch]);
 
@@ -216,64 +212,46 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
             <div className="flex items-center gap-4">
-              <ToggleGroup
-                type="single"
-                value={view}
-                onValueChange={(next) => {
-                  if (next) onPatch({ view: next as typeof view });
-                }}
-                className="gap-1"
-              >
-                {(["table", "tree"] as const).map((v) => (
-                  <ToggleGroupItem
-                    key={v}
-                    value={v}
-                    className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] capitalize text-text-dim transition-colors hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
-                  >
-                    {v}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
               <button
                 type="button"
                 onClick={() => void explain()}
+                disabled={explaining}
+                aria-pressed={plan != null}
                 title="Show the query plan (cost, cardinality, leading operation)"
-                className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] text-text-dim transition-colors hover:text-foreground"
+                className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors disabled:opacity-60 ${
+                  plan != null || explaining
+                    ? "bg-primary/15 text-primary"
+                    : "text-text-dim hover:text-foreground"
+                }`}
               >
                 Explain
               </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
-                    title="Query options"
-                    className={`focus-accent inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] transition-colors ${
-                      useToolingApi || allRows
-                        ? "text-primary"
-                        : "text-text-dim hover:text-foreground"
-                    }`}
-                  >
-                    <SlidersHorizontal size={13} />
-                    Options
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuCheckboxItem
-                    checked={useToolingApi}
-                    onCheckedChange={(v) => onPatch({ useToolingApi: !!v })}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    Tooling API
-                  </DropdownMenuCheckboxItem>
-                  <DropdownMenuCheckboxItem
-                    checked={allRows}
-                    onCheckedChange={(v) => onPatch({ allRows: !!v })}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    All rows
-                  </DropdownMenuCheckboxItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <button
+                type="button"
+                aria-pressed={useToolingApi}
+                onClick={() => onPatch({ useToolingApi: !useToolingApi })}
+                title="Query via the Tooling API"
+                className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
+                  useToolingApi
+                    ? "bg-primary/15 text-primary"
+                    : "text-text-dim hover:text-foreground"
+                }`}
+              >
+                Tooling API
+              </button>
+              <button
+                type="button"
+                aria-pressed={allRows}
+                onClick={() => onPatch({ allRows: !allRows })}
+                title="Include deleted/archived rows (ALL ROWS)"
+                className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
+                  allRows
+                    ? "bg-primary/15 text-primary"
+                    : "text-text-dim hover:text-foreground"
+                }`}
+              >
+                All rows
+              </button>
             </div>
             {running || counting ? (
               <div className="flex items-center gap-2 text-[11px] text-text-dim">
@@ -310,7 +288,11 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
             )}
           </div>
           <div className="min-h-0 flex-1">
-            {plan ? (
+            {explaining ? (
+              <div className="flex h-full items-center justify-center">
+                <LogoLoader size={44} />
+              </div>
+            ) : plan ? (
               <QueryPlanView plan={plan} onClose={() => onPatch({ plan: null })} />
             ) : error && isCliUnavailable(error) ? (
               <CliGuidanceForError onRetry={run} />
@@ -320,10 +302,8 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
               <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
                 Run a query to see results
               </div>
-            ) : view === "table" ? (
-              <ResultTable data={result} />
             ) : (
-              <RecordTree records={result.tree} />
+              <ResultTable data={result} />
             )}
           </div>
         </div>

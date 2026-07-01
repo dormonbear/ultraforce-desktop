@@ -16,7 +16,6 @@ export interface SoqlTab extends TabBase {
   lastMs?: number;
   result: SoqlResultDto | null;
   error: string | null;
-  view: "table" | "tree";
   useToolingApi: boolean;
   allRows: boolean;
   plan: QueryPlanDto | null;

@@ -10,7 +10,6 @@ const makeSoqlTab = (path: string, content: string): SoqlTab => ({
   query: content,
   result: null,
   error: null,
-  view: "table",
   useToolingApi: false,
   allRows: false,
   plan: null,
