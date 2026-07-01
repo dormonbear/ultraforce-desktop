@@ -46,7 +46,7 @@ export function LogDebugger({
   open: boolean;
   onClose: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const [session, setSession] = useState<DebugSession | null>(null);
   const [i, setI] = useState(0);
   // Call stack for the current step, fetched on demand (kept off the outline so
@@ -184,7 +184,7 @@ export function LogDebugger({
                 <Editor
                   height="100%"
                   language="apex"
-                  theme={monacoTheme(theme)}
+                  theme={monacoTheme(theme, scheme)}
                   value={src?.body ?? ""}
                   beforeMount={(monaco: Monaco) => configureMonacoApex(monaco)}
                   onMount={onMount}

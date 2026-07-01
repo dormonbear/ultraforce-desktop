@@ -29,7 +29,7 @@ export function SoqlEditor({
   running,
   reveal,
 }: Props) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const onRunRef = useRef(onRun);
   const onSaveRef = useRef(onSave);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -112,7 +112,7 @@ export function SoqlEditor({
         <Editor
           height="100%"
           language="soql"
-          theme={monacoTheme(theme)}
+          theme={monacoTheme(theme, scheme)}
           value={value}
           beforeMount={beforeMount}
           onMount={onMount}

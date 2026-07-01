@@ -24,7 +24,7 @@ export function SourceDialog({
   target: SourceRef | null;
   onClose: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const { src, error } = useApexSource(target?.className ?? null);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const decoRef = useRef<editor.IEditorDecorationsCollection | null>(null);
@@ -83,7 +83,7 @@ export function SourceDialog({
             <Editor
               height="100%"
               language="apex"
-              theme={monacoTheme(theme)}
+              theme={monacoTheme(theme, scheme)}
               value={src.body}
               beforeMount={(monaco: Monaco) => configureMonacoApex(monaco)}
               onMount={onMount}
