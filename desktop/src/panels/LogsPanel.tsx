@@ -26,7 +26,6 @@ import {
 } from "./limitStats";
 import { groupByFingerprint, totalNs } from "./queryStats";
 import { detectInsights, type Severity } from "./insights";
-import { collectUserDebug } from "./debugLines";
 import { parseSourceRef, type SourceRef } from "./sourceRef";
 import {
   filterLogs,
@@ -75,7 +74,6 @@ type DetailTab =
   | "hotspots"
   | "queries"
   | "limits"
-  | "debug"
   | "raw"
   | "timeline";
 
@@ -305,28 +303,6 @@ function HotspotsView({
         })}
       </tbody>
     </table>
-  );
-}
-
-/** Debug output: every USER_DEBUG message in order, away from the raw-log noise. */
-function DebugView({ units }: { units: UnitDto[] }) {
-  const lines = collectUserDebug(units);
-  if (lines.length === 0) {
-    return (
-      <div className="py-4 text-center text-[13px] text-muted-foreground">
-        No debug output
-      </div>
-    );
-  }
-  return (
-    <div className="flex flex-col font-mono text-[11px]">
-      {lines.map((l, i) => (
-        <div key={i} className="flex gap-2 border-b border-border/40 py-0.5">
-          <span className="tnum w-8 shrink-0 text-right text-text-dim/50">{i + 1}</span>
-          <span className="break-words text-foreground">{l}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -769,7 +745,6 @@ export function LogsPanel() {
                     "hotspots",
                     "queries",
                     "limits",
-                    "debug",
                   ] as DetailTab[]).map((t) => (
                     <ToggleGroupItem
                       key={t}
@@ -809,8 +784,6 @@ export function LogsPanel() {
                     <HotspotsView units={view.units} onSource={setSourceRef} />
                   ) : tab === "queries" ? (
                     <QueriesView units={view.units} />
-                  ) : tab === "debug" ? (
-                    <DebugView units={view.units} />
                   ) : (
                     <LimitsView units={view.units} />
                   )}
