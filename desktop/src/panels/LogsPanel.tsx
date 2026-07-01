@@ -26,7 +26,7 @@ import {
   rankByUsage,
   type LimitSeverity,
 } from "./limitStats";
-import { groupStatements, totalNs } from "./queryStats";
+import { groupByFingerprint, totalNs } from "./queryStats";
 import { detectInsights, type Severity } from "./insights";
 import { collectUserDebug } from "./debugLines";
 import { parseSourceRef, type SourceRef } from "./sourceRef";
@@ -447,7 +447,8 @@ function QueriesView({ units }: { units: UnitDto[] }) {
   const dml = all.filter((s) => s.kind === "dml");
   const sumRows = (xs: StatementDto[]) => xs.reduce((n, s) => n + s.rows, 0);
 
-  const rows = groupStatements(all);
+  const families = groupByFingerprint(all);
+  const maxNs = families.length > 0 ? families[0].totalNs : 0;
   const soqlNs = totalNs(soql);
   const dmlNs = totalNs(dml);
 
@@ -470,19 +471,22 @@ function QueriesView({ units }: { units: UnitDto[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((g, i) => (
+          {families.map((g, i) => (
             <tr
               key={i}
               className={`border-t border-border/50 ${g.count > 1 ? "text-destructive" : "text-text-dim"}`}
-              title={g.count > 1 ? "run more than once — possible N+1" : undefined}
+              title={g.count > 1 ? "run more than once — possible N+1 / loop" : g.sample}
             >
-              <td className="max-w-0 truncate py-0.5 pr-2 text-foreground" title={g.text}>
+              <td className="relative max-w-0 truncate py-0.5 pr-2 text-foreground" title={g.sample}>
+                <span
+                  className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-success/10"
+                  style={{ width: `${maxNs > 0 ? (g.totalNs / maxNs) * 100 : 0}%` }}
+                  aria-hidden
+                />
                 <span className="text-text-dim/70">{g.kind === "dml" ? "DML " : "SOQL "}</span>
-                {g.text}
+                {g.sample}
               </td>
-              <td className="tnum py-0.5 text-right">
-                {g.totalNs > 0 ? formatMs(g.totalNs) : "—"}
-              </td>
+              <td className="tnum py-0.5 text-right">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>
               <td className="tnum py-0.5 text-right">{g.count}</td>
               <td className="tnum py-0.5 text-right">{g.rows}</td>
             </tr>
