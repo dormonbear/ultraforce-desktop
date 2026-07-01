@@ -56,6 +56,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
+import { TimelineView } from "./TimelineView";
 import { clearApexSourceCache } from "../components/useApexSource";
 import { LoggingConfigDialog } from "../components/LoggingConfigDialog";
 import { useOrgs } from "../org";
@@ -79,7 +80,8 @@ type DetailTab =
   | "queries"
   | "limits"
   | "debug"
-  | "raw";
+  | "raw"
+  | "timeline";
 
 /** Format a nanosecond duration as a compact millisecond string. */
 function formatMs(durNs: number): string {
@@ -869,6 +871,7 @@ export function LogsPanel() {
                     "raw",
                     "insights",
                     "tree",
+                    "timeline",
                     "hotspots",
                     "queries",
                     "limits",
@@ -897,18 +900,22 @@ export function LogsPanel() {
                 </div>
               )}
 
-              {tab === "raw" ? (
+              {tab === "raw" || tab === "timeline" ? (
                 <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
-                  <LogView
-                    raw={view.raw}
-                    resolveSource={(line) =>
-                      invoke<SourceRef | null>("source_at_line", {
-                        body: view.raw,
-                        line,
-                      })
-                    }
-                    onSource={setSourceRef}
-                  />
+                  {tab === "raw" ? (
+                    <LogView
+                      raw={view.raw}
+                      resolveSource={(line) =>
+                        invoke<SourceRef | null>("source_at_line", {
+                          body: view.raw,
+                          line,
+                        })
+                      }
+                      onSource={setSourceRef}
+                    />
+                  ) : (
+                    <TimelineView units={view.units} onSource={setSourceRef} />
+                  )}
                 </div>
               ) : (
                 <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
