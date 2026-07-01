@@ -35,13 +35,29 @@ export function TimelineView({
   const sky = useMemo(() => minimapSkyline(rects, span.start, span.end, MINI_N), [rects, span]);
   const skyMax = useMemo(() => Math.max(1, ...sky), [sky]);
 
+  // Track the canvas's displayed width so the bitmap is re-rendered at the right
+  // resolution when the window/panel resizes. Without this the draw effect never
+  // re-runs on resize and the browser stretches the old bitmap — scaling the bars
+  // and the 11px labels up proportionally.
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const measure = () => setWidth(canvas.clientWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    const cssW = canvas.clientWidth;
+    const cssW = width;
+    if (cssW === 0) return;
     const cssH = (maxDepth + 1) * ROW_H;
     canvas.width = cssW * dpr;
     canvas.height = cssH * dpr;
@@ -69,7 +85,7 @@ export function TimelineView({
         ctx.restore();
       }
     }
-  }, [rects, view, maxDepth]);
+  }, [rects, view, maxDepth, width]);
 
   const drag = useRef<{ x: number; start: number; end: number } | null>(null);
   const moved = useRef(false);
