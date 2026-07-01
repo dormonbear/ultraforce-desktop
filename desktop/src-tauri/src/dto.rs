@@ -150,6 +150,7 @@ impl From<&CategoryLevelsDto> for CategoryLevels {
 pub struct DebugConfigDto {
     pub trace_flag_id: Option<String>,
     pub levels: CategoryLevelsDto,
+    pub expiration_date: Option<String>,
 }
 
 impl From<&DebugConfig> for DebugConfigDto {
@@ -157,6 +158,7 @@ impl From<&DebugConfig> for DebugConfigDto {
         DebugConfigDto {
             trace_flag_id: c.trace_flag_id.clone(),
             levels: CategoryLevelsDto::from(&c.levels),
+            expiration_date: c.expiration_date.clone(),
         }
     }
 }

@@ -62,6 +62,7 @@ import { LogView } from "../components/LogView";
 import { TimelineView } from "./TimelineView";
 import { clearApexSourceCache } from "../components/useApexSource";
 import { LoggingConfigPanel } from "../components/LoggingConfigPanel";
+import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
 import type {
   DebugConfigDto,
@@ -383,6 +384,10 @@ export function LogsPanel() {
   const { selected: org } = useOrgs();
   const [cfgOpen, setCfgOpen] = useState(false);
   const [tracingBusy, setTracingBusy] = useState(false);
+  // Active self-trace ExpirationDate (from the running user's TraceFlag); drives
+  // the live "Tracing · Nm" state on the button. `now` ticks to recompute it.
+  const [traceExpiry, setTraceExpiry] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [logs, setLogs] = useState<LogRefDto[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
@@ -609,11 +614,30 @@ export function LogsPanel() {
     }
   }, [getBody]);
 
+  // Show whether a self-trace is already active (and refresh its expiry).
+  useEffect(() => {
+    invoke<DebugConfigDto>("get_debug_config")
+      .then((dto) => setTraceExpiry(dto.expirationDate))
+      .catch(() => {});
+  }, [org]);
+
+  // Tick so the countdown re-renders; 30s is fine for minute granularity.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const traceMsLeft = traceExpiry ? new Date(traceExpiry).getTime() - now : 0;
+  const tracing = traceMsLeft > 0;
+  const traceMinsLeft = Math.max(1, Math.ceil(traceMsLeft / 60_000));
+
   const quickSelfTrace = useCallback(async () => {
     if (tracingBusy) return;
     setTracingBusy(true);
     try {
-      await invoke<DebugConfigDto>("quick_self_trace", { minutes: 30 });
+      const dto = await invoke<DebugConfigDto>("quick_self_trace", { minutes: 30 });
+      setTraceExpiry(dto.expirationDate);
+      setNow(Date.now());
       toast.success("Tracing you for 30 min");
     } catch (e) {
       toast.error(`Trace failed: ${typeof e === "string" ? e : String(e)}`);
@@ -662,17 +686,30 @@ export function LogsPanel() {
             <Button
               variant="ghost"
               size="sm"
-              aria-label="Trace myself for 30 minutes"
+              aria-label={
+                tracing
+                  ? `Tracing you — ${traceMinsLeft} min left; click to extend`
+                  : "Trace myself for 30 minutes"
+              }
+              title={
+                tracing
+                  ? `Traced until ${new Date(traceExpiry!).toLocaleTimeString()} — click to extend 30 min`
+                  : "Trace yourself for 30 minutes"
+              }
               onClick={quickSelfTrace}
               disabled={tracingBusy}
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
+              className={`h-7 cursor-pointer gap-1 px-1.5 text-[11px] hover:text-foreground ${
+                tracing ? "text-primary" : "text-text-dim"
+              }`}
             >
               {tracingBusy ? (
                 <Loader2 size={12} className="spin" />
+              ) : tracing ? (
+                <span className="size-2 rounded-full bg-primary animate-pulse" />
               ) : (
                 <Timer size={12} />
               )}
-              Set My Trace
+              {tracing ? `Tracing · ${traceMinsLeft}m` : "Set My Trace"}
             </Button>
           </div>
 
@@ -821,8 +858,8 @@ export function LogsPanel() {
                   Select a log
                 </div>
               ) : viewLoading ? (
-                <div className="flex flex-1 items-center justify-center text-muted-foreground">
-                  <Loader2 size={18} className="spin" />
+                <div className="flex flex-1 items-center justify-center">
+                  <LogoLoader size={44} />
                 </div>
               ) : viewError ? (
                 <pre className="select-text mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">

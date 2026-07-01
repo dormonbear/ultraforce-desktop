@@ -165,6 +165,7 @@ export type CategoryLevels = {
 export type DebugConfigDto = {
   traceFlagId: string | null;
   levels: CategoryLevels;
+  expirationDate: string | null;
 };
 
 // ---- Debug Traces management (Configure Logging dialog) ----

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { ChevronRight, Loader2, Copy, History } from "lucide-react";
+import { ChevronRight, Loader2, Copy, History, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
@@ -54,11 +54,12 @@ interface ApexViewProps {
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
 export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const {
     levels,
     applying: cfgApplying,
@@ -203,6 +204,22 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
           <div className="flex items-center justify-between px-4 py-2">
             <div className="micro-label flex-1">Anonymous Apex</div>
             <div className="flex items-center gap-2">
+              {levels && (
+                <button
+                  type="button"
+                  aria-label="Debug levels"
+                  title="Debug levels"
+                  aria-pressed={debugOpen}
+                  onClick={() => setDebugOpen((v) => !v)}
+                  className={`focus-accent inline-flex size-7 items-center justify-center rounded-md cursor-pointer ${
+                    debugOpen
+                      ? "bg-primary/15 text-primary"
+                      : "text-text-dim hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  <SlidersHorizontal size={15} />
+                </button>
+              )}
               <button
                 type="button"
                 aria-label="Execution history"
@@ -217,17 +234,19 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
           </div>
           {levels && (
             <DebugConfigRow
+              org={org}
               value={levels}
               onApply={applyConfig}
               applying={cfgApplying}
               error={cfgError}
+              open={debugOpen}
             />
           )}
           <div className="min-h-0 flex-1">
             <Editor
               height="100%"
               language="apex"
-              theme={monacoTheme(theme)}
+              theme={monacoTheme(theme, scheme)}
               value={src}
               beforeMount={beforeMount}
               onMount={onMount}

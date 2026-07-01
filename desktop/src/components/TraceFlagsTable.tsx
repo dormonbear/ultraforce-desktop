@@ -1,8 +1,8 @@
 import { Plus, Trash2, RefreshCw, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { isExpired } from "../traceTime";
-import { isoToLocalInput, localInputToIso } from "../dateInput";
+import { EntityCombobox } from "./EntityCombobox";
+import { DateTimePicker } from "./DateTimePicker";
 import type { useLoggingConfig } from "../useLoggingConfig";
 
 type Cfg = ReturnType<typeof useLoggingConfig>;
@@ -17,14 +17,19 @@ const LOG_TYPE_LABELS: Record<string, string> = {
 };
 const typeLabel = (t: string): string => LOG_TYPE_LABELS[t] ?? t;
 
-function defaultLogType(kind: string): string {
-  return kind === "ApexClass" || kind === "ApexTrigger" ? "CLASS_TRACING" : "USER_DEBUG";
-}
-
 // Native <select>: light + compact, and the entity picker holds ~2000 users
 // where a Radix Select would freeze on open.
 const SEL =
-  "h-6 cursor-pointer rounded border border-border bg-card px-1 text-[11px] text-foreground focus-accent";
+  "native-select h-6 cursor-pointer rounded border border-border bg-card px-1 text-[11px] text-foreground focus-accent";
+
+const entityLabel = (name: string, kind: string): string => `${name} · ${kind}`;
+
+// LogType constrains which entity kinds are valid: class tracing → Apex, else User.
+const isClassGroup = (logType: string): boolean => logType === "CLASS_TRACING";
+const inGroup = (kind: string, logType: string): boolean =>
+  isClassGroup(logType)
+    ? kind === "ApexClass" || kind === "ApexTrigger"
+    : kind === "User";
 
 /** Editable table of TraceFlag records across users / classes / triggers. */
 export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
@@ -102,56 +107,40 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                   {r.id ? (
                     <span className="text-foreground">{r.tracedEntityName}</span>
                   ) : (
-                    <select
-                      aria-label="Traced entity"
-                      className={`${SEL} w-64`}
-                      value={r.tracedEntityId}
-                      onChange={(e) => {
-                        const id = e.target.value;
-                        const ent = cfg.entities.find((x) => x.id === id);
+                    <EntityCombobox
+                      options={cfg.entities.filter((e) => inGroup(e.kind, r.logType))}
+                      valueLabel={
+                        r.tracedEntityId
+                          ? entityLabel(r.tracedEntityName, r.tracedEntityKind)
+                          : ""
+                      }
+                      placeholder={
+                        isClassGroup(r.logType)
+                          ? "Select class / trigger"
+                          : "Select user"
+                      }
+                      onSelect={(ent) =>
                         cfg.updateFlag(r._key, {
-                          tracedEntityId: id,
-                          tracedEntityName: ent?.name ?? id,
-                          tracedEntityKind: ent?.kind ?? "User",
-                          logType: defaultLogType(ent?.kind ?? "User"),
-                        });
-                      }}
-                    >
-                      <option value="" disabled>
-                        Select user / class / trigger
-                      </option>
-                      {cfg.entities.map((ent) => (
-                        <option key={ent.id} value={ent.id}>
-                          {ent.name} · {ent.kind}
-                        </option>
-                      ))}
-                    </select>
+                          tracedEntityId: ent.id,
+                          tracedEntityName: ent.name,
+                          tracedEntityKind: ent.kind,
+                        })
+                      }
+                    />
                   )}
                 </td>
                 <td className="px-2 py-0.5 text-text-dim">{r.creatorName || "—"}</td>
                 <td className="px-2 py-0.5">
-                  <Input
-                    type="datetime-local"
-                    step="1"
-                    aria-label="Start date"
-                    value={isoToLocalInput(r.startDate ?? "")}
-                    onChange={(e) =>
-                      cfg.updateFlag(r._key, { startDate: localInputToIso(e.target.value) })
-                    }
-                    placeholder="—"
-                    className="h-6 w-48 text-[11px]"
+                  <DateTimePicker
+                    value={r.startDate}
+                    onChange={(iso) => cfg.updateFlag(r._key, { startDate: iso })}
                   />
                 </td>
                 <td className="px-2 py-0.5">
-                  <Input
-                    type="datetime-local"
-                    step="1"
-                    aria-label="Expiration date"
-                    value={isoToLocalInput(r.expirationDate ?? "")}
-                    onChange={(e) =>
-                      cfg.updateFlag(r._key, { expirationDate: localInputToIso(e.target.value) })
-                    }
-                    className={`h-6 w-48 text-[11px] ${expired ? "text-destructive" : ""}`}
+                  <DateTimePicker
+                    value={r.expirationDate}
+                    invalid={expired}
+                    onChange={(iso) => cfg.updateFlag(r._key, { expirationDate: iso })}
                   />
                 </td>
                 <td className="px-2 py-0.5">
