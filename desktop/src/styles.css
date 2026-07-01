@@ -269,6 +269,13 @@ textarea,
 .uf-scroll::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
 }
+/* Dark mode: the 45% thumb is nearly invisible on the deep background — bump it. */
+.dark .uf-scroll::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
+}
+.dark .uf-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--muted-foreground) 95%, transparent);
+}
 .uf-scroll::-webkit-scrollbar-corner {
   background: transparent;
 }
@@ -287,4 +294,21 @@ textarea,
 .apex-target-line {
   background-color: color-mix(in srgb, var(--primary) 16%, transparent);
   box-shadow: inset 3px 0 0 0 var(--primary);
+}
+
+/* Native <select> skin: drop the OS arrow and paint a lucide-style
+ * ChevronsUpDown (matching our custom picker triggers) so every dropdown's
+ * closed state looks identical. Option lists stay native (perf + unstylable).
+ * Unlayered → beats Tailwind's px-* so the arrow never overlaps text. */
+.native-select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 1.15rem;
+  background-repeat: no-repeat;
+  background-position: right 0.3rem center;
+  background-size: 0.7rem;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a5852' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 15 5 5 5-5'/><path d='m7 9 5-5 5 5'/></svg>");
+}
+.dark .native-select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aeb4be' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 15 5 5 5-5'/><path d='m7 9 5-5 5 5'/></svg>");
 }

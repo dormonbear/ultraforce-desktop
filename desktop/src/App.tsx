@@ -11,6 +11,7 @@ import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { SetupPage } from "./components/SetupPage";
+import { LogoLoader } from "./components/LogoLoader";
 import { useOrgs } from "./org";
 import { isMac } from "./platform";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
@@ -131,7 +132,7 @@ export default function App() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    disabled={!enabled}
+                    aria-disabled={!enabled}
                     aria-label={label}
                     aria-current={current ? "page" : undefined}
                     onClick={() => enabled && setActive(id as ActivePanel)}
@@ -140,8 +141,8 @@ export default function App() {
                         ? "text-primary"
                         : enabled
                           ? "text-text-dim hover:text-foreground"
-                          : "text-muted-foreground disabled:cursor-not-allowed"
-                    } cursor-pointer`}
+                          : "text-muted-foreground"
+                    } ${enabled ? "cursor-pointer" : "cursor-not-allowed"}`}
                   >
                     {current && (
                       <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
@@ -151,11 +152,13 @@ export default function App() {
                 </TooltipTrigger>
                 <TooltipContent side="right">
                   {label}
-                  {enabled && (
+                  {enabled ? (
                     <span className="ml-2 text-muted-foreground">
                       {isMac() ? "⌘" : "Ctrl+"}
                       {index + 1}
                     </span>
+                  ) : (
+                    <span className="ml-2 text-muted-foreground">Coming soon</span>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -191,7 +194,11 @@ export default function App() {
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {needsSetup ? (
+          {orgLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <LogoLoader size={120} />
+            </div>
+          ) : needsSetup ? (
             active === "settings" ? (
               <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
             ) : (

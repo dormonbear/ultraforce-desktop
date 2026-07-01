@@ -61,7 +61,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
           value={env}
           onChange={(e) => setEnv(e.target.value as Env)}
           disabled={busy}
-          className="cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="native-select cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <option value="production">Production / Developer (login.salesforce.com)</option>
           <option value="sandbox">Sandbox (test.salesforce.com)</option>
