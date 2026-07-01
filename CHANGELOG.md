@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.9](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.8...v0.3.9) (2026-07-01)
+
+
+### Features
+
+* **settings:** add a GitHub repo link in About ([4bb414c](https://github.com/dormonbear/ultraforce-desktop/commit/4bb414c0df939de18fbaf1e58c9b1cbe85c79bc7))
+* **settings:** add a GitHub repo link in About ([cc7b164](https://github.com/dormonbear/ultraforce-desktop/commit/cc7b1643be80966c290c615cca8e5a39694eb4b4))
+
 ## [0.3.8](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.7...v0.3.8) (2026-07-01)
 
 
