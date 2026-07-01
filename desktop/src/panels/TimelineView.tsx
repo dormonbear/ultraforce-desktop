@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { UnitDto } from "../types";
 import type { SourceRef } from "./sourceRef";
-import { flameLayout, flameSpan, flameDepth, timeToX, xToTime, minimapSkyline } from "./flame";
+import {
+  flameLayout,
+  flameSpan,
+  flameDepth,
+  timeToX,
+  xToTime,
+  minimapSkyline,
+  hitTest,
+  type FlameRect,
+} from "./flame";
 import { flameColor } from "./flameColor";
 
 const ROW_H = 18;
@@ -63,6 +72,7 @@ export function TimelineView({
   }, [rects, view, maxDepth]);
 
   const drag = useRef<{ x: number; start: number; end: number } | null>(null);
+  const [hover, setHover] = useState<{ x: number; y: number; rect: FlameRect } | null>(null);
 
   function onWheel(e: React.WheelEvent<HTMLCanvasElement>) {
     e.preventDefault();
@@ -89,8 +99,15 @@ export function TimelineView({
   function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const d = drag.current;
     const canvas = canvasRef.current;
-    if (!d || !canvas) return;
+    if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
+    if (!d) {
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top + canvas.parentElement!.scrollTop;
+      const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
+      setHover(hit ? { x: e.clientX - rect.left, y: e.clientY - rect.top, rect: hit } : null);
+      return;
+    }
     const dt = ((e.clientX - d.x) / rect.width) * (d.end - d.start);
     let start = d.start - dt;
     let end = d.end - dt;
@@ -152,7 +169,7 @@ export function TimelineView({
         </button>
         <span>scroll to zoom · drag to pan</span>
       </div>
-      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card">
+      <div className="relative min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card">
         <canvas
           ref={canvasRef}
           className="block w-full"
@@ -160,8 +177,19 @@ export function TimelineView({
           onMouseDown={onMouseDown}
           onMouseMove={onMouseMove}
           onMouseUp={onMouseUp}
-          onMouseLeave={onMouseUp}
+          onMouseLeave={() => { onMouseUp(); setHover(null); }}
         />
+        {hover && (
+          <div
+            className="pointer-events-none absolute z-10 max-w-xs rounded border border-border bg-popover px-2 py-1 text-[11px] shadow"
+            style={{ left: hover.x + 12, top: hover.y + 12 }}
+          >
+            <div className="truncate font-medium text-foreground">{hover.rect.label}</div>
+            <div className="text-text-dim">
+              {hover.rect.kind} · {(hover.rect.w / 1_000_000).toFixed(3)} ms
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
