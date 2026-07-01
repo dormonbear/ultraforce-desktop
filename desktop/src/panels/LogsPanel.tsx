@@ -12,13 +12,11 @@ import {
   HardDriveDownload,
   Search,
   SlidersHorizontal,
-  ChevronRight,
   Bug,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { filterTree } from "./logTree";
 import { TimeBreakdownBar } from "./TimeBreakdownBar";
 import {
   usagePct,
@@ -61,7 +59,6 @@ import { clearApexSourceCache } from "../components/useApexSource";
 import { LoggingConfigDialog } from "../components/LoggingConfigDialog";
 import { useOrgs } from "../org";
 import type {
-  ExecNodeDto,
   HotspotDto,
   LogRefDto,
   LogViewDto,
@@ -75,7 +72,6 @@ function isSuccess(status: string): boolean {
 
 type DetailTab =
   | "insights"
-  | "tree"
   | "hotspots"
   | "queries"
   | "limits"
@@ -93,106 +89,6 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-/** A child whose duration is at least this fraction of its parent's is on the
- * "hot path" and gets auto-expanded; cheaper branches start collapsed. */
-const HOT_PATH_FRACTION = 0.5;
-
-/** One execution-tree node: collapsible, with the hot path auto-expanded so the
- * bottleneck chain is visible without drowning in cheap branches. `forceOpen`
- * (used while filtering) expands everything so matches aren't hidden. A method's
- * detail is clickable to jump to its source via `onSource`. */
-function TreeNode({
-  node,
-  depth,
-  parentDur,
-  forceOpen,
-  onSource,
-}: {
-  node: ExecNodeDto;
-  depth: number;
-  parentDur?: number;
-  forceOpen?: boolean;
-  onSource?: (ref: SourceRef) => void;
-}) {
-  const dur = node.dur_ns ?? 0;
-  const hasChildren = node.children.length > 0;
-  // Backend resolves every node's source (class + line); any node that has one
-  // is clickable, not just method/constructor/code-unit entries.
-  const sourceRef = onSource ? node.source : null;
-  // Auto-expand the top level and any child that dominates its parent's time.
-  const autoExpand =
-    depth === 0 || parentDur == null || (parentDur > 0 && dur / parentDur >= HOT_PATH_FRACTION);
-  const [open, setOpen] = useState(autoExpand);
-  const expanded = forceOpen || open;
-  return (
-    <>
-      <div
-        className="flex items-baseline gap-1.5 py-0.5 text-[12px]"
-        style={{ paddingLeft: `${depth * 14}px` }}
-      >
-        {hasChildren && !forceOpen ? (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-label={expanded ? "Collapse" : "Expand"}
-            className="shrink-0 cursor-pointer text-text-dim/60 hover:text-foreground"
-          >
-            <ChevronRight
-              size={11}
-              className={`transition-transform ${expanded ? "rotate-90" : ""}`}
-            />
-          </button>
-        ) : (
-          <span className="inline-block w-[11px] shrink-0" />
-        )}
-        <span className="shrink-0 text-foreground">{node.label}</span>
-        {node.detail &&
-          (sourceRef ? (
-            <button
-              type="button"
-              onClick={() => onSource?.(sourceRef)}
-              title="Jump to source"
-              className="min-w-0 flex-1 cursor-pointer truncate text-left text-muted-foreground hover:text-primary hover:underline"
-            >
-              {node.detail}
-            </button>
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {node.detail}
-            </span>
-          ))}
-        {node.self_ns != null && node.self_ns !== node.dur_ns && (
-          <span
-            className="tnum ml-auto shrink-0 text-text-dim/70"
-            title="self time (excludes children)"
-          >
-            self {formatMs(node.self_ns)}
-          </span>
-        )}
-        {node.dur_ns != null && (
-          <span
-            className={`tnum shrink-0 text-text-dim ${node.self_ns != null && node.self_ns !== node.dur_ns ? "" : "ml-auto"}`}
-            title="total time"
-          >
-            {formatMs(node.dur_ns)}
-          </span>
-        )}
-      </div>
-      {expanded &&
-        node.children.map((child, i) => (
-          <TreeNode
-            key={i}
-            node={child}
-            depth={depth + 1}
-            parentDur={dur}
-            forceOpen={forceOpen}
-            onSource={onSource}
-          />
-        ))}
-    </>
-  );
 }
 
 const SEVERITY_BAR: Record<LimitSeverity, string> = {
@@ -218,16 +114,16 @@ const FINDING_TAB: Record<string, DetailTab> = {
   "stmt-in-loop": "queries",
   "slow-query": "queries",
   limit: "limits",
-  recursion: "tree",
-  "loop-body": "tree",
-  "method-loop": "tree",
-  "critical-path": "tree",
+  recursion: "timeline",
+  "loop-body": "timeline",
+  "method-loop": "timeline",
+  "critical-path": "timeline",
 };
 
 /** Insights: rule-based diagnostics (exceptions, SOQL/DML-in-loop, loop bodies,
  * repeated methods, recursion, large/slow queries, governor limits, critical
  * path) with a one-line fix and a jump to the evidence — the analyser layer on
- * top of the raw/tree viewers. */
+ * top of the raw/timeline viewers. */
 function InsightsView({
   units,
   onGoto,
@@ -515,7 +411,6 @@ export function LogsPanel() {
   const [sourceRef, setSourceRef] = useState<SourceRef | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [tab, setTab] = useState<DetailTab>("raw");
-  const [treeFilter, setTreeFilter] = useState("");
   const [filter, setFilter] = useState<LogFilter>(EMPTY_FILTER);
   const visibleLogs = filterLogs(logs, filter);
 
@@ -870,7 +765,6 @@ export function LogsPanel() {
                   {([
                     "raw",
                     "insights",
-                    "tree",
                     "timeline",
                     "hotspots",
                     "queries",
@@ -887,18 +781,6 @@ export function LogsPanel() {
                   ))}
                 </ToggleGroup>
               </div>
-
-              {tab === "tree" && (
-                <div className="relative pb-2">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={treeFilter}
-                    onChange={(e) => setTreeFilter(e.target.value)}
-                    placeholder="Filter events (e.g. SOQL, METHOD_ENTRY)…"
-                    className="h-7 w-72 pl-8 text-[12px]"
-                  />
-                </div>
-              )}
 
               {tab === "raw" || tab === "timeline" ? (
                 <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
@@ -921,36 +803,7 @@ export function LogsPanel() {
                 <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
                   <div className="p-3">
                   <TimeBreakdownBar units={view.units} />
-                  {tab === "tree" ? (
-                    (() => {
-                      const units = view.units.map((u) => ({
-                        tree: filterTree(u.tree, treeFilter),
-                      }));
-                      if (units.every((u) => u.tree.length === 0)) {
-                        return (
-                          <div className="py-4 text-center text-[13px] text-muted-foreground">
-                            {treeFilter ? "No matching events" : "No execution tree"}
-                          </div>
-                        );
-                      }
-                      return units.map((unit, ui) => (
-                        <div key={ui} className={ui > 0 ? "mt-4" : ""}>
-                          {units.length > 1 && unit.tree.length > 0 && (
-                            <div className="micro-label pb-1">Unit {ui + 1}</div>
-                          )}
-                          {unit.tree.map((node, ni) => (
-                            <TreeNode
-                              key={ni}
-                              node={node}
-                              depth={0}
-                              forceOpen={!!treeFilter}
-                              onSource={setSourceRef}
-                            />
-                          ))}
-                        </div>
-                      ));
-                    })()
-                  ) : tab === "insights" ? (
+                  {tab === "insights" ? (
                     <InsightsView units={view.units} onGoto={setTab} />
                   ) : tab === "hotspots" ? (
                     <HotspotsView units={view.units} onSource={setSourceRef} />
