@@ -39,7 +39,7 @@ export function SetupPage() {
   return (
     <Centered>
       <Globe className="text-primary" size={28} />
-      <h2 className="text-lg font-medium text-foreground">Connect a Salesforce org</h2>
+      <h2 className="text-2xl font-semibold tracking-tight text-foreground">Connect a Salesforce org</h2>
       {error && (
         <p className="max-w-sm text-center text-[12px] text-destructive">{error}</p>
       )}

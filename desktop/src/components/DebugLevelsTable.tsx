@@ -124,7 +124,7 @@ export function DebugLevelsTable({ cfg }: { cfg: Cfg }) {
           {cfg.levels.length === 0 && (
             <tr>
               <td colSpan={CATEGORY_FIELDS.length + 3} className="px-2 py-3 text-center text-text-dim">
-                — no debug levels —
+                No debug levels
               </td>
             </tr>
           )}

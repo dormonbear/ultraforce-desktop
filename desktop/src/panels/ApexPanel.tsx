@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { ChevronRight, Loader2, Copy } from "lucide-react";
+import { ChevronRight, Loader2, Copy, History } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
@@ -11,6 +11,7 @@ import { trimContextMenu } from "../monaco-contextmenu";
 import { copyText } from "../clipboard";
 import { parseSfError, isCliUnavailable } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
+import { SfErrorDetail } from "../components/SfErrorDetail";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
@@ -21,22 +22,23 @@ import {
 import { configureMonacoApex, registerApexFormatter } from "../monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
+import { ApexHistoryDrawer } from "../components/ApexHistoryDrawer";
+import { recordApexRun } from "../apexHistory";
 import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
-import { recordHistory } from "../history";
 import { timing } from "../metrics";
 import type { ApexOutcomeDto } from "../types";
 import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
 
-/** A COMPILED / SUCCESS chip: success-green when true, destructive when false. */
+/** A Compiled / Success chip: success-green when true, destructive when false. */
 function StatusChip({ label, ok }: { label: string; ok: boolean }) {
   return (
     <Badge
       variant={ok ? "success" : "destructive"}
-      className="text-[11px] uppercase tracking-wide"
+      className="text-[11px]"
     >
       {label}
     </Badge>
@@ -56,6 +58,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
   const [running, setRunning] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const {
     levels,
     applying: cfgApplying,
@@ -92,6 +95,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     try {
       const dto = await invoke<ApexOutcomeDto>("run_apex", { src: source });
       onPatch({ outcome: dto });
+      void recordApexRun({
+        org,
+        source,
+        logs: dto.logs ?? "",
+        compiled: dto.compiled,
+        success: dto.success,
+        exception_message: dto.exception_message,
+      });
       if (!dto.compiled) {
         toast.error(dto.compile_problem ?? "Compile failed");
       } else if (!dto.success) {
@@ -99,30 +110,20 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       }
       const ms = performance.now() - t0;
       void timing("run.apex", ms);
-      void recordHistory({
-        tool: "apex",
-        org,
-        text: source,
-        status: dto.compiled && dto.success ? "success" : "error",
-        durationMs: ms,
-      });
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
       toast.error(parseSfError(message).detail);
       onPatch({ error: message, outcome: null });
       const ms = performance.now() - t0;
       void timing("run.apex", ms);
-      void recordHistory({
-        tool: "apex",
-        org,
-        text: source,
-        status: "error",
-        durationMs: ms,
-      });
     } finally {
       setRunning(false);
     }
   }, [onPatch, org]);
+  // Keep the Monaco Ctrl+Enter command (bound once at mount) calling the latest
+  // run closure, so keyboard runs record the current org (not the mount-time one).
+  const runRef = useRef(run);
+  runRef.current = run;
 
   const beforeMount = (monaco: Monaco) => {
     configureMonacoApex(monaco);
@@ -132,7 +133,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     editorRef.current = instance;
     monacoRef.current = monaco;
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
-      run()
+      runRef.current()
     );
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
       onSaveRef.current?.()
@@ -191,6 +192,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   }, [src, mounted]);
 
   return (
+    <>
     <ResizablePanelGroup
       direction="vertical"
       defaultLayout={layout.defaultLayout}
@@ -199,8 +201,19 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       <ResizablePanel id="editor" defaultSize={45} minSize={20}>
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
-            <div className="micro-label flex-1">ANONYMOUS APEX</div>
-            <RunButton onRun={run} running={running} />
+            <div className="micro-label flex-1">Anonymous Apex</div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Execution history"
+                title="Execution history"
+                onClick={() => setHistoryOpen(true)}
+                className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-text-dim hover:bg-accent hover:text-foreground cursor-pointer"
+              >
+                <History size={15} />
+              </button>
+              <RunButton onRun={run} running={running} />
+            </div>
           </div>
           {levels && (
             <DebugConfigRow
@@ -235,50 +248,28 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
 
       <ResizablePanel id="result" defaultSize={55} minSize={20}>
         <div className="flex h-full flex-col">
-          <div className="micro-label px-4 py-2">RESULT</div>
+          <div className="micro-label px-4 py-2">Result</div>
 
           {error && isCliUnavailable(error) ? (
             <CliGuidanceForError onRetry={run} />
           ) : error ? (
-            (() => {
-              const e = parseSfError(error);
-              return (
-                <div className="mx-4 mb-4 rounded-md border border-destructive/40 bg-card p-3">
-                  <div className="text-[13px] font-medium text-destructive">
-                    {e.title}
-                  </div>
-                  <div className="mt-1 whitespace-pre-wrap text-[12px] text-foreground">
-                    {e.detail}
-                  </div>
-                  {e.raw !== e.detail && (
-                    <details className="mt-2">
-                      <summary className="cursor-pointer text-[11px] uppercase tracking-wide text-text-dim">
-                        Raw error
-                      </summary>
-                      <pre className="mt-1 overflow-auto whitespace-pre-wrap text-[11px] text-text-dim">
-                        {e.raw}
-                      </pre>
-                    </details>
-                  )}
-                </div>
-              );
-            })()
+            <SfErrorDetail error={error} className="mx-4 mb-4" />
           ) : !outcome ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-              — run apex —
+              Run to see results
             </div>
           ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
+            <div className="select-text flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
               {/* Status strip */}
               <div className="flex items-center gap-2">
-                <StatusChip label="COMPILED" ok={outcome.compiled} />
-                <StatusChip label="SUCCESS" ok={outcome.success} />
+                <StatusChip label="Compiled" ok={outcome.compiled} />
+                <StatusChip label="Success" ok={outcome.success} />
               </div>
 
               {/* Compile problem */}
               {!outcome.compiled && (
                 <div className="rounded-md border border-amber/40 bg-card p-3 text-[12px] text-amber">
-                  <span className="font-bold">
+                  <span className="font-medium">
                     {outcome.compile_problem ?? "Compile failed"}
                   </span>
                   {outcome.line != null && (
@@ -307,7 +298,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               {outcome.compiled && !outcome.success && (
                 <div className="rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-bold">
+                    <span className="font-medium">
                       {outcome.exception_message ?? "Execution failed"}
                     </span>
                     <button
@@ -325,7 +316,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                           "Exception copied",
                         )
                       }
-                      className="focus-accent shrink-0 cursor-pointer rounded-[2px] text-muted-foreground transition-colors hover:text-foreground"
+                      className="focus-accent shrink-0 cursor-pointer rounded-md text-muted-foreground transition-colors hover:text-foreground"
                     >
                       <Copy size={13} />
                     </button>
@@ -335,7 +326,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       <button
                         type="button"
                         onClick={() => onPatch({ traceOpen: !traceOpen })}
-                        className="focus-accent inline-flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-text-dim cursor-pointer"
+                        className="focus-accent inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-text-dim cursor-pointer"
                       >
                         <ChevronRight
                           size={12}
@@ -343,7 +334,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                             traceOpen ? "rotate-90" : ""
                           }`}
                         />
-                        stack trace
+                        Stack trace
                       </button>
                       {traceOpen && (
                         <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
@@ -357,14 +348,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
 
               {/* Debug log */}
               <div className="flex min-h-0 flex-1 flex-col">
-                <div className="micro-label pb-1">DEBUG LOG</div>
+                <div className="micro-label pb-1">Debug log</div>
                 {outcome.logs ? (
                   <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
                     <LogView raw={outcome.logs} />
                   </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-                    — no log —
+                    No debug log
                   </div>
                 )}
               </div>
@@ -373,5 +364,15 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>
+    <ApexHistoryDrawer
+      open={historyOpen}
+      onOpenChange={setHistoryOpen}
+      onLoad={(source) => {
+        if (src.trim() && !window.confirm("Replace the current editor content?"))
+          return;
+        onPatch({ src: source });
+      }}
+    />
+    </>
   );
 }

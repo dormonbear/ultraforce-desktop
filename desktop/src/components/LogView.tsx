@@ -131,7 +131,7 @@ export function LogView({
   });
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="select-text flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-border px-3 py-1.5 text-[11px]">
         <div className="relative flex-1">
           <Search
@@ -177,7 +177,7 @@ export function LogView({
         className="min-h-0 flex-1 overflow-auto bg-background px-3 py-2 font-mono text-[12px] leading-relaxed"
       >
         {count === 0 ? (
-          <div className="text-muted-foreground">— no matching lines —</div>
+          <div className="text-[13px] text-muted-foreground">No matching lines</div>
         ) : (
           <div
             style={{ height: virtualizer.getTotalSize(), position: "relative" }}

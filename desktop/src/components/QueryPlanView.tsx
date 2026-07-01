@@ -11,10 +11,10 @@ export function QueryPlanView({
   onClose: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
-        <span className="text-[11px] uppercase tracking-wide text-text-dim">
-          Query plan (EXPLAIN)
+    <div className="select-text flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
+        <span className="micro-label">
+          Query plan
         </span>
         <button
           type="button"
@@ -28,12 +28,12 @@ export function QueryPlanView({
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {plan.plans.length === 0 ? (
           <div className="text-[13px] text-muted-foreground">
-            — no plan returned —
+            No plan returned
           </div>
         ) : (
           <table className="w-full border-collapse text-[12px]">
             <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-text-dim">
+              <tr className="text-left text-[11px] text-text-dim">
                 <th className="px-2 py-1">Object</th>
                 <th className="px-2 py-1">Leading operation</th>
                 <th className="px-2 py-1 text-right">Cost</th>

@@ -17,16 +17,25 @@ import {
   ChevronsUpDown,
   Copy,
   Download,
-  Rows3,
-  Rows4,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import { copyText } from "../clipboard";
-import { toCsv } from "./csv";
+import {
+  EXPORT_FORMATS,
+  toJson,
+  toMarkdown,
+  writeExportFile,
+  type ExportFormatDef,
+} from "./export";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import {
   Table,
   TableBody,
@@ -40,6 +49,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -75,22 +85,39 @@ export function ResultTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [compact, setCompact] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const rowHeight = compact ? 26 : 34;
+  const rowHeight = 34;
 
-  const exportCsv = async () => {
-    const path = await save({
-      defaultPath: "query-result.csv",
-      filters: [{ name: "CSV", extensions: ["csv"] }],
-    });
-    if (!path) return;
+  const exportAs = async (fmt: ExportFormatDef) => {
     try {
-      await writeTextFile(path, toCsv(data.columns, data.rows));
-      toast.success(`Exported ${data.rows.length} rows to CSV`);
+      const path = await save({
+        defaultPath: `query-result.${fmt.ext}`,
+        filters: [{ name: fmt.label, extensions: [fmt.ext] }],
+      });
+      if (!path) return;
+      await writeExportFile(path, fmt, data.columns, data.rows);
+      toast.success(`Exported ${data.rows.length} rows to ${fmt.label}`);
     } catch (e) {
       toast.error(`Export failed: ${typeof e === "string" ? e : String(e)}`);
+    }
+  };
+
+  const copyAs = (kind: "tsv" | "md" | "json") => {
+    const n = data.rows.length;
+    const suffix = `${n} row${n === 1 ? "" : "s"}`;
+    if (kind === "md") {
+      void copyText(toMarkdown(data.columns, data.rows), `Copied ${suffix} as Markdown`);
+    } else if (kind === "json") {
+      void copyText(toJson(data.columns, data.rows), `Copied ${suffix} as JSON`);
+    } else {
+      const tsv = [
+        data.columns.join("\t"),
+        ...data.rows.map((r) =>
+          r.map((c) => (c == null ? "" : String(c))).join("\t"),
+        ),
+      ].join("\n");
+      void copyText(tsv, `Copied ${suffix}`);
     }
   };
 
@@ -221,7 +248,7 @@ export function ResultTable({
           />
         </div>
         <DropdownMenu>
-          <DropdownMenuTrigger className="focus-accent inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[11px] uppercase tracking-wide text-muted-foreground hover:text-foreground cursor-pointer">
+          <DropdownMenuTrigger className="focus-accent inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12px] text-muted-foreground hover:text-foreground cursor-pointer">
             <SlidersHorizontal size={13} /> Columns
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
@@ -239,61 +266,70 @@ export function ResultTable({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <div className="micro-label flex-1" />
+        <div className="flex-1" />
 
-        <button
-          type="button"
-          aria-label="Copy result"
-          title="Copy all rows (tab-separated — paste into a spreadsheet)"
-          onClick={() => {
-            const tsv = [
-              data.columns.join("\t"),
-              ...data.rows.map((r) =>
-                r.map((c) => (c == null ? "" : String(c))).join("\t"),
-              ),
-            ].join("\n");
-            void copyText(
-              tsv,
-              `Copied ${data.rows.length} row${data.rows.length === 1 ? "" : "s"}`,
-            );
-          }}
-          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-        >
-          <Copy size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={() => void exportCsv()}
-          title="Export CSV"
-          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-        >
-          <Download size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setCompact((c) => !c)}
-          title={compact ? "Comfortable rows" : "Compact rows"}
-          className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-        >
-          {compact ? <Rows3 size={14} /> : <Rows4 size={14} />}
-        </button>
-        <span className="tnum text-[11px] text-muted-foreground">
-          {tableRows.length === data.total_size
-            ? `${data.total_size} ${data.total_size === 1 ? "row" : "rows"}`
-            : `${tableRows.length} / ${data.total_size}`}
-        </span>
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="Copy result"
+              title="Copy all rows (tab-separated — right-click for Markdown / JSON)"
+              onClick={() => copyAs("tsv")}
+              className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+            >
+              <Copy size={14} />
+            </button>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => copyAs("md")}>
+              Copy as Markdown
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => copyAs("json")}>
+              Copy as JSON
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              title="Export"
+              className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
+            >
+              <Download size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Export as</DropdownMenuLabel>
+            {EXPORT_FORMATS.map((fmt) => (
+              <DropdownMenuItem
+                key={fmt.id}
+                onSelect={() => void exportAs(fmt)}
+              >
+                {fmt.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {/* Only shown when the visible set differs from the full result (filtered
+            or partially loaded); the full count lives in the panel status line. */}
+        {tableRows.length !== data.total_size && (
+          <span className="tnum text-[11px] text-muted-foreground">
+            {tableRows.length.toLocaleString()} / {data.total_size.toLocaleString()} shown
+          </span>
+        )}
       </div>
 
       {data.rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-[13px] text-muted-foreground">
-          — no rows —
+          No rows
         </div>
       ) : (
         <div
           ref={parentRef}
           onScroll={syncBarFromBody}
           onWheel={onBodyWheel}
-          className="uf-scroll min-h-0 flex-1 overflow-y-auto overflow-x-hidden border-t border-border"
+          className="uf-scroll select-text min-h-0 flex-1 overflow-y-auto overflow-x-hidden border-t border-border"
         >
           <Table
             style={{ width: tableWidth }}

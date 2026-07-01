@@ -147,7 +147,7 @@ export function registerSoqlFormatter(monaco: Monaco): void {
 /** Register the `sf` editor theme and a minimal `soql` language once. */
 export function configureMonaco(monaco: Monaco): void {
   // Catppuccin Latte (light): mauve keywords, green strings, peach numbers.
-  // Brand orange is kept for the caret only.
+  // Brand blue is kept for the caret only.
   monaco.editor.defineTheme("sf", {
     base: "vs",
     inherit: true,
@@ -166,40 +166,54 @@ export function configureMonaco(monaco: Monaco): void {
       "editorLineNumber.activeForeground": "#4c4f69",
       "editor.selectionBackground": "#acb0be66",
       "editor.lineHighlightBackground": "#ccd0da66",
-      "editorCursor.foreground": "#f54e00",
+      "editorCursor.foreground": "#0176d3",
       "editorSuggestWidget.background": "#e6e9ef",
       "editorSuggestWidget.foreground": "#4c4f69",
       "editorSuggestWidget.border": "#ccd0da",
       "editorSuggestWidget.selectedBackground": "#ccd0da",
       "editorSuggestWidget.highlightForeground": "#1e66f5",
+      "menu.background": "#ffffff",
+      "menu.foreground": "#4c4f69",
+      "menu.border": "#ccd0da",
+      "menu.separatorBackground": "#e6e9ef",
+      "menu.selectionBackground": "#e6e9ef",
+      "menu.selectionForeground": "#4c4f69",
     },
   });
 
-  // Catppuccin Mocha (dark): mauve keywords, green strings, peach numbers.
+  // Cool-neutral dark tuned to the app's Salesforce palette: blue caret/selection,
+  // One Dark-ish syntax that reads calmly on the #16181d background.
   monaco.editor.defineTheme("sf-dark", {
     base: "vs-dark",
     inherit: true,
     rules: [
-      { token: "keyword.soql", foreground: "cba6f7", fontStyle: "bold" },
-      { token: "type.soql", foreground: "94e2d5" },
-      { token: "string.soql", foreground: "a6e3a1" },
-      { token: "number.soql", foreground: "fab387" },
-      { token: "comment.soql", foreground: "6c7086", fontStyle: "italic" },
+      { token: "keyword.soql", foreground: "c792ea", fontStyle: "bold" },
+      { token: "type.soql", foreground: "56b6c2" },
+      { token: "string.soql", foreground: "98c379" },
+      { token: "number.soql", foreground: "d19a66" },
+      { token: "comment.soql", foreground: "5b626d", fontStyle: "italic" },
     ],
     colors: {
-      "editor.background": "#1e1e2e",
-      "editor.foreground": "#cdd6f4",
-      "editorGutter.background": "#181825",
-      "editorLineNumber.foreground": "#6c7086",
-      "editorLineNumber.activeForeground": "#b4befe",
-      "editor.selectionBackground": "#585b7066",
-      "editor.lineHighlightBackground": "#31324466",
-      "editorCursor.foreground": "#ff5a14",
-      "editorSuggestWidget.background": "#181825",
-      "editorSuggestWidget.foreground": "#cdd6f4",
-      "editorSuggestWidget.border": "#313244",
-      "editorSuggestWidget.selectedBackground": "#313244",
-      "editorSuggestWidget.highlightForeground": "#89b4fa",
+      "editor.background": "#16181d",
+      "editor.foreground": "#e9eaee",
+      "editorGutter.background": "#16181d",
+      "editorLineNumber.foreground": "#4d5560",
+      "editorLineNumber.activeForeground": "#aeb4be",
+      "editor.selectionBackground": "#1b96ff33",
+      "editor.lineHighlightBackground": "#ffffff08",
+      "editorCursor.foreground": "#1b96ff",
+      "editorSuggestWidget.background": "#1e2127",
+      "editorSuggestWidget.foreground": "#e9eaee",
+      "editorSuggestWidget.border": "#2a2e36",
+      "editorSuggestWidget.selectedBackground": "#2b2f37",
+      "editorSuggestWidget.highlightForeground": "#1b96ff",
+      // Right-click context menu — match the app's Radix dropdowns.
+      "menu.background": "#1e2127",
+      "menu.foreground": "#e9eaee",
+      "menu.border": "#2a2e36",
+      "menu.separatorBackground": "#2a2e36",
+      "menu.selectionBackground": "#2b2f37",
+      "menu.selectionForeground": "#e9eaee",
     },
   });
 
