@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { Github } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
@@ -14,6 +16,8 @@ import {
 } from "../editor-themes";
 import { checkForUpdates } from "../updater";
 import { Button } from "@/components/ui/button";
+
+const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
 
 interface Props {
   /** Called after a workspace root changes so the owner can remount the panel. */
@@ -202,14 +206,25 @@ export function SettingsPage({ onChanged }: Props) {
             <span className="text-foreground">
               Ultraforce{version && ` v${version}`}
             </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => void checkForUpdates(true)}
-              className="cursor-pointer text-text-dim hover:text-foreground"
-            >
-              Check for updates
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void openUrl(REPO_URL)}
+                className="cursor-pointer gap-1.5 text-text-dim hover:text-foreground"
+              >
+                <Github size={14} />
+                GitHub
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void checkForUpdates(true)}
+                className="cursor-pointer text-text-dim hover:text-foreground"
+              >
+                Check for updates
+              </Button>
+            </div>
           </div>
         </Section>
       </div>
