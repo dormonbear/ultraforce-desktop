@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, Plus, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { TabBase } from "./types";
 
 interface TabStripProps {
@@ -35,6 +41,13 @@ export function TabStrip({
     if (editing) inputRef.current?.select();
   }, [editing]);
 
+  // Keep the active tab visible when the strip overflows horizontally.
+  useEffect(() => {
+    document
+      .getElementById(`tab-${activeId}`)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [activeId]);
+
   const startEdit = (t: TabBase) => {
     if (!onRename) return;
     setDraft(t.title);
@@ -60,11 +73,12 @@ export function TabStrip({
   };
 
   return (
-    <div
-      role="tablist"
-      aria-label={ariaLabel}
-      className="flex h-9 shrink-0 items-center gap-px border-b border-border bg-card px-2"
-    >
+    <div className="flex h-9 shrink-0 items-center border-b border-border bg-card px-2">
+      <div
+        role="tablist"
+        aria-label={ariaLabel}
+        className="no-scrollbar flex min-w-0 flex-1 items-center gap-px overflow-x-auto"
+      >
       {tabs.map((t, idx) => {
         const active = t.id === activeId;
         return (
@@ -84,7 +98,7 @@ export function TabStrip({
               }
             }}
             onKeyDown={(e) => onKeyDown(e, t.id, idx)}
-            className={`focus-accent group relative flex h-7 cursor-pointer items-center gap-2 rounded-md px-3 text-[12px] transition-colors ${
+            className={`focus-accent group relative flex h-7 shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 text-[12px] transition-colors ${
               active ? "text-primary" : "text-text-dim hover:text-foreground"
             }`}
           >
@@ -104,7 +118,7 @@ export function TabStrip({
                   if (e.key === "Enter") commit();
                   else if (e.key === "Escape") setEditing(null);
                 }}
-                className="tnum w-28 rounded-[2px] bg-transparent text-[12px] text-foreground outline-none ring-1 ring-primary/60"
+                className="tnum w-28 rounded bg-transparent text-[12px] text-foreground outline-none ring-1 ring-primary/60"
               />
             ) : (
               <span
@@ -131,7 +145,7 @@ export function TabStrip({
                 e.stopPropagation();
                 onClose(t.id);
               }}
-              className={`cursor-pointer rounded-[2px] text-muted-foreground transition-colors hover:text-destructive ${
+              className={`cursor-pointer rounded text-muted-foreground transition-colors hover:text-destructive ${
                 lone ? "invisible" : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
               } ${active ? "opacity-100" : ""}`}
             >
@@ -140,14 +154,43 @@ export function TabStrip({
           </div>
         );
       })}
+      </div>
       <button
         type="button"
         aria-label="New tab"
         onClick={onAdd}
-        className="focus-accent ml-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-primary"
+        className="focus-accent ml-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-primary"
       >
         <Plus size={14} />
       </button>
+      {tabs.length > 1 && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label="All tabs"
+              title="All tabs"
+              className="focus-accent flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
+            >
+              <ChevronDown size={14} />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-auto">
+            {tabs.map((t) => (
+              <DropdownMenuItem
+                key={t.id}
+                onSelect={() => onSelect(t.id)}
+                className={t.id === activeId ? "text-primary" : ""}
+              >
+                {dirtyIds?.includes(t.id) && (
+                  <span className="size-1.5 shrink-0 rounded-full bg-current" />
+                )}
+                <span className="truncate">{t.title}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }

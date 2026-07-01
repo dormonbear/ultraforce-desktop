@@ -17,7 +17,7 @@ type Cfg = ReturnType<typeof useLoggingConfig>;
 // Native <select> (light + compact): the dense 11-column grid renders hundreds
 // of these, where Radix Select would freeze the dialog.
 const SEL =
-  "h-6 cursor-pointer rounded border border-border bg-card px-1 text-[11px] text-foreground focus-accent";
+  "native-select h-6 cursor-pointer rounded border border-border bg-card px-1 text-[11px] text-foreground focus-accent";
 
 /** Editable table of DebugLevel records: name, a preset quick-fill, and the 11
  * category levels laid out inline (IC2-style). */
@@ -124,7 +124,7 @@ export function DebugLevelsTable({ cfg }: { cfg: Cfg }) {
           {cfg.levels.length === 0 && (
             <tr>
               <td colSpan={CATEGORY_FIELDS.length + 3} className="px-2 py-3 text-center text-text-dim">
-                — no debug levels —
+                No debug levels
               </td>
             </tr>
           )}

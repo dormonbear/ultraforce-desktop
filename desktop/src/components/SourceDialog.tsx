@@ -24,7 +24,7 @@ export function SourceDialog({
   target: SourceRef | null;
   onClose: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const { src, error } = useApexSource(target?.className ?? null);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const decoRef = useRef<editor.IEditorDecorationsCollection | null>(null);
@@ -83,7 +83,7 @@ export function SourceDialog({
             <Editor
               height="100%"
               language="apex"
-              theme={monacoTheme(theme)}
+              theme={monacoTheme(theme, scheme)}
               value={src.body}
               beforeMount={(monaco: Monaco) => configureMonacoApex(monaco)}
               onMount={onMount}
@@ -91,6 +91,9 @@ export function SourceDialog({
                 ...EDITOR_OPTS,
                 readOnly: true,
                 lineNumbers: "on",
+                // Read-only source peek: no right-click menu (drops Monaco's
+                // "Command Palette" entry). Cmd/Ctrl+C still copies a selection.
+                contextmenu: false,
               }}
               loading={<Loader2 size={18} className="spin text-muted-foreground" />}
             />

@@ -1,33 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { invoke } from "@tauri-apps/api/core";
-import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import {
   RefreshCw,
   Loader2,
-  FolderOpen,
-  Download,
   HardDriveDownload,
   Search,
   SlidersHorizontal,
-  ChevronRight,
   Bug,
+  Timer,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { filterTree } from "./logTree";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
+import { TimeBreakdownBar } from "./TimeBreakdownBar";
 import {
   usagePct,
   limitSeverity,
   rankByUsage,
   type LimitSeverity,
 } from "./limitStats";
-import { groupStatements, totalNs } from "./queryStats";
+import { groupByFingerprint, totalNs } from "./queryStats";
 import { detectInsights, type Severity } from "./insights";
-import { collectUserDebug } from "./debugLines";
 import { parseSourceRef, type SourceRef } from "./sourceRef";
 import {
   filterLogs,
@@ -55,11 +59,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LogView } from "../components/LogView";
+import { TimelineView } from "./TimelineView";
 import { clearApexSourceCache } from "../components/useApexSource";
-import { LoggingConfigDialog } from "../components/LoggingConfigDialog";
+import { LoggingConfigPanel } from "../components/LoggingConfigPanel";
+import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
 import type {
-  ExecNodeDto,
+  DebugConfigDto,
   HotspotDto,
   LogRefDto,
   LogViewDto,
@@ -73,12 +79,11 @@ function isSuccess(status: string): boolean {
 
 type DetailTab =
   | "insights"
-  | "tree"
   | "hotspots"
   | "queries"
   | "limits"
-  | "debug"
-  | "raw";
+  | "raw"
+  | "timeline";
 
 /** Format a nanosecond duration as a compact millisecond string. */
 function formatMs(durNs: number): string {
@@ -92,108 +97,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-/** A child whose duration is at least this fraction of its parent's is on the
- * "hot path" and gets auto-expanded; cheaper branches start collapsed. */
-const HOT_PATH_FRACTION = 0.5;
-
-/** One execution-tree node: collapsible, with the hot path auto-expanded so the
- * bottleneck chain is visible without drowning in cheap branches. `forceOpen`
- * (used while filtering) expands everything so matches aren't hidden. A method's
- * detail is clickable to jump to its source via `onSource`. */
-function TreeNode({
-  node,
-  depth,
-  parentDur,
-  forceOpen,
-  onSource,
-}: {
-  node: ExecNodeDto;
-  depth: number;
-  parentDur?: number;
-  forceOpen?: boolean;
-  onSource?: (ref: SourceRef) => void;
-}) {
-  const dur = node.dur_ns ?? 0;
-  const hasChildren = node.children.length > 0;
-  // Backend resolves every node's source (class + line); any node that has one
-  // is clickable, not just method/constructor/code-unit entries.
-  const sourceRef = onSource ? node.source : null;
-  // Auto-expand the top level and any child that dominates its parent's time.
-  const autoExpand =
-    depth === 0 || parentDur == null || (parentDur > 0 && dur / parentDur >= HOT_PATH_FRACTION);
-  const [open, setOpen] = useState(autoExpand);
-  const expanded = forceOpen || open;
-  return (
-    <>
-      <div
-        className="flex items-baseline gap-1.5 border-b border-border/50 py-0.5 text-[12px]"
-        style={{ paddingLeft: `${depth * 14}px` }}
-      >
-        {hasChildren && !forceOpen ? (
-          <button
-            type="button"
-            onClick={() => setOpen((o) => !o)}
-            aria-label={expanded ? "Collapse" : "Expand"}
-            className="shrink-0 cursor-pointer text-text-dim/60 hover:text-foreground"
-          >
-            <ChevronRight
-              size={11}
-              className={`transition-transform ${expanded ? "rotate-90" : ""}`}
-            />
-          </button>
-        ) : (
-          <span className="inline-block w-[11px] shrink-0" />
-        )}
-        <span className="shrink-0 text-foreground">{node.label}</span>
-        {node.detail &&
-          (sourceRef ? (
-            <button
-              type="button"
-              onClick={() => onSource?.(sourceRef)}
-              title="Jump to source"
-              className="min-w-0 flex-1 cursor-pointer truncate text-left text-muted-foreground hover:text-primary hover:underline"
-            >
-              {node.detail}
-            </button>
-          ) : (
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {node.detail}
-            </span>
-          ))}
-        {node.self_ns != null && node.self_ns !== node.dur_ns && (
-          <span
-            className="tnum ml-auto shrink-0 text-text-dim/70"
-            title="self time (excludes children)"
-          >
-            self {formatMs(node.self_ns)}
-          </span>
-        )}
-        {node.dur_ns != null && (
-          <span
-            className={`tnum shrink-0 text-text-dim ${node.self_ns != null && node.self_ns !== node.dur_ns ? "" : "ml-auto"}`}
-            title="total time"
-          >
-            {formatMs(node.dur_ns)}
-          </span>
-        )}
-      </div>
-      {expanded &&
-        node.children.map((child, i) => (
-          <TreeNode
-            key={i}
-            node={child}
-            depth={depth + 1}
-            parentDur={dur}
-            forceOpen={forceOpen}
-            onSource={onSource}
-          />
-        ))}
-    </>
-  );
-}
-
 const SEVERITY_BAR: Record<LimitSeverity, string> = {
-  ok: "bg-primary",
+  ok: "bg-text-dim",
   warn: "bg-amber-500",
   crit: "bg-destructive",
 };
@@ -215,16 +120,16 @@ const FINDING_TAB: Record<string, DetailTab> = {
   "stmt-in-loop": "queries",
   "slow-query": "queries",
   limit: "limits",
-  recursion: "tree",
-  "loop-body": "tree",
-  "method-loop": "tree",
-  "critical-path": "tree",
+  recursion: "timeline",
+  "loop-body": "timeline",
+  "method-loop": "timeline",
+  "critical-path": "timeline",
 };
 
 /** Insights: rule-based diagnostics (exceptions, SOQL/DML-in-loop, loop bodies,
  * repeated methods, recursion, large/slow queries, governor limits, critical
  * path) with a one-line fix and a jump to the evidence — the analyser layer on
- * top of the raw/tree viewers. */
+ * top of the raw/timeline viewers. */
 function InsightsView({
   units,
   onGoto,
@@ -236,7 +141,7 @@ function InsightsView({
   if (findings.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no issues detected —
+        No issues detected
       </div>
     );
   }
@@ -255,7 +160,7 @@ function InsightsView({
                 <button
                   type="button"
                   onClick={() => onGoto(goto)}
-                  className="ml-auto shrink-0 cursor-pointer text-[10px] uppercase tracking-wide text-text-dim/70 hover:text-primary"
+                  className="ml-auto shrink-0 cursor-pointer text-[11px] text-text-dim/70 hover:text-primary"
                 >
                   View {goto} →
                 </button>
@@ -284,7 +189,7 @@ function LimitsView({ units }: { units: UnitDto[] }) {
   if (rollups.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no limit usage —
+        No limit usage
       </div>
     );
   }
@@ -330,13 +235,13 @@ function HotspotsView({
   onSource,
 }: {
   units: UnitDto[];
-  onSource: (ref: SourceRef) => void;
+  onSource?: (ref: SourceRef) => void;
 }) {
   const all = units.flatMap((u) => u.hotspots);
   if (all.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no method frames —
+        No method frames
       </div>
     );
   }
@@ -354,15 +259,16 @@ function HotspotsView({
     }
   }
   const rows = [...merged.values()].sort((a, b) => b.self_ns - a.self_ns);
+  const maxSelf = rows[0].self_ns; // rows are sorted desc by self_ns; non-empty (see `all` check above)
   return (
     <table className="w-full text-[12px]">
       <thead>
         <tr className="text-muted-foreground">
-          <th className="py-1 text-left font-normal">METHOD</th>
-          <th className="py-1 text-right font-normal">SELF</th>
-          <th className="py-1 text-right font-normal">TOTAL</th>
-          <th className="py-1 text-right font-normal">HEAP</th>
-          <th className="py-1 text-right font-normal">CALLS</th>
+          <th className="py-1 text-left font-normal">Method</th>
+          <th className="py-1 text-right font-normal">Self</th>
+          <th className="py-1 text-right font-normal">Total</th>
+          <th className="py-1 text-right font-normal">Heap</th>
+          <th className="py-1 text-right font-normal">Calls</th>
         </tr>
       </thead>
       <tbody>
@@ -371,10 +277,15 @@ function HotspotsView({
           return (
           <tr key={i} className="border-t border-border/50 text-text-dim">
             <td
-              className="max-w-0 truncate py-0.5 pr-2 text-foreground"
+              className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground"
               title={h.signature}
             >
-              {ref ? (
+              <span
+                className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-primary/10"
+                style={{ width: `${maxSelf > 0 ? (h.self_ns / maxSelf) * 100 : 0}%` }}
+                aria-hidden
+              />
+              {ref && onSource ? (
                 <button
                   type="button"
                   onClick={() => onSource(ref)}
@@ -403,28 +314,6 @@ function HotspotsView({
   );
 }
 
-/** Debug output: every USER_DEBUG message in order, away from the raw-log noise. */
-function DebugView({ units }: { units: UnitDto[] }) {
-  const lines = collectUserDebug(units);
-  if (lines.length === 0) {
-    return (
-      <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no debug output —
-      </div>
-    );
-  }
-  return (
-    <div className="flex flex-col font-mono text-[11px]">
-      {lines.map((l, i) => (
-        <div key={i} className="flex gap-2 border-b border-border/40 py-0.5">
-          <span className="tnum w-8 shrink-0 text-right text-text-dim/50">{i + 1}</span>
-          <span className="break-words text-foreground">{l}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /** SOQL/DML statements: a per-unit summary + queries grouped by text, ranked by
  * total DB time (hotspot first). Count > 1 is the N+1 signal. */
 function QueriesView({ units }: { units: UnitDto[] }) {
@@ -432,7 +321,7 @@ function QueriesView({ units }: { units: UnitDto[] }) {
   if (all.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        — no SOQL or DML —
+        No SOQL or DML
       </div>
     );
   }
@@ -440,7 +329,8 @@ function QueriesView({ units }: { units: UnitDto[] }) {
   const dml = all.filter((s) => s.kind === "dml");
   const sumRows = (xs: StatementDto[]) => xs.reduce((n, s) => n + s.rows, 0);
 
-  const rows = groupStatements(all);
+  const families = groupByFingerprint(all);
+  const maxNs = families.length > 0 ? families[0].totalNs : 0;
   const soqlNs = totalNs(soql);
   const dmlNs = totalNs(dml);
 
@@ -456,26 +346,29 @@ function QueriesView({ units }: { units: UnitDto[] }) {
       <table className="w-full text-[12px]">
         <thead>
           <tr className="text-muted-foreground">
-            <th className="py-1 text-left font-normal">STATEMENT</th>
-            <th className="py-1 text-right font-normal">TIME</th>
+            <th className="py-1 text-left font-normal">Statement</th>
+            <th className="py-1 text-right font-normal">Time</th>
             <th className="py-1 text-right font-normal">×</th>
-            <th className="py-1 text-right font-normal">ROWS</th>
+            <th className="py-1 text-right font-normal">Rows</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((g, i) => (
+          {families.map((g, i) => (
             <tr
               key={i}
               className={`border-t border-border/50 ${g.count > 1 ? "text-destructive" : "text-text-dim"}`}
-              title={g.count > 1 ? "run more than once — possible N+1" : undefined}
+              title={g.count > 1 ? "run more than once — possible N+1 / loop" : g.sample}
             >
-              <td className="max-w-0 truncate py-0.5 pr-2 text-foreground" title={g.text}>
+              <td className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground" title={g.sample}>
+                <span
+                  className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-success/10"
+                  style={{ width: `${maxNs > 0 ? (g.totalNs / maxNs) * 100 : 0}%` }}
+                  aria-hidden
+                />
                 <span className="text-text-dim/70">{g.kind === "dml" ? "DML " : "SOQL "}</span>
-                {g.text}
+                {g.sample}
               </td>
-              <td className="tnum py-0.5 text-right">
-                {g.totalNs > 0 ? formatMs(g.totalNs) : "—"}
-              </td>
+              <td className="tnum py-0.5 text-right">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>
               <td className="tnum py-0.5 text-right">{g.count}</td>
               <td className="tnum py-0.5 text-right">{g.rows}</td>
             </tr>
@@ -490,6 +383,11 @@ function QueriesView({ units }: { units: UnitDto[] }) {
 export function LogsPanel() {
   const { selected: org } = useOrgs();
   const [cfgOpen, setCfgOpen] = useState(false);
+  const [tracingBusy, setTracingBusy] = useState(false);
+  // Active self-trace ExpirationDate (from the running user's TraceFlag); drives
+  // the live "Tracing · Nm" state on the button. `now` ticks to recompute it.
+  const [traceExpiry, setTraceExpiry] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   const [logs, setLogs] = useState<LogRefDto[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
@@ -500,11 +398,18 @@ export function LogsPanel() {
   const [viewLoading, setViewLoading] = useState(false);
   // Apex source to show (jump-to-source from a method node / hotspot).
   const [sourceRef, setSourceRef] = useState<SourceRef | null>(null);
+  // Raw-line indices that resolve to Apex source — drives which raw-view lines
+  // render as clickable (see LogView's jumpableLines).
+  const [sourceLines, setSourceLines] = useState<Set<number>>(new Set());
   const [debugOpen, setDebugOpen] = useState(false);
   const [tab, setTab] = useState<DetailTab>("raw");
-  const [treeFilter, setTreeFilter] = useState("");
   const [filter, setFilter] = useState<LogFilter>(EMPTY_FILTER);
   const visibleLogs = filterLogs(logs, filter);
+  // True when the shown log came from drag-drop (no org) — disables Apex
+  // source navigation, which needs an org to resolve class/trigger bodies.
+  const [orgless, setOrgless] = useState(false);
+  // A .log/.txt file is being dragged over the window (drives the overlay).
+  const [dragOver, setDragOver] = useState(false);
 
   // Virtualize the log list — it can run to thousands of rows.
   const listParentRef = useRef<HTMLDivElement>(null);
@@ -547,7 +452,9 @@ export function LogsPanel() {
   useEffect(() => {
     setSelectedId(null);
     setView(null);
+    setSourceLines(new Set());
     setViewError(null);
+    setOrgless(false);
     // Different org → different source; drop the Apex source cache.
     clearApexSourceCache();
     lastLogId.current = null;
@@ -562,6 +469,14 @@ export function LogsPanel() {
     };
   }, [refresh, org]);
 
+  /** Fetch the raw-line indices that resolve to Apex source for the given log
+   * body, so the raw viewer can mark only those lines clickable. */
+  const loadSourceLines = useCallback((raw: string) => {
+    invoke<number[]>("source_line_indices", { body: raw })
+      .then((idx) => setSourceLines(new Set(idx)))
+      .catch(() => setSourceLines(new Set()));
+  }, []);
+
   const select = useCallback(async (id: string) => {
     // Switching to a different log: drop the previous log's Apex source cache.
     if (lastLogId.current !== id) {
@@ -569,15 +484,18 @@ export function LogsPanel() {
       lastLogId.current = id;
     }
     setSelectedId(id);
+    setOrgless(false);
     setViewError(null);
     setTab("raw");
     const cached = viewCache.current.get(id);
     if (cached) {
       setView(cached);
+      loadSourceLines(cached.raw);
       setViewLoading(false);
       return;
     }
     setView(null);
+    setSourceLines(new Set());
     setViewLoading(true);
     try {
       // Cache-first (logs are immutable): parse a locally cached body, else
@@ -594,6 +512,7 @@ export function LogsPanel() {
       });
       viewCache.current.set(id, dto);
       setView(dto);
+      loadSourceLines(dto.raw);
       // loadLogView writes the body to disk on a download; reflect that marker.
       setCachedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     } catch (e) {
@@ -601,24 +520,24 @@ export function LogsPanel() {
     } finally {
       setViewLoading(false);
     }
-  }, []);
+  }, [loadSourceLines]);
 
-  /** Open a local `.log` file, parse it (no org fetch), and show it. */
-  const openLocal = useCallback(async () => {
-    const path = await openDialog({
-      filters: [{ name: "Debug log", extensions: ["log", "txt"] }],
-    });
-    if (typeof path !== "string") return;
+  /** Show a local log body (drag-dropped), parsed but never sent to an org.
+   * Unlike `select`, this skips `loadSourceLines` — a dragged file has no
+   * reliable org, so raw click-to-source and hotspot/timeline source jumps
+   * stay disabled for it (see `orgless`). */
+  const showLocalLog = useCallback(async (body: string) => {
     setSelectedId(null);
     // A freshly opened local log: start with an empty Apex source cache.
     clearApexSourceCache();
     lastLogId.current = null;
+    setOrgless(true);
     setViewLoading(true);
     setViewError(null);
     setView(null);
+    setSourceLines(new Set());
     setTab("raw");
     try {
-      const body = await readTextFile(path);
       const parsed = await invoke<Omit<LogViewDto, "raw">>("parse_log", { body });
       setView({ raw: body, ...parsed });
     } catch (e) {
@@ -628,88 +547,174 @@ export function LogsPanel() {
     }
   }, []);
 
-  /** Save the currently-viewed log's raw body to disk. */
-  const saveLog = useCallback(async () => {
-    if (!view) return;
-    const path = await saveDialog({
-      defaultPath: "debug.log",
-      filters: [{ name: "Debug log", extensions: ["log"] }],
+  // Drag-and-drop a .log/.txt file onto the window to open it. Dropped paths
+  // are arbitrary (outside the fs plugin's dialog-granted scope), so the body
+  // is read via the `read_log_file` backend command, not `readTextFile`.
+  useEffect(() => {
+    const un = getCurrentWebview().onDragDropEvent((event) => {
+      const payload = event.payload;
+      if (payload.type === "over") {
+        setDragOver(true);
+      } else if (payload.type === "leave") {
+        setDragOver(false);
+      } else if (payload.type === "drop") {
+        setDragOver(false);
+        const path = payload.paths.find((p) => /\.(log|txt)$/i.test(p));
+        if (!path) {
+          toast.error("Drop a .log or .txt file");
+          return;
+        }
+        void (async () => {
+          try {
+            const body = await invoke<string>("read_log_file", { path });
+            await showLocalLog(body);
+          } catch (e) {
+            toast.error(`Open failed: ${typeof e === "string" ? e : String(e)}`);
+          }
+        })();
+      }
     });
-    if (!path) return;
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [showLocalLog]);
+
+  /** Resolve `log`'s raw body via the same cache-first/org-download path as
+   * `select`, without disturbing the currently viewed log. */
+  const getBody = useCallback(async (log: LogRefDto): Promise<string> => {
+    const cached = viewCache.current.get(log.id);
+    if (cached) return cached.raw;
+    const dto = await loadLogView(log.id, {
+      readCache: readCachedBody,
+      parse: async (body) => ({
+        raw: body,
+        ...(await invoke<Omit<LogViewDto, "raw">>("parse_log", { body })),
+      }),
+      getLog: (logId) => invoke<LogViewDto>("get_log", { id: logId }),
+      writeCache: writeCachedBody,
+    });
+    viewCache.current.set(log.id, dto);
+    setCachedIds((prev) => (prev.has(log.id) ? prev : new Set(prev).add(log.id)));
+    return dto.raw;
+  }, []);
+
+  /** Save one log row's body to disk, via a right-click context menu. */
+  const saveLogRow = useCallback(async (log: LogRefDto) => {
     try {
-      await writeTextFile(path, view.raw);
+      const body = await getBody(log);
+      const path = await saveDialog({
+        defaultPath: `${log.operation || "debug"}.log`,
+        filters: [{ name: "Debug log", extensions: ["log"] }],
+      });
+      if (!path) return;
+      await writeTextFile(path, body);
       toast.success("Log saved");
     } catch (e) {
       toast.error(`Save failed: ${typeof e === "string" ? e : String(e)}`);
     }
-  }, [view]);
+  }, [getBody]);
+
+  // Show whether a self-trace is already active (and refresh its expiry).
+  useEffect(() => {
+    invoke<DebugConfigDto>("get_debug_config")
+      .then((dto) => setTraceExpiry(dto.expirationDate))
+      .catch(() => {});
+  }, [org]);
+
+  // Tick so the countdown re-renders; 30s is fine for minute granularity.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const traceMsLeft = traceExpiry ? new Date(traceExpiry).getTime() - now : 0;
+  const tracing = traceMsLeft > 0;
+  const traceMinsLeft = Math.max(1, Math.ceil(traceMsLeft / 60_000));
+
+  const quickSelfTrace = useCallback(async () => {
+    if (tracingBusy) return;
+    setTracingBusy(true);
+    try {
+      const dto = await invoke<DebugConfigDto>("quick_self_trace", { minutes: 30 });
+      setTraceExpiry(dto.expirationDate);
+      setNow(Date.now());
+      toast.success("Tracing you for 30 min");
+    } catch (e) {
+      toast.error(`Trace failed: ${typeof e === "string" ? e : String(e)}`);
+    } finally {
+      setTracingBusy(false);
+    }
+  }, [tracingBusy]);
 
   return (
     <ResizablePanelGroup direction="horizontal">
-      {/* minSize = the natural width of the header toolbar (LOGS · OPEN ·
-          SAVE · REFRESH · LOGGING) so those buttons never clip.
+      {/* minSize = the natural width of the header toolbar (LOGS · REFRESH ·
+          LOGGING) so those buttons never clip.
           NOTE: this resizable lib wants string px/% sizes, not bare numbers. */}
       <ResizablePanel
         defaultSize="40%"
         minSize="450px"
         groupResizeBehavior="preserve-pixel-size"
       >
-        <div className="flex h-full flex-col">
+        <div className="relative flex h-full flex-col">
           <div className="flex items-center justify-between px-4 py-2">
-            <div className="micro-label flex-1">LOGS</div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={openLocal}
-              title="Open a local .log file"
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
-            >
-              <FolderOpen size={12} />
-              OPEN
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={saveLog}
-              disabled={!view}
-              title="Save the viewed log to a file"
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
-            >
-              <Download size={12} />
-              SAVE
-            </Button>
+            <div className="micro-label flex-1">Logs</div>
             <Button
               variant="ghost"
               size="sm"
               onClick={refresh}
               disabled={listLoading}
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
             >
               {listLoading ? (
                 <Loader2 size={12} className="spin" />
               ) : (
                 <RefreshCw size={12} />
               )}
-              REFRESH
+              Refresh
             </Button>
             <Button
               variant="ghost"
               size="sm"
               aria-label="Configure logging"
               onClick={() => setCfgOpen(true)}
-              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] uppercase tracking-wide text-text-dim hover:text-foreground"
+              className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
             >
               <SlidersHorizontal size={12} />
-              LOGGING
+              Logging
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label={
+                tracing
+                  ? `Tracing you — ${traceMinsLeft} min left; click to extend`
+                  : "Trace myself for 30 minutes"
+              }
+              title={
+                tracing
+                  ? `Traced until ${new Date(traceExpiry!).toLocaleTimeString()} — click to extend 30 min`
+                  : "Trace yourself for 30 minutes"
+              }
+              onClick={quickSelfTrace}
+              disabled={tracingBusy}
+              className={`h-7 cursor-pointer gap-1 px-1.5 text-[11px] hover:text-foreground ${
+                tracing ? "text-primary" : "text-text-dim"
+              }`}
+            >
+              {tracingBusy ? (
+                <Loader2 size={12} className="spin" />
+              ) : tracing ? (
+                <span className="size-2 rounded-full bg-primary animate-pulse" />
+              ) : (
+                <Timer size={12} />
+              )}
+              {tracing ? `Tracing · ${traceMinsLeft}m` : "Set My Trace"}
             </Button>
           </div>
 
-          {cfgOpen && (
-            <LoggingConfigDialog open onOpenChange={setCfgOpen} org={org} />
-          )}
-
           {logs.length > 0 && (
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2">
               <div className="relative flex-1">
                 <Search
                   size={12}
@@ -733,11 +738,11 @@ export function LogsPanel() {
             </pre>
           ) : logs.length === 0 && !listLoading ? (
             <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-              — no logs —
+              No logs
             </div>
           ) : visibleLogs.length === 0 ? (
             <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-              — no matches —
+              No matches
             </div>
           ) : (
             <div ref={listParentRef} className="uf-scroll min-h-0 flex-1 overflow-y-auto">
@@ -751,62 +756,81 @@ export function LogsPanel() {
                   const cached = cachedIds.has(log.id);
                   const time = fmtTime(log.start_time);
                   return (
-                    <button
-                      key={log.id}
-                      data-index={vi.index}
-                      ref={rowVirtualizer.measureElement}
-                      type="button"
-                      onClick={() => select(log.id)}
-                      className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-3 pr-4 text-left hover:bg-accent cursor-pointer ${
-                        selected ? "bg-primary/10" : ""
-                      }`}
-                      style={{ transform: `translateY(${vi.start}px)` }}
-                    >
-                      {selected && (
-                        <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
-                      )}
-                      {/* Vertical timeline rail (continuous across rows) + status node. */}
-                      <div className="relative flex w-4 shrink-0 items-center justify-center">
-                        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
-                        <span
-                          className={`relative z-10 h-2 w-2 rounded-full ring-2 ring-background ${
-                            ok ? "bg-success" : "bg-destructive"
+                    <ContextMenu key={log.id}>
+                      <ContextMenuTrigger asChild>
+                        <button
+                          data-index={vi.index}
+                          ref={rowVirtualizer.measureElement}
+                          type="button"
+                          onClick={() => {
+                            setCfgOpen(false);
+                            select(log.id);
+                          }}
+                          className={`focus-accent absolute left-0 top-0 flex w-full items-stretch gap-2 border-b border-border py-2 pl-4 pr-4 text-left hover:bg-accent cursor-pointer ${
+                            selected ? "bg-primary/10" : ""
                           }`}
-                        />
-                      </div>
-                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                        <div className="flex w-full items-center gap-2">
-                          <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
-                            {log.operation}
-                          </span>
-                          {cached && (
-                            <HardDriveDownload
-                              size={12}
-                              className="shrink-0 text-text-dim"
-                              aria-label="Cached locally"
+                          style={{ transform: `translateY(${vi.start}px)` }}
+                        >
+                          {selected && (
+                            <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
+                          )}
+                          {/* Vertical timeline rail (continuous across rows) + status node. */}
+                          <div className="relative flex w-4 shrink-0 items-center justify-center">
+                            <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border" />
+                            <span
+                              className={`relative z-10 h-2 w-2 rounded-full ring-2 ring-background ${
+                                ok ? "bg-success" : "bg-destructive"
+                              }`}
                             />
-                          )}
-                          <Badge
-                            variant={ok ? "success" : "destructive"}
-                            title={log.status}
-                            className="shrink-0 px-1.5 py-0 text-[10px] uppercase tracking-wide"
-                          >
-                            {ok ? "Success" : "Failed"}
-                          </Badge>
-                        </div>
-                        <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
-                          {log.user && (
-                            <span className="max-w-[45%] truncate">{log.user}</span>
-                          )}
-                          <span>{fmtDuration(log.duration_ms)}</span>
-                          <span>{fmtSize(log.log_length)}</span>
-                          {time && <span className="ml-auto">{time}</span>}
-                        </div>
-                      </div>
-                    </button>
+                          </div>
+                          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <div className="flex w-full items-center gap-2">
+                              <span className="min-w-0 flex-1 truncate text-[12px] text-foreground">
+                                {log.operation}
+                              </span>
+                              {cached && (
+                                <HardDriveDownload
+                                  size={12}
+                                  className="shrink-0 text-text-dim"
+                                  aria-label="Cached locally"
+                                />
+                              )}
+                              <Badge
+                                variant={ok ? "success" : "destructive"}
+                                title={log.status}
+                                className="shrink-0 px-1.5 py-0 text-[10px]"
+                              >
+                                {ok ? "Success" : "Failed"}
+                              </Badge>
+                            </div>
+                            <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
+                              {log.user && (
+                                <span className="max-w-[45%] truncate">{log.user}</span>
+                              )}
+                              <span>{fmtDuration(log.duration_ms)}</span>
+                              <span>{fmtSize(log.log_length)}</span>
+                              {time && <span className="ml-auto">{time}</span>}
+                            </div>
+                          </div>
+                        </button>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent>
+                        <ContextMenuItem onSelect={() => void saveLogRow(log)}>
+                          Save log…
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background/80">
+              <span className="text-[12px] font-medium text-text-dim">
+                Drop a .log file to view
+              </span>
             </div>
           )}
         </div>
@@ -816,137 +840,112 @@ export function LogsPanel() {
 
       <ResizablePanel minSize="360px">
         <div className="flex h-full flex-col">
-          <div className="micro-label px-4 py-2">LOG DETAIL</div>
-
-          {!selectedId && !view && !viewLoading && !viewError ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-              — select a log —
-            </div>
-          ) : viewLoading ? (
-            <div className="flex flex-1 items-center justify-center text-muted-foreground">
-              <Loader2 size={18} className="spin" />
-            </div>
-          ) : viewError ? (
-            <pre className="mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-              {viewError}
-            </pre>
-          ) : view ? (
-            <div className="flex min-h-0 flex-1 flex-col px-4 pb-4">
-              <div className="flex items-center justify-between pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="tnum text-[12px] text-text-dim">
-                    API {view.api_version ?? "—"} · {view.units.length}{" "}
-                    {view.units.length === 1 ? "unit" : "units"}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDebugOpen(true)}
-                    className="focus-accent flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
-                  >
-                    <Bug size={13} /> Debug
-                  </button>
-                </div>
-                <ToggleGroup
-                  type="single"
-                  value={tab}
-                  onValueChange={(next) => {
-                    if (next) setTab(next as DetailTab);
-                  }}
-                  className="gap-1"
-                >
-                  {([
-                    "raw",
-                    "insights",
-                    "tree",
-                    "hotspots",
-                    "queries",
-                    "limits",
-                    "debug",
-                  ] as DetailTab[]).map((t) => (
-                    <ToggleGroupItem
-                      key={t}
-                      value={t}
-                      className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
-                    >
-                      {t}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
+          {cfgOpen ? (
+            <LoggingConfigPanel org={org} onClose={() => setCfgOpen(false)} />
+          ) : (
+            <>
+              <div className="micro-label px-4 py-2">
+                Log detail
+                {orgless && (
+                  <span className="text-[11px] font-normal text-text-dim/70">
+                    · local file (no org — source navigation off)
+                  </span>
+                )}
               </div>
 
-              {tab === "tree" && (
-                <div className="relative pb-2">
-                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    value={treeFilter}
-                    onChange={(e) => setTreeFilter(e.target.value)}
-                    placeholder="Filter events (e.g. SOQL, METHOD_ENTRY)…"
-                    className="h-7 w-72 pl-8 text-[12px]"
-                  />
+              {!selectedId && !view && !viewLoading && !viewError ? (
+                <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
+                  Select a log
                 </div>
-              )}
-
-              {tab === "raw" ? (
-                <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
-                  <LogView
-                    raw={view.raw}
-                    resolveSource={(line) =>
-                      invoke<SourceRef | null>("source_at_line", {
-                        body: view.raw,
-                        line,
-                      })
-                    }
-                    onSource={setSourceRef}
-                  />
+              ) : viewLoading ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <LogoLoader size={44} />
                 </div>
-              ) : (
-                <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
-                  <div className="p-3">
-                  {tab === "tree" ? (
-                    (() => {
-                      const units = view.units.map((u) => ({
-                        tree: filterTree(u.tree, treeFilter),
-                      }));
-                      if (units.every((u) => u.tree.length === 0)) {
-                        return (
-                          <div className="py-4 text-center text-[13px] text-muted-foreground">
-                            {treeFilter ? "— no matching events —" : "— no execution tree —"}
-                          </div>
-                        );
-                      }
-                      return units.map((unit, ui) => (
-                        <div key={ui} className={ui > 0 ? "mt-4" : ""}>
-                          {units.length > 1 && unit.tree.length > 0 && (
-                            <div className="micro-label pb-1">UNIT {ui + 1}</div>
-                          )}
-                          {unit.tree.map((node, ni) => (
-                            <TreeNode
-                              key={ni}
-                              node={node}
-                              depth={0}
-                              forceOpen={!!treeFilter}
-                              onSource={setSourceRef}
-                            />
-                          ))}
-                        </div>
-                      ));
-                    })()
-                  ) : tab === "insights" ? (
-                    <InsightsView units={view.units} onGoto={setTab} />
-                  ) : tab === "hotspots" ? (
-                    <HotspotsView units={view.units} onSource={setSourceRef} />
-                  ) : tab === "queries" ? (
-                    <QueriesView units={view.units} />
-                  ) : tab === "debug" ? (
-                    <DebugView units={view.units} />
-                  ) : (
-                    <LimitsView units={view.units} />
-                  )}
+              ) : viewError ? (
+                <pre className="select-text mx-4 mb-4 flex-1 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
+                  {viewError}
+                </pre>
+              ) : view ? (
+                <div className="select-text flex min-h-0 flex-1 flex-col px-4 pb-4">
+                  <div className="flex items-center justify-between pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="tnum text-[12px] text-text-dim">
+                        API {view.api_version ?? "—"} · {view.units.length}{" "}
+                        {view.units.length === 1 ? "unit" : "units"}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDebugOpen(true)}
+                        className="focus-accent flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
+                      >
+                        <Bug size={13} /> Debug
+                      </button>
+                    </div>
+                    <ToggleGroup
+                      type="single"
+                      value={tab}
+                      onValueChange={(next) => {
+                        if (next) setTab(next as DetailTab);
+                      }}
+                      className="gap-1"
+                    >
+                      {([
+                        "raw",
+                        "insights",
+                        "timeline",
+                        "hotspots",
+                        "queries",
+                        "limits",
+                      ] as DetailTab[]).map((t) => (
+                        <ToggleGroupItem
+                          key={t}
+                          value={t}
+                          className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium capitalize text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
+                        >
+                          {t}
+                        </ToggleGroupItem>
+                      ))}
+                    </ToggleGroup>
                   </div>
-                </ScrollArea>
-              )}
-            </div>
-          ) : null}
+
+                  {tab === "raw" || tab === "timeline" ? (
+                    <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+                      {tab === "raw" ? (
+                        <LogView
+                          raw={view.raw}
+                          resolveSource={(line) =>
+                            invoke<SourceRef | null>("source_at_line", {
+                              body: view.raw,
+                              line,
+                            })
+                          }
+                          onSource={setSourceRef}
+                          jumpableLines={sourceLines}
+                        />
+                      ) : (
+                        <TimelineView units={view.units} onSource={orgless ? undefined : setSourceRef} />
+                      )}
+                    </div>
+                  ) : (
+                    <ScrollArea className="min-h-0 flex-1 rounded-md border border-border bg-card">
+                      <div className="p-3">
+                      <TimeBreakdownBar units={view.units} />
+                      {tab === "insights" ? (
+                        <InsightsView units={view.units} onGoto={setTab} />
+                      ) : tab === "hotspots" ? (
+                        <HotspotsView units={view.units} onSource={orgless ? undefined : setSourceRef} />
+                      ) : tab === "queries" ? (
+                        <QueriesView units={view.units} />
+                      ) : (
+                        <LimitsView units={view.units} />
+                      )}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </ResizablePanel>
       <SourceDialog target={sourceRef} onClose={() => setSourceRef(null)} />

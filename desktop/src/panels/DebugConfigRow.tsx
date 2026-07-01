@@ -1,87 +1,95 @@
-import { useState } from "react";
-import { ChevronRight, Loader2 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  CATEGORY_FIELDS,
-  LOG_LEVELS,
-  matchingPreset,
-  PRESET_NAMES,
-  presetLevels,
-  type PresetName,
-} from "../debug-presets";
-import type { CategoryLevels } from "../types";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, RefreshCw } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { CATEGORY_FIELDS, LOG_LEVELS } from "../debug-presets";
+import type { CategoryLevels, DebugLevelDto, LoggingConfigDto } from "../types";
 
 interface DebugConfigRowProps {
+  org: string | null;
   value: CategoryLevels;
   onApply: (levels: CategoryLevels) => void;
   applying: boolean;
   error: string | null;
+  /** Controlled by the toolbar toggle; renders nothing when closed. */
+  open: boolean;
 }
 
-function PresetMenu({
-  value,
-  onChoose,
-}: {
-  value: PresetName | null;
-  onChoose: (name: PresetName) => void;
-}) {
-  return (
-    <Select
-      value={value ?? undefined}
-      onValueChange={(name) => onChoose(name as PresetName)}
-    >
-      <SelectTrigger
-        aria-label="Select debug preset"
-        className="focus-accent h-7 w-44 cursor-pointer rounded-md border-border bg-card px-2.5 text-[12px] text-text-dim transition-colors hover:text-foreground"
-      >
-        <SelectValue placeholder="Custom" />
-      </SelectTrigger>
-      <SelectContent className="rounded-md border-border bg-card text-[12px]">
-        {PRESET_NAMES.map((name) => (
-          <SelectItem key={name} value={name}>
-            {name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+// Native <select> (compact), matching the apex-log DebugLevelsTable style.
+const SEL =
+  "native-select h-6 cursor-pointer rounded border border-border bg-card px-1 text-[11px] text-foreground focus-accent";
+
+function sameLevels(a: CategoryLevels, b: CategoryLevels): boolean {
+  return CATEGORY_FIELDS.every(({ key }) => a[key] === b[key]);
 }
+
+/** Returns the org DebugLevel record whose levels match `value`, or null. */
+export function matchingDebugLevel(
+  levels: DebugLevelDto[],
+  value: CategoryLevels,
+): DebugLevelDto | null {
+  return levels.find((d) => sameLevels(d.levels, value)) ?? null;
+}
+
+// Cache org DebugLevel records per org so re-expanding doesn't re-hit the org.
+// ponytail: no invalidation; stale until app reload if levels change elsewhere.
+const levelsCache = new Map<string, DebugLevelDto[]>();
 
 export function DebugConfigRow({
+  org,
   value,
   onApply,
   applying,
   error,
+  open,
 }: DebugConfigRowProps) {
-  const [open, setOpen] = useState(false);
-  const activePreset = matchingPreset(value);
+  const [orgLevels, setOrgLevels] = useState<DebugLevelDto[]>([]);
+  const [loadingLevels, setLoadingLevels] = useState(false);
+  const [levelsError, setLevelsError] = useState<string | null>(null);
+
+  // Load the org's DebugLevel records; cached per org. `force` bypasses the
+  // cache to pick up levels added in the org (or elsewhere in the app).
+  const loadLevels = useCallback(
+    async (force: boolean) => {
+      const cacheKey = org ?? "";
+      if (!force) {
+        const cached = levelsCache.get(cacheKey);
+        if (cached) {
+          setOrgLevels(cached);
+          return;
+        }
+      }
+      setLoadingLevels(true);
+      setLevelsError(null);
+      try {
+        const cfg = await invoke<LoggingConfigDto>("load_logging_config");
+        levelsCache.set(cacheKey, cfg.debugLevels);
+        setOrgLevels(cfg.debugLevels);
+      } catch (e) {
+        setLevelsError(typeof e === "string" ? e : String(e));
+      } finally {
+        setLoadingLevels(false);
+      }
+    },
+    [org],
+  );
+
+  // Fetch when first opened, and whenever the org changes while open.
+  useEffect(() => {
+    if (open) void loadLevels(false);
+  }, [open, loadLevels]);
+
+  if (!open) return null;
+
+  const active = matchingDebugLevel(orgLevels, value);
 
   const setLevel = (key: keyof CategoryLevels, level: string) => {
     onApply({ ...value, [key]: level });
   };
 
   return (
-    <div className="@container border-y border-border bg-card/60 px-4 py-2">
-      <button
-        type="button"
-        aria-label="Toggle debug levels"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="focus-accent flex w-full cursor-pointer items-center gap-3 rounded-md py-1 text-left"
-      >
-        <ChevronRight
-          size={14}
-          className={`shrink-0 text-text-dim transition-transform ${open ? "rotate-90" : ""}`}
-        />
-        <span className="micro-label min-w-[118px] shrink-0">DEBUG LEVELS</span>
-        <span className="text-[12px] text-foreground">{activePreset ?? "Custom"}</span>
-        <span className="ml-auto flex min-w-0 items-center gap-2 text-[11px]">
+    <div className="border-b border-border bg-card/60 px-4 py-2">
+      {(applying || error) && (
+        <div className="mb-1 flex min-w-0 items-center gap-2 text-[11px]">
           {applying && (
             <span className="inline-flex items-center gap-1 text-text-dim">
               <Loader2 size={12} className="animate-spin text-primary" />
@@ -89,48 +97,89 @@ export function DebugConfigRow({
             </span>
           )}
           {error && <span className="truncate text-destructive">{error}</span>}
-        </span>
-      </button>
-
-      {open && (
-        <div className="mt-2 grid gap-2 border-t border-border pt-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="micro-label w-24 shrink-0">PRESET</span>
-            <PresetMenu
-              value={activePreset}
-              onChoose={(name) => onApply(presetLevels(name))}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 @lg:grid-cols-2 @3xl:grid-cols-3">
-            {CATEGORY_FIELDS.map(({ key, label }) => (
-              <label key={key} className="flex items-center gap-2">
-                <span className="w-28 shrink-0 truncate text-[11px] uppercase text-text-dim">
-                  {label}
-                </span>
-                <Select
-                  value={value[key]}
-                  onValueChange={(level) => setLevel(key, level)}
-                >
-                  <SelectTrigger
-                  aria-label={`${label} debug level`}
-                    className="focus-accent h-7 min-w-0 flex-1 cursor-pointer rounded-md border-border bg-card px-2 text-[12px] text-foreground"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-md border-border bg-card text-[12px]">
-                    {LOG_LEVELS.map((level) => (
-                      <SelectItem key={level} value={level}>
-                        {level}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-            ))}
-          </div>
         </div>
       )}
+      <div className="overflow-x-auto rounded-md border border-border">
+        <table className="w-full text-[11px]">
+          <thead className="text-text-dim">
+            <tr className="border-b border-border">
+              <th className="px-2 py-0.5 text-left font-normal">Preset</th>
+              {CATEGORY_FIELDS.map(({ key, label }) => (
+                <th
+                  key={key}
+                  className="whitespace-nowrap px-1 py-0.5 text-left font-normal"
+                >
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="px-2 py-0.5">
+                <div className="flex items-center gap-1">
+                  <select
+                    aria-label="Debug level preset"
+                    className={`${SEL} w-36`}
+                    value={active?.id ?? ""}
+                    disabled={loadingLevels || orgLevels.length === 0}
+                    onChange={(e) => {
+                      const d = orgLevels.find((x) => x.id === e.target.value);
+                      if (d) onApply(d.levels);
+                    }}
+                  >
+                    {!active && (
+                      <option value="" disabled>
+                        {loadingLevels
+                          ? "Loading…"
+                          : orgLevels.length === 0
+                            ? "No debug levels"
+                            : "Custom"}
+                      </option>
+                    )}
+                    {orgLevels.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.developerName}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    aria-label="Refresh debug levels"
+                    title="Refresh from org"
+                    disabled={loadingLevels}
+                    onClick={() => void loadLevels(true)}
+                    className="focus-accent inline-flex size-6 shrink-0 items-center justify-center rounded text-text-dim hover:text-foreground disabled:opacity-50 cursor-pointer"
+                  >
+                    <RefreshCw size={12} className={loadingLevels ? "animate-spin" : ""} />
+                  </button>
+                </div>
+              </td>
+              {CATEGORY_FIELDS.map(({ key, label }) => (
+                <td key={key} className="px-1 py-0.5">
+                  <select
+                    aria-label={`${label} debug level`}
+                    className={`${SEL} w-[4.5rem]`}
+                    value={value[key]}
+                    onChange={(e) => setLevel(key, e.target.value)}
+                  >
+                    {LOG_LEVELS.map((level) => (
+                      <option key={level} value={level}>
+                        {level}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        {levelsError && (
+          <div className="border-t border-border px-2 py-1 text-[11px] text-destructive">
+            {levelsError}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

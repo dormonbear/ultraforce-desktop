@@ -4,8 +4,6 @@ import {
   Terminal,
   ScrollText,
   Table as TableIcon,
-  History as HistoryIcon,
-  Command as CommandIcon,
   Settings,
 } from "lucide-react";
 import { SoqlTabs } from "./panels/SoqlTabs";
@@ -13,18 +11,15 @@ import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { SetupPage } from "./components/SetupPage";
+import { LogoLoader } from "./components/LogoLoader";
 import { useOrgs } from "./org";
 import { isMac } from "./platform";
-import { CommandPalette } from "./components/CommandPalette";
-import { HistoryDrawer } from "./components/HistoryDrawer";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
 import { SyncToast } from "./components/SyncToast";
 import { SchemaRefresh } from "./components/SchemaRefresh";
 import { SettingsPage } from "./components/SettingsPage";
-import { onOpenTabRequest } from "./openTab";
 import { checkForUpdates } from "./updater";
 import { useTheme } from "./theme";
-import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import {
   Tooltip,
@@ -47,8 +42,6 @@ export default function App() {
   // Tools mount on first visit and stay mounted (hidden when inactive) so run
   // results survive a tool switch. Logs is lazy too: no network call until opened.
   const [visited, setVisited] = useState<ActivePanel[]>([active]);
-  const [cmdOpen, setCmdOpen] = useState(false);
-  const [histOpen, setHistOpen] = useState(false);
   // Bumped when a workspace root changes, to remount the affected tool panel.
   const [wsVersion, setWsVersion] = useState(0);
   const { theme } = useTheme();
@@ -60,10 +53,7 @@ export default function App() {
     // fallow-ignore-next-line complexity
     const onKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setCmdOpen((open) => !open);
-      } else if (e.key === ",") {
+      if (e.key === ",") {
         e.preventDefault();
         setActive("settings");
       }
@@ -75,9 +65,6 @@ export default function App() {
   useEffect(() => {
     setVisited((v) => (v.includes(active) ? v : [...v, active]));
   }, [active]);
-
-  // History "open in tab" requests switch to the owning tool's panel.
-  useEffect(() => onOpenTabRequest((tool) => setActive(tool)), []);
 
   // Cmd/Ctrl+1..3 switches tools (1=SOQL, 2=Apex, 3=Logs).
   useEffect(() => {
@@ -102,61 +89,38 @@ export default function App() {
   return (
     <TooltipProvider>
     <div className="flex h-full flex-col bg-background text-foreground">
-      {/* 2px accent strip — doubles as the org-indexing progress bar */}
-      <TopProgressBar />
-
-      {/* Top bar */}
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
-        <svg
-          viewBox="0 0 128 128"
-          className="size-[22px] select-none"
-          role="img"
-          aria-label="Ultraforce"
-        >
-          <g fill="#E0532F">
-            <path d="M16 30H31L89 64L31 98H16L74 64Z" />
-            <path d="M48 30H63L121 64L63 98H48L106 64Z" />
-          </g>
-        </svg>
+      {/* Top bar — doubles as the window drag region (native title bar hidden) */}
+      <header
+        data-tauri-drag-region
+        className={`flex h-12 shrink-0 items-center justify-between border-b border-border pr-4 ${
+          isMac() ? "pl-24" : "pl-4"
+        }`}
+      >
+        <div className="pointer-events-none flex select-none items-center gap-2">
+          <svg
+            viewBox="0 0 128 128"
+            className="size-[22px] text-primary"
+            role="img"
+            aria-label="Ultraforce"
+          >
+            <g fill="currentColor">
+              <path d="M16 30H31L89 64L31 98H16L74 64Z" />
+              <path d="M48 30H63L121 64L63 98H48L106 64Z" />
+            </g>
+          </svg>
+          <span className="text-sm font-semibold tracking-tight text-foreground">
+            Ultraforce
+          </span>
+        </div>
         <div className="flex items-center gap-2">
           <IndexProgress />
           <SchemaRefresh />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setCmdOpen(true)}
-                aria-label="Command palette"
-                className="size-7 cursor-pointer text-text-dim hover:text-foreground"
-              >
-                <CommandIcon size={15} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              Command palette
-              <span className="ml-2 text-muted-foreground">
-                {isMac() ? "⌘K" : "Ctrl+K"}
-              </span>
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setHistOpen(true)}
-                aria-label="Run history"
-                className="size-7 cursor-pointer text-text-dim hover:text-foreground"
-              >
-                <HistoryIcon size={15} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Run history</TooltipContent>
-          </Tooltip>
           <OrgSelector />
         </div>
       </header>
+
+      {/* 2px accent strip under the title bar — doubles as the org-indexing progress bar */}
+      <TopProgressBar />
 
       <div className="flex min-h-0 flex-1">
         {/* Activity rail */}
@@ -168,7 +132,7 @@ export default function App() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    disabled={!enabled}
+                    aria-disabled={!enabled}
                     aria-label={label}
                     aria-current={current ? "page" : undefined}
                     onClick={() => enabled && setActive(id as ActivePanel)}
@@ -177,8 +141,8 @@ export default function App() {
                         ? "text-primary"
                         : enabled
                           ? "text-text-dim hover:text-foreground"
-                          : "text-muted-foreground disabled:cursor-not-allowed"
-                    } cursor-pointer`}
+                          : "text-muted-foreground"
+                    } ${enabled ? "cursor-pointer" : "cursor-not-allowed"}`}
                   >
                     {current && (
                       <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
@@ -188,11 +152,13 @@ export default function App() {
                 </TooltipTrigger>
                 <TooltipContent side="right">
                   {label}
-                  {enabled && (
+                  {enabled ? (
                     <span className="ml-2 text-muted-foreground">
                       {isMac() ? "⌘" : "Ctrl+"}
                       {index + 1}
                     </span>
+                  ) : (
+                    <span className="ml-2 text-muted-foreground">Coming soon</span>
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -228,7 +194,11 @@ export default function App() {
 
         {/* Main */}
         <main className="min-w-0 flex-1">
-          {needsSetup ? (
+          {orgLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <LogoLoader size={120} />
+            </div>
+          ) : needsSetup ? (
             active === "settings" ? (
               <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
             ) : (
@@ -258,13 +228,6 @@ export default function App() {
           )}
         </main>
       </div>
-      <CommandPalette
-        open={cmdOpen}
-        onOpenChange={setCmdOpen}
-        onSelectPanel={setActive}
-        onOpenHistory={() => setHistOpen(true)}
-      />
-      <HistoryDrawer open={histOpen} onOpenChange={setHistOpen} />
       <SyncToast />
       <Toaster theme={theme} />
     </div>

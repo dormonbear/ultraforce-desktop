@@ -189,7 +189,7 @@ export function Explorer({
         void drop(root);
       }}
     >
-      <div className="flex items-center gap-1 border-b border-border px-2 py-1.5">
+      <div className="flex items-center gap-1 px-2 py-1.5">
         <Search size={12} className="shrink-0 text-text-dim" />
         <input
           value={query}
@@ -225,7 +225,7 @@ export function Explorer({
             setMode((m) => (m === "name" ? "content" : "name"));
             setHits(null);
           }}
-          className={`shrink-0 rounded px-1 text-[10px] font-medium uppercase ${
+          className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             mode === "content"
               ? "bg-primary/15 text-primary"
               : "text-text-dim hover:text-foreground"
@@ -240,7 +240,7 @@ export function Explorer({
           onClick={() => setOpts((o) => ({ ...o, caseSensitive: !o.caseSensitive }))}
           className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             opts.caseSensitive
-              ? "bg-primary/15 text-primary"
+              ? "bg-foreground/10 text-foreground"
               : "text-text-dim hover:text-foreground"
           }`}
         >
@@ -253,7 +253,7 @@ export function Explorer({
           onClick={() => setOpts((o) => ({ ...o, regex: !o.regex }))}
           className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             opts.regex
-              ? "bg-primary/15 text-primary"
+              ? "bg-foreground/10 text-foreground"
               : "text-text-dim hover:text-foreground"
           }`}
         >
@@ -305,6 +305,11 @@ export function Explorer({
         </div>
       ) : (
         <div role="tree" className="min-h-0 flex-1 overflow-auto py-1">
+          {shown.length === 0 && !edit && (
+            <div className="px-3 py-2 text-text-dim">
+              {nameFilter ? "No files match" : "No files yet"}
+            </div>
+          )}
           {rows}
           {edit && edit.kind !== "rename" && (
             <NewRow
@@ -365,7 +370,7 @@ function NewRow({
         if (e.key === "Enter") onCommit(e.currentTarget.value);
         else if (e.key === "Escape") onCancel();
       }}
-      className="mx-2 my-1 w-[210px] rounded-[2px] bg-card px-1 text-[12px] text-foreground outline-none ring-1 ring-primary/60"
+      className="mx-2 my-1 w-[210px] rounded bg-card px-1 text-[12px] text-foreground outline-none ring-1 ring-primary/60"
     />
   );
 }

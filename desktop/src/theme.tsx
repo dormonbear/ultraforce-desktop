@@ -5,10 +5,16 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  editorThemeId,
+  HIGHLIGHT_SCHEMES,
+  type HighlightScheme,
+} from "./editor-themes";
 
 export type Theme = "light" | "dark";
 
 const KEY = "sf-toolkit-theme";
+const SCHEME_KEY = "sf-toolkit-highlight";
 
 function initialTheme(): Theme {
   const stored = localStorage.getItem(KEY);
@@ -20,14 +26,30 @@ function initialTheme(): Theme {
     : "light";
 }
 
-const ThemeCtx = createContext<{ theme: Theme; toggle: () => void }>({
+function initialScheme(): HighlightScheme {
+  const stored = localStorage.getItem(SCHEME_KEY);
+  return HIGHLIGHT_SCHEMES.some((s) => s.id === stored)
+    ? (stored as HighlightScheme)
+    : "sf";
+}
+
+const ThemeCtx = createContext<{
+  theme: Theme;
+  toggle: () => void;
+  scheme: HighlightScheme;
+  setScheme: (s: HighlightScheme) => void;
+}>({
   theme: "light",
   toggle: () => {},
+  scheme: "sf",
+  setScheme: () => {},
 });
 
-/** Owns the app theme; mirrors it onto the `<html>` `.dark` class + localStorage. */
+/** Owns the app theme + editor highlight scheme; mirrors theme onto the
+ * `<html>` `.dark` class and persists both to localStorage. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const [scheme, setSchemeState] = useState<HighlightScheme>(initialScheme);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -35,12 +57,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme]);
 
   const toggle = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  const setScheme = (s: HighlightScheme) => {
+    setSchemeState(s);
+    localStorage.setItem(SCHEME_KEY, s);
+  };
+
   return (
-    <ThemeCtx.Provider value={{ theme, toggle }}>{children}</ThemeCtx.Provider>
+    <ThemeCtx.Provider value={{ theme, toggle, scheme, setScheme }}>
+      {children}
+    </ThemeCtx.Provider>
   );
 }
 
 export const useTheme = () => useContext(ThemeCtx);
 
-/** Monaco editor theme id for the current app theme. */
-export const monacoTheme = (t: Theme): string => (t === "dark" ? "sf-dark" : "sf");
+/** Monaco editor theme id for the current app theme + highlight scheme. */
+export const monacoTheme = (t: Theme, scheme: HighlightScheme = "sf"): string =>
+  editorThemeId(scheme, t === "dark");

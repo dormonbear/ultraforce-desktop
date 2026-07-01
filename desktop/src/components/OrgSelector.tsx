@@ -17,14 +17,14 @@ export function OrgSelector() {
 
   const cur = orgs.find((o) => o.username === selected);
   const label = error
-    ? "org error"
+    ? "Org error"
     : loading
-      ? "loading…"
+      ? "Loading…"
       : cur
         ? (cur.alias ?? cur.username)
         : orgs.length
-          ? "select org"
-          : "no orgs";
+          ? "Select org"
+          : "No orgs";
 
   return (
     <>
@@ -32,7 +32,7 @@ export function OrgSelector() {
       <DropdownMenuTrigger
         aria-label="Select Salesforce org"
         disabled={loading || orgs.length === 0}
-        className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 py-1 text-[11px] uppercase tracking-wide text-text-dim transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+        className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-dim transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
       >
         {loading ? (
           <Loader2 size={12} className="spin text-muted-foreground" />
@@ -60,7 +60,7 @@ export function OrgSelector() {
             </span>
             <span className="flex items-center gap-1 text-muted-foreground">
               {o.is_default && (
-                <span className="text-[10px] uppercase">default</span>
+                <span className="text-[11px]">default</span>
               )}
               {o.username === selected && (
                 <Check size={12} className="text-primary" />

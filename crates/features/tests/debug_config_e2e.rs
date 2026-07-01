@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[ignore = "hits the live org; mutates TraceFlag/DebugLevel; run explicitly with --ignored"]
 async fn e2e_set_then_get_roundtrips() {
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
-    set_debug_config(&invoker, &preset_levels(Preset::ApexOnly), None)
+    set_debug_config(&invoker, &preset_levels(Preset::ApexOnly), None, 24 * 60)
         .await
         .expect("set debug config");
     let cfg = get_debug_config(&invoker, None)

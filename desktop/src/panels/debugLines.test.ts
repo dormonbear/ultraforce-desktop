@@ -7,6 +7,7 @@ const node = (label: string, detail: string, children: ExecNodeDto[] = []): Exec
   detail,
   dur_ns: null,
   self_ns: null,
+  start_ns: 0,
   children,
   source: null,
 });

@@ -46,7 +46,7 @@ export function LogDebugger({
   open: boolean;
   onClose: () => void;
 }) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const [session, setSession] = useState<DebugSession | null>(null);
   const [i, setI] = useState(0);
   // Call stack for the current step, fetched on demand (kept off the outline so
@@ -164,7 +164,7 @@ export function LogDebugger({
         </div>
 
         {!session && (
-          <div className="flex items-center gap-2 py-6 text-sm text-text-dim">
+          <div className="flex items-center gap-2 py-6 text-[13px] text-text-dim">
             <Loader2 className="spin" size={16} /> Building session…
           </div>
         )}
@@ -184,7 +184,7 @@ export function LogDebugger({
                 <Editor
                   height="100%"
                   language="apex"
-                  theme={monacoTheme(theme)}
+                  theme={monacoTheme(theme, scheme)}
                   value={src?.body ?? ""}
                   beforeMount={(monaco: Monaco) => configureMonacoApex(monaco)}
                   onMount={onMount}
@@ -231,7 +231,7 @@ export function LogDebugger({
                         <span className="text-text-dim"> ({v.typeName})</span>
                       )}
                       <span className="text-text-dim"> = </span>
-                      <span className="break-all text-primary">{v.value || "—"}</span>
+                      <span className="break-all text-foreground">{v.value || "—"}</span>
                     </div>
                   ))
                 ) : (
@@ -251,7 +251,7 @@ export function LogDebugger({
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border">
-      <div className="border-b border-border px-2 py-1 text-[11px] font-medium uppercase tracking-wide text-text-dim">
+      <div className="border-b border-border px-2 py-1 text-[11.5px] font-semibold text-muted-foreground">
         {title}
       </div>
       <div className="min-h-0 flex-1 overflow-auto py-1">{children}</div>

@@ -25,6 +25,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "lottie-react": "^2.4.1",
     "lucide-react": "^0.544.0",
     "monaco-editor": "^0.54.0",
     "radix-ui": "^1.6.0",
@@ -33,7 +34,8 @@
     "react-resizable-panels": "^4.11.2",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",

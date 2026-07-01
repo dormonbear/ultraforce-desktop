@@ -508,6 +508,19 @@ fn source_at_line(
         .map(dto::map_source)
 }
 
+/// Raw line indices (0-based into `raw.split('\n')`) that resolve to Apex source,
+/// so the viewer can mark just those lines clickable. Compact: only the resolved
+/// indices, not the full per-line array.
+#[tauri::command]
+fn source_line_indices(body: String, state: State<'_, AppState>) -> Vec<u32> {
+    cached_log_view(&state, &body)
+        .raw_sources
+        .iter()
+        .enumerate()
+        .filter_map(|(i, o)| o.as_ref().map(|_| i as u32))
+        .collect()
+}
+
 /// Parse a raw log body, reusing the cached parse when the body is unchanged so
 /// the step-debugger doesn't re-parse a large log on every step.
 fn parsed_log(state: &AppState, raw: &str) -> Arc<log_parser::parse::ParsedLog> {
@@ -550,6 +563,13 @@ fn debug_frames_at(
         Some(unit) => dto::map_frames(&log_parser::debug_session::frames_at(unit, entry_index)),
         None => Vec::new(),
     }
+}
+
+/// Read a log file the user dropped onto the window (arbitrary path, outside the
+/// fs plugin's dialog-granted scope).
+#[tauri::command]
+fn read_log_file(path: String) -> Result<String, String> {
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
 }
 
 /// List the available Salesforce orgs via `sf org list`.
@@ -711,9 +731,28 @@ async fn set_debug_config(
 ) -> Result<dto::DebugConfigDto, String> {
     let org = current_org(&state);
     let core = features::debug_config::CategoryLevels::from(&levels);
-    let cfg = features::debug_config::set_debug_config(&state.invoker, &core, org.as_deref())
-        .await
-        .map_err(|e| format!("{e:?}"))?;
+    let cfg =
+        features::debug_config::set_debug_config(&state.invoker, &core, org.as_deref(), 24 * 60)
+            .await
+            .map_err(|e| format!("{e:?}"))?;
+    Ok(dto::DebugConfigDto::from(&cfg))
+}
+
+/// One-click: trace the running user for `minutes` (default 30) at a full-debug
+/// level. Reuses set_debug_config (upserts the ULTRAFORCE_DEBUG level + TraceFlag).
+#[tauri::command]
+async fn quick_self_trace(
+    minutes: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<dto::DebugConfigDto, String> {
+    let org = current_org(&state);
+    let mins = minutes.unwrap_or(30) as u64;
+    let levels =
+        features::debug_config::preset_levels(features::debug_config::Preset::FullDebugging);
+    let cfg =
+        features::debug_config::set_debug_config(&state.invoker, &levels, org.as_deref(), mins)
+            .await
+            .map_err(|e| format!("{e:?}"))?;
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
@@ -1023,6 +1062,7 @@ pub fn run() {
             set_target_org,
             get_debug_config,
             set_debug_config,
+            quick_self_trace,
             load_logging_config,
             save_logging_config,
             apex_complete,
@@ -1040,10 +1080,12 @@ pub fn run() {
             format_apex,
             parse_log,
             source_at_line,
+            source_line_indices,
             debug_session,
             debug_frames_at,
             sf_status,
-            login_org
+            login_org,
+            read_log_file
         ])
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())

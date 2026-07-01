@@ -135,6 +135,8 @@ pub struct DebugConfig {
     pub trace_flag_id: Option<String>,
     pub debug_level_id: Option<String>,
     pub levels: CategoryLevels,
+    /// TraceFlag ExpirationDate (sf datetime literal), if a flag is active.
+    pub expiration_date: Option<String>,
 }
 
 const DL_DEVELOPER_NAME: &str = "ULTRAFORCE_DEBUG";
@@ -201,6 +203,8 @@ struct TraceFlagFull {
     id: String,
     #[serde(rename = "DebugLevelId")]
     debug_level_id: String,
+    #[serde(rename = "ExpirationDate")]
+    expiration_date: Option<String>,
     #[serde(rename = "DebugLevel")]
     debug_level: Option<DebugLevelFields>,
 }
@@ -260,10 +264,12 @@ pub async fn set_debug_config(
     invoker: &SfInvoker,
     levels: &CategoryLevels,
     target_org: Option<&str>,
+    expiry_minutes: u64,
 ) -> Result<DebugConfig, SfError> {
     let user_id = running_user_id(invoker, target_org).await?;
     let existing = existing_trace_flag(invoker, &user_id, target_org).await?;
     let values = levels.values_arg();
+    let exp = expiration(expiry_minutes);
 
     let (trace_flag_id, debug_level_id) = match existing {
         Some((tf_id, dl_id)) => {
@@ -285,9 +291,11 @@ pub async fn set_debug_config(
                     target_org,
                 ))
                 .await?;
-            // refresh the TraceFlag window
-            let exp = expiration();
-            let tf_values = format!("ExpirationDate={exp}");
+            // Refresh the TraceFlag window. Reset StartDate too: Salesforce
+            // rejects an ExpirationDate >24h past a stale StartDate left by a
+            // prior trace (FIELD_INTEGRITY_EXCEPTION).
+            let start = expiration(0);
+            let tf_values = format!("StartDate={start} ExpirationDate={exp}");
             let _: CreateResult = invoker
                 .run_json(&with_org(
                     vec![
@@ -326,7 +334,6 @@ pub async fn set_debug_config(
                     target_org,
                 ))
                 .await?;
-            let exp = expiration();
             let tf_values = format!(
                 "TracedEntityId={user_id} DebugLevelId={dl_id} LogType=DEVELOPER_LOG ExpirationDate={exp}",
                 dl_id = dl.id
@@ -354,6 +361,7 @@ pub async fn set_debug_config(
         trace_flag_id: Some(trace_flag_id),
         debug_level_id: Some(debug_level_id),
         levels: *levels,
+        expiration_date: Some(exp),
     })
 }
 
@@ -389,7 +397,7 @@ pub async fn get_debug_config(
 ) -> Result<DebugConfig, SfError> {
     let user_id = running_user_id(invoker, target_org).await?;
     let soql = format!(
-        "SELECT Id, DebugLevelId, DebugLevel.ApexCode, DebugLevel.ApexProfiling, DebugLevel.Callout, \
+        "SELECT Id, DebugLevelId, ExpirationDate, DebugLevel.ApexCode, DebugLevel.ApexProfiling, DebugLevel.Callout, \
          DebugLevel.DataAccess, DebugLevel.Database, DebugLevel.Nba, DebugLevel.System, DebugLevel.Validation, \
          DebugLevel.Visualforce, DebugLevel.Wave, DebugLevel.Workflow FROM TraceFlag \
          WHERE TracedEntityId='{user_id}' AND LogType='DEVELOPER_LOG' LIMIT 1"
@@ -406,6 +414,7 @@ pub async fn get_debug_config(
             trace_flag_id: None,
             debug_level_id: None,
             levels: ALL_NONE,
+            expiration_date: None,
         });
     };
 
@@ -413,17 +422,18 @@ pub async fn get_debug_config(
         trace_flag_id: Some(tf.id),
         debug_level_id: Some(tf.debug_level_id),
         levels: tf.debug_level.map(CategoryLevels::from).unwrap_or(ALL_NONE),
+        expiration_date: tf.expiration_date,
     })
 }
 
-/// Now + 24h as an sf datetime literal. No new crate: epoch → civil UTC by hand.
-fn expiration() -> String {
+/// Now + `minutes` as an sf datetime literal. No new crate: epoch → civil UTC by hand.
+fn expiration(minutes: u64) -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
     let secs = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0)
-        + 24 * 3600;
+        + minutes * 60;
     format_iso_utc(secs)
 }
 
@@ -520,9 +530,14 @@ mod tests {
             seen.clone(),
         );
         let invoker = SfInvoker::new(Arc::new(runner));
-        let cfg = set_debug_config(&invoker, &preset_levels(Preset::ApexOnly), Some("me@x.com"))
-            .await
-            .unwrap();
+        let cfg = set_debug_config(
+            &invoker,
+            &preset_levels(Preset::ApexOnly),
+            Some("me@x.com"),
+            24 * 60,
+        )
+        .await
+        .unwrap();
         assert_eq!(cfg.debug_level_id.as_deref(), Some("7dlDL"));
         assert_eq!(cfg.trace_flag_id.as_deref(), Some("7tfTF"));
         let calls = seen.lock().unwrap().clone();
@@ -556,12 +571,18 @@ mod tests {
             seen.clone(),
         );
         let invoker = SfInvoker::new(Arc::new(runner));
-        set_debug_config(&invoker, &preset_levels(Preset::None), None)
+        set_debug_config(&invoker, &preset_levels(Preset::None), None, 24 * 60)
             .await
             .unwrap();
         let flat: Vec<String> = seen.lock().unwrap().iter().flatten().cloned().collect();
         assert!(flat.iter().any(|a| a == "update"), "{flat:?}");
         assert!(flat.windows(2).any(|w| w == ["-i", "7dlDL"]), "{flat:?}");
+        // The TraceFlag window resets StartDate to avoid a >24h stale-start error.
+        assert!(
+            flat.iter()
+                .any(|a| a.contains("StartDate=") && a.contains("ExpirationDate=")),
+            "{flat:?}"
+        );
         assert!(
             !flat.windows(2).any(|w| w[0] == "--target-org"),
             "no org when None: {flat:?}"

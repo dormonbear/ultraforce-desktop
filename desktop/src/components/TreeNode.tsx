@@ -54,14 +54,18 @@ export function TreeNode(p: Props) {
     >
       {isDir ? (
         expanded ? (
-          <ChevronDown size={12} />
+          <ChevronDown size={12} className="shrink-0" />
         ) : (
-          <ChevronRight size={12} />
+          <ChevronRight size={12} className="shrink-0" />
         )
       ) : (
-        <span className="w-3" />
+        <span className="w-3 shrink-0" />
       )}
-      {isDir ? <Folder size={13} /> : <FileCode size={13} />}
+      {isDir ? (
+        <Folder size={13} className="shrink-0" />
+      ) : (
+        <FileCode size={13} className="shrink-0" />
+      )}
       {editing ? (
         <input
           ref={inputRef}

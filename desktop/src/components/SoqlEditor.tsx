@@ -29,7 +29,7 @@ export function SoqlEditor({
   running,
   reveal,
 }: Props) {
-  const { theme } = useTheme();
+  const { theme, scheme } = useTheme();
   const onRunRef = useRef(onRun);
   const onSaveRef = useRef(onSave);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -105,14 +105,14 @@ export function SoqlEditor({
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-4 py-2">
-        <div className="micro-label flex-1">QUERY</div>
+        <div className="micro-label flex-1">Query</div>
         <RunButton onRun={onRun} running={running} />
       </div>
       <div className="min-h-0 flex-1">
         <Editor
           height="100%"
           language="soql"
-          theme={monacoTheme(theme)}
+          theme={monacoTheme(theme, scheme)}
           value={value}
           beforeMount={beforeMount}
           onMount={onMount}
