@@ -26,12 +26,25 @@ pub struct AppState {
     /// Cached REST credentials per org (key: org or "" for default). Avoids a
     /// ~1-2s `sf org display` on every query — refreshed on a 401.
     auth_cache: std::sync::Mutex<std::collections::HashMap<String, sf_core::AuthInfo>>,
-    /// Last parsed log (keyed by a hash of its raw body), so the step-debugger's
-    /// `debug_frames_at` doesn't re-parse a large log on every step.
-    debug_parse: std::sync::Mutex<Option<(u64, Arc<log_parser::parse::ParsedLog>)>>,
-    /// Last full `DebugLogView` (keyed by a hash of its raw body), so opening a
-    /// log parses it once across `parse_log` + `log_sources` (was twice).
-    debug_view: std::sync::Mutex<Option<(u64, Arc<features::debug_log::DebugLogView>)>>,
+    /// Last parsed log (keyed by a hash of its raw body), shared by the viewer
+    /// and the step-debugger so the same body is parsed exactly once.
+    log_cache: std::sync::Mutex<Option<LogCacheEntry>>,
+}
+
+/// Single-entry cache for the most recently used log body: the base
+/// `ParsedLog` (step-debugger) plus the `DebugLogView` derived from it
+/// lazily on the first viewer call.
+struct LogCacheEntry {
+    key: u64,
+    parsed: Arc<log_parser::parse::ParsedLog>,
+    view: Option<Arc<features::debug_log::DebugLogView>>,
+}
+
+fn body_key(body: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// REST credentials for `org`, cached so only the first query per org pays the
@@ -440,23 +453,32 @@ struct ParsedLogDto {
     units: Vec<UnitDto>,
 }
 
-/// The full `DebugLogView` for a body, cached single-entry (keyed by a hash of
-/// the body) so `parse_log`, `log_sources`, and `get_log` over the same log parse
-/// it once instead of each re-parsing 200k+ lines.
+/// The full `DebugLogView` for a body, derived from (and cached alongside) the
+/// shared `ParsedLog` so `parse_log`, `source_at_line`, and `get_log` over the
+/// same log neither re-parse 200k+ lines nor rebuild the view per call.
 fn cached_log_view(state: &AppState, body: &str) -> Arc<features::debug_log::DebugLogView> {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    body.hash(&mut hasher);
-    let key = hasher.finish();
-
-    let mut cache = state.debug_view.lock().unwrap();
-    if let Some((cached_key, view)) = cache.as_ref() {
-        if *cached_key == key {
-            return view.clone();
+    let key = body_key(body);
+    let mut cache = state.log_cache.lock().unwrap();
+    if let Some(entry) = cache.as_mut() {
+        if entry.key == key {
+            if let Some(view) = &entry.view {
+                return view.clone();
+            }
+            let view = Arc::new(features::debug_log::DebugLogView::from_parsed(
+                &entry.parsed,
+                body,
+            ));
+            entry.view = Some(view.clone());
+            return view;
         }
     }
-    let view = Arc::new(features::debug_log::DebugLogView::from_log(body));
-    *cache = Some((key, view.clone()));
+    let parsed = Arc::new(log_parser::parse::ParsedLog::parse(body));
+    let view = Arc::new(features::debug_log::DebugLogView::from_parsed(&parsed, body));
+    *cache = Some(LogCacheEntry {
+        key,
+        parsed,
+        view: Some(view.clone()),
+    });
     view
 }
 
@@ -525,21 +547,22 @@ fn source_line_indices(body: String, state: State<'_, AppState>) -> Vec<u32> {
 }
 
 /// Parse a raw log body, reusing the cached parse when the body is unchanged so
-/// the step-debugger doesn't re-parse a large log on every step.
+/// the step-debugger doesn't re-parse a large log on every step. Shares the
+/// viewer's cache entry, so a log opened then debugged is parsed once total.
 fn parsed_log(state: &AppState, raw: &str) -> Arc<log_parser::parse::ParsedLog> {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    raw.hash(&mut hasher);
-    let key = hasher.finish();
-
-    let mut cache = state.debug_parse.lock().unwrap();
-    if let Some((cached_key, parsed)) = cache.as_ref() {
-        if *cached_key == key {
-            return parsed.clone();
+    let key = body_key(raw);
+    let mut cache = state.log_cache.lock().unwrap();
+    if let Some(entry) = cache.as_ref() {
+        if entry.key == key {
+            return entry.parsed.clone();
         }
     }
     let parsed = Arc::new(log_parser::parse::ParsedLog::parse(raw));
-    *cache = Some((key, parsed.clone()));
+    *cache = Some(LogCacheEntry {
+        key,
+        parsed: parsed.clone(),
+        view: None,
+    });
     parsed
 }
 
@@ -1054,8 +1077,7 @@ pub fn run() {
         sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
         query_cancels: std::sync::Mutex::new(std::collections::HashMap::new()),
         auth_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
-        debug_parse: std::sync::Mutex::new(None),
-        debug_view: std::sync::Mutex::new(None),
+        log_cache: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()
