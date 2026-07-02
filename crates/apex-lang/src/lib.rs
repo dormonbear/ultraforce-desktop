@@ -9,6 +9,7 @@ pub mod symbols;
 
 pub use ast::context::needed_type_at;
 pub use ast::engine::complete_source;
+pub use ast::engine::signature_help_source;
 pub use format::format_apex;
 pub use soql_region::{soql_region_at, soql_regions};
 pub use snapshot::{load_snapshot, save_snapshot, IndexManifest};

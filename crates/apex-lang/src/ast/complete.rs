@@ -149,7 +149,7 @@ pub fn scope_names_at(src: &str, cursor: usize) -> Vec<String> {
         .collect()
 }
 
-fn enclosing_method(cu: &CompilationUnit, cursor: usize) -> Option<(&TypeDecl, &MethodDecl)> {
+pub(crate) fn enclosing_method(cu: &CompilationUnit, cursor: usize) -> Option<(&TypeDecl, &MethodDecl)> {
     fn in_type(t: &TypeDecl, cursor: usize) -> Option<(&TypeDecl, &MethodDecl)> {
         for m in &t.members {
             match m {
@@ -191,7 +191,7 @@ fn partial_at(src: &str, cursor: usize) -> &str {
 /// If the cursor sits in member-access position (`receiver.<partial>`), return the
 /// receiver expression text. Walks back over a postfix chain (idents, dots, and
 /// balanced `()`/`[]` groups) rooted at an ident or `this`/`super`/`new …`.
-fn receiver_before_dot(src: &str, cursor: usize, partial_len: usize) -> Option<String> {
+pub(crate) fn receiver_before_dot(src: &str, cursor: usize, partial_len: usize) -> Option<String> {
     let dot_pos = cursor.checked_sub(partial_len + 1)?;
     if *src.as_bytes().get(dot_pos)? != b'.' {
         return None;

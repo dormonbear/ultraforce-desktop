@@ -7,6 +7,7 @@
 
 use super::complete::{complete as ast_complete, CandidateKind as AstKind};
 use super::context::{context_at, CursorContext, Segment};
+use super::signature::{signature_help, SignatureHelp};
 use crate::candidate::{Candidate, CandidateKind};
 use crate::symbols::{ApexType, Ost};
 
@@ -58,6 +59,23 @@ pub fn complete_source(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
         }
         CursorContext::Unknown => Vec::new(),
     }
+}
+
+/// Signature help for `src` at `cursor`, with the same anonymous-Apex
+/// wrap-retry as [`complete_source`].
+pub fn signature_help_source(src: &str, cursor: usize, ost: &Ost) -> Option<SignatureHelp> {
+    let cursor = cursor.min(src.len());
+    if let Some(h) = signature_help(src, cursor, ost) {
+        return Some(h);
+    }
+    let class_prefix = "class __Anon {\n";
+    let wrapped = format!("{class_prefix}{src}\n}}");
+    if let Some(h) = signature_help(&wrapped, cursor + class_prefix.len(), ost) {
+        return Some(h);
+    }
+    let method_prefix = "class __Anon {\nvoid __anon() {\n";
+    let wrapped = format!("{method_prefix}{src}\n}}\n}}");
+    signature_help(&wrapped, cursor + method_prefix.len(), ost)
 }
 
 /// Run the AST member/scope engine on `src` directly; when the cursor is not
@@ -543,5 +561,13 @@ mod tests {
         let m = got.iter().find(|c| c.label == "valueOf").expect("valueOf offered");
         assert_eq!(m.detail.as_deref(), Some("String"));
         assert_eq!(m.params.as_deref(), Some(&["Integer".to_string()][..]));
+    }
+
+    #[test]
+    fn signature_help_works_for_bare_anonymous_apex() {
+        let ost = ost();
+        let src = "String.valueOf(";
+        let h = signature_help_source(src, src.len(), &ost).expect("wrapped signature help");
+        assert_eq!(h.signatures[0].label, "valueOf(Integer) : String");
     }
 }

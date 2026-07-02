@@ -10,5 +10,6 @@ pub mod infer;
 pub mod lexer;
 pub mod parser;
 pub mod scope;
+pub mod signature;
 pub mod tree;
 pub mod types;
