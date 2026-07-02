@@ -352,6 +352,8 @@ mod tests {
                     prop_type: "String".to_string(),
                     is_static: false,
                 }],
+                parent_class: None,
+                interfaces: vec![],
                 enum_values: vec![],
             }],
         }
@@ -388,6 +390,8 @@ mod tests {
                 kind: TypeKind::Class,
                 methods: vec![],
                 properties: vec![],
+                parent_class: None,
+                interfaces: vec![],
                 enum_values: vec![],
             }],
         };

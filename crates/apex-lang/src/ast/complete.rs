@@ -261,11 +261,11 @@ fn members_of(ty: &Type, ost: &Ost, static_ctx: bool) -> Vec<Candidate> {
         Type::Named(n) => ost
             .org_type(n)
             .or_else(|| ost.type_in("System", n))
-            .map(|at| apex_type_members(at, static_ctx))
+            .map(|at| apex_type_members(ost, at, static_ctx))
             .unwrap_or_default(),
         Type::Primitive(p) => ost
             .type_in("System", p.name())
-            .map(|at| apex_type_members(at, static_ctx))
+            .map(|at| apex_type_members(ost, at, static_ctx))
             .unwrap_or_default(),
         // Collections expose only instance members.
         Type::List(_) | Type::Set(_) | Type::Map(_, _) if !static_ctx => collection_members(ty),
@@ -273,34 +273,41 @@ fn members_of(ty: &Type, ost: &Ost, static_ctx: bool) -> Vec<Candidate> {
     }
 }
 
-fn apex_type_members(at: &ApexType, want_static: bool) -> Vec<Candidate> {
+/// Members of `at` merged with those inherited along its `parent_class` chain
+/// and `interfaces` (child-first: a subclass member shadows the parent's).
+fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> Vec<Candidate> {
     let mut out = Vec::new();
-    for m in &at.methods {
-        if m.is_static == want_static {
-            out.push(Candidate {
-                label: m.name.clone(),
-                kind: CandidateKind::Method,
-                detail: Some(m.return_type.clone()),
-            });
+    let mut seen = std::collections::HashSet::new();
+    for ty in crate::resolve::supertype_chain(ost, at) {
+        for m in &ty.methods {
+            if m.is_static == want_static && seen.insert(m.name.to_ascii_lowercase()) {
+                out.push(Candidate {
+                    label: m.name.clone(),
+                    kind: CandidateKind::Method,
+                    detail: Some(m.return_type.clone()),
+                });
+            }
         }
-    }
-    for p in &at.properties {
-        if p.is_static == want_static {
-            out.push(Candidate {
-                label: p.name.clone(),
-                kind: CandidateKind::Field,
-                detail: Some(p.prop_type.clone()),
-            });
+        for p in &ty.properties {
+            if p.is_static == want_static && seen.insert(p.name.to_ascii_lowercase()) {
+                out.push(Candidate {
+                    label: p.name.clone(),
+                    kind: CandidateKind::Field,
+                    detail: Some(p.prop_type.clone()),
+                });
+            }
         }
-    }
-    // Enum constants are static (`Color.RED`).
-    if want_static {
-        for v in &at.enum_values {
-            out.push(Candidate {
-                label: v.clone(),
-                kind: CandidateKind::Field,
-                detail: Some(at.name.clone()),
-            });
+        // Enum constants are static (`Color.RED`).
+        if want_static {
+            for v in &ty.enum_values {
+                if seen.insert(v.to_ascii_lowercase()) {
+                    out.push(Candidate {
+                        label: v.clone(),
+                        kind: CandidateKind::Field,
+                        detail: Some(ty.name.clone()),
+                    });
+                }
+            }
         }
     }
     out
@@ -378,6 +385,8 @@ mod tests {
                     is_static: false,
                 },
             ],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         let user = ApexType {
@@ -394,6 +403,8 @@ mod tests {
                 prop_type: "String".to_string(),
                 is_static: false,
             }],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         let string_ty = ApexType {
@@ -414,6 +425,8 @@ mod tests {
                 },
             ],
             properties: vec![],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         let color = ApexType {
@@ -421,6 +434,8 @@ mod tests {
             kind: TypeKind::Enum,
             methods: vec![],
             properties: vec![],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec!["RED".to_string(), "GREEN".to_string()],
         };
         // A base class (the OST already flattens its own inheritance at index time).
@@ -438,6 +453,24 @@ mod tests {
                 prop_type: "String".to_string(),
                 is_static: false,
             }],
+            parent_class: None,
+            interfaces: vec![],
+            enum_values: vec![],
+        };
+        // An org subclass whose parent lives elsewhere in the OST (linked by
+        // `parent_class`, not eagerly flattened).
+        let sub = ApexType {
+            name: "Sub".to_string(),
+            kind: TypeKind::Class,
+            parent_class: Some("Base".to_string()),
+            interfaces: vec![],
+            methods: vec![Method {
+                name: "subMethod".to_string(),
+                return_type: "String".to_string(),
+                params: vec![],
+                is_static: false,
+            }],
+            properties: vec![],
             enum_values: vec![],
         };
         Ost {
@@ -445,7 +478,7 @@ mod tests {
                 name: "System".to_string(),
                 types: vec![string_ty],
             }],
-            org_types: vec![account, user, color, base],
+            org_types: vec![account, user, color, base, sub],
         }
     }
 
@@ -593,6 +626,17 @@ mod tests {
         let l = labels(&c);
         assert!(l.contains(&"baseMethod"));
         assert!(l.contains(&"baseField"));
+    }
+
+    #[test]
+    fn org_type_completion_includes_parent_class_members() {
+        // `Sub` carries only `parent_class: Some("Base")` — inherited members must
+        // come from walking the chain at lookup time, not from eager flattening.
+        let c = at("class C { void m(Sub s) { s.| } }");
+        let l = labels(&c);
+        assert!(l.contains(&"subMethod"), "own member: {l:?}");
+        assert!(l.contains(&"baseMethod"), "inherited method: {l:?}");
+        assert!(l.contains(&"baseField"), "inherited field: {l:?}");
     }
 
     #[test]

@@ -310,6 +310,8 @@ fn stub_type(name: String) -> ApexType {
         kind: TypeKind::Class,
         methods: Vec::new(),
         properties: Vec::new(),
+        parent_class: None,
+        interfaces: Vec::new(),
         enum_values: Vec::new(),
     }
 }
@@ -426,6 +428,8 @@ pub(crate) fn schema_to_apex_type(schema: &SObjectSchema) -> ApexType {
         kind: TypeKind::Class,
         methods,
         properties,
+        parent_class: None,
+        interfaces: Vec::new(),
         enum_values: Vec::new(),
     }
 }

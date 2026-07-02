@@ -19,6 +19,13 @@ pub struct Namespace {
 pub struct ApexType {
     pub name: String,
     pub kind: TypeKind,
+    /// Superclass name (Tooling SymbolTable `parentClass`); `None` when the type
+    /// extends nothing or the source has no inheritance info (e.g. stdlib).
+    #[serde(default)]
+    pub parent_class: Option<String>,
+    /// Implemented interface names (Tooling SymbolTable `interfaces`).
+    #[serde(default)]
+    pub interfaces: Vec<String>,
     #[serde(default)]
     pub methods: Vec<Method>,
     #[serde(default)]
@@ -109,6 +116,8 @@ mod tests {
                             is_static: true,
                         }],
                         properties: vec![],
+                        parent_class: None,
+                        interfaces: vec![],
                         enum_values: vec![],
                     },
                     ApexType {
@@ -116,6 +125,8 @@ mod tests {
                         kind: TypeKind::Class,
                         methods: vec![],
                         properties: vec![],
+                        parent_class: None,
+                        interfaces: vec![],
                         enum_values: vec![],
                     },
                 ],
