@@ -83,7 +83,7 @@ test("accepting a constructor after new inserts call parens", async ({ page }) =
   await gotoApp(page, { apex_complete: [{ label: "Account", kind: "constructor" }] });
   const editor = await openApex(page);
 
-  await editor.setText("Account a = new Acc");
+  await editor.setValueViaApi("Account a = new Acc");
   await editor.waitForSuggestion("Account");
   await editor.acceptSuggestion();
 
@@ -101,7 +101,7 @@ test("accepting a method with params pops parameter hints", async ({ page }) => 
   });
   const editor = await openApex(page);
 
-  await editor.setText("System.de");
+  await editor.setValueViaApi("System.de");
   await editor.waitForSuggestion("debug");
   await editor.acceptSuggestion();
 
