@@ -10,7 +10,7 @@ import { useFileTabs } from "./useFileTabs";
 import { useSidebarSync } from "../panels/useSidebarSync";
 import { Explorer } from "../components/Explorer";
 import { getRoot, type Tool } from "../fs/workspace";
-import type { Reveal } from "../monaco-reveal";
+import type { Reveal } from "../editor/monaco-reveal";
 import type { TabBase } from "./types";
 
 interface ViewArgs<T> {

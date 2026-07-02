@@ -1,9 +1,9 @@
 import { formatIpcError } from "../errorFormat";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
+import { loadLoggingConfig } from "../ipc/config";
 import { CATEGORY_FIELDS, LOG_LEVELS } from "../debug-presets";
-import type { CategoryLevels, DebugLevelDto, LoggingConfigDto } from "../types";
+import type { CategoryLevels, DebugLevelDto } from "../types";
 
 interface DebugConfigRowProps {
   org: string | null;
@@ -24,7 +24,7 @@ function sameLevels(a: CategoryLevels, b: CategoryLevels): boolean {
 }
 
 /** Returns the org DebugLevel record whose levels match `value`, or null. */
-export function matchingDebugLevel(
+function matchingDebugLevel(
   levels: DebugLevelDto[],
   value: CategoryLevels,
 ): DebugLevelDto | null {
@@ -62,7 +62,7 @@ export function DebugConfigRow({
       setLoadingLevels(true);
       setLevelsError(null);
       try {
-        const cfg = await invoke<LoggingConfigDto>("load_logging_config");
+        const cfg = await loadLoggingConfig();
         levelsCache.set(cacheKey, cfg.debugLevels);
         setOrgLevels(cfg.debugLevels);
       } catch (e) {

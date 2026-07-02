@@ -1,8 +1,8 @@
 import type { Monaco } from "@monaco-editor/react";
-import { invoke } from "@tauri-apps/api/core";
-import type { CompletionItemDto } from "./types";
-import { limitInsertion } from "./components/soqlQuickfix";
-import { registerEditorThemes } from "./editor-themes";
+import { formatSoql, soqlComplete } from "../ipc/soql";
+import type { CompletionItemDto } from "../types";
+import { limitInsertion } from "../components/soqlQuickfix";
+import { configureEditorBase } from "./base";
 
 const SOQL_KEYWORDS = [
   "SELECT",
@@ -32,18 +32,13 @@ function kindIcon(
   kind: string,
 ): number {
   const K = monaco.languages.CompletionItemKind;
-  switch (kind) {
-    case "object":
-      return K.Class;
-    case "keyword":
-      return K.Keyword;
-    case "function":
-      return K.Function;
-    case "relationship":
-      return K.Reference;
-    default:
-      return K.Field;
-  }
+  const icons: Record<string, number> = {
+    object: K.Class,
+    keyword: K.Keyword,
+    function: K.Function,
+    relationship: K.Reference,
+  };
+  return icons[kind] ?? K.Field;
 }
 
 /** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command.
@@ -59,10 +54,7 @@ function registerSoqlCompletion(monaco: Monaco): void {
       const query = model.getValue();
       let items: CompletionItemDto[];
       try {
-        items = await invoke<CompletionItemDto[]>("soql_complete", {
-          query,
-          offset,
-        });
+        items = await soqlComplete(query, offset);
       } catch {
         return { suggestions: [] };
       }
@@ -134,9 +126,7 @@ export function registerSoqlFormatter(monaco: Monaco): void {
     provideDocumentFormattingEdits: async (model) => {
       let formatted: string;
       try {
-        formatted = await invoke<string>("format_soql", {
-          query: model.getValue(),
-        });
+        formatted = await formatSoql(model.getValue());
       } catch {
         return [];
       }
@@ -147,7 +137,7 @@ export function registerSoqlFormatter(monaco: Monaco): void {
 
 /** Register the editor highlight themes and a minimal `soql` language once. */
 export function configureMonaco(monaco: Monaco): void {
-  registerEditorThemes(monaco);
+  configureEditorBase(monaco);
 
   if (registered) return;
   registered = true;

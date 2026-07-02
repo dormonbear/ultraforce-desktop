@@ -1,6 +1,5 @@
 import { formatIpcError } from "../errorFormat";
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useOrgs } from "../org";
 import { getNamespacePolicy } from "../indexSettings";
+import { reindexOrg } from "../ipc/schema";
 
 /**
  * Rebuilds the cached offline sObject schema for the active org. The schema
@@ -28,7 +28,7 @@ export function SchemaRefresh() {
     }
     setBusy(true);
     try {
-      await invoke("reindex_org", { org, namespaces: await getNamespacePolicy() });
+      await reindexOrg(org, await getNamespacePolicy());
       toast.success("Reindexing org...");
     } catch (e) {
       toast.error(`Schema refresh failed: ${formatIpcError(e)}`);

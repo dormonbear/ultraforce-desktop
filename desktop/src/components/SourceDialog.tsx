@@ -8,8 +8,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { configureMonacoApex } from "../monaco-apex";
-import { EDITOR_OPTS } from "../monaco-opts";
+import { configureMonacoApex } from "../editor/monaco-apex";
+import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
 import type { SourceRef } from "../panels/sourceRef";
 import { revealLine, useApexSource } from "./useApexSource";

@@ -1,7 +1,7 @@
 import { formatIpcError } from "../errorFormat";
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import type { editor } from "monaco-editor";
+import { fetchApexSource } from "../ipc/apex";
 
 export interface ApexSource {
   name: string;
@@ -45,7 +45,7 @@ export function useApexSource(className: string | null): {
     }
     setSrc(null);
     let alive = true;
-    invoke<ApexSource>("fetch_apex_source", { name: className })
+    fetchApexSource(className)
       .then((s) => {
         sourceCache.set(className, s);
         if (alive) setSrc(s);

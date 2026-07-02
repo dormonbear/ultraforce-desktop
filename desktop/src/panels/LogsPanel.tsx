@@ -1,7 +1,6 @@
 import { formatIpcError } from "../errorFormat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -48,10 +47,19 @@ import {
   loadCachedList,
   saveCachedList,
   listCachedIds,
-  readCachedBody,
-  writeCachedBody,
-  loadLogView,
+  fetchLogView,
 } from "./logCache";
+import {
+  listLogs,
+  parseLogView,
+  readLogFile,
+  sourceAtLine,
+  sourceLineIndices,
+} from "../ipc/logs";
+import {
+  getDebugConfig,
+  quickSelfTrace as requestSelfTrace,
+} from "../ipc/config";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -66,7 +74,6 @@ import { LoggingConfigPanel } from "../components/LoggingConfigPanel";
 import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
 import type {
-  DebugConfigDto,
   HotspotDto,
   LogRefDto,
   LogViewDto,
@@ -437,7 +444,7 @@ export function LogsPanel() {
     setListError(null);
     viewCache.current.clear();
     try {
-      const rows = await invoke<LogRefDto[]>("list_logs");
+      const rows = await listLogs();
       setLogs(rows);
       void saveCachedList(org ?? "default", rows);
     } catch (e) {
@@ -473,7 +480,7 @@ export function LogsPanel() {
   /** Fetch the raw-line indices that resolve to Apex source for the given log
    * body, so the raw viewer can mark only those lines clickable. */
   const loadSourceLines = useCallback((raw: string) => {
-    invoke<number[]>("source_line_indices", { body: raw })
+    sourceLineIndices(raw)
       .then((idx) => setSourceLines(new Set(idx)))
       .catch(() => setSourceLines(new Set()));
   }, []);
@@ -501,16 +508,7 @@ export function LogsPanel() {
     try {
       // Cache-first (logs are immutable): parse a locally cached body, else
       // download from the org and write it to cache for next time.
-      const dto = await loadLogView(id, {
-        readCache: readCachedBody,
-        // parse_log omits raw; re-attach the body we already hold (no 16MB echo).
-        parse: async (body) => ({
-          raw: body,
-          ...(await invoke<Omit<LogViewDto, "raw">>("parse_log", { body })),
-        }),
-        getLog: (logId) => invoke<LogViewDto>("get_log", { id: logId }),
-        writeCache: writeCachedBody,
-      });
+      const dto = await fetchLogView(id);
       viewCache.current.set(id, dto);
       setView(dto);
       loadSourceLines(dto.raw);
@@ -539,8 +537,7 @@ export function LogsPanel() {
     setSourceLines(new Set());
     setTab("raw");
     try {
-      const parsed = await invoke<Omit<LogViewDto, "raw">>("parse_log", { body });
-      setView({ raw: body, ...parsed });
+      setView(await parseLogView(body));
     } catch (e) {
       setViewError(formatIpcError(e));
     } finally {
@@ -567,7 +564,7 @@ export function LogsPanel() {
         }
         void (async () => {
           try {
-            const body = await invoke<string>("read_log_file", { path });
+            const body = await readLogFile(path);
             await showLocalLog(body);
           } catch (e) {
             toast.error(`Open failed: ${formatIpcError(e)}`);
@@ -585,15 +582,7 @@ export function LogsPanel() {
   const getBody = useCallback(async (log: LogRefDto): Promise<string> => {
     const cached = viewCache.current.get(log.id);
     if (cached) return cached.raw;
-    const dto = await loadLogView(log.id, {
-      readCache: readCachedBody,
-      parse: async (body) => ({
-        raw: body,
-        ...(await invoke<Omit<LogViewDto, "raw">>("parse_log", { body })),
-      }),
-      getLog: (logId) => invoke<LogViewDto>("get_log", { id: logId }),
-      writeCache: writeCachedBody,
-    });
+    const dto = await fetchLogView(log.id);
     viewCache.current.set(log.id, dto);
     setCachedIds((prev) => (prev.has(log.id) ? prev : new Set(prev).add(log.id)));
     return dto.raw;
@@ -617,7 +606,7 @@ export function LogsPanel() {
 
   // Show whether a self-trace is already active (and refresh its expiry).
   useEffect(() => {
-    invoke<DebugConfigDto>("get_debug_config")
+    getDebugConfig()
       .then((dto) => setTraceExpiry(dto.expirationDate))
       .catch(() => {});
   }, [org]);
@@ -636,7 +625,7 @@ export function LogsPanel() {
     if (tracingBusy) return;
     setTracingBusy(true);
     try {
-      const dto = await invoke<DebugConfigDto>("quick_self_trace", { minutes: 30 });
+      const dto = await requestSelfTrace(30);
       setTraceExpiry(dto.expirationDate);
       setNow(Date.now());
       toast.success("Tracing you for 30 min");
@@ -914,12 +903,7 @@ export function LogsPanel() {
                       {tab === "raw" ? (
                         <LogView
                           raw={view.raw}
-                          resolveSource={(line) =>
-                            invoke<SourceRef | null>("source_at_line", {
-                              body: view.raw,
-                              line,
-                            })
-                          }
+                          resolveSource={(line) => sourceAtLine(view.raw, line)}
                           onSource={setSourceRef}
                           jumpableLines={sourceLines}
                         />
