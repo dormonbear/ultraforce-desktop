@@ -245,6 +245,16 @@ export interface ApexCandidateDto {
   params?: string[] | null;
 }
 
+export interface ApexSignatureDto {
+  label: string;
+  params: string[];
+}
+export interface ApexSignatureHelpDto {
+  signatures: ApexSignatureDto[];
+  activeSignature: number;
+  activeParameter: number;
+}
+
 /** A structured SOQL/Apex completion item (label + kind for the icon + optional detail). */
 export interface CompletionItemDto {
   label: string;

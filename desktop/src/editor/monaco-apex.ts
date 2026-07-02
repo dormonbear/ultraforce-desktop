@@ -1,8 +1,8 @@
 import type { Monaco } from "@monaco-editor/react";
 import type { IRange, languages } from "monaco-editor";
 import { configureEditorBase } from "./base";
-import { apexComplete, formatApex } from "../ipc/apex";
-import type { ApexCandidateDto } from "../types";
+import { apexComplete, apexSignatureHelp, formatApex } from "../ipc/apex";
+import type { ApexCandidateDto, ApexSignatureHelpDto } from "../types";
 import { buildInsertion, KEYWORD_SNIPPETS, type Insertion, type InsertionCtx } from "./apexSuggest";
 
 // Apex is case-insensitive; the tokenizer matches with `ignoreCase`.
@@ -155,6 +155,42 @@ function registerApexCompletion(monaco: Monaco): void {
   });
 }
 
+/** Map a DTO signature-help result into Monaco's `SignatureHelp` shape. */
+function toSignatureHelpResult(help: ApexSignatureHelpDto): languages.SignatureHelpResult {
+  return {
+    value: {
+      signatures: help.signatures.map((s) => ({
+        label: s.label,
+        parameters: s.params.map((p) => ({ label: p })),
+      })),
+      activeSignature: help.activeSignature,
+      activeParameter: help.activeParameter,
+    },
+    dispose: () => {},
+  };
+}
+
+/** Register signature help backed by `apex_signature_help`. Triggered by `(`/`,`
+ * and by the completion items' triggerParameterHints command. HMR-safe. */
+function registerApexSignatureHelp(monaco: Monaco): void {
+  const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
+  slot.__ufApexSignatureHelp?.dispose();
+  slot.__ufApexSignatureHelp = monaco.languages.registerSignatureHelpProvider("apex", {
+    signatureHelpTriggerCharacters: ["(", ","],
+    signatureHelpRetriggerCharacters: [","],
+    provideSignatureHelp: async (model, position) => {
+      let help: ApexSignatureHelpDto | null;
+      try {
+        help = await apexSignatureHelp(model.getValue(), model.getOffsetAt(position));
+      } catch {
+        return null;
+      }
+      if (!help || help.signatures.length === 0) return null;
+      return toSignatureHelpResult(help);
+    },
+  });
+}
+
 /** Register Format Document (Shift+Alt+F) for Apex, backed by `format_apex`. HMR-safe:
  * the previous provider (kept on the singleton monaco) is disposed before
  * re-registering, so a dev hot-reload can't stack providers. */
@@ -234,5 +270,6 @@ export function configureMonacoApex(monaco: Monaco): void {
   });
 
   registerApexCompletion(monaco);
+  registerApexSignatureHelp(monaco);
   registerApexFormatter(monaco);
 }

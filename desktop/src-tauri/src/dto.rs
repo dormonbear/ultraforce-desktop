@@ -793,6 +793,39 @@ pub struct SyncResultDto {
     pub removed: usize,
 }
 
+/// One callable signature for the Monaco signature-help widget.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureDto {
+    pub label: String,
+    pub params: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureHelpDto {
+    pub signatures: Vec<SignatureDto>,
+    pub active_signature: usize,
+    pub active_parameter: usize,
+}
+
+impl From<&apex_lang::ast::signature::SignatureHelp> for SignatureHelpDto {
+    fn from(h: &apex_lang::ast::signature::SignatureHelp) -> Self {
+        SignatureHelpDto {
+            signatures: h
+                .signatures
+                .iter()
+                .map(|s| SignatureDto {
+                    label: s.label.clone(),
+                    params: s.params.clone(),
+                })
+                .collect(),
+            active_signature: h.active_signature,
+            active_parameter: h.active_parameter,
+        }
+    }
+}
+
 /// Source code (read-only) for an Apex class or trigger, for "jump to source".
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1131,5 +1164,21 @@ mod tests {
         let dto = map_node(&n);
         assert!(dto.detail.chars().count() <= MAX_DETAIL_LEN + 1);
         assert!(dto.detail.ends_with('…'));
+    }
+
+    #[test]
+    fn signature_help_dto_maps_camel_case() {
+        let h = apex_lang::ast::signature::SignatureHelp {
+            signatures: vec![apex_lang::ast::signature::Signature {
+                label: "debug(Object) : void".into(),
+                params: vec!["Object".into()],
+            }],
+            active_signature: 0,
+            active_parameter: 1,
+        };
+        let dto = SignatureHelpDto::from(&h);
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["activeParameter"], 1);
+        assert_eq!(json["signatures"][0]["label"], "debug(Object) : void");
     }
 }

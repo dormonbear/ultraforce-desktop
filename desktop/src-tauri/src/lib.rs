@@ -254,6 +254,15 @@ async fn apex_complete(
 }
 
 #[tauri::command]
+async fn apex_signature_help(
+    src: String,
+    offset: usize,
+    state: State<'_, AppState>,
+) -> Result<Option<dto::SignatureHelpDto>, CommandError> {
+    completion::apex_signature_help(src, offset, &state).await
+}
+
+#[tauri::command]
 async fn warm_apex(org: String, state: State<'_, AppState>) -> Result<(), CommandError> {
     indexing::warm_apex(org, &state).await
 }
@@ -356,6 +365,7 @@ pub fn run() {
             load_logging_config,
             save_logging_config,
             apex_complete,
+            apex_signature_help,
             soql_complete,
             warm_apex,
             warm_schema,

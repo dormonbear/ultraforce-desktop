@@ -200,6 +200,7 @@ const RESP: Record<string, unknown> = {
     { label: "@AuraEnabled", kind: "keyword" },
     { label: "@IsTest", kind: "keyword" },
   ],
+  apex_signature_help: null,
   soql_diagnostics: [],
   apex_soql_diagnostics: [],
   apex_diagnostics: [],

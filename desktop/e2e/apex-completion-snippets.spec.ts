@@ -89,3 +89,23 @@ test("accepting a constructor after new inserts call parens", async ({ page }) =
 
   await expect.poll(() => editor.text()).toContain("new Account()");
 });
+
+test("accepting a method with params pops parameter hints", async ({ page }) => {
+  await gotoApp(page, {
+    apex_complete: DEBUG_METHOD,
+    apex_signature_help: {
+      signatures: [{ label: "debug(Object msg) : void", params: ["Object msg"] }],
+      activeSignature: 0,
+      activeParameter: 0,
+    },
+  });
+  const editor = await openApex(page);
+
+  await editor.setText("System.de");
+  await editor.waitForSuggestion("debug");
+  await editor.acceptSuggestion();
+
+  const hints = page.locator(".parameter-hints-widget");
+  await expect(hints).toBeVisible();
+  await expect(hints).toContainText("debug(Object msg)");
+});

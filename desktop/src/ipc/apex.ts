@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   ApexCandidateDto,
   ApexOutcomeDto,
+  ApexSignatureHelpDto,
   SoqlDiagnosticDto,
 } from "../types";
 import type { ApexSource } from "../components/useApexSource";
@@ -27,6 +28,14 @@ export function apexComplete(
   offset: number,
 ): Promise<ApexCandidateDto[]> {
   return invoke<ApexCandidateDto[]>("apex_complete", { src, offset });
+}
+
+/** Signature help for the call at `offset` in Apex `src` (null when none). */
+export function apexSignatureHelp(
+  src: string,
+  offset: number,
+): Promise<ApexSignatureHelpDto | null> {
+  return invoke<ApexSignatureHelpDto | null>("apex_signature_help", { src, offset });
 }
 
 /** Pretty-print Apex source. */

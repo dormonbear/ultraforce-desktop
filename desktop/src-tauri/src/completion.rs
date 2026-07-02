@@ -43,6 +43,20 @@ pub(crate) async fn apex_complete(
     Ok(cands.iter().map(dto::CandidateDto::from).collect())
 }
 
+pub(crate) async fn apex_signature_help(
+    src: String,
+    offset: usize,
+    state: &AppState,
+) -> Result<Option<dto::SignatureHelpDto>, CommandError> {
+    let org = current_org(state).unwrap_or_else(|| "default".to_string());
+    let help = state
+        .apex
+        .signature_help(&state.invoker, &org, &src, offset)
+        .await
+        .map_err(CommandError::from)?;
+    Ok(help.as_ref().map(dto::SignatureHelpDto::from))
+}
+
 pub(crate) async fn soql_complete(
     query: String,
     offset: usize,
