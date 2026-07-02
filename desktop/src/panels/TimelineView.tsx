@@ -263,7 +263,10 @@ export function TimelineView({
         </button>
         <span>scroll to zoom · drag to pan</span>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card">
+      {/* x stays hidden: the canvas is w-full (pan/zoom, never scrolls), but the
+          absolute hover tooltip near the right edge would otherwise widen the
+          scroll area and pop a useless horizontal scrollbar. */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-border bg-card">
         <canvas
           ref={canvasRef}
           className="block w-full"
