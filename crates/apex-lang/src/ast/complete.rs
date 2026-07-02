@@ -275,7 +275,7 @@ fn members_of(ty: &Type, ost: &Ost, static_ctx: bool) -> Vec<Candidate> {
 
 /// Members of `at` merged with those inherited along its `parent_class` chain
 /// and `interfaces` (child-first: a subclass member shadows the parent's).
-fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> Vec<Candidate> {
+pub(crate) fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> Vec<Candidate> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for ty in crate::symbols::supertype_chain(ost, at) {
