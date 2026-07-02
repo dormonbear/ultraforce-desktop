@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { formatIpcError } from "../errorFormat";
+import {
+  APEX_LOG_ACCESS_HINT,
+  formatIpcError,
+  isApexLogAccessDenied,
+} from "../errorFormat";
 import { loadCachedList, saveCachedList } from "./logCache";
 import { listLogs } from "../ipc/logs";
 import { filterLogs, EMPTY_FILTER, type LogFilter } from "./logList";
@@ -31,7 +35,8 @@ export function useLogList(
       setLogs(rows);
       void saveCachedList(org ?? "default", rows);
     } catch (e) {
-      setListError(formatIpcError(e));
+      const msg = formatIpcError(e);
+      setListError(isApexLogAccessDenied(msg) ? APEX_LOG_ACCESS_HINT : msg);
     } finally {
       setListLoading(false);
     }

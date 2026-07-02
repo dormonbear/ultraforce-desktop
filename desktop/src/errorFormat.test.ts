@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { parseSfError, isCliUnavailable, formatIpcError } from "./errorFormat";
+import {
+  parseSfError,
+  isCliUnavailable,
+  isApexLogAccessDenied,
+  formatIpcError,
+} from "./errorFormat";
 
 describe("formatIpcError", () => {
   it("passes plain strings through", () => {
@@ -30,6 +35,23 @@ describe("isCliUnavailable", () => {
     expect(
       isCliUnavailable(
         "`sf` command failed (status 1): INVALID_TYPE: sObject type not supported",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("isApexLogAccessDenied", () => {
+  it("detects the ApexLog missing-permission error", () => {
+    expect(
+      isApexLogAccessDenied(
+        "`sf` command failed (status 1): INVALID_TYPE: sObject type 'ApexLog' is not supported.",
+      ),
+    ).toBe(true);
+  });
+  it("is false for INVALID_TYPE on other objects", () => {
+    expect(
+      isApexLogAccessDenied(
+        "`sf` command failed (status 1): INVALID_TYPE: sObject type 'Maycur_Form__c' is not supported.",
       ),
     ).toBe(false);
   });

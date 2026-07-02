@@ -29,6 +29,18 @@ export function isCliUnavailable(message: string): boolean {
   return /CLI not found on PATH|install the Salesforce CLI/i.test(message);
 }
 
+/** Salesforce reports a missing object permission as INVALID_TYPE
+ * ("sObject type 'ApexLog' is not supported") — querying ApexLog needs the
+ * "View All Data" permission. Detect it so the UI can explain instead of
+ * echoing the raw SOQL error. */
+export function isApexLogAccessDenied(message: string): boolean {
+  return /INVALID_TYPE/.test(message) && /'ApexLog' is not supported/.test(message);
+}
+
+export const APEX_LOG_ACCESS_HINT =
+  "This org user can't view debug logs: querying ApexLog requires the " +
+  '"View All Data" permission. Ask an admin to grant it (or use a user that has it), then Refresh.';
+
 /** SCREAMING_SNAKE → "Sentence case", e.g. MALFORMED_QUERY → "Malformed query". */
 function humanize(name: string): string {
   const words = name.replace(/_/g, " ").toLowerCase().trim();
