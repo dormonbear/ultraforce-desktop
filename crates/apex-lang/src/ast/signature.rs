@@ -121,7 +121,7 @@ fn balanced_for_parse(src: &str, cursor: usize) -> String {
     }
     let mut out = String::with_capacity(src.len() + depth as usize);
     out.push_str(&src[..cursor]);
-    out.extend(std::iter::repeat(')').take(depth as usize));
+    out.extend(std::iter::repeat_n(')', depth as usize));
     out.push_str(&src[cursor..]);
     out
 }
