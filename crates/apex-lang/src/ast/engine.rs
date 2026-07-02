@@ -297,7 +297,7 @@ const ANNOTATIONS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::symbols::{ApexType, Method, Namespace, Ost, Property, TypeKind};
+    use crate::symbols::{ApexType, Method, Namespace, Ost, TypeKind};
 
     fn ost() -> Ost {
         Ost {
