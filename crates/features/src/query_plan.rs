@@ -9,7 +9,7 @@ use sf_core::{SfError, SfInvoker};
 
 /// The full explain response: one [`PlanRow`] per candidate execution plan.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all(deserialize = "camelCase", serialize = "snake_case"))]
+#[serde(rename_all = "camelCase")]
 pub struct QueryPlan {
     #[serde(default)]
     pub plans: Vec<PlanRow>,
@@ -20,7 +20,7 @@ pub struct QueryPlan {
 /// A single candidate plan. `relative_cost > 1.0` means the optimizer expects a
 /// non-selective query (Salesforce's own threshold).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all(deserialize = "camelCase", serialize = "snake_case"))]
+#[serde(rename_all = "camelCase")]
 pub struct PlanRow {
     #[serde(default)]
     pub cardinality: i64,
@@ -40,7 +40,7 @@ pub struct PlanRow {
 
 /// An optimizer note (e.g. "not selective", "consider an index").
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all(deserialize = "camelCase", serialize = "snake_case"))]
+#[serde(rename_all = "camelCase")]
 pub struct PlanNote {
     #[serde(default)]
     pub description: String,

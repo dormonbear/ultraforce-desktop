@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { timeBreakdown } from "./timeBreakdown";
 import type { UnitDto, ExecNodeDto } from "../types";
 
-function node(label: string, self_ns: number, children: ExecNodeDto[] = []): ExecNodeDto {
-  return { label, detail: "", start_ns: 0, dur_ns: self_ns, self_ns, children, source: null };
+function node(label: string, selfNs: number, children: ExecNodeDto[] = []): ExecNodeDto {
+  return { label, detail: "", startNs: 0, durNs: selfNs, selfNs, children, source: null };
 }
 function unit(tree: ExecNodeDto[]): UnitDto {
   return { tree, hotspots: [], statements: [], limits: [] } as unknown as UnitDto;

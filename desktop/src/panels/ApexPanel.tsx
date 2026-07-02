@@ -102,12 +102,12 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         logs: dto.logs ?? "",
         compiled: dto.compiled,
         success: dto.success,
-        exception_message: dto.exception_message,
+        exceptionMessage: dto.exceptionMessage,
       });
       if (!dto.compiled) {
-        toast.error(dto.compile_problem ?? "Compile failed");
+        toast.error(dto.compileProblem ?? "Compile failed");
       } else if (!dto.success) {
-        toast.error(dto.exception_message ?? "Execution failed");
+        toast.error(dto.exceptionMessage ?? "Execution failed");
       }
       const ms = performance.now() - t0;
       void timing("run.apex", ms);
@@ -289,7 +289,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               {!outcome.compiled && (
                 <div className="rounded-md border border-amber/40 bg-card p-3 text-[12px] text-amber">
                   <span className="font-medium">
-                    {outcome.compile_problem ?? "Compile failed"}
+                    {outcome.compileProblem ?? "Compile failed"}
                   </span>
                   {outcome.line != null && (
                     <button
@@ -318,7 +318,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                 <div className="rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium">
-                      {outcome.exception_message ?? "Execution failed"}
+                      {outcome.exceptionMessage ?? "Execution failed"}
                     </span>
                     <button
                       type="button"
@@ -327,8 +327,8 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       onClick={() =>
                         void copyText(
                           [
-                            outcome.exception_message,
-                            outcome.exception_stack_trace,
+                            outcome.exceptionMessage,
+                            outcome.exceptionStackTrace,
                           ]
                             .filter(Boolean)
                             .join("\n"),
@@ -340,7 +340,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       <Copy size={13} />
                     </button>
                   </div>
-                  {outcome.exception_stack_trace && (
+                  {outcome.exceptionStackTrace && (
                     <div className="mt-1">
                       <button
                         type="button"
@@ -357,7 +357,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       </button>
                       {traceOpen && (
                         <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
-                          {outcome.exception_stack_trace}
+                          {outcome.exceptionStackTrace}
                         </pre>
                       )}
                     </div>

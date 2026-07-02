@@ -80,7 +80,7 @@ const GUTTER_W = 52;
 export function ResultTable({
   data,
 }: {
-  data: Pick<SoqlResultDto, "columns" | "rows" | "total_size">;
+  data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize">;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -313,9 +313,9 @@ export function ResultTable({
         </DropdownMenu>
         {/* Only shown when the visible set differs from the full result (filtered
             or partially loaded); the full count lives in the panel status line. */}
-        {tableRows.length !== data.total_size && (
+        {tableRows.length !== data.totalSize && (
           <span className="tnum text-[11px] text-muted-foreground">
-            {tableRows.length.toLocaleString()} / {data.total_size.toLocaleString()} shown
+            {tableRows.length.toLocaleString()} / {data.totalSize.toLocaleString()} shown
           </span>
         )}
       </div>

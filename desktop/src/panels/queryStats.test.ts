@@ -3,10 +3,10 @@ import { totalNs, soqlFingerprint, groupByFingerprint } from "./queryStats";
 
 describe("queryStats", () => {
   const stmts = [
-    { kind: "soql", text: "SELECT Id FROM Account", rows: 5, dur_ns: 1_000_000 },
-    { kind: "soql", text: "SELECT Id FROM Account", rows: 3, dur_ns: 2_000_000 },
-    { kind: "soql", text: "SELECT Id FROM Contact", rows: 50, dur_ns: 9_000_000 },
-    { kind: "dml", text: "Insert Account", rows: 1, dur_ns: null },
+    { kind: "soql", text: "SELECT Id FROM Account", rows: 5, durNs: 1_000_000 },
+    { kind: "soql", text: "SELECT Id FROM Account", rows: 3, durNs: 2_000_000 },
+    { kind: "soql", text: "SELECT Id FROM Contact", rows: 50, durNs: 9_000_000 },
+    { kind: "dml", text: "Insert Account", rows: 1, durNs: null },
   ];
 
   it("treats null durations as zero", () => {
@@ -30,9 +30,9 @@ describe("soqlFingerprint", () => {
 describe("groupByFingerprint", () => {
   it("groups by fingerprint and ranks by total time", () => {
     const fams = groupByFingerprint([
-      { kind: "soql", text: "SELECT Id FROM Account WHERE Id = '1'", rows: 1, dur_ns: 100 },
-      { kind: "soql", text: "SELECT Id FROM Account WHERE Id = '2'", rows: 1, dur_ns: 200 },
-      { kind: "dml", text: "insert Account", rows: 1, dur_ns: 50 },
+      { kind: "soql", text: "SELECT Id FROM Account WHERE Id = '1'", rows: 1, durNs: 100 },
+      { kind: "soql", text: "SELECT Id FROM Account WHERE Id = '2'", rows: 1, durNs: 200 },
+      { kind: "dml", text: "insert Account", rows: 1, durNs: 50 },
     ]);
     expect(fams).toHaveLength(2);
     expect(fams[0].count).toBe(2);

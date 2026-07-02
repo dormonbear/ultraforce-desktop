@@ -18,6 +18,7 @@ use sf_core::OrgRef;
 
 /// One Salesforce org entry handed to the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OrgDto {
     pub username: String,
     pub alias: Option<String>,
@@ -376,6 +377,7 @@ impl From<&LoggingDiffDto> for LoggingDiff {
 
 /// One Salesforce record in a SOQL result tree, ready for the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecordDto {
     pub sobject_type: String,
     pub fields: Vec<FieldDto>,
@@ -383,6 +385,7 @@ pub struct RecordDto {
 
 /// One field of a record: its name and tagged value.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FieldDto {
     pub name: String,
     pub value: FieldValueDto,
@@ -390,6 +393,7 @@ pub struct FieldDto {
 
 /// A tagged field value: scalar text, a parent record, or child records.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FieldValueDto {
     pub kind: &'static str, // "null" | "scalar" | "parent" | "children"
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -556,6 +560,7 @@ pub fn map_frames(frames: &[Frame]) -> Vec<FrameDto> {
 
 /// One node in the execution tree, ready for the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecNodeDto {
     pub label: String,
     pub detail: String,
@@ -570,6 +575,7 @@ pub struct ExecNodeDto {
 
 /// One governor-limit reading.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LimitEntryDto {
     pub name: String,
     pub used: u64,
@@ -578,6 +584,7 @@ pub struct LimitEntryDto {
 
 /// All limit readings for one namespace.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LimitRollupDto {
     pub namespace: String,
     pub entries: Vec<LimitEntryDto>,
@@ -585,6 +592,7 @@ pub struct LimitRollupDto {
 
 /// One aggregated method/unit hotspot.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HotspotDto {
     pub signature: String,
     pub self_ns: u64,
@@ -595,6 +603,7 @@ pub struct HotspotDto {
 
 /// One executed SOQL query or DML operation.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatementDto {
     pub kind: String,
     pub text: String,
@@ -604,6 +613,7 @@ pub struct StatementDto {
 
 /// One thrown exception or fatal error.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExceptionDto {
     pub kind: String,
     pub message: String,
@@ -612,6 +622,7 @@ pub struct ExceptionDto {
 /// One execution unit: its tree, hotspots, SOQL/DML statements, limit rollups,
 /// and any exceptions/fatal errors.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UnitDto {
     pub tree: Vec<ExecNodeDto>,
     pub hotspots: Vec<HotspotDto>,

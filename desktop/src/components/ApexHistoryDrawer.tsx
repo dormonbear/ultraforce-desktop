@@ -118,9 +118,9 @@ function HistoryDetail({
         </span>
       </div>
 
-      {entry.exception_message && (
+      {entry.exceptionMessage && (
         <div className="rounded-md border border-destructive/40 bg-background p-2 text-[12px] text-destructive">
-          {entry.exception_message}
+          {entry.exceptionMessage}
         </div>
       )}
 

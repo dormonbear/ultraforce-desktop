@@ -3,7 +3,7 @@ import { flameLayout, flameSpan, flameDepth, timeToX, xToTime, hitTest, minimapS
 import type { ExecNodeDto } from "../types";
 
 function n(label: string, start: number, dur: number, children: ExecNodeDto[] = []): ExecNodeDto {
-  return { label, detail: `${label}-d`, start_ns: start, dur_ns: dur, self_ns: dur, children, source: null };
+  return { label, detail: `${label}-d`, startNs: start, durNs: dur, selfNs: dur, children, source: null };
 }
 
 describe("flameLayout", () => {

@@ -59,7 +59,7 @@ export function OrgSelector() {
               {o.username}
             </span>
             <span className="flex items-center gap-1 text-muted-foreground">
-              {o.is_default && (
+              {o.isDefault && (
                 <span className="text-[11px]">default</span>
               )}
               {o.username === selected && (

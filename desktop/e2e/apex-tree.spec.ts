@@ -4,8 +4,8 @@ import { gotoApp } from "./fixtures";
 const leaf = (label: string, dur: number) => ({
   label,
   detail: "",
-  dur_ns: dur,
-  self_ns: dur,
+  durNs: dur,
+  selfNs: dur,
   children: [] as unknown[],
 });
 
@@ -18,18 +18,18 @@ test("Tree auto-expands the hot path, collapses cheap branches, toggles", async 
   await gotoApp(page, {
     parse_log: {
       raw: "x",
-      api_version: "60.0",
+      apiVersion: "60.0",
       units: [
         {
           tree: [
             {
               label: "OUTER",
               detail: "",
-              dur_ns: 1000,
-              self_ns: 10,
+              durNs: 1000,
+              selfNs: 10,
               children: [
-                { label: "HOT", detail: "", dur_ns: 900, self_ns: 10, children: [leaf("DEEP", 880)] },
-                { label: "COLD", detail: "", dur_ns: 50, self_ns: 10, children: [leaf("HIDDEN", 40)] },
+                { label: "HOT", detail: "", durNs: 900, selfNs: 10, children: [leaf("DEEP", 880)] },
+                { label: "COLD", detail: "", durNs: 50, selfNs: 10, children: [leaf("HIDDEN", 40)] },
               ],
             },
           ],

@@ -78,9 +78,24 @@ export async function writeCachedBody(id: string, body: string): Promise<void> {
 
 const listKey = (orgKey: string) => `logs.list.${orgKey}`;
 
+/** Rows persisted before the camelCase rename carry snake_case keys. */
+function migrateRow(r: LogRefDto): LogRefDto {
+  const legacy = r as LogRefDto & {
+    start_time?: string;
+    duration_ms?: number;
+    log_length?: number;
+  };
+  return {
+    ...r,
+    startTime: r.startTime ?? legacy.start_time ?? "",
+    durationMs: r.durationMs ?? legacy.duration_ms ?? 0,
+    logLength: r.logLength ?? legacy.log_length ?? 0,
+  };
+}
+
 /** The persisted log list (head metadata) for an org, or [] when none. */
-export function loadCachedList(orgKey: string): Promise<LogRefDto[]> {
-  return getJson<LogRefDto[]>(listKey(orgKey), []);
+export async function loadCachedList(orgKey: string): Promise<LogRefDto[]> {
+  return (await getJson<LogRefDto[]>(listKey(orgKey), [])).map(migrateRow);
 }
 
 /** Persist the log list (head metadata) for an org. */

@@ -9,12 +9,12 @@ test("Insights tab flags SOQL run in a loop", async ({ page }) => {
     kind: "soql",
     text: `SELECT Id FROM Contact WHERE AccountId = '001x${i}'`,
     rows: 2,
-    dur_ns: 1_000_000,
+    durNs: 1_000_000,
   }));
   await gotoApp(page, {
     parse_log: {
       raw: "x",
-      api_version: "67.0",
+      apiVersion: "67.0",
       units: [{ tree: [], hotspots: [], statements, limits: [], exceptions: [] }],
     },
   });
