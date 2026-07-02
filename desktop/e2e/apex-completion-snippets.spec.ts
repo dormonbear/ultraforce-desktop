@@ -62,7 +62,7 @@ test("typing a single quote auto-closes the pair", async ({ page }) => {
   await gotoApp(page);
   const editor = await openApex(page);
 
-  await editor.setText("String s = ");
+  await editor.setValueViaApi("String s = ");
   await editor.type("'");
 
   await expect.poll(() => editor.text()).toContain("''");
@@ -72,7 +72,7 @@ test("accepting the if keyword block snippet inserts a body", async ({ page }) =
   await gotoApp(page, { apex_complete: [{ label: "if", kind: "keyword" }] });
   const editor = await openApex(page);
 
-  await editor.setText("if");
+  await editor.setValueViaApi("if");
   await editor.waitForSuggestion("if block");
   await editor.acceptSuggestion();
 
