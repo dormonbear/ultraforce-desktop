@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, openLocalLog } from "./fixtures";
 
 // The Insights tab runs detectors over a parsed log and lists actionable
 // findings. Here a query that runs 6× (varying the bind literal) must be flagged
@@ -20,7 +20,7 @@ test("Insights tab flags SOQL run in a loop", async ({ page }) => {
   });
 
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
+  await openLocalLog(page);
   await page.getByRole("radio", { name: "insights" }).click();
 
   await expect(page.getByText(/likely inside a loop/)).toBeVisible();

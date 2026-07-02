@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, openLocalLog } from "./fixtures";
 
 // A minimal parsed view so the Logs detail (and its Debug button) renders.
 const VIEW = {
@@ -48,7 +48,7 @@ async function openDebugger(
     fetch_apex_source: SOURCE,
   });
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
+  await openLocalLog(page);
   await page.getByRole("button", { name: "Debug" }).click();
 }
 

@@ -1,27 +1,26 @@
 import { test, expect } from "@playwright/test";
 import { gotoApp } from "./fixtures";
 
-// Jump to source: clicking a method in the execution tree fetches its Apex
-// source from the org and shows it read-only.
-test("clicking a method in the tree opens its source", async ({ page }) => {
+// Jump to source: clicking a method frame in the Hotspots view fetches its
+// Apex source from the org and shows it read-only. Needs org context, so the
+// log is selected from the org list (dragged local logs keep source nav off).
+test("clicking a method hotspot opens its source", async ({ page }) => {
   await gotoApp(page, {
     parse_log: {
       raw: "x",
       api_version: "60.0",
-      raw_sources: [],
       units: [
         {
-          tree: [
+          tree: [],
+          hotspots: [
             {
-              label: "METHOD_ENTRY",
-              detail: "[5] | 01p | MyClass.doWork()",
-              dur_ns: 1000,
-              self_ns: 1000,
-              source: { className: "MyClass", line: 5 },
-              children: [],
+              signature: "MyClass.doWork()",
+              self_ns: 5_000_000,
+              total_ns: 5_000_000,
+              self_bytes: 0,
+              count: 1,
             },
           ],
-          hotspots: [],
           statements: [],
           limits: [],
           exceptions: [],
@@ -31,8 +30,8 @@ test("clicking a method in the tree opens its source", async ({ page }) => {
   });
 
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
-  await page.getByRole("radio", { name: "tree" }).click();
+  await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
+  await page.getByRole("radio", { name: "hotspots" }).click();
   await page.getByRole("button", { name: /MyClass\.doWork/ }).click();
 
   const dialog = page.getByRole("dialog");
