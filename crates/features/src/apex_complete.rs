@@ -5,8 +5,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use apex_lang::acquire::{fetch_apex_class, fetch_apex_class_names, parse_org_types, parse_stdlib};
-use apex_lang::complete::{complete as ost_complete, Candidate, CandidateKind};
-use apex_lang::resolve::resolve_type;
+use apex_lang::candidate::{Candidate, CandidateKind};
+use apex_lang::complete_source;
+use apex_lang::symbols::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
 use apex_lang::symbols::{ApexType, Method, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};
@@ -112,22 +113,17 @@ impl ApexCompleter {
                     if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await
                     {
                         let augmented = self.augment_types(org_id, vec![apex_ty]);
-                        return Ok(ost_complete(src, cursor, &augmented));
+                        return Ok(complete_source(src, cursor, &augmented));
                     }
                     let classes = self.fetch_org_class(invoker, org_id, &type_name).await;
                     if !classes.is_empty() {
                         let augmented = self.augment_types(org_id, classes);
-                        return Ok(ost_complete(src, cursor, &augmented));
+                        return Ok(complete_source(src, cursor, &augmented));
                     }
                 }
             }
         }
-        Ok(merge_ast(
-            src,
-            cursor,
-            &ost,
-            ost_complete(src, cursor, &ost),
-        ))
+        Ok(complete_source(src, cursor, &ost))
     }
 
     /// AST-based diagnostics for `src` (duplicate variables + unknown field access
@@ -345,32 +341,6 @@ fn collect_types<'a>(
             }
         }
     }
-}
-
-/// Merge the AST engine's type-aware candidates into the heuristic results
-/// (additive — the heuristic wins on label collisions). The heuristic stays the
-/// baseline; the AST adds chain/collection-aware members it can't reach (e.g.
-/// `list.get(0).Owner.`). Requires full-source input with the cursor inside a
-/// method body, which is what the editor sends; for bare snippets the AST engine
-/// finds no enclosing method and contributes nothing.
-fn merge_ast(src: &str, cursor: usize, ost: &Ost, mut base: Vec<Candidate>) -> Vec<Candidate> {
-    use apex_lang::ast::complete::{complete as ast_complete, CandidateKind as AstKind};
-    let mut seen: std::collections::HashSet<String> =
-        base.iter().map(|c| c.label.to_ascii_lowercase()).collect();
-    for a in ast_complete(src, cursor, ost) {
-        if seen.insert(a.label.to_ascii_lowercase()) {
-            let kind = match a.kind {
-                AstKind::Field => CandidateKind::Property,
-                AstKind::Method => CandidateKind::Method,
-                AstKind::Variable => CandidateKind::LocalVar,
-            };
-            base.push(Candidate {
-                label: a.label,
-                kind,
-            });
-        }
-    }
-    base
 }
 
 /// Salesforce describe `field.type` -> the Apex type name used in completion.

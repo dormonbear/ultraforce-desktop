@@ -5,7 +5,7 @@
 use super::scope::Binding;
 use super::tree::Expr;
 use super::types::{Primitive, Type};
-use crate::resolve::{find_method, find_property};
+use crate::symbols::{find_method, find_property};
 use crate::symbols::Ost;
 
 /// What inference reads: the in-scope names, the symbol table, and the enclosing

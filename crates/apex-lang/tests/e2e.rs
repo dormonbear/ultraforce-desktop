@@ -1,5 +1,5 @@
 use apex_lang::acquire::{fetch_apex_symbols, fetch_completions, parse_org_types, parse_stdlib};
-use apex_lang::complete;
+use apex_lang::complete_source;
 use apex_lang::symbols::Ost;
 use sf_core::{ProcessRunner, SfInvoker};
 use std::sync::Arc;
@@ -21,7 +21,7 @@ async fn e2e_ost_acquisition_and_completion_against_real_org() {
         namespaces,
         org_types: Vec::new(),
     };
-    assert!(!complete("String.val", "String.val".len(), &ost).is_empty());
+    assert!(!complete_source("String.val", "String.val".len(), &ost).is_empty());
 
     let records = fetch_apex_symbols(&invoker, "default").await.unwrap();
     let _org_types = parse_org_types(&records);

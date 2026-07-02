@@ -1,7 +1,7 @@
 //! Serde-serializable DTOs for the parsed debug-log view, plus mappers from the
 //! `log_parser` / `features` model types (which are not serde-aware).
 
-use apex_lang::complete::{Candidate as ApexCandidate, CandidateKind as ApexCandidateKind};
+use apex_lang::candidate::{Candidate as ApexCandidate, CandidateKind as ApexCandidateKind};
 use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
 use features::debug_log::{DebugLogView, UnitView};
 use features::debug_traces::{
@@ -811,9 +811,9 @@ mod tests {
 
     #[test]
     fn candidate_dto_maps_method_kind() {
-        let candidate = apex_lang::complete::Candidate {
+        let candidate = apex_lang::candidate::Candidate {
             label: "valueOf".into(),
-            kind: apex_lang::complete::CandidateKind::Method,
+            kind: apex_lang::candidate::CandidateKind::Method,
         };
         let dto = CandidateDto::from(&candidate);
         assert_eq!(dto.label, "valueOf");

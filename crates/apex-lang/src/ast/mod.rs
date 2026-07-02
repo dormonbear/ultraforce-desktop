@@ -1,11 +1,11 @@
-//! Typed Apex AST subsystem (Phase 1 of LSP-grade completion).
-//!
-//! Independent of the heuristic completion path (`crate::lexer`/`parser`/
-//! `complete`/`resolve`), which still ships. Built up incrementally:
-//! lexer → tree → declaration parser → statement/expression parser.
+//! Typed Apex AST subsystem — the single parse/completion stack:
+//! lexer → tree → declaration parser → statement/expression parser →
+//! scope/inference → completion ([`engine`] is the wiring-facing entry).
 
 pub mod complete;
+pub mod context;
 pub mod diagnostics;
+pub mod engine;
 pub mod infer;
 pub mod lexer;
 pub mod parser;
