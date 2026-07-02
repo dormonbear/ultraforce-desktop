@@ -92,6 +92,8 @@ impl ApexCompleter {
                     .map(|name| Candidate {
                         label: name,
                         kind: CandidateKind::LocalVar,
+                        detail: None,
+                        params: None,
                     })
                     .collect());
             }
@@ -178,6 +180,8 @@ impl ApexCompleter {
             .map(|c| Candidate {
                 label: c.label,
                 kind: CandidateKind::Property,
+                detail: None,
+                params: None,
             })
             .collect())
     }

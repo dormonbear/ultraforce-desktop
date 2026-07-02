@@ -24,6 +24,7 @@ pub struct Candidate {
     pub label: String,
     pub kind: CandidateKind,
     pub detail: Option<String>,
+    pub params: Option<Vec<String>>,
 }
 
 /// Type-aware completions for `src` at byte offset `cursor`, using the org
@@ -85,6 +86,7 @@ pub fn complete(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
                 label: b.name.clone(),
                 kind: CandidateKind::Variable,
                 detail: Some(b.ty.display()),
+                params: None,
             });
         }
     }
@@ -108,11 +110,13 @@ fn own_members(class: &TypeDecl, want_static: bool) -> Vec<Candidate> {
                 label: f.name.clone(),
                 kind: CandidateKind::Field,
                 detail: Some(f.ty.clone()),
+                params: None,
             }),
             Member::Property(p) if is_static(&p.modifiers) == want_static => out.push(Candidate {
                 label: p.name.clone(),
                 kind: CandidateKind::Field,
                 detail: Some(p.ty.clone()),
+                params: None,
             }),
             Member::Method(me)
                 if is_static(&me.modifiers) == want_static
@@ -122,6 +126,7 @@ fn own_members(class: &TypeDecl, want_static: bool) -> Vec<Candidate> {
                     label: me.name.clone(),
                     kind: CandidateKind::Method,
                     detail: me.return_type.clone(),
+                    params: Some(me.params.iter().map(|p| p.ty.clone()).collect()),
                 })
             }
             _ => {}
@@ -285,6 +290,7 @@ pub(crate) fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> 
                     label: m.name.clone(),
                     kind: CandidateKind::Method,
                     detail: Some(m.return_type.clone()),
+                    params: Some(m.params.clone()),
                 });
             }
         }
@@ -294,6 +300,7 @@ pub(crate) fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> 
                     label: p.name.clone(),
                     kind: CandidateKind::Field,
                     detail: Some(p.prop_type.clone()),
+                    params: None,
                 });
             }
         }
@@ -305,6 +312,7 @@ pub(crate) fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> 
                         label: v.clone(),
                         kind: CandidateKind::Field,
                         detail: Some(ty.name.clone()),
+                        params: None,
                     });
                 }
             }
@@ -313,44 +321,49 @@ pub(crate) fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> 
     out
 }
 
-/// Built-in members of List/Set/Map (label + return-type hint).
+/// Built-in members of List/Set/Map (label + return-type hint + param types).
 fn collection_members(ty: &Type) -> Vec<Candidate> {
     let elem = ty.element_type().map(|e| e.display()).unwrap_or_default();
-    let m = |label: &str, detail: &str| Candidate {
+    let m = |label: &str, detail: &str, params: &[&str]| Candidate {
         label: label.to_string(),
         kind: CandidateKind::Method,
         detail: Some(detail.to_string()),
+        params: Some(params.iter().map(|s| s.to_string()).collect()),
     };
     match ty {
         Type::List(_) => vec![
-            m("size", "Integer"),
-            m("isEmpty", "Boolean"),
-            m("add", "void"),
-            m("get", &elem),
-            m("set", "void"),
-            m("remove", &elem),
-            m("contains", "Boolean"),
-            m("clear", "void"),
-            m("clone", &ty.display()),
+            m("size", "Integer", &[]),
+            m("isEmpty", "Boolean", &[]),
+            m("add", "void", &[elem.as_str()]),
+            m("get", &elem, &["Integer"]),
+            m("set", "void", &["Integer", elem.as_str()]),
+            m("remove", &elem, &["Integer"]),
+            m("contains", "Boolean", &[elem.as_str()]),
+            m("clear", "void", &[]),
+            m("clone", &ty.display(), &[]),
         ],
         Type::Set(_) => vec![
-            m("size", "Integer"),
-            m("isEmpty", "Boolean"),
-            m("add", "Boolean"),
-            m("remove", "Boolean"),
-            m("contains", "Boolean"),
-            m("clear", "void"),
+            m("size", "Integer", &[]),
+            m("isEmpty", "Boolean", &[]),
+            m("add", "Boolean", &[elem.as_str()]),
+            m("remove", "Boolean", &[elem.as_str()]),
+            m("contains", "Boolean", &[elem.as_str()]),
+            m("clear", "void", &[]),
         ],
-        Type::Map(k, v) => vec![
-            m("size", "Integer"),
-            m("isEmpty", "Boolean"),
-            m("get", &v.display()),
-            m("put", &v.display()),
-            m("remove", &v.display()),
-            m("containsKey", "Boolean"),
-            m("keySet", &format!("Set<{}>", k.display())),
-            m("values", &format!("List<{}>", v.display())),
-        ],
+        Type::Map(k, v) => {
+            let key = k.display();
+            let val = v.display();
+            vec![
+                m("size", "Integer", &[]),
+                m("isEmpty", "Boolean", &[]),
+                m("get", &val, &[key.as_str()]),
+                m("put", &val, &[key.as_str(), val.as_str()]),
+                m("remove", &val, &[key.as_str()]),
+                m("containsKey", "Boolean", &[key.as_str()]),
+                m("keySet", &format!("Set<{}>", key), &[]),
+                m("values", &format!("List<{}>", val), &[]),
+            ]
+        }
         _ => Vec::new(),
     }
 }

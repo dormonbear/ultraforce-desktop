@@ -15,4 +15,8 @@ pub enum CandidateKind {
 pub struct Candidate {
     pub label: String,
     pub kind: CandidateKind,
+    /// Method return type / field/var type.
+    pub detail: Option<String>,
+    /// Parameter types; `Some` only for methods.
+    pub params: Option<Vec<String>>,
 }

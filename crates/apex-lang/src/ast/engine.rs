@@ -91,6 +91,8 @@ fn to_wire(cands: Vec<super::complete::Candidate>) -> Vec<Candidate> {
                 AstKind::Method => CandidateKind::Method,
                 AstKind::Variable => CandidateKind::LocalVar,
             },
+            detail: c.detail,
+            params: c.params,
         })
         .collect()
 }
@@ -180,6 +182,8 @@ fn push_if_matches(
         candidates.push(Candidate {
             label: label.to_string(),
             kind,
+            detail: None,
+            params: None,
         });
     }
 }
@@ -519,5 +523,14 @@ mod tests {
             got.iter().any(|c| c.label == "getLabel"),
             "namespace-qualified static member: {got:?}"
         );
+    }
+
+    #[test]
+    fn method_candidates_carry_detail_and_params() {
+        let ost = ost();
+        let got = complete_source("String.val", "String.val".len(), &ost);
+        let m = got.iter().find(|c| c.label == "valueOf").expect("valueOf offered");
+        assert_eq!(m.detail.as_deref(), Some("String"));
+        assert_eq!(m.params.as_deref(), Some(&["Integer".to_string()][..]));
     }
 }

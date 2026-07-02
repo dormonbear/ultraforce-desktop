@@ -43,6 +43,8 @@ impl From<&OrgRef> for OrgDto {
 pub struct CandidateDto {
     pub label: String,
     pub kind: String,
+    pub detail: Option<String>,
+    pub params: Option<Vec<String>>,
 }
 
 fn candidate_kind_str(k: &ApexCandidateKind) -> &'static str {
@@ -60,6 +62,8 @@ impl From<&ApexCandidate> for CandidateDto {
         CandidateDto {
             label: c.label.clone(),
             kind: candidate_kind_str(&c.kind).to_string(),
+            detail: c.detail.clone(),
+            params: c.params.clone(),
         }
     }
 }
@@ -949,10 +953,25 @@ mod tests {
         let candidate = apex_lang::candidate::Candidate {
             label: "valueOf".into(),
             kind: apex_lang::candidate::CandidateKind::Method,
+            detail: None,
+            params: None,
         };
         let dto = CandidateDto::from(&candidate);
         assert_eq!(dto.label, "valueOf");
         assert_eq!(dto.kind, "method");
+    }
+
+    #[test]
+    fn candidate_dto_carries_detail_and_params() {
+        let c = ApexCandidate {
+            label: "debug".into(),
+            kind: ApexCandidateKind::Method,
+            detail: Some("void".into()),
+            params: Some(vec!["Object".into()]),
+        };
+        let dto = CandidateDto::from(&c);
+        assert_eq!(dto.detail.as_deref(), Some("void"));
+        assert_eq!(dto.params, Some(vec!["Object".to_string()]));
     }
 
     #[test]
