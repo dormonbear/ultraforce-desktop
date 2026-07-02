@@ -4,12 +4,12 @@ export interface StmtLike {
   kind: string;
   text: string;
   rows: number;
-  dur_ns: number | null;
+  durNs: number | null;
 }
 
 /** Sum of statement durations in ns (null counts as 0). */
 export function totalNs(stmts: StmtLike[]): number {
-  return stmts.reduce((n, s) => n + (s.dur_ns ?? 0), 0);
+  return stmts.reduce((n, s) => n + (s.durNs ?? 0), 0);
 }
 
 /** Normalize a SOQL/DML statement so runs differing only by bound values group
@@ -40,7 +40,7 @@ export function groupByFingerprint(stmts: StmtLike[]): QueryFamily[] {
   const fams = new Map<string, QueryFamily>();
   for (const s of stmts) {
     const fp = `${s.kind} ${soqlFingerprint(s.text)}`;
-    const ns = s.dur_ns ?? 0;
+    const ns = s.durNs ?? 0;
     const f = fams.get(fp);
     if (f) {
       f.count += 1;

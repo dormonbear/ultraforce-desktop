@@ -9,8 +9,8 @@ test("not_found → install guidance", async ({ page }) => {
     sf_status: {
       state: "not_found",
       version: null,
-      min_version: "2.0.0",
-      found_at: null,
+      minVersion: "2.0.0",
+      foundAt: null,
     },
   });
   await expect(page.getByText("Salesforce CLI not found")).toBeVisible();
@@ -23,8 +23,8 @@ test("outdated → upgrade guidance", async ({ page }) => {
     sf_status: {
       state: "outdated",
       version: "@salesforce/cli/1.9.0",
-      min_version: "2.0.0",
-      found_at: null,
+      minVersion: "2.0.0",
+      foundAt: null,
     },
   });
   await expect(page.getByText("Salesforce CLI is too old")).toBeVisible();
@@ -38,8 +38,8 @@ test("path_issue → PATH guidance naming where sf was found", async ({ page }) 
     sf_status: {
       state: "path_issue",
       version: null,
-      min_version: "2.0.0",
-      found_at: "/opt/homebrew/bin/sf",
+      minVersion: "2.0.0",
+      foundAt: "/opt/homebrew/bin/sf",
     },
   });
   await expect(page.getByText(/not on this app.s PATH/)).toBeVisible();

@@ -79,7 +79,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         setOrgs(list);
         // Prefer the last-selected org (if it still exists), else the CLI default.
         const saved = savedOrg ? list.find((o) => o.username === savedOrg) : undefined;
-        const def = saved ?? list.find((o) => o.is_default) ?? list[0];
+        const def = saved ?? list.find((o) => o.isDefault) ?? list[0];
         if (def) {
           setSelected(def.username);
           void invoke("set_target_org", { username: def.username });

@@ -11,7 +11,7 @@ test("clicking a statement line in the tree jumps to its inherited class", async
   await gotoApp(page, {
     parse_log: {
       raw: "x",
-      api_version: "60.0",
+      apiVersion: "60.0",
       raw_sources: [],
       units: [
         {
@@ -19,15 +19,15 @@ test("clicking a statement line in the tree jumps to its inherited class", async
             {
               label: "METHOD_ENTRY",
               detail: "[5] | 01p | MyClass.doWork()",
-              dur_ns: 1000,
-              self_ns: 500,
+              durNs: 1000,
+              selfNs: 500,
               source: src("MyClass", 5),
               children: [
                 {
                   label: "USER_DEBUG",
                   detail: "[8] | DEBUG | hello",
-                  dur_ns: null,
-                  self_ns: null,
+                  durNs: null,
+                  selfNs: null,
                   source: src("MyClass", 8),
                   children: [],
                 },
@@ -59,7 +59,7 @@ test("clicking a raw log line jumps to its source", async ({ page }) => {
   await gotoApp(page, {
     parse_log: {
       raw: "67.0 APEX\n16:00:00.0 (20)|METHOD_ENTRY|[5]|01p|MyClass.doWork()\n16:00:00.0 (30)|USER_DEBUG|[8]|DEBUG|hello",
-      api_version: "60.0",
+      apiVersion: "60.0",
       raw_sources: [null, src("MyClass", 5), src("MyClass", 8)],
       units: [
         { tree: [], hotspots: [], statements: [], limits: [], exceptions: [] },

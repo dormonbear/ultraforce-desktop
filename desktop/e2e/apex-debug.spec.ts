@@ -6,17 +6,17 @@ test("Debug tab lists USER_DEBUG messages", async ({ page }) => {
   await gotoApp(page, {
     parse_log: {
       raw: "x",
-      api_version: "60.0",
+      apiVersion: "60.0",
       units: [
         {
           tree: [
             {
               label: "CODE_UNIT_STARTED",
               detail: "MyClass.run",
-              dur_ns: 1000,
-              self_ns: 0,
+              durNs: 1000,
+              selfNs: 0,
               children: [
-                { label: "USER_DEBUG", detail: "[3] | DEBUG | hello world", dur_ns: null, self_ns: null, children: [] },
+                { label: "USER_DEBUG", detail: "[3] | DEBUG | hello world", durNs: null, selfNs: null, children: [] },
               ],
             },
           ],

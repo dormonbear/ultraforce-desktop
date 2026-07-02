@@ -171,8 +171,8 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     ? "error"
     : result
       ? result.done
-        ? `${result.total_size} row${result.total_size === 1 ? "" : "s"} returned${ms}`
-        : `${result.rows.length.toLocaleString()} of ${result.total_size.toLocaleString()} rows · cancelled${ms}`
+        ? `${result.totalSize} row${result.totalSize === 1 ? "" : "s"} returned${ms}`
+        : `${result.rows.length.toLocaleString()} of ${result.totalSize.toLocaleString()} rows · cancelled${ms}`
       : "";
 
   // Rough ETA from the rows/sec measured so far. Recomputed each progress tick.

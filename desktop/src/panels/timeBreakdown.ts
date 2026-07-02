@@ -20,13 +20,13 @@ function categoryOf(kind: string): TimeCategory {
 
 /** Split total self-time across categories (apex vs DB vs callout vs other),
  * sorted descending, zero slices dropped. Self-time avoids double counting
- * because a parent's children are excluded from its own self_ns. */
+ * because a parent's children are excluded from its own selfNs. */
 export function timeBreakdown(units: UnitDto[]): TimeSlice[] {
   const sums: Record<TimeCategory, number> = {
     apex: 0, soql: 0, dml: 0, callout: 0, other: 0,
   };
   const walk = (n: ExecNodeDto) => {
-    sums[categoryOf(n.label)] += n.self_ns ?? 0;
+    sums[categoryOf(n.label)] += n.selfNs ?? 0;
     for (const c of n.children) walk(c);
   };
   for (const u of units) for (const n of u.tree) walk(n);

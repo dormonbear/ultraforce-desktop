@@ -107,6 +107,7 @@ fn current_org(state: &AppState) -> Option<String> {
 
 /// A SOQL query result: flat table projection plus the raw record tree.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SoqlResultDto {
     columns: Vec<String>,
     rows: Vec<Vec<String>>,
@@ -116,6 +117,7 @@ struct SoqlResultDto {
 }
 
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct IndexProgressDto {
     org: String,
     phase: String,
@@ -124,6 +126,7 @@ struct IndexProgressDto {
 }
 
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SyncResultDto {
     org: String,
     added: usize,
@@ -133,6 +136,7 @@ struct SyncResultDto {
 
 /// Incremental progress for a running SOQL query, emitted as `soql-progress`.
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SoqlProgress {
     id: String,
     fetched: u64,
@@ -279,6 +283,7 @@ struct ApexBodyResult {
 
 /// Source code (read-only) for an Apex class or trigger, for "jump to source".
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ApexSourceDto {
     name: String,
     kind: String,
@@ -342,6 +347,7 @@ async fn query_plan(
 
 /// Result of one anonymous-Apex run, flattened for the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ApexOutcomeDto {
     compiled: bool,
     success: bool,
@@ -388,6 +394,7 @@ async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcome
 
 /// One debug-log list entry handed to the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LogRefDto {
     id: String,
     operation: String,
@@ -422,6 +429,7 @@ async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, String>
 
 /// A fetched debug log's raw body plus its parsed execution tree + limits.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct LogViewDto {
     raw: String,
     api_version: Option<String>,
@@ -432,6 +440,7 @@ struct LogViewDto {
 /// to `parse_log`, so echoing 16MB+ back over IPC (and re-deserializing it) is
 /// pure waste. The frontend re-attaches `raw` from the body it owns.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct ParsedLogDto {
     api_version: Option<String>,
     units: Vec<UnitDto>,
@@ -585,6 +594,7 @@ async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, Strin
 /// Classified health of the `sf` CLI, so the UI can give the right guidance:
 /// install it, upgrade it, or fix a PATH problem — instead of a bare error.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SfStatusDto {
     /// "ok" | "outdated" | "not_found" | "path_issue"
     state: &'static str,

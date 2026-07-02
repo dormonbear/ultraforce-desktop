@@ -6,11 +6,11 @@ const mk = (o: Partial<LogRefDto>): LogRefDto => ({
   id: "1",
   operation: "/op",
   status: "Success",
-  start_time: "",
+  startTime: "",
   application: "Unknown",
   user: "Alice",
-  duration_ms: 0,
-  log_length: 0,
+  durationMs: 0,
+  logLength: 0,
   ...o,
 });
 

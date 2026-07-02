@@ -4,7 +4,7 @@ import { gotoApp } from "./fixtures";
 // A minimal parsed view so the Logs detail (and its Debug button) renders.
 const VIEW = {
   raw: "67.0 APEX\nx\ny",
-  api_version: "60.0",
+  apiVersion: "60.0",
   raw_sources: [],
   units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }],
 };

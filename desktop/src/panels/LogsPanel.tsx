@@ -250,16 +250,16 @@ function HotspotsView({
   for (const h of all) {
     const m = merged.get(h.signature);
     if (m) {
-      m.self_ns += h.self_ns;
-      m.total_ns += h.total_ns;
-      m.self_bytes += h.self_bytes;
+      m.selfNs += h.selfNs;
+      m.totalNs += h.totalNs;
+      m.selfBytes += h.selfBytes;
       m.count += h.count;
     } else {
       merged.set(h.signature, { ...h });
     }
   }
-  const rows = [...merged.values()].sort((a, b) => b.self_ns - a.self_ns);
-  const maxSelf = rows[0].self_ns; // rows are sorted desc by self_ns; non-empty (see `all` check above)
+  const rows = [...merged.values()].sort((a, b) => b.selfNs - a.selfNs);
+  const maxSelf = rows[0].selfNs; // rows are sorted desc by selfNs; non-empty (see `all` check above)
   return (
     <table className="w-full text-[12px]">
       <thead>
@@ -282,7 +282,7 @@ function HotspotsView({
             >
               <span
                 className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-primary/10"
-                style={{ width: `${maxSelf > 0 ? (h.self_ns / maxSelf) * 100 : 0}%` }}
+                style={{ width: `${maxSelf > 0 ? (h.selfNs / maxSelf) * 100 : 0}%` }}
                 aria-hidden
               />
               {ref && onSource ? (
@@ -299,11 +299,11 @@ function HotspotsView({
               )}
             </td>
             <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right text-foreground">
-              {formatMs(h.self_ns)}
+              {formatMs(h.selfNs)}
             </td>
-            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{formatMs(h.total_ns)}</td>
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{formatMs(h.totalNs)}</td>
             <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">
-              {h.self_bytes > 0 ? formatBytes(h.self_bytes) : "—"}
+              {h.selfBytes > 0 ? formatBytes(h.selfBytes) : "—"}
             </td>
             <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{h.count}</td>
           </tr>
@@ -754,7 +754,7 @@ export function LogsPanel() {
                   const ok = isSuccess(log.status);
                   const selected = log.id === selectedId;
                   const cached = cachedIds.has(log.id);
-                  const time = fmtTime(log.start_time);
+                  const time = fmtTime(log.startTime);
                   return (
                     <ContextMenu key={log.id}>
                       <ContextMenuTrigger asChild>
@@ -807,8 +807,8 @@ export function LogsPanel() {
                               {log.user && (
                                 <span className="max-w-[45%] truncate">{log.user}</span>
                               )}
-                              <span>{fmtDuration(log.duration_ms)}</span>
-                              <span>{fmtSize(log.log_length)}</span>
+                              <span>{fmtDuration(log.durationMs)}</span>
+                              <span>{fmtSize(log.logLength)}</span>
                               {time && <span className="ml-auto">{time}</span>}
                             </div>
                           </div>
@@ -870,7 +870,7 @@ export function LogsPanel() {
                   <div className="flex items-center justify-between pb-2">
                     <div className="flex items-center gap-3">
                       <div className="tnum text-[12px] text-text-dim">
-                        API {view.api_version ?? "—"} · {view.units.length}{" "}
+                        API {view.apiVersion ?? "—"} · {view.units.length}{" "}
                         {view.units.length === 1 ? "unit" : "units"}
                       </div>
                       <button

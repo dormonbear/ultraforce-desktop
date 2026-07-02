@@ -45,25 +45,25 @@ export function QueryPlanView({
             <tbody>
               {plan.plans.map((p, i) => (
                 <tr key={i} className="border-t border-border align-top">
-                  <td className="px-2 py-1 font-medium">{p.sobject_type}</td>
-                  <td className="px-2 py-1">{p.leading_operation_type}</td>
+                  <td className="px-2 py-1 font-medium">{p.sobjectType}</td>
+                  <td className="px-2 py-1">{p.leadingOperationType}</td>
                   <td
                     className={
-                      p.relative_cost > 1
+                      p.relativeCost > 1
                         ? "tnum px-2 py-1 text-right font-medium text-destructive"
                         : "tnum px-2 py-1 text-right"
                     }
                     title={
-                      p.relative_cost > 1
+                      p.relativeCost > 1
                         ? "Non-selective (cost > 1.0)"
                         : undefined
                     }
                   >
-                    {p.relative_cost.toFixed(2)}
+                    {p.relativeCost.toFixed(2)}
                   </td>
                   <td className="tnum px-2 py-1 text-right">{p.cardinality}</td>
                   <td className="tnum px-2 py-1 text-right">
-                    {p.sobject_cardinality}
+                    {p.sobjectCardinality}
                   </td>
                   <td className="px-2 py-1 text-text-dim">
                     {p.notes.map((n) => n.description).join("; ")}

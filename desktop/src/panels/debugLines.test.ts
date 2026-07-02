@@ -5,9 +5,9 @@ import type { ExecNodeDto, UnitDto } from "../types";
 const node = (label: string, detail: string, children: ExecNodeDto[] = []): ExecNodeDto => ({
   label,
   detail,
-  dur_ns: null,
-  self_ns: null,
-  start_ns: 0,
+  durNs: null,
+  selfNs: null,
+  startNs: 0,
   children,
   source: null,
 });
