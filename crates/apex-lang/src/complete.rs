@@ -1,7 +1,7 @@
 use crate::cst;
 use crate::cst_context::{classify, CompletionContext};
 use crate::cst_scope;
-use crate::resolve::resolve_type;
+use crate::symbols::resolve_type;
 use crate::symbols::{ApexType, Ost};
 
 pub use crate::candidate::{Candidate, CandidateKind};

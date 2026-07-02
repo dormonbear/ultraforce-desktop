@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use apex_lang::acquire::{fetch_apex_class, fetch_apex_class_names, parse_org_types, parse_stdlib};
 use apex_lang::candidate::{Candidate, CandidateKind};
 use apex_lang::complete::complete as ost_complete;
-use apex_lang::resolve::resolve_type;
+use apex_lang::symbols::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
 use apex_lang::symbols::{ApexType, Method, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};

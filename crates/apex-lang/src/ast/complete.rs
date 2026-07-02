@@ -278,7 +278,7 @@ fn members_of(ty: &Type, ost: &Ost, static_ctx: bool) -> Vec<Candidate> {
 fn apex_type_members(ost: &Ost, at: &ApexType, want_static: bool) -> Vec<Candidate> {
     let mut out = Vec::new();
     let mut seen = std::collections::HashSet::new();
-    for ty in crate::resolve::supertype_chain(ost, at) {
+    for ty in crate::symbols::supertype_chain(ost, at) {
         for m in &ty.methods {
             if m.is_static == want_static && seen.insert(m.name.to_ascii_lowercase()) {
                 out.push(Candidate {
