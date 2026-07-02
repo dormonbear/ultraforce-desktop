@@ -125,7 +125,7 @@ fn own_members(class: &TypeDecl, want_static: bool) -> Vec<Candidate> {
                 out.push(Candidate {
                     label: me.name.clone(),
                     kind: CandidateKind::Method,
-                    detail: me.return_type.clone(),
+                    detail: Some(me.return_type.clone().unwrap_or_else(|| "void".into())),
                     params: Some(me.params.iter().map(|p| p.ty.clone()).collect()),
                 })
             }
@@ -568,6 +568,20 @@ mod tests {
     #[test]
     fn outside_method_is_empty() {
         assert!(complete("class C { Integer x; }", 5, &ost()).is_empty());
+    }
+
+    #[test]
+    fn own_class_void_method_has_void_detail() {
+        // No explicit return-type keyword parses `MethodDecl.return_type` as
+        // `None` (mirrors a mid-typed void method); the candidate must still
+        // default its `detail` to "void" for the semicolon-snippet logic.
+        let c = at("class C { doWork() {} void m() { doW| } }");
+        let do_work = c
+            .iter()
+            .find(|x| x.label == "doWork")
+            .expect("doWork candidate present");
+        assert_eq!(do_work.kind, CandidateKind::Method);
+        assert_eq!(do_work.detail.as_deref(), Some("void"));
     }
 
     #[test]
