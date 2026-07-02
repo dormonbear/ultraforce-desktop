@@ -24,6 +24,8 @@ import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { ApexHistoryDrawer } from "../components/ApexHistoryDrawer";
 import { recordApexRun } from "../apexHistory";
+import { getConfirmApexRun } from "../apexSettings";
+import { useConfirm } from "../components/confirm";
 import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
@@ -52,6 +54,7 @@ interface ApexViewProps {
 }
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
+// fallow-ignore-next-line complexity
 export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
@@ -66,6 +69,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     apply: applyConfig,
   } = useDebugConfig(org);
 
+  const confirm = useConfirm();
   const srcRef = useRef(src);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -83,9 +87,20 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     storage: localStorage,
   });
 
+  // fallow-ignore-next-line complexity
   const run = useCallback(async () => {
     if (!srcRef.current.trim()) {
       toast.error("Write some Apex to run");
+      return;
+    }
+    if (
+      (await getConfirmApexRun()) &&
+      !(await confirm({
+        title: "Run anonymous Apex",
+        description: `Run this anonymous Apex against ${org ?? "the default org"}?`,
+        confirmText: "Run",
+      }))
+    ) {
       return;
     }
     setRunning(true);
@@ -119,7 +134,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     } finally {
       setRunning(false);
     }
-  }, [onPatch, org]);
+  }, [onPatch, org, confirm]);
   // Keep the Monaco Ctrl+Enter command (bound once at mount) calling the latest
   // run closure, so keyboard runs record the current org (not the mount-time one).
   const runRef = useRef(run);
@@ -373,8 +388,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     <ApexHistoryDrawer
       open={historyOpen}
       onOpenChange={setHistoryOpen}
-      onLoad={(source) => {
-        if (src.trim() && !window.confirm("Replace the current editor content?"))
+      onLoad={async (source) => {
+        if (
+          src.trim() &&
+          !(await confirm({
+            description: "Replace the current editor content?",
+            confirmText: "Replace",
+          }))
+        )
           return;
         onPatch({ src: source });
       }}

@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ThemeProvider } from "./theme";
 import { OrgProvider } from "./org";
+import { ConfirmProvider } from "./components/confirm";
 import { runMigrationOnce } from "./fs/migrate";
 import "./styles.css";
 
@@ -21,7 +22,9 @@ void runMigrationOnce().finally(() => {
     <React.StrictMode>
       <ThemeProvider>
         <OrgProvider>
-          <App />
+          <ConfirmProvider>
+            <App />
+          </ConfirmProvider>
         </OrgProvider>
       </ThemeProvider>
     </React.StrictMode>,
