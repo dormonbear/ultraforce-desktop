@@ -1,9 +1,9 @@
 import { formatIpcError } from "../errorFormat";
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useOrgs } from "../org";
+import { loginOrg } from "../ipc/org";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -40,7 +40,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
     }
     setBusy(true);
     try {
-      await invoke("login_org", {
+      await loginOrg({
         instanceUrl: instanceUrl ?? null,
         alias: alias.trim() || null,
         setDefault: true,

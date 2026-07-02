@@ -8,6 +8,7 @@ import {
 } from "@tauri-apps/plugin-fs";
 import { getJson, setJson } from "../store";
 import { joinPath } from "../fs/paths";
+import { getLog, parseLogView } from "../ipc/logs";
 import type { LogRefDto, LogViewDto } from "../types";
 
 // Salesforce debug logs are immutable once created, so a body cached by id is
@@ -38,6 +39,17 @@ export async function loadLogView(
   return view;
 }
 
+/** `loadLogView` bound to the real IPC + disk cache — the one production path
+ * for resolving a log id to its parsed view. */
+export function fetchLogView(id: string): Promise<LogViewDto> {
+  return loadLogView(id, {
+    readCache: readCachedBody,
+    parse: parseLogView,
+    getLog,
+    writeCache: writeCachedBody,
+  });
+}
+
 /** The set of log ids that have a cached body on disk (for a "downloaded"
  * marker in the list). Empty when the cache dir is missing / unreadable. */
 export async function listCachedIds(): Promise<Set<string>> {
@@ -55,7 +67,7 @@ export async function listCachedIds(): Promise<Set<string>> {
 }
 
 /** Read a cached log body, or null when not cached / unavailable. */
-export async function readCachedBody(id: string): Promise<string | null> {
+async function readCachedBody(id: string): Promise<string | null> {
   try {
     const path = cacheFilePath(await appDataDir(), id);
     if (!(await exists(path))) return null;
@@ -66,7 +78,7 @@ export async function readCachedBody(id: string): Promise<string | null> {
 }
 
 /** Persist a downloaded log body for instant reopen (best-effort). */
-export async function writeCachedBody(id: string, body: string): Promise<void> {
+async function writeCachedBody(id: string, body: string): Promise<void> {
   try {
     const dir = joinPath(await appDataDir(), ...SUBDIR);
     if (!(await exists(dir))) await mkdir(dir, { recursive: true });

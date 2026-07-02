@@ -1,5 +1,5 @@
 import type { Monaco } from "@monaco-editor/react";
-import { invoke } from "@tauri-apps/api/core";
+import { formatSoql, soqlComplete } from "./ipc/soql";
 import type { CompletionItemDto } from "./types";
 import { limitInsertion } from "./components/soqlQuickfix";
 import { registerEditorThemes } from "./editor-themes";
@@ -59,10 +59,7 @@ function registerSoqlCompletion(monaco: Monaco): void {
       const query = model.getValue();
       let items: CompletionItemDto[];
       try {
-        items = await invoke<CompletionItemDto[]>("soql_complete", {
-          query,
-          offset,
-        });
+        items = await soqlComplete(query, offset);
       } catch {
         return { suggestions: [] };
       }
@@ -134,9 +131,7 @@ export function registerSoqlFormatter(monaco: Monaco): void {
     provideDocumentFormattingEdits: async (model) => {
       let formatted: string;
       try {
-        formatted = await invoke<string>("format_soql", {
-          query: model.getValue(),
-        });
+        formatted = await formatSoql(model.getValue());
       } catch {
         return [];
       }

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import { configureMonaco, registerSoqlFormatter } from "../monaco-soql";
+import { soqlDiagnostics } from "../ipc/soql";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { trimContextMenu } from "../monaco-contextmenu";
+import { diagnosticsToMarkers } from "../monaco-markers";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
 import { useTheme, monacoTheme } from "../theme";
@@ -73,30 +74,14 @@ export function SoqlEditor({
     const handle = setTimeout(async () => {
       let diags: SoqlDiagnosticDto[];
       try {
-        diags = await invoke<SoqlDiagnosticDto[]>("soql_diagnostics", {
-          query: value,
-        });
+        diags = await soqlDiagnostics(value);
       } catch {
         return;
       }
       monaco.editor.setModelMarkers(
         model,
         "soql",
-        diags.map((d) => {
-          const s = model.getPositionAt(d.start);
-          const e = model.getPositionAt(d.end);
-          return {
-            message: d.message,
-            severity:
-              d.severity === "warning"
-                ? monaco.MarkerSeverity.Warning
-                : monaco.MarkerSeverity.Error,
-            startLineNumber: s.lineNumber,
-            startColumn: s.column,
-            endLineNumber: e.lineNumber,
-            endColumn: e.column,
-          };
-        })
+        diagnosticsToMarkers(monaco, model, diags),
       );
     }, 350);
     return () => clearTimeout(handle);

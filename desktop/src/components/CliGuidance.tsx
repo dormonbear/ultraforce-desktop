@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { AlertTriangle, Copy, Loader2, RefreshCw } from "lucide-react";
+import { sfStatus } from "../ipc/org";
 import type { SfStatus } from "../types";
 import { Button } from "@/components/ui/button";
 
@@ -24,7 +24,7 @@ export function useSfStatus(): { status: SfStatus | null; refresh: () => void } 
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    invoke<SfStatus>("sf_status")
+    sfStatus()
       .then((s) => alive && setStatus(s))
       // On an unexpected failure, assume not-found so the user still gets help.
       .catch(

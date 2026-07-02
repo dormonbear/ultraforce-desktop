@@ -1,6 +1,6 @@
 import type { Monaco } from "@monaco-editor/react";
-import { invoke } from "@tauri-apps/api/core";
 import { configureMonaco } from "./monaco-soql";
+import { apexComplete, formatApex } from "./ipc/apex";
 import type { ApexCandidateDto } from "./types";
 
 // Apex is case-insensitive; the tokenizer matches with `ignoreCase`.
@@ -80,7 +80,7 @@ function registerApexCompletion(monaco: Monaco): void {
       const src = model.getValue();
       let cands: ApexCandidateDto[];
       try {
-        cands = await invoke<ApexCandidateDto[]>("apex_complete", { src, offset });
+        cands = await apexComplete(src, offset);
       } catch {
         return { suggestions: [] };
       }
@@ -118,9 +118,7 @@ export function registerApexFormatter(monaco: Monaco): void {
     provideDocumentFormattingEdits: async (model) => {
       let formatted: string;
       try {
-        formatted = await invoke<string>("format_apex", {
-          src: model.getValue(),
-        });
+        formatted = await formatApex(model.getValue());
       } catch {
         return [];
       }

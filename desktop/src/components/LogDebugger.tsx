@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import {
@@ -23,6 +22,7 @@ import { configureMonacoApex } from "../monaco-apex";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
 import { revealLine, useApexSource } from "./useApexSource";
+import { debugFramesAt, debugSession } from "../ipc/logs";
 import {
   nextFn,
   prevFn,
@@ -64,7 +64,7 @@ export function LogDebugger({
     setFrames([]);
     setFrameSel(null);
     let alive = true;
-    invoke<DebugSession>("debug_session", { raw })
+    debugSession(raw)
       .then((s) => alive && setSession(s))
       .catch(() => alive && setSession({ steps: [], hasVariables: false }));
     return () => {
@@ -82,11 +82,7 @@ export function LogDebugger({
       return;
     }
     let alive = true;
-    invoke<DebugFrame[]>("debug_frames_at", {
-      raw,
-      unitIndex: step.unitIndex,
-      entryIndex: step.entryIndex,
-    })
+    debugFramesAt(raw, step.unitIndex, step.entryIndex)
       .then((f) => {
         if (alive) {
           setFrames(f);

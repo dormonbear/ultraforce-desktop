@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
@@ -8,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { trimContextMenu } from "../monaco-contextmenu";
+import { diagnosticsToMarkers } from "../monaco-markers";
 import { copyText } from "../clipboard";
 import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
@@ -28,8 +28,7 @@ import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
 import { timing } from "../metrics";
-import type { ApexOutcomeDto } from "../types";
-import type { SoqlDiagnosticDto } from "../types";
+import { apexDiagnostics, apexSoqlDiagnostics, runApex } from "../ipc/apex";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
 
@@ -94,7 +93,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     const source = srcRef.current;
     const t0 = performance.now();
     try {
-      const dto = await invoke<ApexOutcomeDto>("run_apex", { src: source });
+      const dto = await runApex(source);
       onPatch({ outcome: dto });
       void recordApexRun({
         org,
@@ -154,37 +153,25 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     const model = instance.getModel();
     if (!model) return;
     const handle = setTimeout(async () => {
-      const toMarkers = (diags: SoqlDiagnosticDto[]) =>
-        diags.map((d) => {
-          const s = model.getPositionAt(d.start);
-          const e = model.getPositionAt(d.end);
-          return {
-            message: d.message,
-            severity:
-              d.severity === "warning"
-                ? monaco.MarkerSeverity.Warning
-                : monaco.MarkerSeverity.Error,
-            startLineNumber: s.lineNumber,
-            startColumn: s.column,
-            endLineNumber: e.lineNumber,
-            endColumn: e.column,
-          } as editor.IMarkerData;
-        });
       // SOQL-in-Apex diagnostics + AST diagnostics (duplicate vars, unknown
       // fields) as separate marker owners so each refreshes independently.
       try {
-        const soql = await invoke<SoqlDiagnosticDto[]>("apex_soql_diagnostics", {
-          src,
-        });
-        monaco.editor.setModelMarkers(model, "apex-soql", toMarkers(soql));
+        const soql = await apexSoqlDiagnostics(src);
+        monaco.editor.setModelMarkers(
+          model,
+          "apex-soql",
+          diagnosticsToMarkers(monaco, model, soql),
+        );
       } catch {
         /* ignore */
       }
       try {
-        const ast = await invoke<SoqlDiagnosticDto[]>("apex_diagnostics", {
-          src,
-        });
-        monaco.editor.setModelMarkers(model, "apex-ast", toMarkers(ast));
+        const ast = await apexDiagnostics(src);
+        monaco.editor.setModelMarkers(
+          model,
+          "apex-ast",
+          diagnosticsToMarkers(monaco, model, ast),
+        );
       } catch {
         /* ignore */
       }

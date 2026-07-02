@@ -3,12 +3,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Github } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
 import { getRoot, setRootOverride, type Tool } from "../fs/workspace";
 import { getNamespacePolicy, setNamespacePolicy } from "../indexSettings";
 import { useOrgs } from "../org";
+import { reindexOrg } from "../ipc/schema";
 import { useTheme } from "../theme";
 import {
   HIGHLIGHT_SCHEMES,
@@ -84,7 +84,7 @@ export function SettingsPage({ onChanged }: Props) {
     await setNamespacePolicy(value);
     if (org) {
       try {
-        await invoke("reindex_org", { org, namespaces: value });
+        await reindexOrg(org, value);
         toast.success("Reindexing org…");
       } catch (e) {
         toast.error(`Reindex failed: ${formatIpcError(e)}`);
