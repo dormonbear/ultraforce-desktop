@@ -1,8 +1,7 @@
 //! AST-grade Apex lexer: a complete token stream for the typed-AST parser.
 //!
-//! Independent of the heuristic `crate::lexer` (which the shipping completion
-//! engine still uses). Tokens carry only a kind + byte span; text is recovered
-//! via [`Token::text`]. Never panics — unterminated strings/comments lex to EOF.
+//! Tokens carry only a kind + byte span; text is recovered via
+//! [`Token::text`]. Never panics — unterminated strings/comments lex to EOF.
 
 /// A lexical token kind.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

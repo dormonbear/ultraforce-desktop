@@ -1,14 +1,7 @@
 pub mod acquire;
 pub mod ast;
 pub mod candidate;
-pub mod complete;
-pub mod cst;
-pub mod cst_context;
-pub mod cst_scope;
 pub mod format;
-pub mod lexer;
-pub mod parser;
-pub mod resolve;
 pub mod snapshot;
 pub mod soql_region;
 pub mod store;

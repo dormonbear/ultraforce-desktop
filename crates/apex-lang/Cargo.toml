@@ -10,8 +10,6 @@ sf-schema = { path = "../sf-schema" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true }
-tree-sitter = "0.26"
-tree-sitter-sfapex = "3"
 
 [dev-dependencies]
 sf-core = { path = "../sf-core", features = ["test-util"] }
