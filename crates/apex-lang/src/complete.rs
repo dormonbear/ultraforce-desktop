@@ -4,20 +4,7 @@ use crate::cst_scope;
 use crate::resolve::resolve_type;
 use crate::symbols::{ApexType, Ost};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CandidateKind {
-    Type,
-    Keyword,
-    LocalVar,
-    Method,
-    Property,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Candidate {
-    pub label: String,
-    pub kind: CandidateKind,
-}
+pub use crate::candidate::{Candidate, CandidateKind};
 
 pub fn complete(input: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
     let cursor = cursor.min(input.len());

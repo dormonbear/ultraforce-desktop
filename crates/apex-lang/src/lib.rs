@@ -1,5 +1,6 @@
 pub mod acquire;
 pub mod ast;
+pub mod candidate;
 pub mod complete;
 pub mod cst;
 pub mod cst_context;
