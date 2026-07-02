@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
@@ -47,7 +48,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
       toast.success("Org connected");
       onConnected?.();
     } catch (e) {
-      toast.error(typeof e === "string" ? e : String(e));
+      toast.error(formatIpcError(e));
     } finally {
       setBusy(false);
     }

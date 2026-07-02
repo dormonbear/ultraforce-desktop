@@ -1,3 +1,4 @@
+import { formatIpcError } from "./errorFormat";
 import {
   createContext,
   useCallback,
@@ -58,7 +59,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     setSelected(username);
     void setJson(ORG_KEY, username);
     invoke("set_target_org", { username }).catch((e) => {
-      toast.error(`Failed to switch org: ${typeof e === "string" ? e : String(e)}`);
+      toast.error(`Failed to switch org: ${formatIpcError(e)}`);
     });
     triggerIndex(username);
   }, []);
@@ -88,7 +89,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       })
       .catch((e) => {
         if (!alive) return;
-        const message = typeof e === "string" ? e : String(e);
+        const message = formatIpcError(e);
         setError(message);
         toast.error(message);
       })

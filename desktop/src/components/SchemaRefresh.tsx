@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
@@ -30,7 +31,7 @@ export function SchemaRefresh() {
       await invoke("reindex_org", { org, namespaces: await getNamespacePolicy() });
       toast.success("Reindexing org...");
     } catch (e) {
-      toast.error(`Schema refresh failed: ${typeof e === "string" ? e : String(e)}`);
+      toast.error(`Schema refresh failed: ${formatIpcError(e)}`);
     } finally {
       setBusy(false);
     }

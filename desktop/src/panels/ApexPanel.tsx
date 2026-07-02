@@ -9,7 +9,7 @@ import { EDITOR_OPTS } from "../monaco-opts";
 import { retriggerSuggestOnEdit } from "../monaco-retrigger";
 import { trimContextMenu } from "../monaco-contextmenu";
 import { copyText } from "../clipboard";
-import { parseSfError, isCliUnavailable } from "../errorFormat";
+import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
 import { useMonacoReveal, type Reveal } from "../monaco-reveal";
@@ -112,7 +112,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       const ms = performance.now() - t0;
       void timing("run.apex", ms);
     } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
+      const message = formatIpcError(e);
       toast.error(parseSfError(message).detail);
       onPatch({ error: message, outcome: null });
       const ms = performance.now() - t0;

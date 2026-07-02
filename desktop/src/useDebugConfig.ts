@@ -1,3 +1,4 @@
+import { formatIpcError } from "./errorFormat";
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ export function useDebugConfig(org: string | null): {
   useEffect(() => {
     invoke<DebugConfigDto>("get_debug_config")
       .then((dto) => setLevels(dto.levels))
-      .catch((e) => setError(typeof e === "string" ? e : String(e)));
+      .catch((e) => setError(formatIpcError(e)));
   }, [org]);
 
   const apply = useCallback(async (next: CategoryLevels) => {
@@ -37,7 +38,7 @@ export function useDebugConfig(org: string | null): {
       });
       setLevels(dto.levels);
     } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
+      const message = formatIpcError(e);
       setError(message);
       toast.error(`Debug config: ${message}`);
     } finally {

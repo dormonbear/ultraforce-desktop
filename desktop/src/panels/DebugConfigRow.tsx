@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
@@ -65,7 +66,7 @@ export function DebugConfigRow({
         levelsCache.set(cacheKey, cfg.debugLevels);
         setOrgLevels(cfg.debugLevels);
       } catch (e) {
-        setLevelsError(typeof e === "string" ? e : String(e));
+        setLevelsError(formatIpcError(e));
       } finally {
         setLoadingLevels(false);
       }

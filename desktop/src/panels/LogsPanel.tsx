@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { invoke } from "@tauri-apps/api/core";
@@ -440,7 +441,7 @@ export function LogsPanel() {
       setLogs(rows);
       void saveCachedList(org ?? "default", rows);
     } catch (e) {
-      setListError(typeof e === "string" ? e : String(e));
+      setListError(formatIpcError(e));
     } finally {
       setListLoading(false);
     }
@@ -516,7 +517,7 @@ export function LogsPanel() {
       // loadLogView writes the body to disk on a download; reflect that marker.
       setCachedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
     } catch (e) {
-      setViewError(typeof e === "string" ? e : String(e));
+      setViewError(formatIpcError(e));
     } finally {
       setViewLoading(false);
     }
@@ -541,7 +542,7 @@ export function LogsPanel() {
       const parsed = await invoke<Omit<LogViewDto, "raw">>("parse_log", { body });
       setView({ raw: body, ...parsed });
     } catch (e) {
-      setViewError(typeof e === "string" ? e : String(e));
+      setViewError(formatIpcError(e));
     } finally {
       setViewLoading(false);
     }
@@ -569,7 +570,7 @@ export function LogsPanel() {
             const body = await invoke<string>("read_log_file", { path });
             await showLocalLog(body);
           } catch (e) {
-            toast.error(`Open failed: ${typeof e === "string" ? e : String(e)}`);
+            toast.error(`Open failed: ${formatIpcError(e)}`);
           }
         })();
       }
@@ -610,7 +611,7 @@ export function LogsPanel() {
       await writeTextFile(path, body);
       toast.success("Log saved");
     } catch (e) {
-      toast.error(`Save failed: ${typeof e === "string" ? e : String(e)}`);
+      toast.error(`Save failed: ${formatIpcError(e)}`);
     }
   }, [getBody]);
 
@@ -640,7 +641,7 @@ export function LogsPanel() {
       setNow(Date.now());
       toast.success("Tracing you for 30 min");
     } catch (e) {
-      toast.error(`Trace failed: ${typeof e === "string" ? e : String(e)}`);
+      toast.error(`Trace failed: ${formatIpcError(e)}`);
     } finally {
       setTracingBusy(false);
     }

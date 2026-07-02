@@ -1,3 +1,4 @@
+import { formatIpcError } from "./errorFormat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
@@ -89,7 +90,7 @@ export function useLoggingConfig(org: string | null) {
         flags: new Map(fl.map((r) => [r._key, r])),
       };
     } catch (e) {
-      setError(typeof e === "string" ? e : String(e));
+      setError(formatIpcError(e));
     } finally {
       setLoading(false);
     }
@@ -251,7 +252,7 @@ export function useLoggingConfig(org: string | null) {
       await load();
       return true;
     } catch (e) {
-      const msg = typeof e === "string" ? e : String(e);
+      const msg = formatIpcError(e);
       setError(msg);
       toast.error(`Logging config: ${msg}`);
       return false;

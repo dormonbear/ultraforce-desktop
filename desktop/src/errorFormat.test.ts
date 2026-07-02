@@ -1,5 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { parseSfError, isCliUnavailable } from "./errorFormat";
+import { parseSfError, isCliUnavailable, formatIpcError } from "./errorFormat";
+
+describe("formatIpcError", () => {
+  it("passes plain strings through", () => {
+    expect(formatIpcError("boom")).toBe("boom");
+  });
+  it("extracts message from a CommandError object", () => {
+    expect(formatIpcError({ code: "command", message: "it failed" })).toBe(
+      "it failed",
+    );
+  });
+  it("uses an Error's message", () => {
+    expect(formatIpcError(new Error("oops"))).toBe("oops");
+  });
+  it("falls back to String() for anything else", () => {
+    expect(formatIpcError(42)).toBe("42");
+    expect(formatIpcError(null)).toBe("null");
+    expect(formatIpcError({ message: 7 })).toBe("[object Object]");
+  });
+});
 
 describe("isCliUnavailable", () => {
   it("detects the sf-not-found error", () => {
@@ -10,30 +29,29 @@ describe("isCliUnavailable", () => {
   it("is false for ordinary query errors", () => {
     expect(
       isCliUnavailable(
-        'Command { status: 1, name: "INVALID_TYPE", message: "..." }',
+        "`sf` command failed (status 1): INVALID_TYPE: sObject type not supported",
       ),
     ).toBe(false);
   });
 });
 
 describe("parseSfError", () => {
-  it("humanizes the name and un-escapes a multi-line sf message", () => {
-    // What `format!("{e:?}")` forwards for an `sf` Command failure: the real
-    // newlines in the message arrive escaped as the two characters `\n`.
+  it("humanizes the name and keeps a multi-line sf message", () => {
+    // What the backend forwards for an `sf` Command failure: `SfError`'s
+    // Display text, with the message's real newlines intact.
     const raw =
-      'Command { status: 1, name: "INVALID_TYPE", message: "\\nFROM Maycur_Form__c\\n     ^\\nERROR at Row:2:Column:6\\nsObject type \'Maycur_Form__c\' is not supported." }';
+      "`sf` command failed (status 1): INVALID_TYPE: \nFROM Maycur_Form__c\n     ^\nERROR at Row:2:Column:6\nsObject type 'Maycur_Form__c' is not supported.";
     const e = parseSfError(raw);
     expect(e.title).toBe("Invalid type");
     expect(e.detail).toBe(
       "FROM Maycur_Form__c\n     ^\nERROR at Row:2:Column:6\nsObject type 'Maycur_Form__c' is not supported.",
     );
-    expect(e.detail).not.toContain("\\n");
     expect(e.raw).toBe(raw);
   });
 
-  it("un-escapes embedded quotes and backslashes", () => {
+  it("keeps colons inside the message", () => {
     const raw =
-      'Command { status: 1, name: "MALFORMED_QUERY", message: "unexpected token: \\"SE\\"" }';
+      '`sf` command failed (status 1): MALFORMED_QUERY: unexpected token: "SE"';
     expect(parseSfError(raw).detail).toBe('unexpected token: "SE"');
   });
 

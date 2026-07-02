@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   flexRender,
@@ -99,7 +100,7 @@ export function ResultTable({
       await writeExportFile(path, fmt, data.columns, data.rows);
       toast.success(`Exported ${data.rows.length} rows to ${fmt.label}`);
     } catch (e) {
-      toast.error(`Export failed: ${typeof e === "string" ? e : String(e)}`);
+      toast.error(`Export failed: ${formatIpcError(e)}`);
     }
   };
 

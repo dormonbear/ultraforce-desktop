@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useEffect, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -86,7 +87,7 @@ export function SettingsPage({ onChanged }: Props) {
         await invoke("reindex_org", { org, namespaces: value });
         toast.success("Reindexing org…");
       } catch (e) {
-        toast.error(`Reindex failed: ${typeof e === "string" ? e : String(e)}`);
+        toast.error(`Reindex failed: ${formatIpcError(e)}`);
       }
     }
   };
