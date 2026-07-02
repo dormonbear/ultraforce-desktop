@@ -27,7 +27,6 @@ import { recordApexRun } from "../apexHistory";
 import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
-import { timing } from "../metrics";
 import type { ApexOutcomeDto } from "../types";
 import type { SoqlDiagnosticDto } from "../types";
 import type { ApexTab } from "../tabs/types";
@@ -92,7 +91,6 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     setRunning(true);
     onPatch({ error: null });
     const source = srcRef.current;
-    const t0 = performance.now();
     try {
       const dto = await invoke<ApexOutcomeDto>("run_apex", { src: source });
       onPatch({ outcome: dto });
@@ -109,14 +107,10 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       } else if (!dto.success) {
         toast.error(dto.exception_message ?? "Execution failed");
       }
-      const ms = performance.now() - t0;
-      void timing("run.apex", ms);
     } catch (e) {
       const message = typeof e === "string" ? e : String(e);
       toast.error(parseSfError(message).detail);
       onPatch({ error: message, outcome: null });
-      const ms = performance.now() - t0;
-      void timing("run.apex", ms);
     } finally {
       setRunning(false);
     }

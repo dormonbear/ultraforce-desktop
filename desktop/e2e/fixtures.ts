@@ -63,6 +63,11 @@ const RESP: Record<string, unknown> = {
   set_target_org: null,
   get_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
   set_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
+  quick_self_trace: {
+    traceFlagId: "7tf1",
+    levels: LEVELS,
+    expirationDate: "2099-01-01T00:00:00.000+0000",
+  },
   load_logging_config: {
     traceFlags: [
       {
@@ -211,6 +216,9 @@ const RESP: Record<string, unknown> = {
   },
   login_org: null,
   warm_schema: 42,
+  // Body returned when the viewer opens a drag-dropped local log file. The
+  // parsed shape comes from parse_log; this is just the raw text it re-attaches.
+  read_log_file: LOG,
 };
 
 /** Installs the mocked IPC before app scripts run. `overrides` patches RESP
@@ -318,8 +326,13 @@ async function installMocks(
         return Promise.resolve(null);
       }
       if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
-      // Save dialog: return a fixed fake path so export flows can proceed.
-      if (cmd === "plugin:dialog|save") return Promise.resolve("/ws/export.csv");
+      // Save dialog: echo the requested default path under /ws so tests can
+      // assert the right file (and format ↔ extension mismatches surface).
+      // plugin-dialog wraps its options: invoke('plugin:dialog|save', { options }).
+      if (cmd === "plugin:dialog|save") {
+        const options = args.options as { defaultPath?: string } | undefined;
+        return Promise.resolve(`/ws/${options?.defaultPath ?? "export.csv"}`);
+      }
       // Open dialog: return a fixed fake .log path so open flows can proceed.
       if (cmd === "plugin:dialog|open") return Promise.resolve("/ws/sample.log");
       if (cmd.startsWith("plugin:dialog|")) return Promise.resolve(null);
@@ -338,6 +351,8 @@ async function installMocks(
     // @ts-expect-error — test-only hook to deliver a backend event.
     window.__ufEmit = (event: string, payload: unknown) =>
       (handlers[event] ?? []).forEach((h) => h({ event, id: 0, payload }));
+    // @ts-expect-error — test-only hook: has the app registered a listener yet?
+    window.__ufHasListener = (event: string) => (handlers[event] ?? []).length > 0;
     // @ts-expect-error — test-only hook to read a file the app wrote.
     window.__ufReadFile = (path: string) => files[path] ?? null;
     },
@@ -355,4 +370,33 @@ export async function gotoApp(
   await page.goto("/");
   await page.waitForLoadState("networkidle");
   await page.waitForTimeout(800);
+}
+
+/** Open the Apex tool and the hello.apex fixture file — the shared setup for
+ * anonymous-Apex specs. */
+export async function openApexFile(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Apex" }).click();
+  await page.getByRole("treeitem", { name: "hello.apex" }).click();
+}
+
+/** Open a local log in the viewer. The old toolbar "OPEN" button was replaced
+ * by drag-and-drop, so tests drive the webview drag-drop event the LogsPanel
+ * listens on. Requires the Logs tab to be active. */
+export async function openLocalLog(
+  page: Page,
+  path = "/ws/sample.log",
+): Promise<void> {
+  // LogsPanel registers its drag-drop listener in a passive effect (four
+  // awaited plugin:event|listen calls); wait for it before emitting so the
+  // drop isn't silently swallowed on a fresh mount.
+  await page.waitForFunction(() =>
+    (
+      window as unknown as { __ufHasListener?: (e: string) => boolean }
+    ).__ufHasListener?.("tauri://drag-drop"),
+  );
+  await page.evaluate((p) => {
+    (
+      window as unknown as { __ufEmit: (e: string, payload: unknown) => void }
+    ).__ufEmit("tauri://drag-drop", { paths: [p], position: { x: 0, y: 0 } });
+  }, path);
 }

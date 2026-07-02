@@ -1,37 +1,31 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, openLocalLog } from "./fixtures";
 
-// The Debug tab lists USER_DEBUG output cleanly, away from the raw-log noise.
-test("Debug tab lists USER_DEBUG messages", async ({ page }) => {
+// The raw log view can filter down to USER_DEBUG output cleanly, away from the
+// rest of the log noise, via its "Debug Only" toggle.
+test("raw log filters to USER_DEBUG lines only", async ({ page }) => {
+  const body = [
+    "45.0 APEX_CODE,DEBUG;APEX_PROFILING,INFO",
+    "08:00:00.0 (100)|USER_DEBUG|[3]|DEBUG|hello world",
+    "08:00:00.1 (200)|SOQL_EXECUTE_BEGIN|[5]|SELECT Id FROM Account",
+  ].join("\n");
+  // showLocalLog renders view.raw, which comes from parse_log (it re-attaches
+  // the body it holds), so the debug lines must live in the parsed fixture.
   await gotoApp(page, {
     parse_log: {
-      raw: "x",
+      raw: body,
       api_version: "60.0",
-      units: [
-        {
-          tree: [
-            {
-              label: "CODE_UNIT_STARTED",
-              detail: "MyClass.run",
-              dur_ns: 1000,
-              self_ns: 0,
-              children: [
-                { label: "USER_DEBUG", detail: "[3] | DEBUG | hello world", dur_ns: null, self_ns: null, children: [] },
-              ],
-            },
-          ],
-          hotspots: [],
-          statements: [],
-          limits: [],
-          exceptions: [],
-        },
-      ],
+      units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }],
     },
   });
 
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
-  await page.getByRole("radio", { name: "debug" }).click();
+  await openLocalLog(page);
 
+  // Raw view is the default detail tab; the debug-only toggle hides non-debug
+  // lines so only the USER_DEBUG message remains.
   await expect(page.getByText("hello world")).toBeVisible();
+  await page.getByRole("checkbox", { name: "Show debug lines only" }).check();
+  await expect(page.getByText("hello world")).toBeVisible();
+  await expect(page.getByText(/SOQL_EXECUTE_BEGIN/)).toHaveCount(0);
 });

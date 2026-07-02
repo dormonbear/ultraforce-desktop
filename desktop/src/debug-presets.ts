@@ -43,7 +43,7 @@ const ALL_NONE: CategoryLevels = {
   workflow: "NONE",
 };
 
-export const PRESETS: Record<PresetName, CategoryLevels> = {
+const PRESETS: Record<PresetName, CategoryLevels> = {
   None: ALL_NONE,
   "Apex Only": {
     ...ALL_NONE,
