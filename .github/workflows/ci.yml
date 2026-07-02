@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Architecture guardrails
+        run: ./scripts/check-arch.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - name: Frontend install
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        working-directory: desktop
+        run: pnpm exec tsc --noEmit
+
+      - name: Frontend tests
+        working-directory: desktop
+        run: pnpm exec vitest run
+
+      - name: Lint
+        working-directory: desktop
+        run: pnpm exec oxlint src
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings

@@ -14,6 +14,32 @@ inherited-member completion = walk the `parentClass` chain and merge `interfaces
 shape in `apex-lang`'s symbol model (`crates/apex-lang/src/symbols.rs`) and its AST engine
 (`crates/apex-lang/src/ast/`) rather than inventing a divergent model.
 
+## Architecture rules
+
+Enforced by `scripts/check-arch.sh` (pre-commit + CI). These paid off real debt once —
+don't reintroduce it:
+
+- **Single Apex parsing stack.** `crates/apex-lang/src/ast/` is the only parser/completion
+  engine. Never re-add the legacy CST modules (`lexer.rs`, `parser.rs`, `cst*.rs`,
+  `complete.rs`, `resolve.rs` at the crate root) or a second lexer/AST.
+- **IPC errors are `CommandError`.** Every `#[tauri::command]` returns
+  `Result<T, CommandError>` (`desktop/src-tauri/src/error.rs`) with a user-readable
+  message. Never `format!("{e:?}")` across the IPC boundary.
+- **DTOs serialize camelCase.** Every struct crossing IPC carries
+  `#[serde(rename_all = "camelCase")]` and lives in `dto.rs`; mirror it manually in
+  `desktop/src/types.ts` (also camelCase). Change both sides in the same commit.
+- **Frontend IPC goes through `desktop/src/ipc/`.** Command-name strings and
+  `invoke()` appear only there, as typed functions grouped by domain. Components import
+  from `ipc/*`, never `@tauri-apps/api/core` directly.
+- **`lib.rs` is command shells only.** src-tauri is the composition root; orchestration
+  lives in its modules (`soql_exec.rs`, `indexing.rs`, `state.rs`, …), not inline in
+  commands. The `features` crate is the reusable use-case layer, not a mandatory facade.
+- **Monaco setup is disposable-based.** Editor integrations live in `desktop/src/editor/`;
+  registrations return/track disposables (HMR-safe), shared setup goes through
+  `configureEditorBase` — no module-level `registered` booleans.
+- **800-line cap per file** (ratchet: the grandfathered list in `check-arch.sh` may only
+  shrink). Split by feature/domain before crossing it.
+
 ---
 
 # context-mode — MANDATORY routing rules
