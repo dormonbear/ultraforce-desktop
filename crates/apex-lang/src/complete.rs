@@ -305,6 +305,8 @@ mod tests {
                             is_static: true,
                         }],
                         properties: vec![],
+                        parent_class: None,
+                        interfaces: vec![],
                         enum_values: vec![],
                     },
                     ApexType {
@@ -312,6 +314,8 @@ mod tests {
                         kind: TypeKind::Class,
                         methods: vec![],
                         properties: vec![],
+                        parent_class: None,
+                        interfaces: vec![],
                         enum_values: vec![],
                     },
                 ],
@@ -334,6 +338,8 @@ mod tests {
                     },
                 ],
                 properties: vec![],
+                parent_class: None,
+                interfaces: vec![],
                 enum_values: vec![],
             }],
         }

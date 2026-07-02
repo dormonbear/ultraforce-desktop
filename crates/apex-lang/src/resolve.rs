@@ -1,5 +1,51 @@
 use crate::parser::{ApexOutline, Segment};
-use crate::symbols::{ApexType, Ost};
+use crate::symbols::{ApexType, Method, Ost, Property};
+
+/// Upper bound on supertype traversal — cycle/pathology guard.
+const MAX_SUPERTYPES: usize = 32;
+
+/// `ty` followed by its transitive supertypes (`parent_class` chain merged with
+/// `interfaces`), resolved against `ost`. Child-first order (so closer types win
+/// on member lookup), cycle-safe, capped at [`MAX_SUPERTYPES`] types.
+pub fn supertype_chain<'a>(ost: &'a Ost, ty: &'a ApexType) -> Vec<&'a ApexType> {
+    let mut chain: Vec<&ApexType> = vec![ty];
+    let mut i = 0;
+    while i < chain.len() && chain.len() < MAX_SUPERTYPES {
+        let cur = chain[i];
+        i += 1;
+        for super_name in cur.parent_class.iter().chain(cur.interfaces.iter()) {
+            let Some(super_ty) = resolve_type(ost, simple_type_name(super_name)) else {
+                continue;
+            };
+            if !chain.iter().any(|seen| std::ptr::eq(*seen, super_ty)) {
+                chain.push(super_ty);
+            }
+        }
+    }
+    chain
+}
+
+/// `Ns.Base<T>` → `Base`: generics- and namespace-stripped lookup key.
+fn simple_type_name(name: &str) -> &str {
+    let base = base_type_name(name);
+    base.rsplit('.').next().unwrap_or(base)
+}
+
+/// Method `name` on `ty` or any of its supertypes (closest type wins).
+pub fn find_method<'a>(ost: &'a Ost, ty: &'a ApexType, name: &str) -> Option<&'a Method> {
+    supertype_chain(ost, ty)
+        .into_iter()
+        .find_map(|t| t.methods.iter().find(|m| m.name.eq_ignore_ascii_case(name)))
+}
+
+/// Property `name` on `ty` or any of its supertypes (closest type wins).
+pub fn find_property<'a>(ost: &'a Ost, ty: &'a ApexType, name: &str) -> Option<&'a Property> {
+    supertype_chain(ost, ty).into_iter().find_map(|t| {
+        t.properties
+            .iter()
+            .find(|p| p.name.eq_ignore_ascii_case(name))
+    })
+}
 
 pub fn resolve_type<'a>(ost: &'a Ost, name: &str) -> Option<&'a ApexType> {
     ost.org_type(name).or_else(|| {
@@ -128,24 +174,12 @@ pub fn resolve_expr_type<'a>(
         let next_str: String = if let Some(elem) = collection_element(&cur_str, seg) {
             elem
         } else if seg.is_call {
-            cur.methods
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&seg.name))?
-                .return_type
-                .clone()
-        } else if let Some(p) = cur
-            .properties
-            .iter()
-            .find(|p| p.name.eq_ignore_ascii_case(&seg.name))
-        {
+            find_method(ost, cur, &seg.name)?.return_type.clone()
+        } else if let Some(p) = find_property(ost, cur, &seg.name) {
             p.prop_type.clone()
         } else {
             // getter-as-method fallback
-            cur.methods
-                .iter()
-                .find(|m| m.name.eq_ignore_ascii_case(&seg.name))?
-                .return_type
-                .clone()
+            find_method(ost, cur, &seg.name)?.return_type.clone()
         };
         if base_type_name(&next_str).eq_ignore_ascii_case("void") {
             return None;
@@ -171,6 +205,8 @@ mod tests {
                     kind: TypeKind::Class,
                     methods: vec![],
                     properties: vec![],
+                    parent_class: None,
+                    interfaces: vec![],
                     enum_values: vec![],
                 }],
             }],
@@ -179,6 +215,8 @@ mod tests {
                 kind: TypeKind::Class,
                 methods: vec![],
                 properties: vec![],
+                parent_class: None,
+                interfaces: vec![],
                 enum_values: vec![],
             }],
         }
@@ -222,6 +260,8 @@ mod tests {
                     is_static: false,
                 }],
                 properties: vec![],
+                parent_class: None,
+                interfaces: vec![],
                 enum_values: vec![],
             }],
         };
@@ -235,6 +275,122 @@ mod tests {
         let ty = resolve_receiver_type(&ost, &outline, "x").unwrap();
         assert_eq!(ty.name, "Inner");
         assert!(ty.methods.iter().any(|m| m.name == "ping"));
+    }
+
+    fn named_type(name: &str, parent: Option<&str>, methods: Vec<Method>) -> ApexType {
+        ApexType {
+            name: name.to_string(),
+            kind: TypeKind::Class,
+            parent_class: parent.map(str::to_string),
+            interfaces: vec![],
+            methods,
+            properties: vec![],
+            enum_values: vec![],
+        }
+    }
+
+    fn method(name: &str, return_type: &str) -> Method {
+        Method {
+            name: name.to_string(),
+            return_type: return_type.to_string(),
+            params: vec![],
+            is_static: false,
+        }
+    }
+
+    #[test]
+    fn find_method_walks_parent_class_chain() {
+        let ost = Ost {
+            namespaces: vec![],
+            org_types: vec![
+                named_type("Base", None, vec![method("greet", "String")]),
+                named_type("Mid", Some("Base"), vec![]),
+                named_type("Child", Some("Mid"), vec![method("own", "Integer")]),
+            ],
+        };
+        let child = ost.org_type("Child").unwrap();
+
+        assert_eq!(find_method(&ost, child, "own").unwrap().return_type, "Integer");
+        assert_eq!(
+            find_method(&ost, child, "greet").unwrap().return_type,
+            "String",
+            "method inherited through two-level parent_class chain"
+        );
+        assert!(find_method(&ost, child, "missing").is_none());
+    }
+
+    #[test]
+    fn find_member_prefers_subclass_override() {
+        let ost = Ost {
+            namespaces: vec![],
+            org_types: vec![
+                named_type("Base", None, vec![method("run", "Object")]),
+                named_type("Child", Some("Base"), vec![method("run", "String")]),
+            ],
+        };
+        let child = ost.org_type("Child").unwrap();
+        assert_eq!(find_method(&ost, child, "run").unwrap().return_type, "String");
+    }
+
+    #[test]
+    fn find_property_merges_interfaces_and_survives_cycles() {
+        let mut iface = named_type("HasName", Some("Loop"), vec![]);
+        iface.properties = vec![Property {
+            name: "name".to_string(),
+            prop_type: "String".to_string(),
+            is_static: false,
+        }];
+        // `Loop` points back at `Invoice` — the walk must terminate.
+        let mut invoice = named_type("Invoice", Some("Loop"), vec![]);
+        invoice.interfaces = vec!["HasName".to_string()];
+        let ost = Ost {
+            namespaces: vec![],
+            org_types: vec![
+                invoice,
+                iface,
+                named_type("Loop", Some("Invoice"), vec![method("looped", "void")]),
+            ],
+        };
+        let ty = ost.org_type("Invoice").unwrap();
+
+        assert_eq!(
+            find_property(&ost, ty, "name").unwrap().prop_type,
+            "String",
+            "property from implemented interface"
+        );
+        assert!(find_method(&ost, ty, "looped").is_some());
+    }
+
+    #[test]
+    fn resolve_expr_type_uses_inherited_members() {
+        let ost = Ost {
+            namespaces: vec![],
+            org_types: vec![
+                named_type("Base", None, vec![method("self_", "Base")]),
+                named_type("Child", Some("Base"), vec![]),
+            ],
+        };
+        let outline = ApexOutline {
+            locals: vec![LocalVar {
+                name: "c".to_string(),
+                declared_type: "Child".to_string(),
+            }],
+        };
+        let chain = vec![
+            Segment {
+                name: "c".into(),
+                is_call: false,
+            },
+            Segment {
+                name: "self_".into(),
+                is_call: true,
+            },
+        ];
+        assert_eq!(
+            resolve_expr_type(&ost, &outline, &chain).unwrap().name,
+            "Base",
+            "inherited method resolves through the parent_class chain"
+        );
     }
 
     #[test]
@@ -300,6 +456,8 @@ mod tests {
                     is_static: false,
                 }],
                 properties: vec![],
+                parent_class: None,
+                interfaces: vec![],
                 enum_values: vec![],
             }],
         };
@@ -350,6 +508,8 @@ mod tests {
                 prop_type: "String".into(),
                 is_static: false,
             }],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         // List/Map need only to EXIST in the OST (their stdlib get() return type is irrelevant now).
@@ -371,6 +531,8 @@ mod tests {
                 },
             ],
             properties: vec![],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         let ost = Ost {
@@ -436,6 +598,8 @@ mod tests {
                 is_static: false,
             }],
             properties: vec![],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         let ost = Ost {

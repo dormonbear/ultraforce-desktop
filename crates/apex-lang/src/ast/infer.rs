@@ -5,7 +5,8 @@
 use super::scope::Binding;
 use super::tree::Expr;
 use super::types::{Primitive, Type};
-use crate::symbols::{Member, Ost};
+use crate::resolve::{find_method, find_property};
+use crate::symbols::Ost;
 
 /// What inference reads: the in-scope names, the symbol table, and the enclosing
 /// class name (for `this`).
@@ -95,25 +96,30 @@ fn member_type(recv: &Type, name: &str, is_call: bool, ctx: &InferCtx) -> Type {
         Type::List(_) | Type::Set(_) | Type::Map(_, _) => collection_member(recv, name),
         Type::Primitive(p) => {
             // Primitives resolve against the System namespace (e.g. String.length()).
-            ost_member(ctx.ost.type_in("System", p.name()), name, is_call)
+            ost_member(ctx.ost, ctx.ost.type_in("System", p.name()), name, is_call)
         }
         Type::Named(n) => {
             let at = ctx.ost.org_type(n).or_else(|| ctx.ost.type_in("System", n));
-            ost_member(at, name, is_call)
+            ost_member(ctx.ost, at, name, is_call)
         }
         _ => Type::Unknown,
     }
 }
 
-/// Resolve a member on an [`crate::symbols::ApexType`] from the OST.
-fn ost_member(at: Option<&crate::symbols::ApexType>, name: &str, is_call: bool) -> Type {
+/// Resolve a member on an [`crate::symbols::ApexType`] from the OST, walking the
+/// `parent_class` chain and `interfaces` for inherited members.
+fn ost_member(ost: &Ost, at: Option<&crate::symbols::ApexType>, name: &str, is_call: bool) -> Type {
     let Some(at) = at else {
         return Type::Unknown;
     };
-    match at.member(name) {
-        Some(Member::Method(m)) if is_call => Type::parse(&m.return_type),
-        Some(Member::Property(p)) if !is_call => Type::parse(&p.prop_type),
-        _ => Type::Unknown,
+    if is_call {
+        find_method(ost, at, name)
+            .map(|m| Type::parse(&m.return_type))
+            .unwrap_or(Type::Unknown)
+    } else {
+        find_property(ost, at, name)
+            .map(|p| Type::parse(&p.prop_type))
+            .unwrap_or(Type::Unknown)
     }
 }
 
@@ -203,6 +209,8 @@ mod tests {
                 prop_type: "User".to_string(),
                 is_static: false,
             }],
+            parent_class: None,
+            interfaces: vec![],
             enum_values: vec![],
         };
         let user = ApexType {
@@ -219,6 +227,18 @@ mod tests {
                 prop_type: "String".to_string(),
                 is_static: false,
             }],
+            parent_class: None,
+            interfaces: vec![],
+            enum_values: vec![],
+        };
+        // Subclass linked to Account only via `parent_class` (no flattened members).
+        let sub = ApexType {
+            name: "Sub".to_string(),
+            kind: TypeKind::Class,
+            parent_class: Some("Account".to_string()),
+            interfaces: vec![],
+            methods: vec![],
+            properties: vec![],
             enum_values: vec![],
         };
         Ost {
@@ -226,7 +246,7 @@ mod tests {
                 name: "System".to_string(),
                 types: vec![],
             }],
-            org_types: vec![account, user],
+            org_types: vec![account, user, sub],
         }
     }
 
@@ -303,6 +323,15 @@ mod tests {
         );
         assert_eq!(
             infer_init("class C { void m(Account acc) { Object x = acc.Owner.getName(); } }"),
+            Type::Primitive(Primitive::String)
+        );
+    }
+
+    #[test]
+    fn inherited_member_resolves_through_parent_class_chain() {
+        // Sub extends Account (via parent_class); Owner is declared on Account.
+        assert_eq!(
+            infer_init("class C { void m(Sub s) { Object x = s.Owner.Email; } }"),
             Type::Primitive(Primitive::String)
         );
     }
