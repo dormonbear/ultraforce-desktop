@@ -6,7 +6,9 @@ use tauri::{AppHandle, Emitter, State};
 use tracing_subscriber::EnvFilter;
 
 mod dto;
+mod error;
 use dto::{map_units, UnitDto};
+use error::CommandError;
 
 /// Shared application state: one `SfInvoker` over the real `sf` CLI process runner.
 pub struct AppState {
@@ -24,12 +26,25 @@ pub struct AppState {
     /// Cached REST credentials per org (key: org or "" for default). Avoids a
     /// ~1-2s `sf org display` on every query — refreshed on a 401.
     auth_cache: std::sync::Mutex<std::collections::HashMap<String, sf_core::AuthInfo>>,
-    /// Last parsed log (keyed by a hash of its raw body), so the step-debugger's
-    /// `debug_frames_at` doesn't re-parse a large log on every step.
-    debug_parse: std::sync::Mutex<Option<(u64, Arc<log_parser::parse::ParsedLog>)>>,
-    /// Last full `DebugLogView` (keyed by a hash of its raw body), so opening a
-    /// log parses it once across `parse_log` + `log_sources` (was twice).
-    debug_view: std::sync::Mutex<Option<(u64, Arc<features::debug_log::DebugLogView>)>>,
+    /// Last parsed log (keyed by a hash of its raw body), shared by the viewer
+    /// and the step-debugger so the same body is parsed exactly once.
+    log_cache: std::sync::Mutex<Option<LogCacheEntry>>,
+}
+
+/// Single-entry cache for the most recently used log body: the base
+/// `ParsedLog` (step-debugger) plus the `DebugLogView` derived from it
+/// lazily on the first viewer call.
+struct LogCacheEntry {
+    key: u64,
+    parsed: Arc<log_parser::parse::ParsedLog>,
+    view: Option<Arc<features::debug_log::DebugLogView>>,
+}
+
+fn body_key(body: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    hasher.finish()
 }
 
 /// REST credentials for `org`, cached so only the first query per org pays the
@@ -151,7 +166,7 @@ async fn run_soql(
     query_id: String,
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<SoqlResultDto, String> {
+) -> Result<SoqlResultDto, CommandError> {
     let start = Instant::now();
     tracing::info!("run_soql start");
     let org = current_org(&state);
@@ -197,7 +212,7 @@ async fn run_soql(
             outcome = "err",
             "run_soql complete"
         );
-        format!("{e:?}")
+        CommandError::from(e)
     })?;
     let table = result.to_table();
     tracing::info!(
@@ -232,7 +247,7 @@ async fn count_soql(
     use_tooling_api: Option<bool>,
     query_id: String,
     state: State<'_, AppState>,
-) -> Result<Option<u64>, String> {
+) -> Result<Option<u64>, CommandError> {
     let Some(count_q) = soql_lang::count_query(&query) else {
         return Ok(None);
     };
@@ -263,7 +278,7 @@ async fn count_soql(
 
     state.query_cancels.lock().unwrap().remove(&query_id);
 
-    let result = result.map_err(|e| format!("{e:?}"))?;
+    let result = result.map_err(CommandError::from)?;
     // Cancelled mid-count → no usable total; tell the UI to skip the warning.
     if !result.done {
         return Ok(None);
@@ -296,7 +311,7 @@ struct ApexSourceDto {
 async fn fetch_apex_source(
     name: String,
     state: State<'_, AppState>,
-) -> Result<ApexSourceDto, String> {
+) -> Result<ApexSourceDto, CommandError> {
     let org = current_org(&state);
     let escaped = name.replace('\'', "\\'");
     for (kind, sobject) in [("class", "ApexClass"), ("trigger", "ApexTrigger")] {
@@ -316,8 +331,9 @@ async fn fetch_apex_source(
             }
         }
     }
-    Err(format!(
-        "No Apex class or trigger named '{name}' found in this org"
+    Err(CommandError::new(
+        "not_found",
+        format!("No Apex class or trigger named '{name}' found in this org"),
     ))
 }
 
@@ -338,11 +354,11 @@ fn format_apex(src: String) -> String {
 async fn query_plan(
     query: String,
     state: State<'_, AppState>,
-) -> Result<features::query_plan::QueryPlan, String> {
+) -> Result<features::query_plan::QueryPlan, CommandError> {
     let org = current_org(&state);
     features::query_plan::query_plan(&state.invoker, &query, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))
+        .map_err(CommandError::from)
 }
 
 /// Result of one anonymous-Apex run, flattened for the frontend.
@@ -360,7 +376,7 @@ struct ApexOutcomeDto {
 }
 
 #[tauri::command]
-async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcomeDto, String> {
+async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcomeDto, CommandError> {
     let start = Instant::now();
     tracing::info!("run_apex start");
     let org = current_org(&state);
@@ -372,7 +388,7 @@ async fn run_apex(src: String, state: State<'_, AppState>) -> Result<ApexOutcome
                 outcome = "err",
                 "run_apex complete"
             );
-            format!("{e:?}")
+            CommandError::from(e)
         })?;
     let r = outcome.result;
     tracing::info!(
@@ -407,11 +423,11 @@ struct LogRefDto {
 }
 
 #[tauri::command]
-async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, String> {
+async fn list_logs(state: State<'_, AppState>) -> Result<Vec<LogRefDto>, CommandError> {
     let org = current_org(&state);
     let logs = features::debug_log::list_logs(&state.invoker, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(CommandError::from)?;
     Ok(logs
         .into_iter()
         .map(|l| LogRefDto {
@@ -446,23 +462,32 @@ struct ParsedLogDto {
     units: Vec<UnitDto>,
 }
 
-/// The full `DebugLogView` for a body, cached single-entry (keyed by a hash of
-/// the body) so `parse_log`, `log_sources`, and `get_log` over the same log parse
-/// it once instead of each re-parsing 200k+ lines.
+/// The full `DebugLogView` for a body, derived from (and cached alongside) the
+/// shared `ParsedLog` so `parse_log`, `source_at_line`, and `get_log` over the
+/// same log neither re-parse 200k+ lines nor rebuild the view per call.
 fn cached_log_view(state: &AppState, body: &str) -> Arc<features::debug_log::DebugLogView> {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    body.hash(&mut hasher);
-    let key = hasher.finish();
-
-    let mut cache = state.debug_view.lock().unwrap();
-    if let Some((cached_key, view)) = cache.as_ref() {
-        if *cached_key == key {
-            return view.clone();
+    let key = body_key(body);
+    let mut cache = state.log_cache.lock().unwrap();
+    if let Some(entry) = cache.as_mut() {
+        if entry.key == key {
+            if let Some(view) = &entry.view {
+                return view.clone();
+            }
+            let view = Arc::new(features::debug_log::DebugLogView::from_parsed(
+                &entry.parsed,
+                body,
+            ));
+            entry.view = Some(view.clone());
+            return view;
         }
     }
-    let view = Arc::new(features::debug_log::DebugLogView::from_log(body));
-    *cache = Some((key, view.clone()));
+    let parsed = Arc::new(log_parser::parse::ParsedLog::parse(body));
+    let view = Arc::new(features::debug_log::DebugLogView::from_parsed(&parsed, body));
+    *cache = Some(LogCacheEntry {
+        key,
+        parsed,
+        view: Some(view.clone()),
+    });
     view
 }
 
@@ -477,11 +502,11 @@ fn parsed_dto(view: &features::debug_log::DebugLogView) -> ParsedLogDto {
 }
 
 #[tauri::command]
-async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, String> {
+async fn get_log(id: String, state: State<'_, AppState>) -> Result<LogViewDto, CommandError> {
     let org = current_org(&state);
     let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(CommandError::from)?;
     let view = cached_log_view(&state, &body);
     let parsed = parsed_dto(&view);
     // The org fetch is the only path where the frontend doesn't already have the
@@ -531,21 +556,22 @@ fn source_line_indices(body: String, state: State<'_, AppState>) -> Vec<u32> {
 }
 
 /// Parse a raw log body, reusing the cached parse when the body is unchanged so
-/// the step-debugger doesn't re-parse a large log on every step.
+/// the step-debugger doesn't re-parse a large log on every step. Shares the
+/// viewer's cache entry, so a log opened then debugged is parsed once total.
 fn parsed_log(state: &AppState, raw: &str) -> Arc<log_parser::parse::ParsedLog> {
-    use std::hash::{Hash, Hasher};
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    raw.hash(&mut hasher);
-    let key = hasher.finish();
-
-    let mut cache = state.debug_parse.lock().unwrap();
-    if let Some((cached_key, parsed)) = cache.as_ref() {
-        if *cached_key == key {
-            return parsed.clone();
+    let key = body_key(raw);
+    let mut cache = state.log_cache.lock().unwrap();
+    if let Some(entry) = cache.as_ref() {
+        if entry.key == key {
+            return entry.parsed.clone();
         }
     }
     let parsed = Arc::new(log_parser::parse::ParsedLog::parse(raw));
-    *cache = Some((key, parsed.clone()));
+    *cache = Some(LogCacheEntry {
+        key,
+        parsed: parsed.clone(),
+        view: None,
+    });
     parsed
 }
 
@@ -577,17 +603,16 @@ fn debug_frames_at(
 /// Read a log file the user dropped onto the window (arbitrary path, outside the
 /// fs plugin's dialog-granted scope).
 #[tauri::command]
-fn read_log_file(path: String) -> Result<String, String> {
-    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+fn read_log_file(path: String) -> Result<String, CommandError> {
+    std::fs::read_to_string(&path).map_err(CommandError::from)
 }
 
 /// List the available Salesforce orgs via `sf org list`.
 #[tauri::command]
-async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, String> {
-    // Display (not Debug) so the actionable `SfError` message reaches the user.
+async fn list_orgs(state: State<'_, AppState>) -> Result<Vec<dto::OrgDto>, CommandError> {
     let orgs = sf_core::OrgRegistry::list(&state.invoker)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(CommandError::from)?;
     Ok(orgs.iter().map(dto::OrgDto::from).collect())
 }
 
@@ -641,7 +666,7 @@ async fn probe_sf_via_login_shell() -> Option<String> {
 }
 
 #[tauri::command]
-async fn sf_status(state: State<'_, AppState>) -> Result<SfStatusDto, String> {
+async fn sf_status(state: State<'_, AppState>) -> Result<SfStatusDto, CommandError> {
     let min_version = sf_core::SfVersion::min_version_str();
     match sf_core::SfVersion::detect(&state.invoker).await {
         Ok(v) => Ok(SfStatusDto {
@@ -694,7 +719,7 @@ async fn login_org(
     alias: Option<String>,
     set_default: Option<bool>,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let mut args = build_login_args(
         instance_url.as_deref(),
         alias.as_deref(),
@@ -706,31 +731,34 @@ async fn login_org(
         .invoker
         .run_raw_with_timeout(&arg_refs, std::time::Duration::from_secs(300))
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(CommandError::from)?;
     if out.status != 0 {
         let msg = out.stderr.trim();
-        return Err(if msg.is_empty() {
-            format!("`sf org login web` failed (status {})", out.status)
-        } else {
-            msg.to_string()
-        });
+        return Err(CommandError::new(
+            "command",
+            if msg.is_empty() {
+                format!("`sf org login web` failed (status {})", out.status)
+            } else {
+                msg.to_string()
+            },
+        ));
     }
     Ok(())
 }
 
 /// Set (or clear) the target org used by all subsequent `sf` calls.
 #[tauri::command]
-fn set_target_org(username: Option<String>, state: State<'_, AppState>) -> Result<(), String> {
+fn set_target_org(username: Option<String>, state: State<'_, AppState>) -> Result<(), CommandError> {
     *state.selected_org.lock().unwrap() = username;
     Ok(())
 }
 
 #[tauri::command]
-async fn get_debug_config(state: State<'_, AppState>) -> Result<dto::DebugConfigDto, String> {
+async fn get_debug_config(state: State<'_, AppState>) -> Result<dto::DebugConfigDto, CommandError> {
     let org = current_org(&state);
     let cfg = features::debug_config::get_debug_config(&state.invoker, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(CommandError::from)?;
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
@@ -738,13 +766,13 @@ async fn get_debug_config(state: State<'_, AppState>) -> Result<dto::DebugConfig
 async fn set_debug_config(
     levels: dto::CategoryLevelsDto,
     state: State<'_, AppState>,
-) -> Result<dto::DebugConfigDto, String> {
+) -> Result<dto::DebugConfigDto, CommandError> {
     let org = current_org(&state);
     let core = features::debug_config::CategoryLevels::from(&levels);
     let cfg =
         features::debug_config::set_debug_config(&state.invoker, &core, org.as_deref(), 24 * 60)
             .await
-            .map_err(|e| format!("{e:?}"))?;
+            .map_err(CommandError::from)?;
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
@@ -754,7 +782,7 @@ async fn set_debug_config(
 async fn quick_self_trace(
     minutes: Option<u32>,
     state: State<'_, AppState>,
-) -> Result<dto::DebugConfigDto, String> {
+) -> Result<dto::DebugConfigDto, CommandError> {
     let org = current_org(&state);
     let mins = minutes.unwrap_or(30) as u64;
     let levels =
@@ -762,17 +790,17 @@ async fn quick_self_trace(
     let cfg =
         features::debug_config::set_debug_config(&state.invoker, &levels, org.as_deref(), mins)
             .await
-            .map_err(|e| format!("{e:?}"))?;
+            .map_err(CommandError::from)?;
     Ok(dto::DebugConfigDto::from(&cfg))
 }
 
 /// Load all trace flags, debug levels, and traceable entities (Configure Logging dialog).
 #[tauri::command]
-async fn load_logging_config(state: State<'_, AppState>) -> Result<dto::LoggingConfigDto, String> {
+async fn load_logging_config(state: State<'_, AppState>) -> Result<dto::LoggingConfigDto, CommandError> {
     let org = current_org(&state);
     let cfg = features::debug_traces::load_logging_config(&state.invoker, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(CommandError::from)?;
     Ok(dto::LoggingConfigDto::from(&cfg))
 }
 
@@ -781,12 +809,12 @@ async fn load_logging_config(state: State<'_, AppState>) -> Result<dto::LoggingC
 async fn save_logging_config(
     diff: dto::LoggingDiffDto,
     state: State<'_, AppState>,
-) -> Result<dto::SaveOutcomeDto, String> {
+) -> Result<dto::SaveOutcomeDto, CommandError> {
     let org = current_org(&state);
     let domain = features::debug_traces::LoggingDiff::from(&diff);
     let out = features::debug_traces::save_logging_config(&state.invoker, &domain, org.as_deref())
         .await
-        .map_err(|e| format!("{e:?}"))?;
+        .map_err(CommandError::from)?;
     Ok(dto::SaveOutcomeDto::from(&out))
 }
 
@@ -795,7 +823,7 @@ async fn apex_complete(
     src: String,
     offset: usize,
     state: State<'_, AppState>,
-) -> Result<Vec<dto::CandidateDto>, String> {
+) -> Result<Vec<dto::CandidateDto>, CommandError> {
     let start = Instant::now();
     tracing::info!("apex_complete start");
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
@@ -817,7 +845,7 @@ async fn apex_complete(
                 outcome = "err",
                 "apex_complete complete"
             );
-            format!("{e:?}")
+            CommandError::from(e)
         })?;
     tracing::info!(
         elapsed_ms = start.elapsed().as_millis(),
@@ -830,14 +858,14 @@ async fn apex_complete(
 /// Pre-warm the Apex OST (one-time stdlib fetch) for an org so the first
 /// interactive completion is instant. Fire-and-forget from the frontend.
 #[tauri::command]
-async fn warm_apex(org: String, state: State<'_, AppState>) -> Result<(), String> {
+async fn warm_apex(org: String, state: State<'_, AppState>) -> Result<(), CommandError> {
     let start = Instant::now();
     tracing::info!(org = %org, "warm_apex start");
     let r = state
         .apex
         .warm(&state.invoker, &org)
         .await
-        .map_err(|e| format!("{e:?}"));
+        .map_err(CommandError::from);
     tracing::info!(
         elapsed_ms = start.elapsed().as_millis(),
         outcome = if r.is_ok() { "ok" } else { "err" },
@@ -851,7 +879,7 @@ async fn soql_complete(
     query: String,
     offset: usize,
     state: State<'_, AppState>,
-) -> Result<Vec<dto::CompletionDto>, String> {
+) -> Result<Vec<dto::CompletionDto>, CommandError> {
     let start = Instant::now();
     tracing::info!("soql_complete start");
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
@@ -862,6 +890,9 @@ async fn soql_complete(
         .get(&org)
         .cloned()
         .unwrap_or_default();
+    // Intentional: completion errors are swallowed inside `complete_fields`
+    // (editor hot path) — an empty candidate list beats surfacing an error
+    // on every keystroke.
     let cands = features::soql::complete_fields(
         &state.invoker,
         sf_schema::SchemaStore::default_root(),
@@ -883,7 +914,7 @@ async fn soql_complete(
 /// Fire-and-forget from the frontend on org select, so FROM completion is ready
 /// without ever blocking a keystroke.
 #[tauri::command]
-async fn warm_schema(org: String, state: State<'_, AppState>) -> Result<usize, String> {
+async fn warm_schema(org: String, state: State<'_, AppState>) -> Result<usize, CommandError> {
     let start = Instant::now();
     tracing::info!(org = %org, "warm_schema start");
     let names = features::soql::list_sobject_names(&state.invoker, &org).await;
@@ -899,7 +930,7 @@ async fn warm_schema(org: String, state: State<'_, AppState>) -> Result<usize, S
 }
 
 #[tauri::command]
-async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result<usize, String> {
+async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result<usize, CommandError> {
     let start = Instant::now();
     tracing::info!(org = %org, "refresh_schema_cache start");
     let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
@@ -909,7 +940,7 @@ async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result
             outcome = "err",
             "refresh_schema_cache complete"
         );
-        return Err(format!("{e:?}"));
+        return Err(CommandError::from(e));
     }
     // Re-list sObjects so the next FROM completion reflects current metadata.
     let names = features::soql::list_sobject_names(&state.invoker, &org).await;
@@ -930,7 +961,7 @@ async fn index_org(
     namespaces: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let root = features::apex_complete::default_index_root();
     let api = features::api_version::api_version_for(&state.invoker, &org).await;
     let policy = features::index::NamespacePolicy::parse(namespaces.as_deref().unwrap_or("all"));
@@ -978,7 +1009,7 @@ async fn index_org(
     };
     let ost = features::index::index_org(&state.invoker, root, &org, &policy, &mut on_progress)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(CommandError::from)?;
     state.apex.install_index(&org, ost);
     let names = features::soql::list_sobject_names(&state.invoker, &org).await;
     state
@@ -995,7 +1026,7 @@ async fn reindex_org(
     namespaces: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), CommandError> {
     let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
     let _ = store.clear();
     index_org(org, namespaces, app, state).await
@@ -1005,8 +1036,10 @@ async fn reindex_org(
 async fn soql_diagnostics(
     query: String,
     state: State<'_, AppState>,
-) -> Result<Vec<features::soql::SoqlDiagnostic>, String> {
+) -> Result<Vec<features::soql::SoqlDiagnostic>, CommandError> {
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
+    // Intentional: diagnostic errors are swallowed inside `diagnose` (editor
+    // hot path) — no diagnostics is an acceptable degraded result.
     Ok(features::soql::diagnose(
         &state.invoker,
         sf_schema::SchemaStore::default_root(),
@@ -1020,7 +1053,7 @@ async fn soql_diagnostics(
 async fn apex_soql_diagnostics(
     src: String,
     state: State<'_, AppState>,
-) -> Result<Vec<features::soql::SoqlDiagnostic>, String> {
+) -> Result<Vec<features::soql::SoqlDiagnostic>, CommandError> {
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
     Ok(features::soql::diagnose_apex_soql(
         &state.invoker,
@@ -1035,7 +1068,7 @@ async fn apex_soql_diagnostics(
 async fn apex_diagnostics(
     src: String,
     state: State<'_, AppState>,
-) -> Result<Vec<features::apex_complete::ApexDiagnostic>, String> {
+) -> Result<Vec<features::apex_complete::ApexDiagnostic>, CommandError> {
     let org = current_org(&state).unwrap_or_else(|| "default".to_string());
     Ok(state.apex.diagnostics(&org, &src))
 }
@@ -1054,8 +1087,7 @@ pub fn run() {
         sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
         query_cancels: std::sync::Mutex::new(std::collections::HashMap::new()),
         auth_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
-        debug_parse: std::sync::Mutex::new(None),
-        debug_view: std::sync::Mutex::new(None),
+        log_cache: std::sync::Mutex::new(None),
     };
 
     tauri::Builder::default()

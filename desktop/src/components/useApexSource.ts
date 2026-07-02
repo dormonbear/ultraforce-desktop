@@ -1,3 +1,4 @@
+import { formatIpcError } from "../errorFormat";
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { editor } from "monaco-editor";
@@ -49,7 +50,7 @@ export function useApexSource(className: string | null): {
         sourceCache.set(className, s);
         if (alive) setSrc(s);
       })
-      .catch((e) => alive && setError(typeof e === "string" ? e : String(e)));
+      .catch((e) => alive && setError(formatIpcError(e)));
     return () => {
       alive = false;
     };

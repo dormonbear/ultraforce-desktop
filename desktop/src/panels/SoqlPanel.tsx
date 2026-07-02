@@ -23,7 +23,7 @@ import { QueryPlanView } from "../components/QueryPlanView";
 import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
 import { timing } from "../metrics";
-import { parseSfError, isCliUnavailable } from "../errorFormat";
+import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
 import type { SoqlResultDto, QueryPlanDto } from "../types";
@@ -99,7 +99,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           toast.info(`Cancelled — showing ${dto.rows.length.toLocaleString()} rows`);
         void timing("run.soql", ms);
       } catch (e) {
-        const message = typeof e === "string" ? e : String(e);
+        const message = formatIpcError(e);
         toast.error(parseSfError(message).detail);
         onPatch({ error: message });
         const ms = performance.now() - t0;
@@ -159,7 +159,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       const dto = await invoke<QueryPlanDto>("query_plan", { query });
       onPatch({ plan: dto });
     } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
+      const message = formatIpcError(e);
       toast.error(parseSfError(message).detail);
     } finally {
       setExplaining(false);
