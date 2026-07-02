@@ -32,6 +32,9 @@ export function TreeNode(p: Props) {
       draggable={!editing}
       onDragStart={(e) => {
         e.stopPropagation();
+        // WebKit needs data set for the drag to start reliably.
+        e.dataTransfer.setData("text/plain", node.path);
+        e.dataTransfer.effectAllowed = "move";
         p.onDragStartNode();
       }}
       onDragOver={isDir ? (e) => e.preventDefault() : undefined}

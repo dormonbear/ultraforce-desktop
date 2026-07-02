@@ -152,7 +152,8 @@ export function Explorer({
       rows.push(
         <ContextMenu key={n.path}>
           <ContextMenuTrigger asChild>
-            <div>
+            {/* stopPropagation keeps the panel-level (blank area) menu closed for row clicks */}
+            <div onContextMenu={(e) => e.stopPropagation()}>
               <TreeNode
                 node={n}
                 depth={depth}
@@ -317,22 +318,34 @@ export function Explorer({
           )}
         </div>
       ) : (
-        <div role="tree" className="min-h-0 flex-1 overflow-auto py-1">
-          {shown.length === 0 && !edit && (
-            <div className="px-3 py-2 text-text-dim">
-              {nameFilter ? "No files match" : "No files yet"}
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div role="tree" className="min-h-0 flex-1 overflow-auto py-1">
+              {shown.length === 0 && !edit && (
+                <div className="px-3 py-2 text-text-dim">
+                  {nameFilter ? "No files match" : "No files yet"}
+                </div>
+              )}
+              {rows}
+              {edit && edit.kind !== "rename" && (
+                <NewRow
+                  ext={ext}
+                  kind={edit.kind}
+                  onCommit={commitName}
+                  onCancel={() => setEdit(null)}
+                />
+              )}
             </div>
-          )}
-          {rows}
-          {edit && edit.kind !== "rename" && (
-            <NewRow
-              ext={ext}
-              kind={edit.kind}
-              onCommit={commitName}
-              onCancel={() => setEdit(null)}
-            />
-          )}
-        </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: root })}>
+              New File
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => setEdit({ kind: "new-dir", dir: root })}>
+              New Folder
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       )}
     </div>
   );

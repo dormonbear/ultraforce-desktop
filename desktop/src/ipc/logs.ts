@@ -21,11 +21,6 @@ export async function parseLogView(body: string): Promise<LogViewDto> {
   return { raw: body, ...parsed };
 }
 
-/** Read a local log file at an arbitrary path (outside the fs plugin's scope). */
-export function readLogFile(path: string): Promise<string> {
-  return invoke<string>("read_log_file", { path });
-}
-
 /** Raw-line indices in `body` that resolve to Apex source. */
 export function sourceLineIndices(body: string): Promise<number[]> {
   return invoke<number[]>("source_line_indices", { body });
