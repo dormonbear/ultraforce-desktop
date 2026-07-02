@@ -15,7 +15,9 @@ import {
   type FileHit,
   type SearchOpts,
 } from "../fs/search";
-import { dirname } from "../fs/paths";
+import { dirname, ancestorsWithin } from "../fs/paths";
+import { toast } from "sonner";
+import { formatIpcError } from "../errorFormat";
 import { TreeNode } from "./TreeNode";
 import {
   ContextMenu,
@@ -74,18 +76,29 @@ export function Explorer({
       return next;
     });
 
+  /** Expand `dir` and its ancestors so a node just created inside it is visible. */
+  const revealDir = (dir: string) =>
+    setExpanded((prev) => new Set([...prev, ...ancestorsWithin(root, dir)]));
+
   const commitName = async (name: string) => {
     const e = edit;
     setEdit(null);
     const trimmed = name.trim();
     if (!e || !trimmed) return;
-    if (e.kind === "rename") {
-      const to = await renameNode(e.path, trimmed);
-      onRenamed(e.path, to);
-    } else if (e.kind === "new-file") {
-      await createFile(e.dir, ensureExt(trimmed, ext));
-    } else {
-      await createDir(e.dir, trimmed);
+    try {
+      if (e.kind === "rename") {
+        const to = await renameNode(e.path, trimmed);
+        onRenamed(e.path, to);
+      } else if (e.kind === "new-file") {
+        await createFile(e.dir, ensureExt(trimmed, ext));
+        revealDir(e.dir);
+      } else {
+        await createDir(e.dir, trimmed);
+        revealDir(e.dir);
+      }
+    } catch (err) {
+      toast.error(formatIpcError(err));
+      return;
     }
     refresh();
   };

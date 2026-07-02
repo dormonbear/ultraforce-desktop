@@ -17,6 +17,17 @@ export function dirname(path: string): string {
   return i <= 0 ? "" : path.slice(0, i);
 }
 
+/** `dir` and its parent dirs strictly below `root` (for expanding a tree to reveal it). */
+export function ancestorsWithin(root: string, dir: string): string[] {
+  const chain: string[] = [];
+  let p = dir;
+  while (p.startsWith(`${root}/`)) {
+    chain.push(p);
+    p = dirname(p);
+  }
+  return chain;
+}
+
 /** New path when `itemPath` moves into `intoDir`. */
 export function movedPath(itemPath: string, intoDir: string): string {
   return joinPath(intoDir, basename(itemPath));

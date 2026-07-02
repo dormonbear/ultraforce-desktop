@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { joinPath, basename, dirname, movedPath } from "./paths";
+import { joinPath, basename, dirname, movedPath, ancestorsWithin } from "./paths";
 
 describe("paths", () => {
   it("joins parts with a single slash", () => {
@@ -16,5 +16,10 @@ describe("paths", () => {
   });
   it("movedPath re-parents an item into a dir", () => {
     expect(movedPath("/a/b/c.soql", "/a/x")).toBe("/a/x/c.soql");
+  });
+  it("ancestorsWithin lists dir and its parents below root", () => {
+    expect(ancestorsWithin("/ws", "/ws/a/b")).toEqual(["/ws/a/b", "/ws/a"]);
+    expect(ancestorsWithin("/ws", "/ws")).toEqual([]);
+    expect(ancestorsWithin("/ws", "/elsewhere/a")).toEqual([]);
   });
 });
