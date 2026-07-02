@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
-export interface ComboOption {
+interface ComboOption {
   id: string;
   name: string;
   kind: string;

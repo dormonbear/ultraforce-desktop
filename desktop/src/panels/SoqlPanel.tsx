@@ -22,7 +22,6 @@ import { ResultTable } from "../components/ResultTable";
 import { QueryPlanView } from "../components/QueryPlanView";
 import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
-import { timing } from "../metrics";
 import { parseSfError, isCliUnavailable } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
@@ -97,13 +96,10 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         onPatch({ result: dto, lastMs: ms });
         if (!dto.done)
           toast.info(`Cancelled — showing ${dto.rows.length.toLocaleString()} rows`);
-        void timing("run.soql", ms);
       } catch (e) {
         const message = typeof e === "string" ? e : String(e);
         toast.error(parseSfError(message).detail);
         onPatch({ error: message });
-        const ms = performance.now() - t0;
-        void timing("run.soql", ms);
       } finally {
         unlisten();
         queryIdRef.current = null;

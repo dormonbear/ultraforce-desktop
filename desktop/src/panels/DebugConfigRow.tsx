@@ -23,7 +23,7 @@ function sameLevels(a: CategoryLevels, b: CategoryLevels): boolean {
 }
 
 /** Returns the org DebugLevel record whose levels match `value`, or null. */
-export function matchingDebugLevel(
+function matchingDebugLevel(
   levels: DebugLevelDto[],
   value: CategoryLevels,
 ): DebugLevelDto | null {

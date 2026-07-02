@@ -1,0 +1,9 @@
+{
+  "$schema": "https://docs.fallow.tools/schema/config.json",
+  // Vendored shadcn/ui primitives — full export surface is intentional. Suppress
+  // their unused-export noise but keep the files analyzed so their deps (cmdk,
+  // class-variance-authority, …) still count as used.
+  "ignoreExports": [{ "file": "src/components/ui/**", "exports": ["*"] }],
+  // Exports only consumed within their own file aren't "unused" — don't flag them.
+  "ignoreExportsUsedInFile": true
+}
