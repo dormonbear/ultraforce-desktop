@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.10](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.9...v0.3.10) (2026-07-02)
+
+
+### Features
+
+* **apex-complete:** carry detail and params through the completion wire ([2da673a](https://github.com/dormonbear/ultraforce-desktop/commit/2da673a521c6510f4b1ae1cbeb1579a69294caf9))
+* **apex-complete:** constructor kind after new — call-paren snippets ([d2683a5](https://github.com/dormonbear/ultraforce-desktop/commit/d2683a5c8067d6e993568595f2b0b5cc17bb1c57))
+* **apex-lang:** inherited member resolution via parentClass chain ([099afb4](https://github.com/dormonbear/ultraforce-desktop/commit/099afb409971f37970d2a220c7f1798980381f3f))
+* **apex-lang:** signature-help engine — enclosing call, overloads, active parameter ([ded53e1](https://github.com/dormonbear/ultraforce-desktop/commit/ded53e1feecbe7ebec4a7f29cc8bab3cfb98f953))
+* **apex-lang:** walk parentClass chain and interfaces for inherited member resolution ([db8db59](https://github.com/dormonbear/ultraforce-desktop/commit/db8db5915c9b30a31f444423d0cda50195365d3d))
+* **apex:** confirm before running anonymous Apex ([ad7346c](https://github.com/dormonbear/ultraforce-desktop/commit/ad7346ce79b072dd88bcb8dc81c94538073909f5))
+* **editor:** Apex signature help — engine command, Monaco provider, post-accept trigger ([1fa3428](https://github.com/dormonbear/ultraforce-desktop/commit/1fa342875260b12fffcf965c00a6f1fccb478cc2))
+* **editor:** method call snippets, keyword blocks and Apex language configuration in Monaco ([60e177d](https://github.com/dormonbear/ultraforce-desktop/commit/60e177d2046f83a089eceb4796ba2cde1ad34d9f))
+* **editor:** pure Apex insert-text builder — call snippets, void semicolon, keyword blocks ([16612b8](https://github.com/dormonbear/ultraforce-desktop/commit/16612b8dbc5075bf158c09c97ec65e6e6968f320))
+* **explorer:** migrate the file tree to headless-tree ([14593cb](https://github.com/dormonbear/ultraforce-desktop/commit/14593cb335698ba6b4ad90521891a17506b24b4c))
+* **explorer:** right-click blank area to create file/folder at root ([964cf57](https://github.com/dormonbear/ultraforce-desktop/commit/964cf57ced1e6ff393558d1b58678a79b2fe3906))
+* **logs:** explain missing ApexLog access instead of the raw SOQL error ([a23a7cd](https://github.com/dormonbear/ultraforce-desktop/commit/a23a7cd7a4aeebde33f58477b39266c2baf0c015))
+
+
+### Bug Fixes
+
+* **apex-complete:** default own-class method detail to void for the semicolon snippet ([a1ccad4](https://github.com/dormonbear/ultraforce-desktop/commit/a1ccad44cbaaf532ac7f942e269e711d2a65717b))
+* **apex-lang:** satisfy clippy 1.96 (repeat_n; drop unused test import) ([#36](https://github.com/dormonbear/ultraforce-desktop/issues/36)) ([36d0aab](https://github.com/dormonbear/ultraforce-desktop/commit/36d0aab25979bd9c1d6dc9afa660cd6ffaee2c55))
+* **explorer:** expand target dir after create so new folders are visible, toast fs errors ([00c4374](https://github.com/dormonbear/ultraforce-desktop/commit/00c437475bb368b99ae311bdd533f8431625100f))
+* **explorer:** keep autofocus on name input after context menu closes ([7f2f9e9](https://github.com/dormonbear/ultraforce-desktop/commit/7f2f9e98c8c766bab9cfb94f57bf778f0475c590))
+* **logs:** table cell spacing, minimap wheel zoom, rename sf theme label ([d7665e4](https://github.com/dormonbear/ultraforce-desktop/commit/d7665e4fc99746638e400e3f5f7b076e7b16791c))
+* **timeline:** hide the spurious horizontal scrollbar ([675ce46](https://github.com/dormonbear/ultraforce-desktop/commit/675ce462ab358156afd02e934896b6ad0b537210))
+
+
+### Miscellaneous Chores
+
+* release 0.3.10 ([a2051fb](https://github.com/dormonbear/ultraforce-desktop/commit/a2051fba5d560a5eff20fb8dc2a6e524df5b3a55))
+
 ## [0.3.9](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.8...v0.3.9) (2026-07-01)
 
 
