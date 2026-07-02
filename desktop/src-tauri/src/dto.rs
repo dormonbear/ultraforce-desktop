@@ -50,6 +50,7 @@ pub struct CandidateDto {
 fn candidate_kind_str(k: &ApexCandidateKind) -> &'static str {
     match k {
         ApexCandidateKind::Type => "type",
+        ApexCandidateKind::Constructor => "constructor",
         ApexCandidateKind::Keyword => "keyword",
         ApexCandidateKind::LocalVar => "localVar",
         ApexCandidateKind::Method => "method",

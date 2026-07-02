@@ -78,3 +78,14 @@ test("accepting the if keyword block snippet inserts a body", async ({ page }) =
 
   await expect.poll(() => editor.text()).toContain("if () {");
 });
+
+test("accepting a constructor after new inserts call parens", async ({ page }) => {
+  await gotoApp(page, { apex_complete: [{ label: "Account", kind: "constructor" }] });
+  const editor = await openApex(page);
+
+  await editor.setText("Account a = new Acc");
+  await editor.waitForSuggestion("Account");
+  await editor.acceptSuggestion();
+
+  await expect.poll(() => editor.text()).toContain("new Account()");
+});

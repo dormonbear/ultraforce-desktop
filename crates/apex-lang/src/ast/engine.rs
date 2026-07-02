@@ -35,7 +35,7 @@ pub fn complete_source(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
         }
         CursorContext::TypeOnly { prefix } => {
             let mut out = Vec::new();
-            push_types(&mut out, &prefix, ost);
+            push_types(&mut out, &prefix, ost, CandidateKind::Constructor);
             sort_and_dedupe(out)
         }
         CursorContext::Member { chain, prefix } => {
@@ -47,7 +47,7 @@ pub fn complete_source(src: &str, cursor: usize, ost: &Ost) -> Vec<Candidate> {
         }
         CursorContext::Bare { prefix } => {
             let mut out = Vec::new();
-            push_types(&mut out, &prefix, ost);
+            push_types(&mut out, &prefix, ost, CandidateKind::Type);
             for kw in KEYWORDS {
                 push_if_matches(&mut out, &prefix, kw, CandidateKind::Keyword);
             }
@@ -114,15 +114,15 @@ fn static_member_fallback(ost: &Ost, chain: &[Segment], prefix: &str) -> Vec<Can
         .collect()
 }
 
-fn push_types(candidates: &mut Vec<Candidate>, prefix: &str, ost: &Ost) {
+fn push_types(candidates: &mut Vec<Candidate>, prefix: &str, ost: &Ost, kind: CandidateKind) {
     for ty in all_types(ost) {
-        push_if_matches(candidates, prefix, &ty.name, CandidateKind::Type);
+        push_if_matches(candidates, prefix, &ty.name, kind.clone());
     }
     for p in PRIMITIVES {
-        push_if_matches(candidates, prefix, p, CandidateKind::Type);
+        push_if_matches(candidates, prefix, p, kind.clone());
     }
     for b in BUILTIN_TYPES {
-        push_if_matches(candidates, prefix, b, CandidateKind::Type);
+        push_if_matches(candidates, prefix, b, kind.clone());
     }
 }
 
@@ -363,7 +363,7 @@ mod tests {
         let cands = complete_source(src, src.len(), &ost);
         assert!(cands
             .iter()
-            .any(|c| c.label == "String" && c.kind == CandidateKind::Type));
+            .any(|c| c.label == "String" && c.kind == CandidateKind::Constructor));
     }
 
     #[test]
@@ -481,8 +481,19 @@ mod tests {
         let ost = ost();
         let src = "Object o = new Stri";
         let cands = complete_source(src, src.len(), &ost);
-        assert!(cands.iter().any(|c| c.label == "String" && c.kind == CandidateKind::Type));
+        assert!(cands.iter().any(|c| c.label == "String" && c.kind == CandidateKind::Constructor));
         assert!(cands.iter().all(|c| c.kind != CandidateKind::LocalVar));
+    }
+
+    #[test]
+    fn new_expression_offers_constructor_kind() {
+        let ost = ost();
+        let src = "Object o = new Stri";
+        let cands = complete_source(src, src.len(), &ost);
+        assert!(cands.iter().any(|c| c.label == "String" && c.kind == CandidateKind::Constructor));
+        // Plain type positions are untouched.
+        let bare = complete_source("Stri", 4, &ost);
+        assert!(bare.iter().any(|c| c.label == "String" && c.kind == CandidateKind::Type));
     }
 
     #[test]

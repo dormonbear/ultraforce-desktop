@@ -5,6 +5,7 @@
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CandidateKind {
     Type,
+    Constructor,
     Keyword,
     LocalVar,
     Method,
