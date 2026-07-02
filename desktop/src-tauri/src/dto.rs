@@ -748,6 +748,141 @@ pub fn map_units(view: &DebugLogView) -> Vec<UnitDto> {
     view.units.iter().map(map_unit).collect()
 }
 
+// ---- Command result / event payload DTOs ----
+
+/// A SOQL query result: flat table projection plus the raw record tree.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoqlResultDto {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    pub total_size: u64,
+    pub done: bool,
+    pub tree: Vec<RecordDto>,
+}
+
+/// Incremental progress for a running SOQL query, emitted as `soql-progress`.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoqlProgress {
+    pub id: String,
+    pub fetched: u64,
+    pub total: u64,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexProgressDto {
+    pub org: String,
+    pub phase: String,
+    pub done: usize,
+    pub total: usize,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResultDto {
+    pub org: String,
+    pub added: usize,
+    pub updated: usize,
+    pub removed: usize,
+}
+
+/// Source code (read-only) for an Apex class or trigger, for "jump to source".
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexSourceDto {
+    pub name: String,
+    pub kind: String,
+    pub body: String,
+}
+
+/// Result of one anonymous-Apex run, flattened for the frontend.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexOutcomeDto {
+    pub compiled: bool,
+    pub success: bool,
+    pub compile_problem: Option<String>,
+    pub exception_message: Option<String>,
+    pub exception_stack_trace: Option<String>,
+    pub line: Option<i64>,
+    pub column: Option<i64>,
+    pub logs: String,
+}
+
+/// One debug-log list entry handed to the frontend.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogRefDto {
+    pub id: String,
+    pub operation: String,
+    pub status: String,
+    pub start_time: String,
+    pub application: String,
+    pub user: String,
+    pub duration_ms: i64,
+    pub log_length: i64,
+}
+
+/// Map an `sf apex list log` entry into its DTO.
+pub fn map_log_ref(l: sf_core::ApexLogRef) -> LogRefDto {
+    LogRefDto {
+        id: l.id,
+        operation: l.operation,
+        status: l.status,
+        start_time: l.start_time,
+        application: l.application,
+        user: l.log_user.name,
+        duration_ms: l.duration_ms,
+        log_length: l.log_length,
+    }
+}
+
+/// A fetched debug log's raw body plus its parsed execution tree + limits.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogViewDto {
+    pub raw: String,
+    pub api_version: Option<String>,
+    pub units: Vec<UnitDto>,
+}
+
+/// Parsed view WITHOUT the raw body: the caller already holds the body it passed
+/// to `parse_log`, so echoing 16MB+ back over IPC (and re-deserializing it) is
+/// pure waste. The frontend re-attaches `raw` from the body it owns.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParsedLogDto {
+    pub api_version: Option<String>,
+    pub units: Vec<UnitDto>,
+}
+
+/// The parsed view (execution tree + limits) without the raw body. Per-line source
+/// mapping is excluded — loaded lazily via `log_sources` so opening a large log
+/// isn't blocked by serializing a line-length array.
+pub fn parsed_dto(view: &DebugLogView) -> ParsedLogDto {
+    ParsedLogDto {
+        api_version: view.header.as_ref().map(|h| h.api_version.clone()),
+        units: map_units(view),
+    }
+}
+
+/// Classified health of the `sf` CLI, so the UI can give the right guidance:
+/// install it, upgrade it, or fix a PATH problem — instead of a bare error.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SfStatusDto {
+    /// "ok" | "outdated" | "not_found" | "path_issue"
+    pub state: &'static str,
+    /// Raw `sf --version` output when the CLI was found.
+    pub version: Option<String>,
+    /// Minimum version Ultraforce supports, e.g. "2.0.0".
+    pub min_version: String,
+    /// Where a login-shell probe found `sf` when it isn't on the app's PATH.
+    pub found_at: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
