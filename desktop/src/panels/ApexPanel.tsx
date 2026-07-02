@@ -4,22 +4,22 @@ import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { ChevronRight, Loader2, Copy, History, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { EDITOR_OPTS } from "../monaco-opts";
-import { retriggerSuggestOnEdit } from "../monaco-retrigger";
-import { trimContextMenu } from "../monaco-contextmenu";
-import { diagnosticsToMarkers } from "../monaco-markers";
+import { EDITOR_OPTS } from "../editor/monaco-opts";
+import { retriggerSuggestOnEdit } from "../editor/monaco-retrigger";
+import { trimContextMenu } from "../editor/monaco-contextmenu";
+import { diagnosticsToMarkers } from "../editor/monaco-markers";
 import { copyText } from "../clipboard";
 import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
-import { useMonacoReveal, type Reveal } from "../monaco-reveal";
+import { useMonacoReveal, type Reveal } from "../editor/monaco-reveal";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { configureMonacoApex, registerApexFormatter } from "../monaco-apex";
+import { configureMonacoApex, registerApexFormatter } from "../editor/monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { ApexHistoryDrawer } from "../components/ApexHistoryDrawer";

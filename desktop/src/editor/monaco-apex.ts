@@ -1,7 +1,7 @@
 import type { Monaco } from "@monaco-editor/react";
-import { configureMonaco } from "./monaco-soql";
-import { apexComplete, formatApex } from "./ipc/apex";
-import type { ApexCandidateDto } from "./types";
+import { configureEditorBase } from "./base";
+import { apexComplete, formatApex } from "../ipc/apex";
+import type { ApexCandidateDto } from "../types";
 
 // Apex is case-insensitive; the tokenizer matches with `ignoreCase`.
 const APEX_KEYWORDS = [
@@ -27,7 +27,6 @@ const APEX_TYPES = [
 ];
 
 let registered = false;
-let apexFormatRegistered = false;
 
 /** Suggestion ordering: in-scope vars/fields before methods, then types, then
  * keywords. Smaller sorts first; the label keeps it stable within a tier. */
@@ -41,20 +40,14 @@ const KIND_RANK: Record<string, string> = {
 
 function monacoKind(monaco: Monaco, kind: string) {
   const K = monaco.languages.CompletionItemKind;
-  switch (kind) {
-    case "type":
-      return K.Class;
-    case "keyword":
-      return K.Keyword;
-    case "localVar":
-      return K.Variable;
-    case "method":
-      return K.Method;
-    case "property":
-      return K.Field;
-    default:
-      return K.Text;
-  }
+  const kinds: Record<string, number> = {
+    type: K.Class,
+    keyword: K.Keyword,
+    localVar: K.Variable,
+    method: K.Method,
+    property: K.Field,
+  };
+  return kinds[kind] ?? K.Text;
 }
 
 /** Built-in Apex generics → snippet body that drops the cursor inside `<>`. */
@@ -110,11 +103,13 @@ function registerApexCompletion(monaco: Monaco): void {
   });
 }
 
-/** Register Format Document (Shift+Alt+F) for Apex, backed by `format_apex`. */
+/** Register Format Document (Shift+Alt+F) for Apex, backed by `format_apex`. HMR-safe:
+ * the previous provider (kept on the singleton monaco) is disposed before
+ * re-registering, so a dev hot-reload can't stack providers. */
 export function registerApexFormatter(monaco: Monaco): void {
-  if (apexFormatRegistered) return;
-  apexFormatRegistered = true;
-  monaco.languages.registerDocumentFormattingEditProvider("apex", {
+  const slot = monaco as unknown as Record<string, { dispose(): void } | undefined>;
+  slot.__ufApexFormatter?.dispose();
+  slot.__ufApexFormatter = monaco.languages.registerDocumentFormattingEditProvider("apex", {
     provideDocumentFormattingEdits: async (model) => {
       let formatted: string;
       try {
@@ -128,13 +123,12 @@ export function registerApexFormatter(monaco: Monaco): void {
 }
 
 /**
- * Ensure the shared `sf-dark` theme exists, then register a minimal `apex`
- * language with a handful of highlighted keywords. Reuses the SOQL token
- * scopes so the same theme colours apply.
+ * Register the shared editor themes, then a minimal `apex` language with a
+ * handful of highlighted keywords. Reuses the SOQL token scopes so the same
+ * theme colours apply.
  */
 export function configureMonacoApex(monaco: Monaco): void {
-  // Defines the `sf-dark` theme (idempotent re-register of theme + soql lang).
-  configureMonaco(monaco);
+  configureEditorBase(monaco);
 
   if (registered) return;
   registered = true;
@@ -171,4 +165,5 @@ export function configureMonacoApex(monaco: Monaco): void {
   });
 
   registerApexCompletion(monaco);
+  registerApexFormatter(monaco);
 }

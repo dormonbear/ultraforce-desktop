@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SoqlEditor } from "../components/SoqlEditor";
-import type { Reveal } from "../monaco-reveal";
+import type { Reveal } from "../editor/monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
 import { QueryPlanView } from "../components/QueryPlanView";
 import { LogoLoader } from "../components/LogoLoader";
