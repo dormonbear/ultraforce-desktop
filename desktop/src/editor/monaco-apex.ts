@@ -1,7 +1,9 @@
 import type { Monaco } from "@monaco-editor/react";
+import type { IRange, languages } from "monaco-editor";
 import { configureEditorBase } from "./base";
 import { apexComplete, formatApex } from "../ipc/apex";
 import type { ApexCandidateDto } from "../types";
+import { buildInsertion, KEYWORD_SNIPPETS, type Insertion, type InsertionCtx } from "./apexSuggest";
 
 // Apex is case-insensitive; the tokenizer matches with `ignoreCase`.
 const APEX_KEYWORDS = [
@@ -35,6 +37,7 @@ const KIND_RANK: Record<string, string> = {
   property: "2",
   method: "3",
   type: "4",
+  constructor: "4",
   keyword: "5",
 };
 
@@ -46,18 +49,73 @@ function monacoKind(monaco: Monaco, kind: string) {
     localVar: K.Variable,
     method: K.Method,
     property: K.Field,
+    constructor: K.Constructor,
   };
   return kinds[kind] ?? K.Text;
 }
 
-/** Built-in Apex generics → snippet body that drops the cursor inside `<>`. */
-const GENERIC_SNIPPETS: Record<string, string> = {
-  List: "List<$0>",
-  Set: "Set<$0>",
-  Map: "Map<$1, $2>",
-  Iterable: "Iterable<$0>",
-  Iterator: "Iterator<$0>",
-};
+function candidateLabel(c: ApexCandidateDto): languages.CompletionItemLabel {
+  return {
+    label: c.label,
+    detail: c.params ? `(${c.params.join(", ")})` : undefined,
+    description: c.detail ?? undefined,
+  };
+}
+
+function candidateCommand(ins: Insertion): languages.Command | undefined {
+  return ins.triggerSignatureHelp
+    ? { id: "editor.action.triggerParameterHints", title: "parameter hints" }
+    : undefined;
+}
+
+/** One candidate → a Monaco completion item, using the shared insert-text builder. */
+function toCompletionItem(
+  monaco: Monaco,
+  c: ApexCandidateDto,
+  ctx: InsertionCtx,
+  range: IRange,
+): languages.CompletionItem {
+  const ins = buildInsertion(c, ctx);
+  return {
+    label: candidateLabel(c),
+    kind: monacoKind(monaco, c.kind),
+    insertText: ins.insertText,
+    insertTextRules: ins.isSnippet
+      ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
+      : undefined,
+    sortText: (KIND_RANK[c.kind] ?? "5") + c.label.toLowerCase(),
+    command: candidateCommand(ins),
+    range,
+  };
+}
+
+function keywordSnippetItem(
+  monaco: Monaco,
+  s: (typeof KEYWORD_SNIPPETS)[string][number],
+  range: IRange,
+): languages.CompletionItem {
+  return {
+    label: { label: s.label, detail: ` ${s.detail}` },
+    kind: monaco.languages.CompletionItemKind.Snippet,
+    insertText: s.body,
+    insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+    sortText: "50" + s.label.toLowerCase(),
+    range,
+  };
+}
+
+/** Control-flow block snippets ride alongside their bare keyword ("50x" sorts
+ * just above "5x", so the block is the preselected variant). */
+function keywordBlockSuggestions(
+  monaco: Monaco,
+  cands: ApexCandidateDto[],
+  range: IRange,
+): languages.CompletionItem[] {
+  return cands
+    .filter((c) => c.kind === "keyword")
+    .flatMap((c) => KEYWORD_SNIPPETS[c.label] ?? [])
+    .map((s) => keywordSnippetItem(monaco, s, range));
+}
 
 /** Register an Apex CompletionItemProvider backed by the `apex_complete` Tauri command.
  * HMR-safe: the disposable is kept on the (singleton) monaco instance and the
@@ -84,21 +142,15 @@ function registerApexCompletion(monaco: Monaco): void {
         startColumn: word.startColumn,
         endColumn: word.endColumn,
       };
-      return {
-        suggestions: cands.map((c) => {
-          const snippet = GENERIC_SNIPPETS[c.label];
-          return {
-            label: c.label,
-            kind: monacoKind(monaco, c.kind),
-            insertText: snippet ?? c.label,
-            insertTextRules: snippet
-              ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
-              : undefined,
-            sortText: (KIND_RANK[c.kind] ?? "5") + c.label.toLowerCase(),
-            range,
-          };
-        }),
+      const line = model.getLineContent(position.lineNumber);
+      const ctx: InsertionCtx = {
+        nextChar: line.slice(position.column - 1, position.column),
+        lineBeforeWord: line.slice(0, word.startColumn - 1),
+        lineAfterCursor: line.slice(position.column - 1),
       };
+      const suggestions = cands.map((c) => toCompletionItem(monaco, c, ctx, range));
+      suggestions.push(...keywordBlockSuggestions(monaco, cands, range));
+      return { suggestions };
     },
   });
 }
@@ -134,6 +186,23 @@ export function configureMonacoApex(monaco: Monaco): void {
   registered = true;
 
   monaco.languages.register({ id: "apex" });
+  monaco.languages.setLanguageConfiguration("apex", {
+    comments: { lineComment: "//", blockComment: ["/*", "*/"] },
+    brackets: [["{", "}"], ["[", "]"], ["(", ")"]],
+    autoClosingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: "'", close: "'", notIn: ["string", "comment"] },
+      { open: "/**", close: " */", notIn: ["string"] },
+    ],
+    surroundingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: "(", close: ")" },
+      { open: "'", close: "'" },
+    ],
+  });
   monaco.languages.setMonarchTokensProvider("apex", {
     ignoreCase: true,
     keywords: APEX_KEYWORDS,
