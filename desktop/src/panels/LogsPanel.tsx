@@ -265,10 +265,10 @@ function HotspotsView({
       <thead>
         <tr className="text-muted-foreground">
           <th className="py-1 text-left font-normal">Method</th>
-          <th className="py-1 text-right font-normal">Self</th>
-          <th className="py-1 text-right font-normal">Total</th>
-          <th className="py-1 text-right font-normal">Heap</th>
-          <th className="py-1 text-right font-normal">Calls</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Self</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Total</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Heap</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Calls</th>
         </tr>
       </thead>
       <tbody>
@@ -298,14 +298,14 @@ function HotspotsView({
                 h.signature
               )}
             </td>
-            <td className="tnum py-0.5 text-right text-foreground">
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right text-foreground">
               {formatMs(h.self_ns)}
             </td>
-            <td className="tnum py-0.5 text-right">{formatMs(h.total_ns)}</td>
-            <td className="tnum py-0.5 text-right">
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{formatMs(h.total_ns)}</td>
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">
               {h.self_bytes > 0 ? formatBytes(h.self_bytes) : "—"}
             </td>
-            <td className="tnum py-0.5 text-right">{h.count}</td>
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{h.count}</td>
           </tr>
           );
         })}
@@ -347,9 +347,9 @@ function QueriesView({ units }: { units: UnitDto[] }) {
         <thead>
           <tr className="text-muted-foreground">
             <th className="py-1 text-left font-normal">Statement</th>
-            <th className="py-1 text-right font-normal">Time</th>
-            <th className="py-1 text-right font-normal">×</th>
-            <th className="py-1 text-right font-normal">Rows</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Time</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">×</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Rows</th>
           </tr>
         </thead>
         <tbody>
@@ -368,9 +368,9 @@ function QueriesView({ units }: { units: UnitDto[] }) {
                 <span className="text-text-dim/70">{g.kind === "dml" ? "DML " : "SOQL "}</span>
                 {g.sample}
               </td>
-              <td className="tnum py-0.5 text-right">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>
-              <td className="tnum py-0.5 text-right">{g.count}</td>
-              <td className="tnum py-0.5 text-right">{g.rows}</td>
+              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>
+              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{g.count}</td>
+              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{g.rows}</td>
             </tr>
           ))}
         </tbody>
