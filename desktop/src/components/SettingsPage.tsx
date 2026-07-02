@@ -1,13 +1,15 @@
+import { formatIpcError } from "../errorFormat";
 import { useEffect, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Github } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
 import { getRoot, setRootOverride, type Tool } from "../fs/workspace";
 import { getNamespacePolicy, setNamespacePolicy } from "../indexSettings";
+import { getConfirmApexRun, setConfirmApexRun } from "../apexSettings";
 import { useOrgs } from "../org";
+import { reindexOrg } from "../ipc/schema";
 import { useTheme } from "../theme";
 import {
   HIGHLIGHT_SCHEMES,
@@ -16,6 +18,7 @@ import {
 } from "../editor-themes";
 import { checkForUpdates } from "../updater";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
 
@@ -68,6 +71,7 @@ export function SettingsPage({ onChanged }: Props) {
   const [roots, setRoots] = useState<Record<Tool, string>>({ soql: "", apex: "" });
   const [ns, setNs] = useState<string>("all");
   const [version, setVersion] = useState("");
+  const [confirmRun, setConfirmRun] = useState(false);
 
   useEffect(() => {
     void Promise.all([getRoot("soql"), getRoot("apex")]).then(([soql, apex]) =>
@@ -75,6 +79,7 @@ export function SettingsPage({ onChanged }: Props) {
     );
     void getNamespacePolicy().then(setNs);
     void getVersion().then(setVersion);
+    void getConfirmApexRun().then(setConfirmRun);
   }, []);
 
   // Change the index namespace scope and reindex the active org so it takes effect.
@@ -83,10 +88,10 @@ export function SettingsPage({ onChanged }: Props) {
     await setNamespacePolicy(value);
     if (org) {
       try {
-        await invoke("reindex_org", { org, namespaces: value });
+        await reindexOrg(org, value);
         toast.success("Reindexing org…");
       } catch (e) {
-        toast.error(`Reindex failed: ${typeof e === "string" ? e : String(e)}`);
+        toast.error(`Reindex failed: ${formatIpcError(e)}`);
       }
     }
   };
@@ -184,6 +189,27 @@ export function SettingsPage({ onChanged }: Props) {
               </div>
             ))}
           </div>
+        </Section>
+
+        <Section title="Apex">
+          <label className="flex cursor-pointer items-center justify-between gap-4">
+            <span className="text-foreground">
+              Confirm before running anonymous Apex
+              <span className="block text-text-dim">
+                Ask for confirmation on every run — a guard against executing
+                DML in the wrong org.
+              </span>
+            </span>
+            <Checkbox
+              checked={confirmRun}
+              onCheckedChange={(v) => {
+                const next = v === true;
+                setConfirmRun(next);
+                void setConfirmApexRun(next);
+              }}
+              aria-label="Confirm before running anonymous Apex"
+            />
+          </label>
         </Section>
 
         <Section title="Indexing">

@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { useDefaultLayout } from "react-resizable-panels";
@@ -17,16 +16,16 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SoqlEditor } from "../components/SoqlEditor";
-import type { Reveal } from "../monaco-reveal";
+import type { Reveal } from "../editor/monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
 import { QueryPlanView } from "../components/QueryPlanView";
 import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
 import { timing } from "../metrics";
-import { parseSfError, isCliUnavailable } from "../errorFormat";
+import { cancelSoql, countSoql, queryPlan, runSoql } from "../ipc/soql";
+import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
-import type { SoqlResultDto, QueryPlanDto } from "../types";
 import type { SoqlTab } from "../tabs/types";
 
 /** Warn before fetching an unconstrained query larger than this (rows). */
@@ -87,7 +86,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         },
       );
       try {
-        const dto = await invoke<SoqlResultDto>("run_soql", {
+        const dto = await runSoql({
           query: q,
           useToolingApi,
           allRows,
@@ -99,7 +98,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           toast.info(`Cancelled — showing ${dto.rows.length.toLocaleString()} rows`);
         void timing("run.soql", ms);
       } catch (e) {
-        const message = typeof e === "string" ? e : String(e);
+        const message = formatIpcError(e);
         toast.error(parseSfError(message).detail);
         onPatch({ error: message });
         const ms = performance.now() - t0;
@@ -128,7 +127,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     setCounting(true);
     let count: number | null = null;
     try {
-      count = await invoke<number | null>("count_soql", {
+      count = await countSoql({
         query,
         useToolingApi,
         queryId: countId,
@@ -150,16 +149,16 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
   const cancel = useCallback(() => {
     abortedRef.current = true;
     if (queryIdRef.current)
-      void invoke("cancel_soql", { queryId: queryIdRef.current });
+      void cancelSoql(queryIdRef.current);
   }, []);
 
   const explain = useCallback(async () => {
     setExplaining(true);
     try {
-      const dto = await invoke<QueryPlanDto>("query_plan", { query });
+      const dto = await queryPlan(query);
       onPatch({ plan: dto });
     } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
+      const message = formatIpcError(e);
       toast.error(parseSfError(message).detail);
     } finally {
       setExplaining(false);
@@ -171,8 +170,8 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     ? "error"
     : result
       ? result.done
-        ? `${result.total_size} row${result.total_size === 1 ? "" : "s"} returned${ms}`
-        : `${result.rows.length.toLocaleString()} of ${result.total_size.toLocaleString()} rows · cancelled${ms}`
+        ? `${result.totalSize} row${result.totalSize === 1 ? "" : "s"} returned${ms}`
+        : `${result.rows.length.toLocaleString()} of ${result.totalSize.toLocaleString()} rows · cancelled${ms}`
       : "";
 
   // Rough ETA from the rows/sec measured so far. Recomputed each progress tick.

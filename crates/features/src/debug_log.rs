@@ -101,7 +101,12 @@ pub struct DebugLogView {
 impl DebugLogView {
     /// Pure pipeline: raw log text → view model.
     pub fn from_log(text: &str) -> DebugLogView {
-        let parsed = ParsedLog::parse(text);
+        Self::from_parsed(&ParsedLog::parse(text), text)
+    }
+
+    /// Derive the view from an already-parsed log, so a caller that caches the
+    /// `ParsedLog` (shared with the step-debugger) parses each body only once.
+    pub fn from_parsed(parsed: &ParsedLog, text: &str) -> DebugLogView {
         let mut raw_sources: Vec<Option<SourceRef>> = vec![None; text.lines().count()];
         let units = parsed
             .units
@@ -122,7 +127,7 @@ impl DebugLogView {
             })
             .collect();
         DebugLogView {
-            header: parsed.header,
+            header: parsed.header.clone(),
             units,
             raw_sources,
         }

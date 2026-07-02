@@ -1,7 +1,7 @@
 //! Serde-serializable DTOs for the parsed debug-log view, plus mappers from the
 //! `log_parser` / `features` model types (which are not serde-aware).
 
-use apex_lang::complete::{Candidate as ApexCandidate, CandidateKind as ApexCandidateKind};
+use apex_lang::candidate::{Candidate as ApexCandidate, CandidateKind as ApexCandidateKind};
 use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
 use features::debug_log::{DebugLogView, UnitView};
 use features::debug_traces::{
@@ -18,6 +18,7 @@ use sf_core::OrgRef;
 
 /// One Salesforce org entry handed to the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OrgDto {
     pub username: String,
     pub alias: Option<String>,
@@ -42,11 +43,14 @@ impl From<&OrgRef> for OrgDto {
 pub struct CandidateDto {
     pub label: String,
     pub kind: String,
+    pub detail: Option<String>,
+    pub params: Option<Vec<String>>,
 }
 
 fn candidate_kind_str(k: &ApexCandidateKind) -> &'static str {
     match k {
         ApexCandidateKind::Type => "type",
+        ApexCandidateKind::Constructor => "constructor",
         ApexCandidateKind::Keyword => "keyword",
         ApexCandidateKind::LocalVar => "localVar",
         ApexCandidateKind::Method => "method",
@@ -59,6 +63,8 @@ impl From<&ApexCandidate> for CandidateDto {
         CandidateDto {
             label: c.label.clone(),
             kind: candidate_kind_str(&c.kind).to_string(),
+            detail: c.detail.clone(),
+            params: c.params.clone(),
         }
     }
 }
@@ -376,6 +382,7 @@ impl From<&LoggingDiffDto> for LoggingDiff {
 
 /// One Salesforce record in a SOQL result tree, ready for the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecordDto {
     pub sobject_type: String,
     pub fields: Vec<FieldDto>,
@@ -383,6 +390,7 @@ pub struct RecordDto {
 
 /// One field of a record: its name and tagged value.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FieldDto {
     pub name: String,
     pub value: FieldValueDto,
@@ -390,6 +398,7 @@ pub struct FieldDto {
 
 /// A tagged field value: scalar text, a parent record, or child records.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FieldValueDto {
     pub kind: &'static str, // "null" | "scalar" | "parent" | "children"
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -556,6 +565,7 @@ pub fn map_frames(frames: &[Frame]) -> Vec<FrameDto> {
 
 /// One node in the execution tree, ready for the frontend.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExecNodeDto {
     pub label: String,
     pub detail: String,
@@ -570,6 +580,7 @@ pub struct ExecNodeDto {
 
 /// One governor-limit reading.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LimitEntryDto {
     pub name: String,
     pub used: u64,
@@ -578,6 +589,7 @@ pub struct LimitEntryDto {
 
 /// All limit readings for one namespace.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct LimitRollupDto {
     pub namespace: String,
     pub entries: Vec<LimitEntryDto>,
@@ -585,6 +597,7 @@ pub struct LimitRollupDto {
 
 /// One aggregated method/unit hotspot.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct HotspotDto {
     pub signature: String,
     pub self_ns: u64,
@@ -595,6 +608,7 @@ pub struct HotspotDto {
 
 /// One executed SOQL query or DML operation.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatementDto {
     pub kind: String,
     pub text: String,
@@ -604,6 +618,7 @@ pub struct StatementDto {
 
 /// One thrown exception or fatal error.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ExceptionDto {
     pub kind: String,
     pub message: String,
@@ -612,6 +627,7 @@ pub struct ExceptionDto {
 /// One execution unit: its tree, hotspots, SOQL/DML statements, limit rollups,
 /// and any exceptions/fatal errors.
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UnitDto {
     pub tree: Vec<ExecNodeDto>,
     pub hotspots: Vec<HotspotDto>,
@@ -737,6 +753,174 @@ pub fn map_units(view: &DebugLogView) -> Vec<UnitDto> {
     view.units.iter().map(map_unit).collect()
 }
 
+// ---- Command result / event payload DTOs ----
+
+/// A SOQL query result: flat table projection plus the raw record tree.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoqlResultDto {
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<String>>,
+    pub total_size: u64,
+    pub done: bool,
+    pub tree: Vec<RecordDto>,
+}
+
+/// Incremental progress for a running SOQL query, emitted as `soql-progress`.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SoqlProgress {
+    pub id: String,
+    pub fetched: u64,
+    pub total: u64,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexProgressDto {
+    pub org: String,
+    pub phase: String,
+    pub done: usize,
+    pub total: usize,
+}
+
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncResultDto {
+    pub org: String,
+    pub added: usize,
+    pub updated: usize,
+    pub removed: usize,
+}
+
+/// One callable signature for the Monaco signature-help widget.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureDto {
+    pub label: String,
+    pub params: Vec<String>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SignatureHelpDto {
+    pub signatures: Vec<SignatureDto>,
+    pub active_signature: usize,
+    pub active_parameter: usize,
+}
+
+impl From<&apex_lang::ast::signature::SignatureHelp> for SignatureHelpDto {
+    fn from(h: &apex_lang::ast::signature::SignatureHelp) -> Self {
+        SignatureHelpDto {
+            signatures: h
+                .signatures
+                .iter()
+                .map(|s| SignatureDto {
+                    label: s.label.clone(),
+                    params: s.params.clone(),
+                })
+                .collect(),
+            active_signature: h.active_signature,
+            active_parameter: h.active_parameter,
+        }
+    }
+}
+
+/// Source code (read-only) for an Apex class or trigger, for "jump to source".
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexSourceDto {
+    pub name: String,
+    pub kind: String,
+    pub body: String,
+}
+
+/// Result of one anonymous-Apex run, flattened for the frontend.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ApexOutcomeDto {
+    pub compiled: bool,
+    pub success: bool,
+    pub compile_problem: Option<String>,
+    pub exception_message: Option<String>,
+    pub exception_stack_trace: Option<String>,
+    pub line: Option<i64>,
+    pub column: Option<i64>,
+    pub logs: String,
+}
+
+/// One debug-log list entry handed to the frontend.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogRefDto {
+    pub id: String,
+    pub operation: String,
+    pub status: String,
+    pub start_time: String,
+    pub application: String,
+    pub user: String,
+    pub duration_ms: i64,
+    pub log_length: i64,
+}
+
+/// Map an `sf apex list log` entry into its DTO.
+pub fn map_log_ref(l: sf_core::ApexLogRef) -> LogRefDto {
+    LogRefDto {
+        id: l.id,
+        operation: l.operation,
+        status: l.status,
+        start_time: l.start_time,
+        application: l.application,
+        user: l.log_user.name,
+        duration_ms: l.duration_ms,
+        log_length: l.log_length,
+    }
+}
+
+/// A fetched debug log's raw body plus its parsed execution tree + limits.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogViewDto {
+    pub raw: String,
+    pub api_version: Option<String>,
+    pub units: Vec<UnitDto>,
+}
+
+/// Parsed view WITHOUT the raw body: the caller already holds the body it passed
+/// to `parse_log`, so echoing 16MB+ back over IPC (and re-deserializing it) is
+/// pure waste. The frontend re-attaches `raw` from the body it owns.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ParsedLogDto {
+    pub api_version: Option<String>,
+    pub units: Vec<UnitDto>,
+}
+
+/// The parsed view (execution tree + limits) without the raw body. Per-line source
+/// mapping is excluded — loaded lazily via `log_sources` so opening a large log
+/// isn't blocked by serializing a line-length array.
+pub fn parsed_dto(view: &DebugLogView) -> ParsedLogDto {
+    ParsedLogDto {
+        api_version: view.header.as_ref().map(|h| h.api_version.clone()),
+        units: map_units(view),
+    }
+}
+
+/// Classified health of the `sf` CLI, so the UI can give the right guidance:
+/// install it, upgrade it, or fix a PATH problem — instead of a bare error.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SfStatusDto {
+    /// "ok" | "outdated" | "not_found" | "path_issue"
+    pub state: &'static str,
+    /// Raw `sf --version` output when the CLI was found.
+    pub version: Option<String>,
+    /// Minimum version Ultraforce supports, e.g. "2.0.0".
+    pub min_version: String,
+    /// Where a login-shell probe found `sf` when it isn't on the app's PATH.
+    pub found_at: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -800,13 +984,28 @@ mod tests {
 
     #[test]
     fn candidate_dto_maps_method_kind() {
-        let candidate = apex_lang::complete::Candidate {
+        let candidate = apex_lang::candidate::Candidate {
             label: "valueOf".into(),
-            kind: apex_lang::complete::CandidateKind::Method,
+            kind: apex_lang::candidate::CandidateKind::Method,
+            detail: None,
+            params: None,
         };
         let dto = CandidateDto::from(&candidate);
         assert_eq!(dto.label, "valueOf");
         assert_eq!(dto.kind, "method");
+    }
+
+    #[test]
+    fn candidate_dto_carries_detail_and_params() {
+        let c = ApexCandidate {
+            label: "debug".into(),
+            kind: ApexCandidateKind::Method,
+            detail: Some("void".into()),
+            params: Some(vec!["Object".into()]),
+        };
+        let dto = CandidateDto::from(&c);
+        assert_eq!(dto.detail.as_deref(), Some("void"));
+        assert_eq!(dto.params, Some(vec!["Object".to_string()]));
     }
 
     #[test]
@@ -965,5 +1164,21 @@ mod tests {
         let dto = map_node(&n);
         assert!(dto.detail.chars().count() <= MAX_DETAIL_LEN + 1);
         assert!(dto.detail.ends_with('…'));
+    }
+
+    #[test]
+    fn signature_help_dto_maps_camel_case() {
+        let h = apex_lang::ast::signature::SignatureHelp {
+            signatures: vec![apex_lang::ast::signature::Signature {
+                label: "debug(Object) : void".into(),
+                params: vec!["Object".into()],
+            }],
+            active_signature: 0,
+            active_parameter: 1,
+        };
+        let dto = SignatureHelpDto::from(&h);
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["activeParameter"], 1);
+        assert_eq!(json["signatures"][0]["label"], "debug(Object) : void");
     }
 }

@@ -18,8 +18,8 @@ export function flameLayout(roots: ExecNodeDto[]): FlameRect[] {
   const rects: FlameRect[] = [];
   const walk = (node: ExecNodeDto, depth: number) => {
     rects.push({
-      x: node.start_ns,
-      w: node.dur_ns ?? 0,
+      x: node.startNs,
+      w: node.durNs ?? 0,
       depth,
       label: node.detail || node.label,
       kind: node.label,

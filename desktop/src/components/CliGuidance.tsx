@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { AlertTriangle, Copy, Loader2, RefreshCw } from "lucide-react";
+import { sfStatus } from "../ipc/org";
 import type { SfStatus } from "../types";
 import { Button } from "@/components/ui/button";
 
@@ -24,7 +24,7 @@ export function useSfStatus(): { status: SfStatus | null; refresh: () => void } 
   const [tick, setTick] = useState(0);
   useEffect(() => {
     let alive = true;
-    invoke<SfStatus>("sf_status")
+    sfStatus()
       .then((s) => alive && setStatus(s))
       // On an unexpected failure, assume not-found so the user still gets help.
       .catch(
@@ -33,8 +33,8 @@ export function useSfStatus(): { status: SfStatus | null; refresh: () => void } 
           setStatus({
             state: "not_found",
             version: null,
-            min_version: "2.0.0",
-            found_at: null,
+            minVersion: "2.0.0",
+            foundAt: null,
           }),
       );
     return () => {
@@ -101,7 +101,7 @@ export function CliGuidance({
           Salesforce CLI is too old
         </h2>
         <p className="max-w-sm text-center text-sm text-text-dim">
-          Ultraforce needs <code>sf</code> {status.min_version} or newer.
+          Ultraforce needs <code>sf</code> {status.minVersion} or newer.
           {status.version ? ` Detected: ${status.version}.` : ""} Upgrade, then
           retry.
         </p>
@@ -123,7 +123,7 @@ export function CliGuidance({
         </h2>
         <p className="max-w-sm text-center text-sm text-text-dim">
           <code>sf</code> is installed
-          {status.found_at ? ` at ${status.found_at}` : ""}, but Ultraforce
+          {status.foundAt ? ` at ${status.foundAt}` : ""}, but Ultraforce
           can’t see it. This happens when the app is launched from the Dock, or
           with shells like <code>fish</code>.
         </p>

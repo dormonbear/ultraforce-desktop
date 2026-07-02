@@ -11,13 +11,13 @@ export interface FieldDto {
   value: FieldValueDto;
 }
 export interface RecordDto {
-  sobject_type: string;
+  sobjectType: string;
   fields: FieldDto[];
 }
 export interface SoqlResultDto {
   columns: string[];
   rows: string[][];
-  total_size: number;
+  totalSize: number;
   done: boolean;
   tree: RecordDto[];
 }
@@ -25,22 +25,22 @@ export interface SoqlResultDto {
 export interface PlanNoteDto {
   description: string;
   fields: string[];
-  table_enum_or_id: string;
+  tableEnumOrId: string;
 }
 
 export interface PlanRowDto {
   cardinality: number;
-  leading_operation_type: string;
-  relative_cost: number;
-  sobject_cardinality: number;
-  sobject_type: string;
+  leadingOperationType: string;
+  relativeCost: number;
+  sobjectCardinality: number;
+  sobjectType: string;
   fields: string[];
   notes: PlanNoteDto[];
 }
 
 export interface QueryPlanDto {
   plans: PlanRowDto[];
-  source_query: string;
+  sourceQuery: string;
 }
 
 export interface SoqlDiagnosticDto {
@@ -53,8 +53,8 @@ export interface SoqlDiagnosticDto {
 export interface OrgDto {
   username: string;
   alias: string | null;
-  instance_url: string | null;
-  is_default: boolean;
+  instanceUrl: string | null;
+  isDefault: boolean;
 }
 
 export type SfCliState = "ok" | "outdated" | "not_found" | "path_issue";
@@ -64,17 +64,17 @@ export interface SfStatus {
   /** Raw `sf --version` output when the CLI was found. */
   version: string | null;
   /** Minimum version Ultraforce supports, e.g. "2.0.0". */
-  min_version: string;
+  minVersion: string;
   /** Where a login-shell probe found `sf` when it isn't on the app's PATH. */
-  found_at: string | null;
+  foundAt: string | null;
 }
 
 export interface ApexOutcomeDto {
   compiled: boolean;
   success: boolean;
-  compile_problem: string | null;
-  exception_message: string | null;
-  exception_stack_trace: string | null;
+  compileProblem: string | null;
+  exceptionMessage: string | null;
+  exceptionStackTrace: string | null;
   line: number | null;
   column: number | null;
   logs: string;
@@ -84,20 +84,20 @@ export interface LogRefDto {
   id: string;
   operation: string;
   status: string;
-  start_time: string;
+  startTime: string;
   application: string;
   user: string;
-  duration_ms: number;
-  log_length: number;
+  durationMs: number;
+  logLength: number;
 }
 
 export interface ExecNodeDto {
   label: string;
   detail: string;
-  dur_ns: number | null;
-  self_ns: number | null;
+  durNs: number | null;
+  selfNs: number | null;
   /** Absolute start offset in ns from log start. */
-  start_ns: number;
+  startNs: number;
   children: ExecNodeDto[];
   /** Apex source this node maps to (class + line), or null when unresolved. */
   source: SourceRef | null;
@@ -116,9 +116,9 @@ export interface LimitRollupDto {
 
 export interface HotspotDto {
   signature: string;
-  self_ns: number;
-  total_ns: number;
-  self_bytes: number;
+  selfNs: number;
+  totalNs: number;
+  selfBytes: number;
   count: number;
 }
 
@@ -126,7 +126,7 @@ export interface StatementDto {
   kind: "soql" | "dml";
   text: string;
   rows: number;
-  dur_ns: number | null;
+  durNs: number | null;
 }
 
 export interface ExceptionDto {
@@ -144,7 +144,7 @@ export interface UnitDto {
 
 export interface LogViewDto {
   raw: string;
-  api_version: string | null;
+  apiVersion: string | null;
   units: UnitDto[];
 }
 
@@ -241,6 +241,18 @@ export type LoggingDiffDto = {
 export interface ApexCandidateDto {
   label: string;
   kind: string;
+  detail?: string | null;
+  params?: string[] | null;
+}
+
+export interface ApexSignatureDto {
+  label: string;
+  params: string[];
+}
+export interface ApexSignatureHelpDto {
+  signatures: ApexSignatureDto[];
+  activeSignature: number;
+  activeParameter: number;
 }
 
 /** A structured SOQL/Apex completion item (label + kind for the icon + optional detail). */

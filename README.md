@@ -76,16 +76,24 @@ offers a one-click download-and-restart when a newer version is available.
   live object describes, `TABLE` / `TREE` result views, and an `EXPLAIN` query plan.
 - **Anonymous Apex panel** — run anonymous Apex with per-category debug-level
   pickers (a generated `TraceFlag` / `DebugLevel`), jump-to-line compile errors,
-  and a colorized debug-log viewer with one-click copy.
+  and a colorized debug-log viewer with one-click copy. An optional
+  confirm-before-run guard (Settings → Apex) protects against executing DML in
+  the wrong org.
 - **Apex completion** — member completion over an offline symbol table (OST):
   stdlib namespaces, every org Apex class (full symbol tables), and sObjects
   (fields + relationships) described on demand. Expression-chain inference,
   generic-collection element unwrap, and inheritance/interface flattening.
+  Methods insert call snippets with placeholder arguments (and a trailing `;`
+  for void statements), pop **signature help** as you fill them in, plus
+  constructor completion after `new`, control-flow keyword blocks, and
+  bracket / quote auto-closing.
 - **Logs panel** — master/detail debug-log viewer with status badges, governor
-  limits, and tree / limits / raw tabs.
+  limits, and tree / limits / raw tabs, plus a clear hint when the org user
+  lacks the permission to read `ApexLog`.
 - **Explorer + workspace** — VS Code-style sidebar over real `*.soql` / `*.apex`
-  files on disk, multi-tab editing with debounced autosave, name and full-text
-  search with jump-to-line, and run history.
+  files on disk with keyboard navigation, drag-to-move, and inline rename;
+  multi-tab editing with debounced autosave, name and full-text search with
+  jump-to-line, and run history.
 
 ## How it works
 

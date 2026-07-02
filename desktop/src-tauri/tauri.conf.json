@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "Ultraforce",
+        "dragDropEnabled": false,
         "width": 1100,
         "height": 720,
         "minWidth": 760,

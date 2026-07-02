@@ -1,7 +1,8 @@
+import { formatIpcError } from "./errorFormat";
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import type { CategoryLevels, DebugConfigDto } from "./types";
+import { getDebugConfig, setDebugConfig } from "./ipc/config";
+import type { CategoryLevels } from "./types";
 
 /**
  * Owns the running user's TraceFlag / DebugLevel config for a panel.
@@ -22,9 +23,9 @@ export function useDebugConfig(org: string | null): {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    invoke<DebugConfigDto>("get_debug_config")
+    getDebugConfig()
       .then((dto) => setLevels(dto.levels))
-      .catch((e) => setError(typeof e === "string" ? e : String(e)));
+      .catch((e) => setError(formatIpcError(e)));
   }, [org]);
 
   const apply = useCallback(async (next: CategoryLevels) => {
@@ -32,12 +33,10 @@ export function useDebugConfig(org: string | null): {
     setError(null);
     setLevels(next);
     try {
-      const dto = await invoke<DebugConfigDto>("set_debug_config", {
-        levels: next,
-      });
+      const dto = await setDebugConfig(next);
       setLevels(dto.levels);
     } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
+      const message = formatIpcError(e);
       setError(message);
       toast.error(`Debug config: ${message}`);
     } finally {

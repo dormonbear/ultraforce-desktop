@@ -182,12 +182,14 @@ pub fn count_query(input: &str) -> Option<String> {
             }
             // An aggregate call in the SELECT list means the result is already
             // collapsed to a few rows — no point pre-counting.
-            TokenKind::Ident if depth == 0 && select_seen && from_start.is_none() => {
-                if AGGS.iter().any(|a| a.eq_ignore_ascii_case(&t.text))
-                    && toks.get(idx + 1).map(|n| n.kind) == Some(TokenKind::LParen)
-                {
-                    return None;
-                }
+            TokenKind::Ident
+                if depth == 0
+                    && select_seen
+                    && from_start.is_none()
+                    && AGGS.iter().any(|a| a.eq_ignore_ascii_case(&t.text))
+                    && toks.get(idx + 1).map(|n| n.kind) == Some(TokenKind::LParen) =>
+            {
+                return None;
             }
             _ => {}
         }

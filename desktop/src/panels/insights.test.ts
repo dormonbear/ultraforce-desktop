@@ -6,9 +6,9 @@ import type { ExecNodeDto, StatementDto, UnitDto } from "../types";
 const node = (label: string, children: ExecNodeDto[] = []): ExecNodeDto => ({
   label,
   detail: "",
-  dur_ns: 1000,
-  self_ns: 100,
-  start_ns: 0,
+  durNs: 1000,
+  selfNs: 100,
+  startNs: 0,
   children,
   source: null,
 });
@@ -46,7 +46,7 @@ describe("detectInsights", () => {
       kind: "soql" as const,
       text: `SELECT Id FROM Contact WHERE AccountId = '001x${i}'`,
       rows: 2,
-      dur_ns: 1_000_000,
+      durNs: 1_000_000,
     }));
     const f = detectInsights([unit({ statements })]);
     const loop = f.find((x) => x.kind === "stmt-in-loop");
@@ -57,8 +57,8 @@ describe("detectInsights", () => {
 
   it("does not flag a query that runs only a few times", () => {
     const statements: StatementDto[] = [
-      { kind: "soql", text: "SELECT Id FROM Account", rows: 1, dur_ns: 1 },
-      { kind: "soql", text: "SELECT Id FROM Account", rows: 1, dur_ns: 1 },
+      { kind: "soql", text: "SELECT Id FROM Account", rows: 1, durNs: 1 },
+      { kind: "soql", text: "SELECT Id FROM Account", rows: 1, durNs: 1 },
     ];
     expect(detectInsights([unit({ statements })]).some((x) => x.kind === "stmt-in-loop")).toBe(
       false,
@@ -99,7 +99,7 @@ describe("detectInsights", () => {
 
   it("flags a large query (high row count), not as a loop", () => {
     const statements: StatementDto[] = [
-      { kind: "soql", text: "SELECT Id FROM Account", rows: 5000, dur_ns: 1000 },
+      { kind: "soql", text: "SELECT Id FROM Account", rows: 5000, durNs: 1000 },
     ];
     const f = detectInsights([unit({ statements })]);
     const big = f.find((x) => x.kind === "slow-query");
@@ -109,7 +109,7 @@ describe("detectInsights", () => {
 
   it("flags a slow query by duration", () => {
     const statements: StatementDto[] = [
-      { kind: "soql", text: "SELECT Id FROM Account", rows: 1, dur_ns: 250_000_000 },
+      { kind: "soql", text: "SELECT Id FROM Account", rows: 1, durNs: 250_000_000 },
     ];
     const f = detectInsights([unit({ statements })]);
     expect(f.find((x) => x.kind === "slow-query")?.title).toMatch(/Slow query/);
@@ -145,7 +145,7 @@ describe("detectInsights", () => {
       durNs: number,
       selfNs: number,
       children: ExecNodeDto[] = [],
-    ): ExecNodeDto => ({ label, detail: "", dur_ns: durNs, self_ns: selfNs, start_ns: 0, children, source: null });
+    ): ExecNodeDto => ({ label, detail: "", durNs: durNs, selfNs: selfNs, startNs: 0, children, source: null });
     // root 1000 → A 900 → B 850 (self 800); a tiny sibling that's off the path.
     const tree = [
       dnode("root", 1000, 50, [

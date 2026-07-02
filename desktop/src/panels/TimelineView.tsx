@@ -87,6 +87,7 @@ export function TimelineView({
     }
   }, [rects, view, maxDepth, width]);
 
+  const miniRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; start: number; end: number } | null>(null);
   const moved = useRef(false);
   const [hover, setHover] = useState<{ x: number; y: number; rect: FlameRect } | null>(null);
@@ -169,6 +170,29 @@ export function TimelineView({
     if (hit?.source && onSource) onSource(hit.source as unknown as SourceRef);
   }
 
+  // Minimap wheel: zoom the viewport window in/out, centered on the cursor
+  // time (mapped through the FULL span). Non-passive so preventDefault sticks.
+  useEffect(() => {
+    const mini = miniRef.current;
+    if (!mini) return;
+    function handler(e: WheelEvent) {
+      e.preventDefault();
+      const r = mini!.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+      const full = span.end - span.start;
+      const t = span.start + frac * full;
+      const factor = e.deltaY < 0 ? 0.8 : 1.25; // in / out
+      const newSpan = Math.min(full, Math.max(full / 500, (view.end - view.start) * factor));
+      let start = t - newSpan / 2;
+      let end = start + newSpan;
+      if (start < span.start) { start = span.start; end = start + newSpan; }
+      if (end > span.end) { end = span.end; start = end - newSpan; }
+      setView({ start, end });
+    }
+    mini.addEventListener("wheel", handler, { passive: false });
+    return () => mini.removeEventListener("wheel", handler);
+  }, [view, span]);
+
   // Minimap scrubbing: mousedown recenters the viewport on the cursor, and a
   // drag pans it left/right. Window listeners keep the drag alive even if the
   // cursor leaves the thin strip. Viewport width is fixed at grab time (pan, not
@@ -207,8 +231,10 @@ export function TimelineView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
+        ref={miniRef}
         className="relative mb-1.5 h-8 w-full cursor-ew-resize overflow-hidden rounded bg-border/40"
         onMouseDown={onMiniDown}
+        title="Scroll to zoom · drag to pan"
       >
         <div className="flex h-full w-full items-end">
           {sky.map((d, i) => (
@@ -237,7 +263,10 @@ export function TimelineView({
         </button>
         <span>scroll to zoom · drag to pan</span>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-auto rounded-md border border-border bg-card">
+      {/* x stays hidden: the canvas is w-full (pan/zoom, never scrolls), but the
+          absolute hover tooltip near the right edge would otherwise widen the
+          scroll area and pop a useless horizontal scrollbar. */}
+      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-border bg-card">
         <canvas
           ref={canvasRef}
           className="block w-full"

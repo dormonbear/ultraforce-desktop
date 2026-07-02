@@ -97,9 +97,9 @@ function detectStatementsInLoop(units: UnitDto[], out: Finding[]): void {
       if (g) {
         g.count += 1;
         g.rows += s.rows;
-        g.ns += s.dur_ns ?? 0;
+        g.ns += s.durNs ?? 0;
       } else {
-        groups.set(key, { kind: s.kind, fp, count: 1, rows: s.rows, ns: s.dur_ns ?? 0 });
+        groups.set(key, { kind: s.kind, fp, count: 1, rows: s.rows, ns: s.durNs ?? 0 });
       }
     }
   }
@@ -129,9 +129,9 @@ function detectRepeatedMethods(units: UnitDto[], out: Finding[]): void {
       const m = byName.get(h.signature);
       if (m) {
         m.count += h.count;
-        m.self += h.self_ns;
+        m.self += h.selfNs;
       } else {
-        byName.set(h.signature, { count: h.count, self: h.self_ns });
+        byName.set(h.signature, { count: h.count, self: h.selfNs });
       }
     }
   }
@@ -237,7 +237,7 @@ function detectLargeSlowQueries(units: UnitDto[], out: Finding[]): void {
     for (const s of u.statements) {
       if (s.kind !== "soql") continue;
       const fp = soqlFingerprint(s.text);
-      const ns = s.dur_ns ?? 0;
+      const ns = s.durNs ?? 0;
       const a = agg.get(fp);
       if (a) {
         a.rows = Math.max(a.rows, s.rows);
@@ -274,7 +274,7 @@ function detectLargeSlowQueries(units: UnitDto[], out: Finding[]): void {
  * the busiest root, always descend into the longest child. Tells the user where
  * to optimize for wall-clock — more useful than scattered self-times. */
 function detectCriticalPath(units: UnitDto[], out: Finding[]): void {
-  const dur = (n: ExecNodeDto) => n.dur_ns ?? 0;
+  const dur = (n: ExecNodeDto) => n.durNs ?? 0;
   for (const u of units) {
     if (u.tree.length === 0) continue;
     const root = u.tree.reduce((a, b) => (dur(b) > dur(a) ? b : a));
@@ -292,15 +292,15 @@ function detectCriticalPath(units: UnitDto[], out: Finding[]): void {
     const leaf = path[path.length - 1];
     const pct = Math.round((dur(leaf) / total) * 100);
     if (pct < 30) continue; // not a clear single hot path
-    const bottleneck = path.reduce((a, b) => ((b.self_ns ?? 0) > (a.self_ns ?? 0) ? b : a));
+    const bottleneck = path.reduce((a, b) => ((b.selfNs ?? 0) > (a.selfNs ?? 0) ? b : a));
     out.push({
       severity: "info",
       kind: "critical-path",
       title: `Critical path: ${pct}% of time ends in ${leaf.label}`,
       detail: path.map((n) => n.label).join(" → "),
       fix:
-        (bottleneck.self_ns ?? 0) > 0
-          ? `Most self-time: ${bottleneck.label} (${fmtMs(bottleneck.self_ns ?? 0)}). Optimize here.`
+        (bottleneck.selfNs ?? 0) > 0
+          ? `Most self-time: ${bottleneck.label} (${fmtMs(bottleneck.selfNs ?? 0)}). Optimize here.`
           : undefined,
       sort: total,
     });

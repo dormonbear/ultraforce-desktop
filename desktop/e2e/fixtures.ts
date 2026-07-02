@@ -57,8 +57,8 @@ const FAKE_FILES: Record<string, string> = {
 // App-command fixtures (everything that is NOT plugin:store|*).
 const RESP: Record<string, unknown> = {
   list_orgs: [
-    { username: "dev@acme.com", alias: "DevHub", instance_url: "x", is_default: true },
-    { username: "stg@acme.com", alias: "Staging", instance_url: null, is_default: false },
+    { username: "dev@acme.com", alias: "DevHub", instanceUrl: "x", isDefault: true },
+    { username: "stg@acme.com", alias: "Staging", instanceUrl: null, isDefault: false },
   ],
   set_target_org: null,
   get_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
@@ -88,9 +88,9 @@ const RESP: Record<string, unknown> = {
   run_apex: {
     compiled: true,
     success: true,
-    compile_problem: null,
-    exception_message: null,
-    exception_stack_trace: null,
+    compileProblem: null,
+    exceptionMessage: null,
+    exceptionStackTrace: null,
     line: null,
     column: null,
     logs: LOG,
@@ -102,7 +102,7 @@ const RESP: Record<string, unknown> = {
       `Account ${i}`,
       ["Tech", "Finance"][i % 2],
     ]),
-    total_size: 12,
+    totalSize: 12,
     done: true,
     tree: [],
   },
@@ -110,51 +110,51 @@ const RESP: Record<string, unknown> = {
     plans: [
       {
         cardinality: 1000,
-        leading_operation_type: "TableScan",
-        relative_cost: 2.8,
-        sobject_cardinality: 1000,
-        sobject_type: "Account",
+        leadingOperationType: "TableScan",
+        relativeCost: 2.8,
+        sobjectCardinality: 1000,
+        sobjectType: "Account",
         fields: [],
         notes: [
-          { description: "not selective", fields: [], table_enum_or_id: "Account" },
+          { description: "not selective", fields: [], tableEnumOrId: "Account" },
         ],
       },
     ],
-    source_query: "SELECT Id FROM Account",
+    sourceQuery: "SELECT Id FROM Account",
   },
   list_logs: [
     {
       id: "07L1",
       operation: "/services/data/v67.0/tooling/runTestsSynchronous",
       status: "Success",
-      start_time: "2026-06-25T01:57:29+0000",
+      startTime: "2026-06-25T01:57:29+0000",
       application: "Unknown",
       user: "Xu Jerry",
-      duration_ms: 46070,
-      log_length: 118636,
+      durationMs: 46070,
+      logLength: 118636,
     },
     {
       id: "07L2",
       operation: "/opalrest",
       status: "Assertion Failed: memres",
-      start_time: "2026-06-25T01:54:30+0000",
+      startTime: "2026-06-25T01:54:30+0000",
       application: "Unknown",
       user: "Gong Nick",
-      duration_ms: 9129,
-      log_length: 407132,
+      durationMs: 9129,
+      logLength: 407132,
     },
   ],
   parse_log: {
     raw: "minimal opened log body",
-    api_version: "60.0",
+    apiVersion: "60.0",
     units: [
       {
         tree: [
           {
             label: "CODE_UNIT_STARTED",
             detail: "MyClass.run",
-            dur_ns: 2_000_000,
-            self_ns: 2_000_000,
+            durNs: 2_000_000,
+            selfNs: 2_000_000,
             children: [],
           },
         ],
@@ -168,7 +168,7 @@ const RESP: Record<string, unknown> = {
   // Selecting a list row fetches+parses via get_log (same shape as parse_log).
   get_log: {
     raw: "fetched log body",
-    api_version: "60.0",
+    apiVersion: "60.0",
     units: [
       {
         tree: [],
@@ -200,14 +200,15 @@ const RESP: Record<string, unknown> = {
     { label: "@AuraEnabled", kind: "keyword" },
     { label: "@IsTest", kind: "keyword" },
   ],
+  apex_signature_help: null,
   soql_diagnostics: [],
   apex_soql_diagnostics: [],
   apex_diagnostics: [],
   sf_status: {
     state: "ok",
     version: "@salesforce/cli/2.127.2",
-    min_version: "2.0.0",
-    found_at: null,
+    minVersion: "2.0.0",
+    foundAt: null,
   },
   login_org: null,
   warm_schema: 42,

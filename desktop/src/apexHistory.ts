@@ -9,7 +9,7 @@ export interface ApexHistoryEntry {
   logs: string;
   compiled: boolean;
   success: boolean;
-  exception_message: string | null;
+  exceptionMessage: string | null;
   /** Epoch millis. */
   at: number;
 }
@@ -23,8 +23,17 @@ type Listener = (entries: ApexHistoryEntry[]) => void;
 const listeners = new Set<Listener>();
 let cache: ApexHistoryEntry[] | null = null;
 
+/** Entries persisted before the camelCase rename carry `exception_message`. */
+function migrate(e: ApexHistoryEntry): ApexHistoryEntry {
+  const legacy = e as ApexHistoryEntry & { exception_message?: string | null };
+  return {
+    ...e,
+    exceptionMessage: e.exceptionMessage ?? legacy.exception_message ?? null,
+  };
+}
+
 async function read(): Promise<ApexHistoryEntry[]> {
-  cache ??= await getJson<ApexHistoryEntry[]>(KEY, []);
+  cache ??= (await getJson<ApexHistoryEntry[]>(KEY, [])).map(migrate);
   return cache;
 }
 

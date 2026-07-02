@@ -1,35 +1,36 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { ChevronRight, Loader2, Copy, History, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { EDITOR_OPTS } from "../monaco-opts";
-import { retriggerSuggestOnEdit } from "../monaco-retrigger";
-import { trimContextMenu } from "../monaco-contextmenu";
+import { EDITOR_OPTS } from "../editor/monaco-opts";
+import { retriggerSuggestOnEdit } from "../editor/monaco-retrigger";
+import { trimContextMenu } from "../editor/monaco-contextmenu";
+import { diagnosticsToMarkers } from "../editor/monaco-markers";
 import { copyText } from "../clipboard";
-import { parseSfError, isCliUnavailable } from "../errorFormat";
+import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
-import { useMonacoReveal, type Reveal } from "../monaco-reveal";
+import { useMonacoReveal, type Reveal } from "../editor/monaco-reveal";
 import { useDefaultLayout } from "react-resizable-panels";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { configureMonacoApex, registerApexFormatter } from "../monaco-apex";
+import { configureMonacoApex, registerApexFormatter } from "../editor/monaco-apex";
 import { RunButton } from "../components/RunButton";
 import { LogView } from "../components/LogView";
 import { ApexHistoryDrawer } from "../components/ApexHistoryDrawer";
 import { recordApexRun } from "../apexHistory";
+import { getConfirmApexRun } from "../apexSettings";
+import { useConfirm } from "../components/confirm";
 import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
 import { timing } from "../metrics";
-import type { ApexOutcomeDto } from "../types";
-import type { SoqlDiagnosticDto } from "../types";
+import { apexDiagnostics, apexSoqlDiagnostics, runApex } from "../ipc/apex";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
 
@@ -53,6 +54,7 @@ interface ApexViewProps {
 }
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
+// fallow-ignore-next-line complexity
 export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
@@ -67,6 +69,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     apply: applyConfig,
   } = useDebugConfig(org);
 
+  const confirm = useConfirm();
   const srcRef = useRef(src);
   const onSaveRef = useRef(onSave);
   onSaveRef.current = onSave;
@@ -84,9 +87,20 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     storage: localStorage,
   });
 
+  // fallow-ignore-next-line complexity
   const run = useCallback(async () => {
     if (!srcRef.current.trim()) {
       toast.error("Write some Apex to run");
+      return;
+    }
+    if (
+      (await getConfirmApexRun()) &&
+      !(await confirm({
+        title: "Run anonymous Apex",
+        description: `Run this anonymous Apex against ${org ?? "the default org"}?`,
+        confirmText: "Run",
+      }))
+    ) {
       return;
     }
     setRunning(true);
@@ -94,7 +108,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     const source = srcRef.current;
     const t0 = performance.now();
     try {
-      const dto = await invoke<ApexOutcomeDto>("run_apex", { src: source });
+      const dto = await runApex(source);
       onPatch({ outcome: dto });
       void recordApexRun({
         org,
@@ -102,17 +116,17 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         logs: dto.logs ?? "",
         compiled: dto.compiled,
         success: dto.success,
-        exception_message: dto.exception_message,
+        exceptionMessage: dto.exceptionMessage,
       });
       if (!dto.compiled) {
-        toast.error(dto.compile_problem ?? "Compile failed");
+        toast.error(dto.compileProblem ?? "Compile failed");
       } else if (!dto.success) {
-        toast.error(dto.exception_message ?? "Execution failed");
+        toast.error(dto.exceptionMessage ?? "Execution failed");
       }
       const ms = performance.now() - t0;
       void timing("run.apex", ms);
     } catch (e) {
-      const message = typeof e === "string" ? e : String(e);
+      const message = formatIpcError(e);
       toast.error(parseSfError(message).detail);
       onPatch({ error: message, outcome: null });
       const ms = performance.now() - t0;
@@ -120,7 +134,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     } finally {
       setRunning(false);
     }
-  }, [onPatch, org]);
+  }, [onPatch, org, confirm]);
   // Keep the Monaco Ctrl+Enter command (bound once at mount) calling the latest
   // run closure, so keyboard runs record the current org (not the mount-time one).
   const runRef = useRef(run);
@@ -154,37 +168,25 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     const model = instance.getModel();
     if (!model) return;
     const handle = setTimeout(async () => {
-      const toMarkers = (diags: SoqlDiagnosticDto[]) =>
-        diags.map((d) => {
-          const s = model.getPositionAt(d.start);
-          const e = model.getPositionAt(d.end);
-          return {
-            message: d.message,
-            severity:
-              d.severity === "warning"
-                ? monaco.MarkerSeverity.Warning
-                : monaco.MarkerSeverity.Error,
-            startLineNumber: s.lineNumber,
-            startColumn: s.column,
-            endLineNumber: e.lineNumber,
-            endColumn: e.column,
-          } as editor.IMarkerData;
-        });
       // SOQL-in-Apex diagnostics + AST diagnostics (duplicate vars, unknown
       // fields) as separate marker owners so each refreshes independently.
       try {
-        const soql = await invoke<SoqlDiagnosticDto[]>("apex_soql_diagnostics", {
-          src,
-        });
-        monaco.editor.setModelMarkers(model, "apex-soql", toMarkers(soql));
+        const soql = await apexSoqlDiagnostics(src);
+        monaco.editor.setModelMarkers(
+          model,
+          "apex-soql",
+          diagnosticsToMarkers(monaco, model, soql),
+        );
       } catch {
         /* ignore */
       }
       try {
-        const ast = await invoke<SoqlDiagnosticDto[]>("apex_diagnostics", {
-          src,
-        });
-        monaco.editor.setModelMarkers(model, "apex-ast", toMarkers(ast));
+        const ast = await apexDiagnostics(src);
+        monaco.editor.setModelMarkers(
+          model,
+          "apex-ast",
+          diagnosticsToMarkers(monaco, model, ast),
+        );
       } catch {
         /* ignore */
       }
@@ -289,7 +291,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               {!outcome.compiled && (
                 <div className="rounded-md border border-amber/40 bg-card p-3 text-[12px] text-amber">
                   <span className="font-medium">
-                    {outcome.compile_problem ?? "Compile failed"}
+                    {outcome.compileProblem ?? "Compile failed"}
                   </span>
                   {outcome.line != null && (
                     <button
@@ -318,7 +320,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                 <div className="rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium">
-                      {outcome.exception_message ?? "Execution failed"}
+                      {outcome.exceptionMessage ?? "Execution failed"}
                     </span>
                     <button
                       type="button"
@@ -327,8 +329,8 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       onClick={() =>
                         void copyText(
                           [
-                            outcome.exception_message,
-                            outcome.exception_stack_trace,
+                            outcome.exceptionMessage,
+                            outcome.exceptionStackTrace,
                           ]
                             .filter(Boolean)
                             .join("\n"),
@@ -340,7 +342,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       <Copy size={13} />
                     </button>
                   </div>
-                  {outcome.exception_stack_trace && (
+                  {outcome.exceptionStackTrace && (
                     <div className="mt-1">
                       <button
                         type="button"
@@ -357,7 +359,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       </button>
                       {traceOpen && (
                         <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
-                          {outcome.exception_stack_trace}
+                          {outcome.exceptionStackTrace}
                         </pre>
                       )}
                     </div>
@@ -386,8 +388,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     <ApexHistoryDrawer
       open={historyOpen}
       onOpenChange={setHistoryOpen}
-      onLoad={(source) => {
-        if (src.trim() && !window.confirm("Replace the current editor content?"))
+      onLoad={async (source) => {
+        if (
+          src.trim() &&
+          !(await confirm({
+            description: "Replace the current editor content?",
+            confirmText: "Replace",
+          }))
+        )
           return;
         onPatch({ src: source });
       }}

@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useState, type ReactElement } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FilePlus, FolderPlus, RefreshCw, Search, X } from "lucide-react";
+import {
+  dragAndDropFeature,
+  hotkeysCoreFeature,
+  renamingFeature,
+  selectionFeature,
+  syncDataLoaderFeature,
+} from "@headless-tree/core";
+import { useTree } from "@headless-tree/react";
 import {
   readTree,
   createFile,
@@ -15,7 +23,9 @@ import {
   type FileHit,
   type SearchOpts,
 } from "../fs/search";
-import { dirname } from "../fs/paths";
+import { dirname, ancestorsWithin } from "../fs/paths";
+import { toast } from "sonner";
+import { formatIpcError } from "../errorFormat";
 import { TreeNode } from "./TreeNode";
 import {
   ContextMenu,
@@ -34,11 +44,13 @@ interface Props {
   onRemoved: (path: string) => void;
 }
 
-type Edit =
-  | { kind: "rename"; path: string }
-  | { kind: "new-file" | "new-dir"; dir: string };
+/** Inline "name me" row for a pending new file / folder. */
+type Edit = { kind: "new-file" | "new-dir"; dir: string };
 
-/** File-explorer sidebar for one tool's workspace root. */
+/** File-explorer sidebar for one tool's workspace root. The tree state
+ * machine (expansion, focus, keyboard nav, inline rename, drag-move) is
+ * headless-tree; rows and menus stay ours. */
+// fallow-ignore-next-line complexity
 export function Explorer({
   root,
   ext,
@@ -47,17 +59,16 @@ export function Explorer({
   onRenamed,
   onRemoved,
 }: Props) {
-  const [tree, setTree] = useState<Node[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [expanded, setExpanded] = useState<string[]>([]);
   const [edit, setEdit] = useState<Edit | null>(null);
-  const [drag, setDrag] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [mode, setMode] = useState<"name" | "content">("name");
   const [hits, setHits] = useState<FileHit[] | null>(null);
   const [opts, setOpts] = useState<SearchOpts>({});
 
   const refresh = useCallback(() => {
-    void readTree(root).then(setTree);
+    void readTree(root).then(setNodes);
   }, [root]);
   useEffect(refresh, [refresh]);
   // Re-read when the window regains focus (cheap external-change pickup).
@@ -66,26 +77,68 @@ export function Explorer({
     return () => window.removeEventListener("focus", refresh);
   }, [refresh]);
 
-  const toggle = (path: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
-      return next;
-    });
+  // Name-filter the tree live; when active, dirs auto-expand to reveal hits.
+  const nameFilter = mode === "name" ? query.trim() : "";
+  // Memoized: a fresh array identity every render would loop the tree rebuild.
+  const shown = useMemo(
+    () => (nameFilter ? filterTree(nodes, nameFilter, opts) : nodes),
+    [nodes, nameFilter, opts],
+  );
 
-  const commitName = async (name: string) => {
+  // Path → node map backing the sync data loader. The root path maps to a
+  // synthetic dir node whose children are the (filtered) top level.
+  const items = useMemo(() => {
+    const map = new Map<string, Node>();
+    map.set(root, { path: root, name: "", kind: "dir", children: shown });
+    const walk = (ns: Node[]) => {
+      for (const n of ns) {
+        map.set(n.path, n);
+        if (n.children) walk(n.children);
+      }
+    };
+    walk(shown);
+    return map;
+  }, [root, shown]);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+
+  const expandedEff = useMemo(
+    () =>
+      nameFilter
+        ? [...items.keys()].filter((id) => items.get(id)?.kind === "dir")
+        : expanded,
+    [nameFilter, items, expanded],
+  );
+
+  /** Expand `dir` and its ancestors so a node just created inside it is visible. */
+  const revealDir = (dir: string) =>
+    setExpanded((prev) => [...new Set([...prev, ...ancestorsWithin(root, dir)])]);
+
+  const commitNew = async (name: string) => {
     const e = edit;
     setEdit(null);
     const trimmed = name.trim();
     if (!e || !trimmed) return;
-    if (e.kind === "rename") {
-      const to = await renameNode(e.path, trimmed);
-      onRenamed(e.path, to);
-    } else if (e.kind === "new-file") {
-      await createFile(e.dir, ensureExt(trimmed, ext));
-    } else {
-      await createDir(e.dir, trimmed);
+    try {
+      if (e.kind === "new-file") await createFile(e.dir, ensureExt(trimmed, ext));
+      else await createDir(e.dir, trimmed);
+      revealDir(e.dir);
+    } catch (err) {
+      toast.error(formatIpcError(err));
+      return;
+    }
+    refresh();
+  };
+
+  const commitRename = async (path: string, value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    try {
+      const to = await renameNode(path, trimmed);
+      onRenamed(path, to);
+    } catch (err) {
+      toast.error(formatIpcError(err));
+      return;
     }
     refresh();
   };
@@ -101,20 +154,61 @@ export function Explorer({
     setEdit({ kind, dir });
   };
 
-  const drop = async (intoDir: string) => {
-    if (!drag) return;
-    const from = drag;
-    setDrag(null);
-    if (dirname(from) === intoDir) return; // already there
-    const to = await moveNode(from, intoDir);
-    onRenamed(from, to);
-    refresh();
-  };
+  const tree = useTree<Node>({
+    rootItemId: root,
+    state: { expandedItems: expandedEff },
+    setExpandedItems: setExpanded,
+    getItemName: (item) => item.getItemData().name,
+    isItemFolder: (item) => item.getItemData().kind === "dir",
+    dataLoader: {
+      getItem: (id) =>
+        itemsRef.current.get(id) ?? { path: id, name: id, kind: "file" },
+      getChildren: (id) =>
+        itemsRef.current.get(id)?.children?.map((c) => c.path) ?? [],
+    },
+    indent: 12,
+    onPrimaryAction: (item) => {
+      const n = item.getItemData();
+      if (n.kind === "file") onOpen(n.path);
+    },
+    onRename: (item, value) => void commitRename(item.getId(), value),
+    // WebKit (Tauri) won't start a drag unless data is set on the transfer.
+    createForeignDragObject: (dragged) => ({
+      format: "text/plain",
+      data: dragged.map((d) => d.getId()).join("\n"),
+    }),
+    canDrop: (dragged, target) =>
+      dragged.every(
+        (d) =>
+          d.getId() !== target.item.getId() &&
+          !target.item.isDescendentOf(d.getId()),
+      ),
+    onDrop: async (dragged, target) => {
+      const t = target.item.getItemData();
+      const intoDir = t.kind === "dir" ? t.path : dirname(t.path);
+      for (const d of dragged) {
+        const from = d.getId();
+        if (dirname(from) === intoDir) continue; // already there
+        try {
+          const to = await moveNode(from, intoDir);
+          onRenamed(from, to);
+        } catch (err) {
+          toast.error(formatIpcError(err));
+        }
+      }
+      refresh();
+    },
+    features: [
+      syncDataLoaderFeature,
+      selectionFeature,
+      hotkeysCoreFeature,
+      renamingFeature,
+      dragAndDropFeature,
+    ],
+  });
 
-  // Name-filter the tree live; when active, dirs auto-expand to reveal hits.
-  const nameFilter = mode === "name" ? query.trim() : "";
-  const shown = nameFilter ? filterTree(tree, nameFilter, opts) : tree;
-  const forceExpand = nameFilter.length > 0;
+  // The sync data loader reads itemsRef; tell the tree when that data moved.
+  useEffect(() => tree.rebuildTree(), [tree, items]);
 
   const runContentSearch = () => {
     const q = query.trim();
@@ -122,7 +216,7 @@ export function Explorer({
       setHits(null);
       return;
     }
-    void searchContent(tree, q, opts).then(setHits);
+    void searchContent(nodes, q, opts).then(setHits);
   };
 
   // Re-run an active content search when the match options change.
@@ -131,64 +225,8 @@ export function Explorer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opts]);
 
-  const rows: ReactElement[] = [];
-  const walk = (nodes: Node[], depth: number) => {
-    for (const n of nodes) {
-      const isOpen = forceExpand || expanded.has(n.path);
-      const parentDir = n.kind === "dir" ? n.path : dirname(n.path);
-      rows.push(
-        <ContextMenu key={n.path}>
-          <ContextMenuTrigger asChild>
-            <div>
-              <TreeNode
-                node={n}
-                depth={depth}
-                expanded={isOpen}
-                active={n.path === activePath}
-                editing={edit?.kind === "rename" && edit.path === n.path}
-                onToggle={() => toggle(n.path)}
-                onOpen={() => onOpen(n.path)}
-                onCommitName={commitName}
-                onCancelEdit={() => setEdit(null)}
-                onDragStartNode={() => setDrag(n.path)}
-                onDropOnDir={() => void drop(n.path)}
-              />
-            </div>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: parentDir })}>
-              New File
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setEdit({ kind: "new-dir", dir: parentDir })}>
-              New Folder
-            </ContextMenuItem>
-            <ContextMenuSeparator />
-            <ContextMenuItem onSelect={() => setEdit({ kind: "rename", path: n.path })}>
-              Rename
-            </ContextMenuItem>
-            <ContextMenuItem
-              className="text-destructive data-[highlighted]:bg-destructive/15 data-[highlighted]:text-destructive"
-              onSelect={() => void del(n)}
-            >
-              Delete
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>,
-      );
-      if (n.kind === "dir" && isOpen && n.children) walk(n.children, depth + 1);
-    }
-  };
-  walk(shown, 0);
-
   return (
-    <div
-      className="flex h-full w-full flex-col border-r border-border bg-background"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={(e) => {
-        e.preventDefault();
-        void drop(root);
-      }}
-    >
+    <div className="flex h-full w-full flex-col border-r border-border bg-background">
       <div className="flex items-center gap-1 px-2 py-1.5">
         <Search size={12} className="shrink-0 text-text-dim" />
         <input
@@ -304,22 +342,74 @@ export function Explorer({
           )}
         </div>
       ) : (
-        <div role="tree" className="min-h-0 flex-1 overflow-auto py-1">
-          {shown.length === 0 && !edit && (
-            <div className="px-3 py-2 text-text-dim">
-              {nameFilter ? "No files match" : "No files yet"}
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              {...tree.getContainerProps("Files")}
+              className="min-h-0 flex-1 overflow-auto py-1 outline-none"
+            >
+              {shown.length === 0 && !edit && (
+                <div className="px-3 py-2 text-text-dim">
+                  {nameFilter ? "No files match" : "No files yet"}
+                </div>
+              )}
+              {tree.getItems().map((item) => {
+                const n = item.getItemData();
+                const parentDir = n.kind === "dir" ? n.path : dirname(n.path);
+                return (
+                  <ContextMenu key={item.getId()}>
+                    <ContextMenuTrigger asChild>
+                      {/* stopPropagation keeps the panel-level (blank area) menu closed for row clicks */}
+                      <div onContextMenu={(e) => e.stopPropagation()}>
+                        <TreeNode item={item} active={n.path === activePath} />
+                      </div>
+                    </ContextMenuTrigger>
+                    {/* Don't restore focus to the row on close: the freshly mounted
+                        rename/new-name input must keep its autofocus. */}
+                    <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
+                      <ContextMenuItem
+                        onSelect={() => setEdit({ kind: "new-file", dir: parentDir })}
+                      >
+                        New File
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        onSelect={() => setEdit({ kind: "new-dir", dir: parentDir })}
+                      >
+                        New Folder
+                      </ContextMenuItem>
+                      <ContextMenuSeparator />
+                      <ContextMenuItem onSelect={() => item.startRenaming()}>
+                        Rename
+                      </ContextMenuItem>
+                      <ContextMenuItem
+                        className="text-destructive data-[highlighted]:bg-destructive/15 data-[highlighted]:text-destructive"
+                        onSelect={() => void del(n)}
+                      >
+                        Delete
+                      </ContextMenuItem>
+                    </ContextMenuContent>
+                  </ContextMenu>
+                );
+              })}
+              {edit && (
+                <NewRow
+                  ext={ext}
+                  kind={edit.kind}
+                  onCommit={(name) => void commitNew(name)}
+                  onCancel={() => setEdit(null)}
+                />
+              )}
             </div>
-          )}
-          {rows}
-          {edit && edit.kind !== "rename" && (
-            <NewRow
-              ext={ext}
-              kind={edit.kind}
-              onCommit={commitName}
-              onCancel={() => setEdit(null)}
-            />
-          )}
-        </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
+            <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: root })}>
+              New File
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => setEdit({ kind: "new-dir", dir: root })}>
+              New Folder
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
       )}
     </div>
   );

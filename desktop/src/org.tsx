@@ -1,3 +1,4 @@
+import { formatIpcError } from "./errorFormat";
 import {
   createContext,
   useCallback,
@@ -6,10 +7,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
 import { getJson, setJson } from "./store";
 import { getNamespacePolicy } from "./indexSettings";
+import { listOrgs, setTargetOrg } from "./ipc/org";
+import { indexOrg, warmSchema } from "./ipc/schema";
 import type { OrgDto } from "./types";
 
 /** Fire-and-forget index/delta-sync for `org`, scoped by the saved namespace policy. */
@@ -17,9 +19,9 @@ function triggerIndex(org: string) {
   // Cheap, immediate sObject-name cache for FROM completion. Kept separate from
   // index_org below, which only populates that cache as its final step — after a
   // heavy Apex index that can fail/stall on large orgs, leaving FROM empty.
-  void invoke("warm_schema", { org }).catch(() => {});
+  void warmSchema(org).catch(() => {});
   void getNamespacePolicy().then((namespaces) =>
-    invoke("index_org", { org, namespaces }).catch(() => {}),
+    indexOrg(org, namespaces).catch(() => {}),
   );
 }
 
@@ -57,8 +59,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const select = useCallback((username: string) => {
     setSelected(username);
     void setJson(ORG_KEY, username);
-    invoke("set_target_org", { username }).catch((e) => {
-      toast.error(`Failed to switch org: ${typeof e === "string" ? e : String(e)}`);
+    setTargetOrg(username).catch((e) => {
+      toast.error(`Failed to switch org: ${formatIpcError(e)}`);
     });
     triggerIndex(username);
   }, []);
@@ -71,7 +73,7 @@ export function OrgProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     Promise.all([
-      invoke<OrgDto[]>("list_orgs"),
+      listOrgs(),
       getJson<string | null>(ORG_KEY, null),
     ])
       .then(([list, savedOrg]) => {
@@ -79,16 +81,16 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         setOrgs(list);
         // Prefer the last-selected org (if it still exists), else the CLI default.
         const saved = savedOrg ? list.find((o) => o.username === savedOrg) : undefined;
-        const def = saved ?? list.find((o) => o.is_default) ?? list[0];
+        const def = saved ?? list.find((o) => o.isDefault) ?? list[0];
         if (def) {
           setSelected(def.username);
-          void invoke("set_target_org", { username: def.username });
+          void setTargetOrg(def.username);
           triggerIndex(def.username);
         }
       })
       .catch((e) => {
         if (!alive) return;
-        const message = typeof e === "string" ? e : String(e);
+        const message = formatIpcError(e);
         setError(message);
         toast.error(message);
       })

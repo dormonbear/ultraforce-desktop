@@ -6,7 +6,7 @@ import type { Monaco } from "@monaco-editor/react";
 export type HighlightScheme = "sf" | "github" | "monokai" | "dracula";
 
 export const HIGHLIGHT_SCHEMES: { id: HighlightScheme; label: string }[] = [
-  { id: "sf", label: "Salesforce" },
+  { id: "sf", label: "Default" },
   { id: "github", label: "GitHub" },
   { id: "monokai", label: "Monokai" },
   { id: "dracula", label: "Dracula" },

@@ -1,5 +1,7 @@
 set -e
 
+./scripts/check-arch.sh
+
 # Node project lives in desktop/; hook runs from repo root.
 cd desktop
 pnpm exec oxlint src

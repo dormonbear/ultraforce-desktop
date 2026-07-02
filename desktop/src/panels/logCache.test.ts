@@ -4,7 +4,7 @@ import type { LogViewDto } from "../types";
 
 const dto = (raw: string): LogViewDto => ({
   raw,
-  api_version: "60.0",
+  apiVersion: "60.0",
   units: [],
 });
 
