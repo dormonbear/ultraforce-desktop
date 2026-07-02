@@ -169,7 +169,9 @@ export function Explorer({
               />
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent>
+          {/* Don't restore focus to the row on close: the freshly mounted
+              rename/new-name input must keep its autofocus. */}
+          <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
             <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: parentDir })}>
               New File
             </ContextMenuItem>
@@ -337,7 +339,7 @@ export function Explorer({
               )}
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent>
+          <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
             <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: root })}>
               New File
             </ContextMenuItem>
