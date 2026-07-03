@@ -47,7 +47,10 @@ async fn main() {
             std::process::exit(2);
         }
     };
-    let invoker = SfInvoker::new(Arc::new(ProcessRunner));
+    // Heaviest call is fetch_apex_symbols' full ApexClass SymbolTable query (~145s on
+    // a large managed org); the default 120s invoker timeout flakes on it. 300s matches
+    // acquire.rs COMPLETIONS_TIMEOUT. ponytail: bin-level override, not a shared-crate change.
+    let invoker = SfInvoker::new(Arc::new(ProcessRunner)).with_timeout(std::time::Duration::from_secs(300));
     let policy = NamespacePolicy::parse(&args.policy);
 
     let res = if args.sync {
