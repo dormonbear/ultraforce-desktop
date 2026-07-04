@@ -37,6 +37,22 @@ impl SfInvoker {
         parse_envelope(&out.stdout)
     }
 
+    /// Like [`run_json`], but with a per-call timeout — for the rare known-slow
+    /// JSON query (e.g. the full `ApexClass SymbolTable` pull, ~145 s on a large
+    /// managed org) that legitimately exceeds the default bound.
+    pub async fn run_json_with_timeout<T: DeserializeOwned>(
+        &self,
+        args: &[&str],
+        timeout: Duration,
+    ) -> Result<T, SfError> {
+        let mut full: Vec<String> = args.iter().map(|s| s.to_string()).collect();
+        if !full.iter().any(|a| a == "--json") {
+            full.push("--json".to_string());
+        }
+        let out = self.runner.run("sf", &full, timeout).await?;
+        parse_envelope(&out.stdout)
+    }
+
     /// Run `sf <args>` and return raw output (for non-JSON commands like `--version`).
     pub async fn run_raw(&self, args: &[&str]) -> Result<RawOutput, SfError> {
         let full: Vec<String> = args.iter().map(|s| s.to_string()).collect();
