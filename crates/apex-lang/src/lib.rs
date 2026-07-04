@@ -1,6 +1,7 @@
 pub mod acquire;
 pub mod ast;
 pub mod candidate;
+pub mod db;
 pub mod format;
 pub mod snapshot;
 pub mod soql_region;

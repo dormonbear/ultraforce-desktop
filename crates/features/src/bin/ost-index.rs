@@ -1,5 +1,5 @@
-//! Headless OST indexer: writes ultraforce-format index.json + rich per-object
-//! describe per org into a caller-supplied root. Thin shell over the tested
+//! Headless OST indexer: writes ultraforce-format index.db (SQLite) + rich
+//! per-object describe per org into a caller-supplied root. Thin shell over the tested
 //! `features::index::{index_org, sync_org}` — no indexing logic of its own.
 //!
 //! Usage: ost-index --org <alias> --root <dir> [--policy all] [--sync]

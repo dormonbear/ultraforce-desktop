@@ -9,6 +9,7 @@ sf-core = { path = "../sf-core" }
 serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true }
+rusqlite = { workspace = true }
 
 [dev-dependencies]
 sf-core = { path = "../sf-core", features = ["test-util"] }
