@@ -9,6 +9,11 @@ use std::time::Duration;
 /// far longer bound than the default 120 s.
 const COMPLETIONS_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// `SELECT Name, SymbolTable FROM ApexClass` pulls every class's full SymbolTable
+/// (~70 MB / ~145 s observed on a large managed org) — well past the default
+/// 120 s. Matches the completions bound; removes the old bin-level workaround.
+const APEX_SYMBOLS_TIMEOUT: Duration = Duration::from_secs(300);
+
 /// Append `--target-org <org>` unless `org` is empty or the "default" sentinel
 /// (then the CLI's configured default org is used). Keeps OST acquisition pinned
 /// to the SELECTED org instead of whatever the CLI default happens to be.
@@ -52,7 +57,9 @@ pub async fn fetch_apex_symbols(
         ],
         org,
     );
-    let env: QueryEnvelope = invoker.run_json(&args).await?;
+    let env: QueryEnvelope = invoker
+        .run_json_with_timeout(&args, APEX_SYMBOLS_TIMEOUT)
+        .await?;
     Ok(env.records)
 }
 
