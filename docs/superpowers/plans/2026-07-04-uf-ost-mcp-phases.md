@@ -47,8 +47,7 @@
 5. **57 MB raw-cache pollution:** `OstStore` persists raw fetch responses (e.g.
    `<api>/apex-ost/org_types.json`) inside the org dir. In SQLite this moves to
    the `raw_cache` blobs table, out of any query surface.
-6. **Oracle for Phase 3 diffing:** the Node prototype lives at
-   `/Users/dormonzhou/Projects/omni-stack/scripts/ost.mjs` → wait, exact path:
+6. **Oracle for Phase 3 diffing:** the Node prototype is
    `/Users/dormonzhou/Projects/omni-stack/scripts/ost/ost.mjs`, reading
    `/Users/dormonzhou/Projects/omni-stack/db/ost/<alias>/`. A verified JSON
    snapshot for SFDC_Staging exists there (built 2026-07-03) — usable as ground
