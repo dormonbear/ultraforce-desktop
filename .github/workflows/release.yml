@@ -88,3 +88,26 @@ jobs:
           tagName: ${{ needs.release-please.outputs.tag_name }}
           releaseDraft: false   # 必须与 release-please 建的已发布 release 状态一致
           args: ${{ matrix.args }}
+
+      # 额外产出 `uf-ost` MCP 服务器二进制，按 target triple 命名上传到同一 release，
+      # 供 AI agent 免 cargo build 直接下载（README 的 MCP 安装说明引用这些 asset）。
+      - name: Build & upload uf-ost MCP binary
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cargo build --release --locked --bin uf-ost ${{ matrix.args }}
+          triple=$(echo "${{ matrix.args }}" | sed -n 's/.*--target \([^ ]*\).*/\1/p')
+          if [ -z "$triple" ]; then
+            triple=$(rustc -vV | sed -n 's/host: //p')
+            dir="target/release"
+          else
+            dir="target/$triple/release"
+          fi
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "$dir/uf-ost.exe" "uf-ost-$triple.exe"
+            gh release upload "${{ needs.release-please.outputs.tag_name }}" "uf-ost-$triple.exe" --clobber
+          else
+            cp "$dir/uf-ost" "uf-ost-$triple"
+            gh release upload "${{ needs.release-please.outputs.tag_name }}" "uf-ost-$triple" --clobber
+          fi
