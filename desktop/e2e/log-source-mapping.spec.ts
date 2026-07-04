@@ -3,50 +3,32 @@ import { gotoApp } from "./fixtures";
 
 const src = (className: string, line: number | null) => ({ className, line });
 
-// A statement line (USER_DEBUG) inherits its enclosing method's class, so it is
-// now clickable in the tree and jumps to that class — not just method entries.
-test("clicking a statement line in the tree jumps to its inherited class", async ({
+// Opening an org log (list-row select) resolves which raw lines map to Apex
+// source (`source_line_indices`) and makes them clickable; clicking a mapped
+// USER_DEBUG line jumps to its inherited class + line (`source_at_line`). The
+// old dedicated tree tab folded into this raw-view jump.
+const RAW =
+  "67.0 APEX\n16:00:00.0 (20)|METHOD_ENTRY|[5]|01p|MyClass.doWork()\n16:00:00.0 (30)|USER_DEBUG|[8]|DEBUG|hello";
+
+test("clicking a statement line jumps to its inherited class", async ({
   page,
 }) => {
   await gotoApp(page, {
-    parse_log: {
-      raw: "x",
+    get_log: {
+      raw: RAW,
       apiVersion: "60.0",
-      raw_sources: [],
       units: [
-        {
-          tree: [
-            {
-              label: "METHOD_ENTRY",
-              detail: "[5] | 01p | MyClass.doWork()",
-              durNs: 1000,
-              selfNs: 500,
-              source: src("MyClass", 5),
-              children: [
-                {
-                  label: "USER_DEBUG",
-                  detail: "[8] | DEBUG | hello",
-                  durNs: null,
-                  selfNs: null,
-                  source: src("MyClass", 8),
-                  children: [],
-                },
-              ],
-            },
-          ],
-          hotspots: [],
-          statements: [],
-          limits: [],
-          exceptions: [],
-        },
+        { tree: [], hotspots: [], statements: [], limits: [], exceptions: [] },
       ],
     },
+    // The USER_DEBUG line (raw index 2) is clickable and inherits MyClass:8.
+    source_line_indices: [2],
+    source_at_line: src("MyClass", 8),
   });
 
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
-  await page.getByRole("radio", { name: "tree" }).click();
-  await page.getByRole("button", { name: /hello/ }).click();
+  await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
+  await page.getByRole("button", { name: /USER_DEBUG.*hello/ }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading")).toContainText("MyClass");
@@ -54,23 +36,23 @@ test("clicking a statement line in the tree jumps to its inherited class", async
   await expect(dialog.locator(".monaco-editor")).toBeVisible();
 });
 
-// Raw-view lines that map to source are clickable too (via raw_sources).
+// A method-entry raw line maps to source too.
 test("clicking a raw log line jumps to its source", async ({ page }) => {
   await gotoApp(page, {
-    parse_log: {
-      raw: "67.0 APEX\n16:00:00.0 (20)|METHOD_ENTRY|[5]|01p|MyClass.doWork()\n16:00:00.0 (30)|USER_DEBUG|[8]|DEBUG|hello",
+    get_log: {
+      raw: RAW,
       apiVersion: "60.0",
-      raw_sources: [null, src("MyClass", 5), src("MyClass", 8)],
       units: [
         { tree: [], hotspots: [], statements: [], limits: [], exceptions: [] },
       ],
     },
+    source_line_indices: [1],
+    source_at_line: src("MyClass", 5),
   });
 
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
-  // Raw view is the default tab; click the USER_DEBUG line.
-  await page.getByRole("button", { name: /USER_DEBUG.*hello/ }).click();
+  await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
+  await page.getByRole("button", { name: /METHOD_ENTRY.*doWork/ }).click();
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading")).toContainText("MyClass");
