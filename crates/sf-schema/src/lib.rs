@@ -3,6 +3,7 @@
 pub mod model;
 pub mod puller;
 pub mod query;
+pub mod sqlite;
 pub mod store;
 
 pub use model::{ChildRelationship, Field, PicklistValue, SObjectSchema};

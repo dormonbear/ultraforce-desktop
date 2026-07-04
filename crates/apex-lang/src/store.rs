@@ -1,8 +1,15 @@
 use crate::acquire::{fetch_apex_symbols, fetch_completions};
+use crate::db;
 use serde_json::Value;
 use sf_core::{SfError, SfInvoker};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+/// Wrap an I/O-shaped error as `SfError::Spawn` (mirrors sf-schema's
+/// fs-error convention for this store).
+fn io_err(e: impl std::fmt::Display) -> SfError {
+    SfError::Spawn(std::io::Error::other(e.to_string()))
+}
 
 type Key = (String, OstSource);
 
@@ -47,12 +54,9 @@ impl OstStore {
         base.unwrap_or_else(std::env::temp_dir).join("ultraforce")
     }
 
-    pub fn file_path(&self, api_version: &str, source: OstSource) -> PathBuf {
-        self.root
-            .join(sanitize(&self.org_id))
-            .join(sanitize(api_version))
-            .join("apex-ost")
-            .join(format!("{}.json", source.stem()))
+    /// `<root>/<org_id>/index.db`, with separators sanitized.
+    fn db_path(&self) -> PathBuf {
+        self.root.join(sanitize(&self.org_id)).join("index.db")
     }
 
     pub fn get(&self, api_version: &str, source: OstSource) -> Option<&Value> {
@@ -64,11 +68,13 @@ impl OstStore {
         api_version: &str,
         source: OstSource,
     ) -> Result<Option<Value>, SfError> {
-        let path = self.file_path(api_version, source);
-        let raw = match std::fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(SfError::Spawn(e)),
+        let path = self.db_path();
+        if !path.exists() {
+            return Ok(None);
+        }
+        let conn = db::open_apex(&path).map_err(io_err)?;
+        let Some(raw) = db::read_raw(&conn, api_version, source.stem()).map_err(io_err)? else {
+            return Ok(None);
         };
         let value: Value = serde_json::from_str(&raw).map_err(SfError::Parse)?;
         self.mem
@@ -101,12 +107,12 @@ impl OstStore {
 
     pub fn invalidate(&mut self, api_version: &str, source: OstSource) -> Result<(), SfError> {
         self.mem.remove(&Self::key(api_version, source));
-        let path = self.file_path(api_version, source);
-        match std::fs::remove_file(&path) {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(SfError::Spawn(e)),
+        let path = self.db_path();
+        if !path.exists() {
+            return Ok(());
         }
+        let conn = db::open_apex(&path).map_err(io_err)?;
+        db::delete_raw(&conn, api_version, source.stem()).map_err(io_err)
     }
 
     fn key(api_version: &str, source: OstSource) -> Key {
@@ -114,13 +120,9 @@ impl OstStore {
     }
 
     fn persist(&self, api_version: &str, source: OstSource, value: &Value) -> Result<(), SfError> {
-        let path = self.file_path(api_version, source);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(SfError::Spawn)?;
-        }
-        let pretty = serde_json::to_string_pretty(value).map_err(SfError::Parse)?;
-        std::fs::write(&path, pretty).map_err(SfError::Spawn)?;
-        Ok(())
+        let conn = db::open_apex(&self.db_path()).map_err(io_err)?;
+        let body = serde_json::to_string(value).map_err(SfError::Parse)?;
+        db::write_raw(&conn, api_version, source.stem(), &body).map_err(io_err)
     }
 }
 
@@ -235,7 +237,11 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
 
         store.invalidate(API, OstSource::Stdlib).unwrap();
-        assert!(!store.file_path(API, OstSource::Stdlib).exists());
+        let mut fresh = OstStore::new(&root, "00Dorg");
+        assert!(
+            fresh.load_disk(API, OstSource::Stdlib).unwrap().is_none(),
+            "row deleted from db"
+        );
         store
             .get_or_fetch(&invoker, API, OstSource::Stdlib)
             .await

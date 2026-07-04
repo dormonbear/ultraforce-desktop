@@ -51,6 +51,26 @@ const CUSTOM_SUFFIXES: &[&str] = &[
     "__pc",
 ];
 
+/// Fail-loud helper: when `parse_stdlib` finds no namespaces, extract any
+/// error text the raw completions payload carries — either a REST error
+/// array (`[{"errorCode":...,"message":...}]`) or a top-level `error`/
+/// `message` field — falling back to a generic message otherwise.
+fn stdlib_error_message(raw: &serde_json::Value) -> String {
+    if let Some(arr) = raw.as_array() {
+        if let Some(msg) = arr.iter().find_map(|e| e.get("message").and_then(|m| m.as_str())) {
+            return msg.to_string();
+        }
+    }
+    if let Some(msg) = raw
+        .get("message")
+        .or_else(|| raw.get("error"))
+        .and_then(|m| m.as_str())
+    {
+        return msg.to_string();
+    }
+    "stdlib completions returned no namespaces".to_string()
+}
+
 /// The managed-package namespace of an sObject API name, or `None` for standard /
 /// unmanaged names. `ns__Obj__c` → `Some("ns")`; `Obj__c` and `Account` → `None`.
 fn namespace_of(name: &str) -> Option<&str> {
@@ -112,6 +132,11 @@ pub async fn index_org(
         .get_or_fetch(invoker, &api, OstSource::Stdlib)
         .await?;
     let namespaces = parse_stdlib(&stdlib);
+    let stdlib_error = if namespaces.is_empty() {
+        Some(stdlib_error_message(&stdlib))
+    } else {
+        None
+    };
     on_progress(IndexProgress {
         phase: "stdlib",
         done: 1,
@@ -184,6 +209,7 @@ pub async fn index_org(
         namespaces: ost.namespaces.len(),
         classes: class_count,
         sobjects,
+        stdlib_error,
     };
     save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
     on_progress(IndexProgress {
@@ -236,6 +262,7 @@ pub async fn sync_org(
         return Ok((SyncOutcome::default(), Ost::default()));
     };
     let since = manifest.indexed_at.clone();
+    let stdlib_error = manifest.stdlib_error.clone();
     let started_at = now_iso8601();
     let mut outcome = SyncOutcome::default();
 
@@ -295,6 +322,7 @@ pub async fn sync_org(
         namespaces: ost.namespaces.len(),
         classes: class_names.len(),
         sobjects: sobject_names.len(),
+        stdlib_error,
     };
     save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
     Ok((outcome, ost))
@@ -400,6 +428,7 @@ mod tests {
             namespaces: ost.namespaces.len(),
             classes: 0,
             sobjects: 0,
+            stdlib_error: None,
         };
         apex_lang::save_snapshot(root, ost, &m).unwrap();
     }
@@ -658,8 +687,50 @@ mod tests {
             ost.namespaces.iter().any(|n| n.name == "System"),
             "stdlib present"
         );
-        assert!(root.join("myorg/index.json").exists(), "snapshot written");
+        assert!(root.join("myorg/index.db").exists(), "snapshot written");
         assert!(phases.contains(&"sobjects"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn index_records_stdlib_error_when_completions_have_no_namespaces() {
+        let runner = MockRunner::new(|_p, args: &[String]| {
+            let a = args.join(" ");
+            if a.contains("org display") {
+                ok(r#"{"status":0,"result":{"apiVersion":"60.0"}}"#)
+            } else if a.contains("completions") {
+                // No `publicDeclarations` key → parse_stdlib returns no namespaces.
+                ok(r#"{"errorCode":"NOT_FOUND","message":"completions unavailable"}"#)
+            } else if a.contains("ApexClass") {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            } else if a.contains("sobject list") {
+                ok(r#"{"status":0,"result":[]}"#)
+            } else {
+                ok(r#"{"status":0,"result":{"records":[]}}"#)
+            }
+        });
+        let invoker = SfInvoker::new(Arc::new(runner));
+        let root = std::env::temp_dir().join(format!("idx-stdlib-err-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+
+        // Unique org id: `api_version_for` caches process-wide by org id, and
+        // other test modules also use "myorg" with a different mocked version.
+        index_org(
+            &invoker,
+            root.clone(),
+            "org_stdlib_err",
+            &NamespacePolicy::All,
+            &mut |_| {},
+        )
+        .await
+        .unwrap();
+
+        let (_, manifest) = apex_lang::load_snapshot(&root, "org_stdlib_err", "60.0")
+            .expect("snapshot persisted despite stdlib failure");
+        assert_eq!(
+            manifest.stdlib_error,
+            Some("completions unavailable".to_string())
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }

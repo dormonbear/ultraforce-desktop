@@ -403,6 +403,7 @@ async fn e2e_sync_org_noop() {
         namespaces: 0,
         classes: 0,
         sobjects: 0,
+        stdlib_error: None,
     };
     apex_lang::save_snapshot(&root, &seeded, &m).unwrap();
 

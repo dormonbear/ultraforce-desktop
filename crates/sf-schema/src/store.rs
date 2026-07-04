@@ -1,10 +1,17 @@
-//! On-disk + in-memory cache of trimmed object schemas.
+//! On-disk (SQLite) + in-memory cache of trimmed object schemas.
 
 use crate::model::SObjectSchema;
 use crate::puller::describe_object;
+use crate::sqlite;
 use sf_core::{SfError, SfInvoker};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+/// Wrap an I/O-shaped error as `SfError::Spawn` (mirrors the existing
+/// fs-error convention in this store).
+fn io_err(e: impl std::fmt::Display) -> SfError {
+    SfError::Spawn(std::io::Error::other(e.to_string()))
+}
 
 /// In-memory key: `(api_version, lowercased object name)`.
 type Key = (String, String);
@@ -42,11 +49,9 @@ impl SchemaStore {
         (api_version.to_string(), object.to_ascii_lowercase())
     }
 
-    /// `<root>/<org_id>/<api_version>/<object>.json`, with separators sanitized.
-    fn file_path(&self, api_version: &str, object: &str) -> PathBuf {
-        self.org_dir()
-            .join(sanitize(api_version))
-            .join(format!("{}.json", sanitize(object)))
+    /// `<root>/<org_id>/index.db`, with separators sanitized.
+    fn db_path(&self) -> PathBuf {
+        self.org_dir().join("index.db")
     }
 
     /// `<root>/<org_id>`, with separators sanitized.
@@ -59,19 +64,21 @@ impl SchemaStore {
         self.mem.get(&Self::key(api_version, object))
     }
 
-    /// Load a schema from disk into memory. `Ok(None)` if the file is absent.
+    /// Load a schema from disk into memory. `Ok(None)` if no db file or the
+    /// object isn't stored.
     pub fn load_disk(
         &mut self,
         api_version: &str,
         object: &str,
     ) -> Result<Option<SObjectSchema>, SfError> {
-        let path = self.file_path(api_version, object);
-        let raw = match std::fs::read_to_string(&path) {
-            Ok(s) => s,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(SfError::Spawn(e)),
+        let path = self.db_path();
+        if !path.exists() {
+            return Ok(None);
+        }
+        let conn = sqlite::open(&path).map_err(io_err)?;
+        let Some(schema) = sqlite::read_object(&conn, object).map_err(io_err)? else {
+            return Ok(None);
         };
-        let schema: SObjectSchema = serde_json::from_str(&raw).map_err(SfError::Parse)?;
         self.mem
             .insert(Self::key(api_version, object), schema.clone());
         Ok(Some(schema))
@@ -91,7 +98,7 @@ impl SchemaStore {
             return Ok(s);
         }
         let schema = describe_object(invoker, &self.org_id, object).await?;
-        self.persist(api_version, object, &schema)?;
+        self.persist(&schema)?;
         self.mem
             .insert(Self::key(api_version, object), schema.clone());
         Ok(schema)
@@ -146,81 +153,73 @@ impl SchemaStore {
                     (attempted, schemas)
                 });
             }
+            let mut wave_schemas: Vec<SObjectSchema> = Vec::new();
             while let Some(res) = set.join_next().await {
                 let (attempted, schemas) = res.unwrap_or_default();
                 for schema in schemas {
                     let name = schema.name.clone();
-                    let _ = self.persist(api_version, &name, &schema);
                     self.mem
                         .insert(Self::key(api_version, &name), schema.clone());
-                    out.push((name, schema));
+                    out.push((name, schema.clone()));
+                    wave_schemas.push(schema);
                 }
                 done += attempted;
                 on_progress(done, total);
+            }
+            // One connection per wave (not per object) to persist the batch.
+            if !wave_schemas.is_empty() {
+                if let Ok(mut conn) = sqlite::open(&self.db_path()) {
+                    let _ = sqlite::write_objects(&mut conn, &wave_schemas);
+                }
             }
         }
         out
     }
 
-    /// Remove from memory and delete the on-disk file (NotFound is ignored).
+    /// Remove from memory and delete the row on disk (missing db is ignored).
     pub fn invalidate(&mut self, api_version: &str, object: &str) -> Result<(), SfError> {
         self.mem.remove(&Self::key(api_version, object));
-        let path = self.file_path(api_version, object);
-        match std::fs::remove_file(&path) {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(SfError::Spawn(e)),
+        let path = self.db_path();
+        if !path.exists() {
+            return Ok(());
         }
+        let conn = sqlite::open(&path).map_err(io_err)?;
+        sqlite::delete_object(&conn, object).map_err(io_err)
     }
 
     /// Clear this org's in-memory and on-disk schema cache.
     ///
-    /// Returns the number of cached object JSON files removed from disk.
+    /// Returns the number of cached objects removed from disk (before
+    /// deleting `index.db` and its WAL/SHM sidecars).
     pub fn clear(&mut self) -> Result<usize, SfError> {
         self.mem.clear();
-        let dir = self.org_dir();
-        if !dir.exists() {
+        let path = self.db_path();
+        if !path.exists() {
             return Ok(0);
         }
 
-        let removed = count_json_files(&dir)?;
-        std::fs::remove_dir_all(&dir).map_err(SfError::Spawn)?;
+        let removed = {
+            let conn = sqlite::open(&path).map_err(io_err)?;
+            sqlite::count_objects(&conn).map_err(io_err)?
+        };
+        std::fs::remove_file(&path).map_err(SfError::Spawn)?;
+        for ext in ["-wal", "-shm"] {
+            let sidecar = PathBuf::from(format!("{}{ext}", path.display()));
+            let _ = std::fs::remove_file(sidecar);
+        }
         Ok(removed)
     }
 
-    fn persist(
-        &self,
-        api_version: &str,
-        object: &str,
-        schema: &SObjectSchema,
-    ) -> Result<(), SfError> {
-        let path = self.file_path(api_version, object);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(SfError::Spawn)?;
-        }
-        let pretty = serde_json::to_string_pretty(schema).map_err(SfError::Parse)?;
-        std::fs::write(&path, pretty).map_err(SfError::Spawn)?;
-        Ok(())
+    /// Open the db (creating it if absent) and upsert a single schema.
+    fn persist(&self, schema: &SObjectSchema) -> Result<(), SfError> {
+        let conn = sqlite::open(&self.db_path()).map_err(io_err)?;
+        sqlite::upsert_object(&conn, schema).map_err(io_err)
     }
 }
 
 /// Replace path separators so org_id / object can't escape the cache root.
 fn sanitize(s: &str) -> String {
     s.replace(['/', '\\'], "_")
-}
-
-fn count_json_files(dir: &std::path::Path) -> Result<usize, SfError> {
-    let mut count = 0;
-    for entry in std::fs::read_dir(dir).map_err(SfError::Spawn)? {
-        let entry = entry.map_err(SfError::Spawn)?;
-        let path = entry.path();
-        if path.is_dir() {
-            count += count_json_files(&path)?;
-        } else if path.extension().is_some_and(|ext| ext == "json") {
-            count += 1;
-        }
-    }
-    Ok(count)
 }
 
 #[cfg(test)]
@@ -311,8 +310,11 @@ mod tests {
         assert_eq!(calls.load(Ordering::SeqCst), 1);
 
         store.invalidate(API, "Account").unwrap();
-        let path = store.file_path(API, "Account");
-        assert!(!path.exists());
+        let mut fresh = SchemaStore::new(&root, "00Dorg");
+        assert!(
+            fresh.load_disk(API, "Account").unwrap().is_none(),
+            "row deleted from db"
+        );
 
         store.get_or_fetch(&invoker, API, "Account").await.unwrap();
         assert_eq!(calls.load(Ordering::SeqCst), 2);
@@ -326,13 +328,13 @@ mod tests {
         let mut store = SchemaStore::new(&root, "00Dorg");
 
         store.get_or_fetch(&invoker, API, "Account").await.unwrap();
-        let org_dir = root.join("00Dorg");
-        assert!(org_dir.exists());
+        let db_path = root.join("00Dorg/index.db");
+        assert!(db_path.exists());
 
         let removed = store.clear().unwrap();
 
         assert!(removed >= 1, "removed {removed}");
-        assert!(!org_dir.exists());
+        assert!(!db_path.exists());
         assert!(store.get(API, "Account").is_none());
         std::fs::remove_dir_all(&root).ok();
     }
@@ -375,7 +377,11 @@ mod tests {
         assert_eq!(out[0].0, "Account");
         assert_eq!(seen, 1, "progress total reflects requested names");
         assert_eq!(calls.load(Ordering::SeqCst), 1, "one composite call");
-        assert!(root.join("00Dorg/60.0/Account.json").exists(), "persisted");
+        let mut fresh = SchemaStore::new(&root, "00Dorg");
+        assert!(
+            fresh.load_disk(API, "Account").unwrap().is_some(),
+            "persisted"
+        );
 
         // Second call: Account now cached in memory → no further composite call.
         let out2 = store
@@ -386,10 +392,32 @@ mod tests {
         std::fs::remove_dir_all(&root).ok();
     }
 
+    /// Mock that echoes the requested object name as `SObjectSchema.name`
+    /// (parsed from the `-s <object>` arg), so distinct objects don't
+    /// collide in storage keyed by schema name.
+    fn object_named_invoker() -> SfInvoker {
+        let runner = MockRunner::new(|_program, args: &[String]| {
+            let name = args
+                .iter()
+                .position(|a| a == "-s")
+                .and_then(|i| args.get(i + 1))
+                .cloned()
+                .unwrap_or_else(|| "Account".to_string());
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: format!(
+                    r#"{{"status":0,"result":{{"name":"{name}","fields":[],"childRelationships":[]}}}}"#
+                ),
+                stderr: String::new(),
+            })
+        });
+        SfInvoker::new(Arc::new(runner))
+    }
+
     #[tokio::test]
     async fn invalidate_removes_one_object_keeping_siblings() {
         let root = unique_root();
-        let (invoker, _calls) = counting_invoker();
+        let invoker = object_named_invoker();
         let mut store = SchemaStore::new(&root, "00Dorg");
         store.get_or_fetch(&invoker, API, "Account").await.unwrap();
         store.get_or_fetch(&invoker, API, "Contact").await.unwrap();
@@ -400,12 +428,13 @@ mod tests {
             store.get(API, "Account").is_none(),
             "Account evicted from memory"
         );
+        let mut fresh = SchemaStore::new(&root, "00Dorg");
         assert!(
-            !root.join("00Dorg/60.0/Account.json").exists(),
-            "Account file deleted"
+            fresh.load_disk(API, "Account").unwrap().is_none(),
+            "Account row deleted"
         );
         assert!(
-            root.join("00Dorg/60.0/Contact.json").exists(),
+            fresh.load_disk(API, "Contact").unwrap().is_some(),
             "Contact untouched"
         );
         std::fs::remove_dir_all(&root).ok();
