@@ -192,6 +192,10 @@ pub async fn index_org(
             });
         })
         .await;
+    // Persist all described objects in ONE transaction so a concurrent reader
+    // (e.g. the MCP server during an `ost_reindex`) never sees a partial index.
+    let schemas: Vec<_> = described.iter().map(|(_, s)| s.clone()).collect();
+    store.persist_full(&schemas)?;
     let mut sobjects = 0;
     for (_name, schema) in &described {
         org_types.push(schema_to_apex_type(schema));
@@ -289,6 +293,9 @@ pub async fn sync_org(
     let described = schema_store
         .get_or_fetch_many(invoker, &api, &entities, &mut |_, _| {})
         .await;
+    // Upsert only the re-described delta; the rest of the index is untouched.
+    let delta: Vec<_> = described.iter().map(|(_, s)| s.clone()).collect();
+    schema_store.persist_delta(&delta)?;
     for (_name, schema) in &described {
         if upsert(&mut ost.org_types, schema_to_apex_type(schema)) {
             outcome.updated += 1;
