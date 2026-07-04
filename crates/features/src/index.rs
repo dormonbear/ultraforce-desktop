@@ -3,8 +3,7 @@
 use std::path::PathBuf;
 
 use apex_lang::acquire::{
-    fetch_apex_class_names, fetch_changed_apex_classes, fetch_changed_entities, parse_org_types,
-    parse_stdlib,
+    fetch_changed_apex_classes, fetch_changed_entities, parse_org_types, parse_stdlib,
 };
 use apex_lang::store::{OstSource, OstStore};
 use apex_lang::symbols::ApexType;
@@ -267,6 +266,10 @@ pub async fn sync_org(
     };
     let since = manifest.indexed_at.clone();
     let stdlib_error = manifest.stdlib_error.clone();
+    // Full-index counts. Sync is a delta and never re-enumerates the whole org,
+    // so it carries these forward; a full reindex re-establishes true totals.
+    let prev_classes = manifest.classes;
+    let prev_sobjects = manifest.sobjects;
     let started_at = now_iso8601();
     let mut outcome = SyncOutcome::default();
 
@@ -304,31 +307,20 @@ pub async fn sync_org(
         }
     }
 
-    // Deletion reconcile — only when BOTH name lists are non-empty (an empty
-    // list means a failed fetch; never wipe the index on that).
-    let class_names = fetch_apex_class_names(invoker, org_id)
-        .await
-        .unwrap_or_default();
-    let sobject_names = list_sobject_names(invoker, org_id).await;
-    if !class_names.is_empty() && !sobject_names.is_empty() {
-        let live: std::collections::HashSet<String> = class_names
-            .iter()
-            .chain(sobject_names.iter())
-            .map(|n| n.to_ascii_lowercase())
-            .collect();
-        let before = ost.org_types.len();
-        ost.org_types
-            .retain(|t| live.contains(&t.name.to_ascii_lowercase()));
-        outcome.removed = before - ost.org_types.len();
-    }
-
+    // No deletion reconcile. A full index expands each Apex SymbolTable into
+    // org_types — inner and referenced types stored under bare names (~4k here)
+    // that neither the ApexClass name list nor the sObject list enumerates.
+    // Reconciling against those lists therefore silently deleted every expanded
+    // type on each sync (11059 -> 7087 classes observed). Sync only upserts; a
+    // full reindex re-establishes the authoritative type set and drops anything
+    // genuinely removed.
     let manifest = IndexManifest {
         org_id: org_id.to_string(),
         api_version: api,
         indexed_at: started_at,
         namespaces: ost.namespaces.len(),
-        classes: class_names.len(),
-        sobjects: sobject_names.len(),
+        classes: prev_classes,
+        sobjects: prev_sobjects,
         stdlib_error,
     };
     save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
@@ -546,22 +538,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sync_reconciles_deleted_type() {
+    async fn sync_keeps_types_absent_from_the_class_list() {
+        // Regression: a full index expands each SymbolTable into org_types under
+        // bare names (inner + referenced types) the ApexClass query never
+        // returns. The old deletion-reconcile treated those as deleted and wiped
+        // them on every sync (11059 -> 7087 classes). Sync must upsert only.
         let root = std::env::temp_dir().join(format!("sync-del-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let seeded = Ost {
             namespaces: vec![],
             org_types: vec![
                 ApexType {
-                    name: "Keeper".into(),
+                    name: "Keeper".into(), // top-level class
                     ..Default::default()
                 },
                 ApexType {
-                    name: "Account".into(),
+                    name: "InnerHelper".into(), // expanded inner type, not in ApexClass list
                     ..Default::default()
                 },
                 ApexType {
-                    name: "Gone".into(),
+                    name: "Account".into(), // sObject
                     ..Default::default()
                 },
             ],
@@ -587,24 +583,19 @@ mod tests {
         let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_del", &NamespacePolicy::All)
             .await
             .unwrap();
-        assert!(
-            ost.org_types.iter().any(|t| t.name == "Keeper"),
-            "Keeper kept"
-        );
-        assert!(
-            ost.org_types.iter().any(|t| t.name == "Account"),
-            "Account kept"
-        );
-        assert!(
-            !ost.org_types.iter().any(|t| t.name == "Gone"),
-            "Gone removed"
-        );
-        assert_eq!(outcome.removed, 1);
+        for name in ["Keeper", "InnerHelper", "Account"] {
+            assert!(
+                ost.org_types.iter().any(|t| t.name == name),
+                "{name} kept (sync must not reconcile-delete)"
+            );
+        }
+        assert_eq!(outcome.removed, 0, "sync never reconcile-deletes");
         let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
-    async fn sync_skips_reconcile_when_namelist_empty() {
+    async fn sync_with_empty_delta_leaves_index_intact() {
+        // An empty watermark delta must upsert nothing and delete nothing.
         let root = std::env::temp_dir().join(format!("sync-guard-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let seeded = Ost {
@@ -639,7 +630,7 @@ mod tests {
             ost.org_types.iter().any(|t| t.name == "Account"),
             "Account NOT wiped"
         );
-        assert_eq!(outcome.removed, 0, "no reconcile on empty list");
+        assert_eq!(outcome.removed, 0, "sync never deletes");
         let _ = std::fs::remove_dir_all(&root);
     }
 
