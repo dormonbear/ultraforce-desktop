@@ -24,7 +24,7 @@ test("run anonymous Apex success: COMPILED/SUCCESS chips and debug log appear", 
   await openApex(page);
 
   // The RUN button advertises its keyboard shortcut (discoverability).
-  const runBtn = page.getByRole("button", { name: "RUN", exact: true });
+  const runBtn = page.getByRole("button", { name: "Run", exact: true });
   await expect(runBtn).toHaveAttribute("title", /^Run \(/);
 
   await runBtn.click();
@@ -329,9 +329,9 @@ test("closing an unsaved untitled tab offers Undo to restore it", async ({
   await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
 });
 
-// ── 8. SOQL results — TABLE/TREE toggle and row filter ────────────────────
+// ── 8. SOQL results — table renders and the row filter prunes ─────────────
 
-test("SOQL results: TABLE view renders rows, TREE toggle switches view, Filter rows prunes results", async ({
+test("SOQL results: the table renders rows and Filter rows prunes results", async ({
   page,
 }) => {
   await gotoApp(page);
@@ -341,8 +341,10 @@ test("SOQL results: TABLE view renders rows, TREE toggle switches view, Filter r
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
-  // TABLE is the default view — check the row count indicator in the ResultTable toolbar
-  await expect(page.getByText("12 rows", { exact: true })).toBeVisible();
+  // TABLE is the default view — the mocked rows render as cells.
+  await expect(
+    page.getByRole("cell", { name: "Account 0", exact: true }),
+  ).toBeVisible();
 
   // The filter input is in the ResultTable toolbar
   const filter = page.getByPlaceholder("Filter rows…");
@@ -363,11 +365,7 @@ test("SOQL results: TABLE view renders rows, TREE toggle switches view, Filter r
     return text;
   }, { timeout: 4000 }).toMatch(/12/);
 
-  // Switch to TREE view — ToggleGroupItem renders as role="radio"
-  await page.getByRole("radio", { name: /tree/i }).click();
-  // The RecordTree component renders when view === "tree".
-  // The mocked run_soql has tree: [] so we just verify the table toggle is still visible.
-  await expect(page.getByRole("radio", { name: /table/i })).toBeVisible();
+  // (The TABLE/TREE view toggle was removed — results always render as a table.)
 });
 
 // ── 9. Copy a results column to the clipboard ─────────────────────────────
@@ -396,57 +394,47 @@ test("Cmd/Ctrl+1..3 switches between the SOQL / Apex / Logs tools", async ({
   page,
 }) => {
   await gotoApp(page);
-  // Default tool is SOQL.
-  await expect(page.getByLabel("SOQL")).toHaveAttribute("aria-current", "page");
+  // Default tool is SOQL. Labels are exact — the explorer treeitems (e.g.
+  // "accounts.soql") also carry names containing "soql"/"apex".
+  await expect(page.getByLabel("SOQL", { exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.keyboard.press("Control+2");
-  await expect(page.getByLabel("Apex")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByLabel("Apex", { exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.keyboard.press("Control+3");
-  await expect(page.getByLabel("Logs")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByLabel("Logs", { exact: true })).toHaveAttribute("aria-current", "page");
 
   await page.keyboard.press("Control+1");
-  await expect(page.getByLabel("SOQL")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByLabel("SOQL", { exact: true })).toHaveAttribute("aria-current", "page");
 });
 
-// ── 11. Command palette is discoverable from the header ───────────────────
+// ── 11. Sidebar switches the active tool ──────────────────────────────────
 
-test("the header command-palette button opens the palette and runs a command", async ({
+test("the sidebar switches the active tool", async ({ page }) => {
+  // The ⌘K command palette was removed; tool switching is driven from the
+  // sidebar rail (the nav button flips aria-current to the active tool).
+  await gotoApp(page);
+  await page.getByRole("button", { name: "Apex" }).click();
+  await expect(page.getByLabel("Apex", { exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+});
+
+// ── 12. Re-running a query refreshes the inline result ────────────────────
+
+test("re-running a query refreshes the inline result in place", async ({
   page,
 }) => {
-  await gotoApp(page);
-  // The palette (Cmd/Ctrl+K) now has a visible header affordance.
-  await page.getByRole("button", { name: "Command palette" }).click();
-  await expect(page.getByPlaceholder("Search commands...")).toBeVisible();
-
-  // Running a command works: Go to Apex switches the active tool.
-  await page.getByText("Go to Apex").click();
-  await expect(page.getByLabel("Apex")).toHaveAttribute("aria-current", "page");
-});
-
-// ── 12. Run history is searchable and closes on Escape ────────────────────
-
-test("run history filters entries and closes on Escape", async ({ page }) => {
+  // The searchable SOQL run-history drawer was removed; running now renders the
+  // result inline in the query's tab, and re-running just refreshes it.
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
   await page.getByText("RUN", { exact: false }).first().click();
-  await expect(page.getByText(/rows returned/)).toBeVisible();
+  await expect(page.getByText(/12 rows returned/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Run history" }).click();
-  const drawer = page.getByRole("dialog", { name: "Run history" });
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByText(/AnnualRevenue/)).toBeVisible();
-
-  // Filter prunes non-matching entries, then restores on a match.
-  const filter = drawer.getByPlaceholder(/Filter runs/);
-  await filter.fill("zzz-no-match");
-  await expect(drawer.getByText("— no matching runs —")).toBeVisible();
-  await filter.fill("AnnualRevenue");
-  await expect(drawer.getByText(/AnnualRevenue/)).toBeVisible();
-
-  // Escape closes the drawer.
-  await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/12 rows returned/)).toBeVisible();
 });
 
 // ── 13. Empty editor shows a placeholder hint ─────────────────────────────
@@ -518,7 +506,7 @@ test("running an empty query shows a hint and does not call the backend", async 
   await page.getByRole("button", { name: "New query" }).click();
   await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByText("Write a query to run").first()).toBeVisible();
 
   const ran = await page.evaluate(() => {
@@ -547,7 +535,7 @@ test("clicking an Apex compile error jumps the editor cursor to that line", asyn
   });
   const editor = await openApex(page);
   await editor.setValueViaApi("a;\nb;\nc;\nd;");
-  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByText("Unexpected token ';'").first()).toBeVisible();
 
   await page.getByRole("button", { name: /Ln 3:/ }).click();
