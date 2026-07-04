@@ -225,13 +225,15 @@ fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>
 /// Delete an object's rows (objects + fields + fields_fts), case-insensitive
 /// by name. No-op if the object isn't present.
 pub fn delete_object(conn: &Connection, name: &str) -> rusqlite::Result<()> {
-    let object_id: Option<i64> = conn
-        .query_row(
-            "SELECT id FROM objects WHERE name = ?1 COLLATE NOCASE",
-            params![name],
-            |row| row.get(0),
-        )
-        .ok();
+    let object_id: Option<i64> = match conn.query_row(
+        "SELECT id FROM objects WHERE name = ?1 COLLATE NOCASE",
+        params![name],
+        |row| row.get(0),
+    ) {
+        Ok(id) => Some(id),
+        Err(rusqlite::Error::QueryReturnedNoRows) => None,
+        Err(e) => return Err(e),
+    };
     if let Some(object_id) = object_id {
         conn.execute("DELETE FROM fields WHERE object_id = ?1", params![object_id])?;
         conn.execute("DELETE FROM objects WHERE id = ?1", params![object_id])?;
@@ -247,4 +249,84 @@ pub fn delete_object(conn: &Connection, name: &str) -> rusqlite::Result<()> {
 pub fn count_objects(conn: &Connection) -> rusqlite::Result<usize> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM objects", [], |row| row.get(0))?;
     Ok(count as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_db() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("sqlite-fidelity-{}-{nanos}/index.db", std::process::id()))
+    }
+
+    /// The Phase-1 seam: a rich `SObjectSchema` (picklist + referenceTo +
+    /// child relationships) survives write → read byte-for-byte.
+    #[test]
+    fn upsert_then_read_object_roundtrips_full_struct() {
+        let path = temp_db();
+        let conn = open(&path).unwrap();
+        let schema = SObjectSchema {
+            name: "Account".into(),
+            label: "Account".into(),
+            label_plural: "Accounts".into(),
+            key_prefix: Some("001".into()),
+            custom: false,
+            fields: vec![
+                Field {
+                    name: "OwnerId".into(),
+                    label: "Owner ID".into(),
+                    field_type: "reference".into(),
+                    custom: false,
+                    nillable: false,
+                    reference_to: vec!["User".into(), "Group".into()],
+                    relationship_name: Some("Owner".into()),
+                    picklist_values: vec![],
+                },
+                Field {
+                    name: "Type".into(),
+                    label: "Account Type".into(),
+                    field_type: "picklist".into(),
+                    custom: false,
+                    nillable: true,
+                    reference_to: vec![],
+                    relationship_name: None,
+                    picklist_values: vec![
+                        PicklistValue {
+                            label: "Customer".into(),
+                            value: "Customer".into(),
+                            active: true,
+                            default_value: true,
+                        },
+                        PicklistValue {
+                            label: "Partner".into(),
+                            value: "Partner".into(),
+                            active: true,
+                            default_value: false,
+                        },
+                    ],
+                },
+            ],
+            child_relationships: vec![ChildRelationship {
+                child_sobject: "Contact".into(),
+                field: "AccountId".into(),
+                relationship_name: Some("Contacts".into()),
+            }],
+        };
+
+        upsert_object(&conn, &schema).unwrap();
+        let got = read_object(&conn, "account").unwrap().expect("present");
+        assert_eq!(got, schema, "full SObjectSchema round-trips through SQLite");
+
+        // Upsert replaces (no duplicate rows) and read_all_objects agrees.
+        upsert_object(&conn, &schema).unwrap();
+        assert_eq!(count_objects(&conn).unwrap(), 1);
+        assert_eq!(read_all_objects(&conn).unwrap(), vec![schema]);
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
 }
