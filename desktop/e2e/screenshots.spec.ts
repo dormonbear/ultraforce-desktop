@@ -16,7 +16,7 @@ test("soql panel with results", async ({ page }) => {
   await page.getByText("accounts.soql").click();
   const ed = new MonacoEditor(page);
   await ed.setValueViaApi("SELECT Id, Name, Industry FROM Account LIMIT 12");
-  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
   // Drop editor focus + park the cursor off-canvas so neither the blinking
   // caret nor a hover row-highlight is in the shot.
@@ -32,7 +32,7 @@ test("apex panel with debug log", async ({ page }) => {
   await page.getByText("hello.apex").click();
   const ed = new MonacoEditor(page);
   await ed.setValueViaApi("System.debug('Hello, Ultraforce');");
-  await page.getByRole("button", { name: "RUN", exact: true }).click();
+  await page.getByRole("button", { name: "Run", exact: true }).click();
   await expect(page.getByText("COMPILED")).toBeVisible();
   await expect(page.getByText(/USER_DEBUG/).first()).toBeVisible();
   await page.getByText("DEBUG LOG", { exact: false }).first().hover();
