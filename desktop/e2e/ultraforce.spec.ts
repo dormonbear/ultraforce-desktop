@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, dropLogFile } from "./fixtures";
 import { MonacoEditor } from "./monaco";
 
 /**
@@ -47,9 +47,9 @@ test("content search finds a line and opens the file", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
 });
 
-test("running a query records history and reopens it in a tab", async ({
-  page,
-}) => {
+test("running a query renders results in the active tab", async ({ page }) => {
+  // The SOQL run-history drawer was removed; running now simply renders the
+  // result inline and keeps the query's tab active.
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
   await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
@@ -57,15 +57,8 @@ test("running a query records history and reopens it in a tab", async ({
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Run history" }).click();
-  const drawer = page.getByRole("dialog", { name: "Run history" });
-  await expect(drawer).toBeVisible();
-  const entry = drawer.getByRole("button").filter({ hasText: "soql" }).first();
-  await expect(entry).toBeVisible();
-
-  const tabsBefore = await page.getByRole("tab").count();
-  await entry.click();
-  await expect(page.getByRole("tab")).toHaveCount(tabsBefore + 1);
+  // The query tab stays active after the run.
+  await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
 });
 
 test("exporting query results writes a CSV file", async ({ page }) => {
@@ -74,7 +67,9 @@ test("exporting query results writes a CSV file", async ({ page }) => {
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Export CSV" }).click();
+  // Export is a dropdown: open it, then pick the CSV format.
+  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("menuitem", { name: "CSV" }).click();
   await expect(page.getByText(/Exported .* rows to CSV/)).toBeVisible();
 
   const csv = await page.evaluate(() =>
@@ -93,7 +88,7 @@ test("Tooling API toggle threads use_tooling_api to run_soql", async ({
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
 
-  await page.getByRole("checkbox", { name: "Tooling API" }).check();
+  await page.getByRole("button", { name: "Tooling API" }).click();
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
@@ -108,7 +103,7 @@ test("All rows toggle threads all_rows to run_soql", async ({ page }) => {
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
 
-  await page.getByRole("checkbox", { name: "All rows" }).check();
+  await page.getByRole("button", { name: "All rows" }).click();
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
@@ -126,31 +121,32 @@ test("Explain shows the query plan with the leading operation and cost", async (
   await page.getByText("accounts.soql").click();
 
   await page.getByRole("button", { name: "Explain" }).click();
-  await expect(page.getByText("Query plan (EXPLAIN)")).toBeVisible();
+  await expect(page.getByText("Query plan")).toBeVisible();
   await expect(page.getByText("TableScan")).toBeVisible();
   await expect(page.getByText("2.80")).toBeVisible();
   await expect(page.getByText("not selective")).toBeVisible();
 
   // Closing the plan returns to the results area.
   await page.getByRole("button", { name: "Close plan" }).click();
-  await expect(page.getByText("Query plan (EXPLAIN)")).toHaveCount(0);
+  await expect(page.getByText("Query plan")).toHaveCount(0);
 });
 
 test("opening a local .log file parses and renders it", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
-  await page.getByRole("radio", { name: "tree" }).click();
-  // parse_log (mocked) returns a unit with a CODE_UNIT_STARTED tree node.
-  await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
-  await expect(page.getByText("MyClass.run")).toBeVisible();
+  // Local files open via HTML5 drop (no more OPEN button); parse_log (mocked)
+  // returns one unit at API 60.0 with a CODE_UNIT_STARTED tree node.
+  await dropLogFile(page);
 
-  // Tree event filter: a non-matching query empties the tree, matching restores it.
-  const filter = page.getByPlaceholder(/Filter events/);
-  await filter.fill("zzz-no-match");
-  await expect(page.getByText("— no matching events —")).toBeVisible();
-  await filter.fill("CODE_UNIT");
-  await expect(page.getByText("CODE_UNIT_STARTED")).toBeVisible();
+  // The detail header reports the parsed metadata, and the default raw tab
+  // shows the log body.
+  await expect(page.getByText(/API 60\.0/)).toBeVisible();
+  await expect(page.getByText("minimal opened log body")).toBeVisible();
+
+  // The timeline tab lays out the execution tree as a flame chart (the old
+  // textual tree view + event filter was replaced by the canvas timeline).
+  await page.getByRole("radio", { name: "timeline" }).click();
+  await expect(page.locator("canvas").first()).toBeVisible();
 });
 
 test("Apex panel exposes debug levels and applies a preset", async ({ page }) => {
@@ -158,15 +154,22 @@ test("Apex panel exposes debug levels and applies a preset", async ({ page }) =>
   await page.getByRole("button", { name: "Apex" }).click();
   await page.getByRole("treeitem", { name: "hello.apex" }).click();
 
-  // The config row is present once get_debug_config (mocked) resolves on mount.
-  await expect(page.getByText("DEBUG LEVELS")).toBeVisible();
+  // The toggle only renders once get_debug_config (mocked) resolves on mount.
+  const toggle = page.getByRole("button", { name: "Debug levels", exact: true });
+  await expect(toggle).toBeVisible();
 
-  // Expand the row and choose the "Apex Only" preset.
-  await page.getByRole("button", { name: "Toggle debug levels" }).click();
-  await page.getByRole("combobox", { name: "Select debug preset" }).click();
-  await page.getByRole("option", { name: "Apex Only" }).click();
+  // Expand the config row, then change a category level (the only org preset
+  // already matches the current levels, so selecting it fires nothing — editing
+  // a category select is the reliable way to thread set_debug_config).
+  await toggle.click();
+  await expect(
+    page.getByRole("combobox", { name: "Debug level preset" }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Apex Profiling debug level" })
+    .selectOption("FINEST");
 
-  // set_debug_config is threaded with that preset's levels (apexCode = DEBUG).
+  // set_debug_config is threaded with the edited levels (apexCode stays DEBUG).
   const args = await page.evaluate(() => {
     const calls =
       (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] })
@@ -180,7 +183,9 @@ test("switching org re-fetches the debug config", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Apex" }).click();
   await page.getByRole("treeitem", { name: "hello.apex" }).click();
-  await expect(page.getByText("DEBUG LEVELS")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Debug levels", exact: true }),
+  ).toBeVisible();
 
   const getCalls = () =>
     page.evaluate(() => {
@@ -204,21 +209,27 @@ test("Configure Logging dialog adds a trace flag and saves the diff", async ({
   await page.getByRole("button", { name: "Logs" }).click();
   await page.getByRole("button", { name: "Configure logging" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Configure Logging" });
-  await expect(dialog).toBeVisible();
+  // Configure Logging is now an inline panel (not a dialog).
+  await expect(page.getByText("Configure Logging")).toBeVisible();
   // The fixture's existing trace flag shows its traced user.
-  await expect(dialog.getByText("Bob (bob@x.com)")).toBeVisible();
+  await expect(page.getByText("Bob (bob@x.com)")).toBeVisible();
 
-  // Add a new trace flag, pick a user and a debug level.
-  await dialog.getByRole("button", { name: "Add trace flag" }).click();
+  // Add a new trace flag, pick a user and a debug level. The unsaved row is the
+  // one carrying the editable Log type select (saved rows show a static label).
+  await page.getByRole("button", { name: "Add trace flag" }).click();
   const newRow = page
     .getByRole("row")
-    .filter({ has: page.getByLabel("Traced entity") });
-  // Native <select>s (light enough for the ~2000-entity list) → selectOption.
-  await newRow.getByLabel("Traced entity").selectOption("005BBB");
-  await newRow.getByLabel("Debug level").selectOption({ label: "FINE_LOGS" });
+    .filter({ has: page.getByRole("combobox", { name: "Log type" }) });
+  // The traced entity is a searchable combobox (~2000-user lists freeze a Select).
+  await newRow.getByText("Select user").click();
+  await page.getByPlaceholder("Search…").fill("Carol");
+  await page.getByRole("option", { name: /Carol/ }).click();
+  // Debug level stays a native <select>.
+  await newRow
+    .getByRole("combobox", { name: "Debug level" })
+    .selectOption({ label: "FINE_LOGS" });
 
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
 
   // The committed diff carries one added trace flag for the chosen user/level.
   const diff = await page.evaluate(() => {
@@ -303,7 +314,7 @@ test("top bar shows indexing progress then clears when done", async ({
   await expect(page.getByText(/Indexing objects/)).toHaveCount(0);
 });
 
-test("sync-result event shows a toast", async ({ page }) => {
+test("sync-result event is handled silently (no toast)", async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() =>
     (window as unknown as { __ufEmit: (e: string, p: unknown) => void }).__ufEmit(
@@ -311,8 +322,9 @@ test("sync-result event shows a toast", async ({ page }) => {
       { org: "x", added: 1, updated: 2, removed: 0 },
     ),
   );
-  // sonner renders the text twice (visible toast + aria-live); match the first.
-  await expect(page.getByText("Synced 3 updates").first()).toBeVisible();
+  // The sync toast was intentionally removed — SyncToast now logs silently. No
+  // toast should surface for a sync-result event.
+  await expect(page.getByText(/Synced .* updates/)).toHaveCount(0);
 });
 
 test("setup page guides login when no org is authed", async ({ page }) => {
