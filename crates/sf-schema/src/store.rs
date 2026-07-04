@@ -51,12 +51,7 @@ impl SchemaStore {
 
     /// `<root>/<org_id>/index.db`, with separators sanitized.
     fn db_path(&self) -> PathBuf {
-        self.org_dir().join("index.db")
-    }
-
-    /// `<root>/<org_id>`, with separators sanitized.
-    fn org_dir(&self) -> PathBuf {
-        self.root.join(sanitize(&self.org_id))
+        sqlite::db_path(&self.root, &self.org_id)
     }
 
     /// Look up a schema in memory only.
@@ -105,10 +100,13 @@ impl SchemaStore {
     }
 
     /// Batch variant: describe the cache-miss `names` via the Composite REST
-    /// API (25 per call, up to 4 calls concurrently), persist each, and return
-    /// every `(name, schema)` (cached + freshly described). `on_progress` is
-    /// called with `(done, total)` after the initial cache scan and after each
-    /// completed composite call. Objects that fail to describe are dropped.
+    /// API (25 per call, up to 4 calls concurrently) and return every
+    /// `(name, schema)` (cached + freshly described). Fills the in-memory cache
+    /// but does NOT persist — the caller owns persistence so a full index can
+    /// commit atomically (`persist_full`) while a delta upserts (`persist_delta`).
+    /// `on_progress` is called with `(done, total)` after the initial cache scan
+    /// and after each completed composite call. Objects that fail to describe
+    /// are dropped.
     pub async fn get_or_fetch_many(
         &mut self,
         invoker: &SfInvoker,
@@ -153,27 +151,34 @@ impl SchemaStore {
                     (attempted, schemas)
                 });
             }
-            let mut wave_schemas: Vec<SObjectSchema> = Vec::new();
             while let Some(res) = set.join_next().await {
                 let (attempted, schemas) = res.unwrap_or_default();
                 for schema in schemas {
                     let name = schema.name.clone();
                     self.mem
                         .insert(Self::key(api_version, &name), schema.clone());
-                    out.push((name, schema.clone()));
-                    wave_schemas.push(schema);
+                    out.push((name, schema));
                 }
                 done += attempted;
                 on_progress(done, total);
             }
-            // One connection per wave (not per object) to persist the batch.
-            if !wave_schemas.is_empty() {
-                if let Ok(mut conn) = sqlite::open(&self.db_path()) {
-                    let _ = sqlite::write_objects(&mut conn, &wave_schemas);
-                }
-            }
         }
         out
+    }
+
+    /// Persist a full generation atomically: wipe and rewrite every object in
+    /// one transaction. For the full-index path, where a background reindex
+    /// must never expose a partial generation to concurrent readers.
+    pub fn persist_full(&self, schemas: &[SObjectSchema]) -> Result<(), SfError> {
+        let mut conn = sqlite::open(&self.db_path()).map_err(io_err)?;
+        sqlite::replace_all_objects(&mut conn, schemas).map_err(io_err)
+    }
+
+    /// Upsert a delta (only the changed objects) in one transaction, leaving the
+    /// rest of the index intact. For the incremental `sync_org` path.
+    pub fn persist_delta(&self, schemas: &[SObjectSchema]) -> Result<(), SfError> {
+        let mut conn = sqlite::open(&self.db_path()).map_err(io_err)?;
+        sqlite::write_objects(&mut conn, schemas).map_err(io_err)
     }
 
     /// Remove from memory and delete the row on disk (missing db is ignored).
@@ -215,11 +220,6 @@ impl SchemaStore {
         let conn = sqlite::open(&self.db_path()).map_err(io_err)?;
         sqlite::upsert_object(&conn, schema).map_err(io_err)
     }
-}
-
-/// Replace path separators so org_id / object can't escape the cache root.
-fn sanitize(s: &str) -> String {
-    s.replace(['/', '\\'], "_")
 }
 
 #[cfg(test)]
@@ -377,10 +377,18 @@ mod tests {
         assert_eq!(out[0].0, "Account");
         assert_eq!(seen, 1, "progress total reflects requested names");
         assert_eq!(calls.load(Ordering::SeqCst), 1, "one composite call");
+        // get_or_fetch_many no longer persists — the caller does.
+        let mut fresh = SchemaStore::new(&root, "00Dorg");
+        assert!(
+            fresh.load_disk(API, "Account").unwrap().is_none(),
+            "not persisted until caller persists"
+        );
+        let schemas: Vec<_> = out.iter().map(|(_, s)| s.clone()).collect();
+        store.persist_full(&schemas).unwrap();
         let mut fresh = SchemaStore::new(&root, "00Dorg");
         assert!(
             fresh.load_disk(API, "Account").unwrap().is_some(),
-            "persisted"
+            "persisted after persist_full",
         );
 
         // Second call: Account now cached in memory → no further composite call.

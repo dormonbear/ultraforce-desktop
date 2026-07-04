@@ -77,3 +77,57 @@ pub fn delete_raw(conn: &Connection, api_version: &str, source: &str) -> rusqlit
     )?;
     Ok(())
 }
+
+/// The `meta` row: index provenance + counts + the fail-loud `stdlib_error`.
+/// Read cheaply on every MCP tool call to stamp the org + snapshot freshness.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Meta {
+    pub schema_version: i64,
+    pub alias: String,
+    pub org_id: String,
+    pub api_version: String,
+    pub indexed_at: String,
+    pub generation: i64,
+    pub namespaces: i64,
+    pub classes: i64,
+    pub sobjects: i64,
+    pub stdlib_error: Option<String>,
+}
+
+/// Read the single `meta` row, or `None` if the index is empty/uninitialized.
+pub fn read_meta(conn: &Connection) -> rusqlite::Result<Option<Meta>> {
+    conn.query_row(
+        "SELECT schema_version, alias, org_id, api_version, indexed_at, generation,
+                namespaces, classes, sobjects, stdlib_error
+         FROM meta WHERE id = 1",
+        [],
+        |row| {
+            Ok(Meta {
+                schema_version: row.get(0)?,
+                alias: row.get(1)?,
+                org_id: row.get(2)?,
+                api_version: row.get(3)?,
+                indexed_at: row.get(4)?,
+                generation: row.get(5)?,
+                namespaces: row.get(6)?,
+                classes: row.get(7)?,
+                sobjects: row.get(8)?,
+                stdlib_error: row.get(9)?,
+            })
+        },
+    )
+    .map(Some)
+    .or_else(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => Ok(None),
+        e => Err(e),
+    })
+}
+
+/// FTS5 fuzzy match over Apex type names. `query` is a raw FTS5 MATCH
+/// expression (the caller tokenizes user input). Returns matching type names.
+pub fn search_apex(conn: &Connection, query: &str, limit: usize) -> rusqlite::Result<Vec<String>> {
+    let mut stmt =
+        conn.prepare("SELECT type_name FROM apex_fts WHERE apex_fts MATCH ?1 LIMIT ?2")?;
+    let rows = stmt.query_map(params![query, limit as i64], |row| row.get(0))?;
+    rows.collect()
+}

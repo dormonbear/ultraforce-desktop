@@ -4,8 +4,24 @@
 //! same file, in separate transactions over their own tables).
 
 use crate::model::{ChildRelationship, Field, PicklistValue, SObjectSchema};
-use rusqlite::{params, Connection};
-use std::path::Path;
+use rusqlite::{params, Connection, OpenFlags};
+use std::path::{Path, PathBuf};
+
+/// Replace path separators so an org alias can't escape the cache root.
+pub fn sanitize(org: &str) -> String {
+    org.replace(['/', '\\'], "_")
+}
+
+/// The org's unified `index.db`: `<root>/<sanitized-alias>/index.db`.
+pub fn db_path(root: &Path, org: &str) -> PathBuf {
+    root.join(sanitize(org)).join("index.db")
+}
+
+/// Open an existing `index.db` read-only (no schema creation, no WAL switch) —
+/// the query path for readers that must not contend with a running reindex.
+pub fn open_readonly(path: &Path) -> rusqlite::Result<Connection> {
+    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+}
 
 /// Open (creating parent dirs as needed) the org's unified `index.db`, enable
 /// WAL mode, and ensure sf-schema's tables exist. Shared opener for apex-lang.
@@ -99,6 +115,40 @@ pub fn write_objects(conn: &mut Connection, objects: &[SObjectSchema]) -> rusqli
         upsert_object(&tx, schema)?;
     }
     tx.commit()
+}
+
+/// Full-generation swap in ONE transaction: wipe every object/field/fts row,
+/// then insert all of `objects`. A concurrent WAL reader sees the whole old
+/// generation until commit, then the whole new one — never a partial index.
+/// This is the single-transaction guarantee a background reindex relies on.
+pub fn replace_all_objects(
+    conn: &mut Connection,
+    objects: &[SObjectSchema],
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    tx.execute_batch("DELETE FROM fields; DELETE FROM objects; DELETE FROM fields_fts;")?;
+    for schema in objects {
+        upsert_object(&tx, schema)?;
+    }
+    tx.commit()
+}
+
+/// FTS5 fuzzy match over object/field names + labels. `query` is a raw FTS5
+/// MATCH expression (the caller tokenizes user input). Returns
+/// `(object_name, field_name, field_label)` rows, newest-inserted last.
+pub fn search_fields(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<(String, String, String)>> {
+    let mut stmt = conn.prepare(
+        "SELECT object_name, field_name, field_label FROM fields_fts
+         WHERE fields_fts MATCH ?1 LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![query, limit as i64], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+    })?;
+    rows.collect()
 }
 
 /// Look up an object by name (case-insensitive), reconstructing its fields in
@@ -243,6 +293,27 @@ pub fn delete_object(conn: &Connection, name: &str) -> rusqlite::Result<()> {
         params![name],
     )?;
     Ok(())
+}
+
+/// Every object carrying a field named `field_name` (case-insensitive), with
+/// that field's type and custom flag. Powers cross-org drift checks.
+pub fn find_field(
+    conn: &Connection,
+    field_name: &str,
+) -> rusqlite::Result<Vec<(String, String, bool)>> {
+    let mut stmt = conn.prepare(
+        "SELECT o.name, f.type, f.custom FROM fields f
+         JOIN objects o ON o.id = f.object_id
+         WHERE f.name = ?1 COLLATE NOCASE ORDER BY o.name",
+    )?;
+    let rows = stmt.query_map(params![field_name], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)? != 0,
+        ))
+    })?;
+    rows.collect()
 }
 
 /// Count of objects currently stored.

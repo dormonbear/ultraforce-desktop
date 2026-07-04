@@ -117,6 +117,7 @@ crates/
   apex-lang/    Apex symbol model, OST acquisition (stdlib + org classes), snapshot persistence
   log-parser/   debug-log parsing
   features/     orchestration: completion, anonymous Apex, indexing, delta-sync
+  uf-ost/       headless indexer + `ultraforce` MCP server (ost_* tools) over the SQLite index
 desktop/
   src/          React 19 + Vite + Tailwind v4 + Monaco frontend
   src-tauri/    Tauri 2 shell exposing the Rust features as commands
@@ -128,6 +129,37 @@ real-org end-to-end tests (`#[ignore]` by default) runs against an authenticated
 dev org.
 
 </details>
+
+## Use your org in your AI agent (MCP)
+
+The same offline index powers an MCP server, so an AI coding agent can ask about
+your org's **real** schema and Apex symbols instead of guessing field API names,
+inventing picklist values, or triggering the ~145 s live SymbolTable query.
+
+```bash
+# Index an org once (headless; also runnable from launchd/cron):
+cargo run -p uf-ost -- index --org <alias>
+
+# Then point your agent's MCP config at:
+cargo run -p uf-ost -- serve      # stdio; server name "ultraforce"
+```
+
+Eight `ost_*` tools: `ost_object`, `ost_field` (cross-org drift), `ost_picklist`,
+`ost_apex`, `ost_search` (FTS), `ost_status`, `ost_sync` (synchronous delta), and
+`ost_reindex` (async full rebuild). Every response is stamped with the org alias
+and the snapshot's age. The bundled [`skills/ost`](skills/ost/SKILL.md) teaches
+the retrieval discipline (verify freshness → sync → reindex + fall back to live
+`sf`).
+
+- **Storage:** one SQLite `index.db` per org under `<cache>/ultraforce/<alias>/`
+  (`$XDG_CACHE_HOME` / `~/.cache` / `%LOCALAPPDATA%`), overridable with `--root`
+  or `UF_OST_ROOT`. WAL mode, so the MCP server reads a consistent snapshot while
+  a reindex writes.
+- **Org IP:** the index contains your org's describe output. It stays local and
+  is never committed — treat the cache dir as sensitive.
+- **API consumption:** a full reindex pulls ~4–5k object describes plus the heavy
+  `ApexClass` SymbolTable query. Prefer `ost_sync` (cheap watermark delta);
+  reindex only when staleness is broad.
 
 ## Development
 

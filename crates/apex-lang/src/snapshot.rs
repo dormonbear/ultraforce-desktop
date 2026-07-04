@@ -245,6 +245,51 @@ fn read_ost(conn: &Connection) -> rusqlite::Result<Ost> {
     })
 }
 
+/// Read a single Apex type by name (case-insensitive) with its members, plus
+/// its namespace (`None` for an org type, else the stdlib namespace). The
+/// targeted read behind `ost_apex` — avoids parsing the whole OST per query.
+pub fn read_apex_type(
+    conn: &Connection,
+    name: &str,
+) -> rusqlite::Result<Option<(Option<String>, ApexType)>> {
+    let row = conn.query_row(
+        "SELECT id, name, kind, namespace, parent_class, interfaces, enum_values
+         FROM apex_types WHERE name = ?1 COLLATE NOCASE",
+        params![name],
+        |row| {
+            Ok(TypeRow {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                kind: row.get(2)?,
+                namespace: row.get(3)?,
+                parent_class: row.get(4)?,
+                interfaces: row.get(5)?,
+                enum_values: row.get(6)?,
+            })
+        },
+    );
+    let row = match row {
+        Ok(r) => r,
+        Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let interfaces: Vec<String> = serde_json::from_str(&row.interfaces)
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    let enum_values: Vec<String> = serde_json::from_str(&row.enum_values)
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    let (methods, properties) = read_members(conn, row.id)?;
+    let ty = ApexType {
+        name: row.name,
+        kind: kind_from_str(&row.kind),
+        parent_class: row.parent_class,
+        interfaces,
+        methods,
+        properties,
+        enum_values,
+    };
+    Ok(Some((row.namespace, ty)))
+}
+
 fn read_members(conn: &Connection, type_id: i64) -> rusqlite::Result<(Vec<Method>, Vec<Property>)> {
     let mut stmt = conn.prepare(
         "SELECT kind, name, type_text, params, is_static FROM apex_members
