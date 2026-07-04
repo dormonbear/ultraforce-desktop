@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, dropLogFile } from "./fixtures";
 
 const leaf = (label: string, dur: number) => ({
   label,
@@ -9,15 +9,13 @@ const leaf = (label: string, dur: number) => ({
   children: [] as unknown[],
 });
 
-// The Tree view auto-expands the hot path (dominant-duration children) and
-// starts cheap branches collapsed, so the bottleneck chain is visible without
-// drowning in noise. Branches stay manually toggdleable.
-test("Tree auto-expands the hot path, collapses cheap branches, toggles", async ({
-  page,
-}) => {
+// The execution tree is visualized as a flame timeline (the old collapsible
+// DOM tree with per-branch Expand toggles was replaced by the canvas flame
+// chart). A non-trivial nested tree must produce a rendered flame canvas rather
+// than the "No execution tree" empty state.
+test("execution tree renders as a flame timeline", async ({ page }) => {
   await gotoApp(page, {
     parse_log: {
-      raw: "x",
       apiVersion: "60.0",
       units: [
         {
@@ -43,14 +41,11 @@ test("Tree auto-expands the hot path, collapses cheap branches, toggles", async 
   });
 
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
-  await page.getByRole("radio", { name: "tree" }).click();
+  await dropLogFile(page);
+  await page.getByRole("radio", { name: "timeline" }).click();
 
-  // Hot path is expanded; the cheap branch's child is hidden.
-  await expect(page.getByText("DEEP")).toBeVisible();
-  await expect(page.getByText("HIDDEN")).toHaveCount(0);
-
-  // The only collapsed parent is COLD → its single "Expand" chevron reveals it.
-  await page.getByRole("button", { name: "Expand" }).click();
-  await expect(page.getByText("HIDDEN")).toBeVisible();
+  await expect(page.locator("canvas").first()).toBeVisible();
+  await expect(page.getByText("No execution tree")).toHaveCount(0);
+  // Flame-chart affordances confirm the tree was laid out (not the empty state).
+  await expect(page.getByRole("button", { name: "Reset zoom" })).toBeVisible();
 });

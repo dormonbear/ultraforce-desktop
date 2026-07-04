@@ -201,6 +201,11 @@ const RESP: Record<string, unknown> = {
     { label: "@IsTest", kind: "keyword" },
   ],
   apex_signature_help: null,
+  // Raw-line source resolution (LogView jump-to-source). Empty by default;
+  // tests exercising the jump override these with the clickable line indices
+  // and the resolved source location.
+  source_line_indices: [],
+  source_at_line: null,
   soql_diagnostics: [],
   apex_soql_diagnostics: [],
   apex_diagnostics: [],
@@ -301,7 +306,13 @@ async function installMocks(
       if (cmd === "plugin:fs|read_dir") {
         return Promise.resolve(dirs[(args.path as string)] ?? []);
       }
-      if (cmd === "plugin:fs|exists") return Promise.resolve(true);
+      if (cmd === "plugin:fs|exists") {
+        // Report the on-disk log cache as absent so selecting a list row
+        // resolves the body through `get_log` (the org-download path) rather
+        // than reading an empty cached file.
+        const p = (args.path as string) ?? "";
+        return Promise.resolve(!p.includes("logcache"));
+      }
       if (cmd === "plugin:fs|mkdir") return Promise.resolve(null);
       if (cmd === "plugin:fs|read_text_file" || cmd === "plugin:fs|read_file") {
         const text = files[args.path as string] ?? "";
@@ -344,6 +355,22 @@ async function installMocks(
     },
     { resp: { ...RESP, ...overrides }, dirs: FAKE_DIRS, files: FAKE_FILES },
   );
+}
+
+/** Open a local log by simulating an OS file drag-drop onto the window. The
+ * Logs panel's `useLogDragDrop` listens for HTML5 `drop` events carrying a
+ * `.log` file and parses the body via `parse_log` (the orgless path). Call
+ * after the Logs panel is mounted (i.e. after clicking the "Logs" tool). */
+export async function dropLogFile(page: Page, body = "sample log body"): Promise<void> {
+  await page.evaluate((text) => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([text], "sample.log", { type: "text/plain" }));
+    const fire = (type: string) =>
+      window.dispatchEvent(new DragEvent(type, { dataTransfer: dt, bubbles: true }));
+    fire("dragenter");
+    fire("dragover");
+    fire("drop");
+  }, body);
 }
 
 /** Install mocks, navigate to the dev server, and wait for the app to settle.

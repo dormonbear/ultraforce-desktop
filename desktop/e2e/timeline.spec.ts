@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, dropLogFile } from "./fixtures";
 
 // Smoke test: the Timeline tab (flame chart) renders a canvas once a log is
 // opened. Same log-open steps as log-source-mapping.spec.ts (default fixtures
@@ -7,7 +7,7 @@ import { gotoApp } from "./fixtures";
 test("timeline tab renders a flame canvas", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Logs" }).click();
-  await page.getByRole("button", { name: "OPEN" }).click();
+  await dropLogFile(page);
 
   await page.getByRole("radio", { name: "timeline" }).click();
 
