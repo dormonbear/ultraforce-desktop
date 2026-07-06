@@ -3,7 +3,7 @@
 //! `open()` helper that apex-lang's `db` module reuses (both crates write the
 //! same file, in separate transactions over their own tables).
 
-use crate::model::{ChildRelationship, Field, PicklistValue, SObjectSchema};
+use crate::model::{Field, SObjectSchema};
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
@@ -44,7 +44,8 @@ pub fn ensure_object_schema(conn: &Connection) -> rusqlite::Result<()> {
           id INTEGER PRIMARY KEY,
           name TEXT NOT NULL, label TEXT NOT NULL, label_plural TEXT NOT NULL,
           key_prefix TEXT, custom INTEGER NOT NULL,
-          child_relationships TEXT NOT NULL
+          child_relationships TEXT NOT NULL,
+          record_type_infos TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS fields (
           object_id INTEGER NOT NULL,
@@ -52,7 +53,11 @@ pub fn ensure_object_schema(conn: &Connection) -> rusqlite::Result<()> {
           custom INTEGER NOT NULL, nillable INTEGER NOT NULL,
           reference_to TEXT NOT NULL,
           relationship_name TEXT,
-          picklist TEXT NOT NULL
+          picklist TEXT NOT NULL,
+          controller_name TEXT, dependent_picklist INTEGER NOT NULL,
+          calculated INTEGER NOT NULL, calculated_formula TEXT,
+          default_value_formula TEXT, length INTEGER NOT NULL,
+          is_unique INTEGER NOT NULL, restricted_picklist INTEGER NOT NULL
         );
         CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(object_name, field_name, field_label);
         ",
@@ -66,9 +71,11 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
 
     let child_relationships = serde_json::to_string(&s.child_relationships)
         .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    let record_type_infos = serde_json::to_string(&s.record_type_infos)
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
     conn.execute(
-        "INSERT INTO objects (name, label, label_plural, key_prefix, custom, child_relationships)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO objects (name, label, label_plural, key_prefix, custom, child_relationships, record_type_infos)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
         params![
             s.name,
             s.label,
@@ -76,6 +83,7 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
             s.key_prefix,
             s.custom as i64,
             child_relationships,
+            record_type_infos,
         ],
     )?;
     let object_id = conn.last_insert_rowid();
@@ -86,8 +94,10 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
         let picklist = serde_json::to_string(&field.picklist_values)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
         conn.execute(
-            "INSERT INTO fields (object_id, name, label, type, custom, nillable, reference_to, relationship_name, picklist)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO fields (object_id, name, label, type, custom, nillable, reference_to, relationship_name, picklist,
+                                 controller_name, dependent_picklist, calculated, calculated_formula,
+                                 default_value_formula, length, is_unique, restricted_picklist)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
             params![
                 object_id,
                 field.name,
@@ -98,6 +108,14 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
                 reference_to,
                 field.relationship_name,
                 picklist,
+                field.controller_name,
+                field.dependent_picklist as i64,
+                field.calculated as i64,
+                field.calculated_formula,
+                field.default_value_formula,
+                field.length,
+                field.unique as i64,
+                field.restricted_picklist as i64,
             ],
         )?;
         conn.execute(
@@ -164,11 +182,10 @@ pub fn search_fields(
 /// insertion order.
 pub fn read_object(conn: &Connection, name: &str) -> rusqlite::Result<Option<SObjectSchema>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, label, label_plural, key_prefix, custom, child_relationships
+        "SELECT id, name, label, label_plural, key_prefix, custom, child_relationships, record_type_infos
          FROM objects WHERE name = ?1 COLLATE NOCASE",
     )?;
     let row = stmt.query_row(params![name], |row| {
-        let child_relationships_json: String = row.get(6)?;
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, String>(1)?,
@@ -176,36 +193,58 @@ pub fn read_object(conn: &Connection, name: &str) -> rusqlite::Result<Option<SOb
             row.get::<_, String>(3)?,
             row.get::<_, Option<String>>(4)?,
             row.get::<_, i64>(5)?,
-            child_relationships_json,
+            row.get::<_, String>(6)?,
+            row.get::<_, String>(7)?,
         ))
     });
-    let (object_id, name, label, label_plural, key_prefix, custom, child_relationships_json) =
-        match row {
-            Ok(v) => v,
-            Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
-            Err(e) => return Err(e),
-        };
-    let child_relationships: Vec<ChildRelationship> =
-        serde_json::from_str(&child_relationships_json)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    let (object_id, name, label, label_plural, key_prefix, custom, child_json, rt_json) = match row {
+        Ok(v) => v,
+        Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+        Err(e) => return Err(e),
+    };
 
-    let fields = read_fields(conn, object_id)?;
+    Ok(Some(build_object(
+        conn,
+        object_id,
+        name,
+        label,
+        label_plural,
+        key_prefix,
+        custom,
+        &child_json,
+        &rt_json,
+    )?))
+}
 
-    Ok(Some(SObjectSchema {
+/// Reconstruct an `SObjectSchema` from an objects row + its fields.
+#[allow(clippy::too_many_arguments)]
+fn build_object(
+    conn: &Connection,
+    object_id: i64,
+    name: String,
+    label: String,
+    label_plural: String,
+    key_prefix: Option<String>,
+    custom: i64,
+    child_json: &str,
+    rt_json: &str,
+) -> rusqlite::Result<SObjectSchema> {
+    Ok(SObjectSchema {
         name,
         label,
         label_plural,
         key_prefix,
         custom: custom != 0,
-        fields,
-        child_relationships,
-    }))
+        fields: read_fields(conn, object_id)?,
+        child_relationships: json_col(child_json)?,
+        record_type_infos: json_col(rt_json)?,
+    })
 }
 
 /// Every object, ordered by insertion (`id`), each with its fields.
 pub fn read_all_objects(conn: &Connection) -> rusqlite::Result<Vec<SObjectSchema>> {
     let mut stmt = conn.prepare(
-        "SELECT id, name, label, label_plural, key_prefix, custom, child_relationships
+        "SELECT id, name, label, label_plural, key_prefix, custom, child_relationships, record_type_infos
          FROM objects ORDER BY id",
     )?;
     let rows = stmt.query_map([], |row| {
@@ -217,68 +256,61 @@ pub fn read_all_objects(conn: &Connection) -> rusqlite::Result<Vec<SObjectSchema
             row.get::<_, Option<String>>(4)?,
             row.get::<_, i64>(5)?,
             row.get::<_, String>(6)?,
-        ))
-    })?;
-
-    let mut out = Vec::new();
-    for row in rows {
-        let (object_id, name, label, label_plural, key_prefix, custom, child_relationships_json) =
-            row?;
-        let child_relationships: Vec<ChildRelationship> =
-            serde_json::from_str(&child_relationships_json)
-                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        let fields = read_fields(conn, object_id)?;
-        out.push(SObjectSchema {
-            name,
-            label,
-            label_plural,
-            key_prefix,
-            custom: custom != 0,
-            fields,
-            child_relationships,
-        });
-    }
-    Ok(out)
-}
-
-fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>> {
-    let mut stmt = conn.prepare(
-        "SELECT name, label, type, custom, nillable, reference_to, relationship_name, picklist
-         FROM fields WHERE object_id = ?1 ORDER BY rowid",
-    )?;
-    let rows = stmt.query_map(params![object_id], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-            row.get::<_, i64>(3)?,
-            row.get::<_, i64>(4)?,
-            row.get::<_, String>(5)?,
-            row.get::<_, Option<String>>(6)?,
             row.get::<_, String>(7)?,
         ))
     })?;
 
     let mut out = Vec::new();
     for row in rows {
-        let (name, label, field_type, custom, nillable, reference_to_json, relationship_name, picklist_json) =
-            row?;
-        let reference_to: Vec<String> = serde_json::from_str(&reference_to_json)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        let picklist_values: Vec<PicklistValue> = serde_json::from_str(&picklist_json)
-            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
-        out.push(Field {
+        let (object_id, name, label, label_plural, key_prefix, custom, child_json, rt_json) = row?;
+        out.push(build_object(
+            conn,
+            object_id,
             name,
             label,
-            field_type,
-            custom: custom != 0,
-            nillable: nillable != 0,
-            reference_to,
-            relationship_name,
-            picklist_values,
-        });
+            label_plural,
+            key_prefix,
+            custom,
+            &child_json,
+            &rt_json,
+        )?);
     }
     Ok(out)
+}
+
+fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>> {
+    let mut stmt = conn.prepare(
+        "SELECT name, label, type, custom, nillable, reference_to, relationship_name, picklist,
+                controller_name, dependent_picklist, calculated, calculated_formula,
+                default_value_formula, length, is_unique, restricted_picklist
+         FROM fields WHERE object_id = ?1 ORDER BY rowid",
+    )?;
+    let rows = stmt.query_map(params![object_id], |row| {
+        Ok(Field {
+            name: row.get(0)?,
+            label: row.get(1)?,
+            field_type: row.get(2)?,
+            custom: row.get::<_, i64>(3)? != 0,
+            nillable: row.get::<_, i64>(4)? != 0,
+            reference_to: json_col(&row.get::<_, String>(5)?)?,
+            relationship_name: row.get(6)?,
+            picklist_values: json_col(&row.get::<_, String>(7)?)?,
+            controller_name: row.get(8)?,
+            dependent_picklist: row.get::<_, i64>(9)? != 0,
+            calculated: row.get::<_, i64>(10)? != 0,
+            calculated_formula: row.get(11)?,
+            default_value_formula: row.get(12)?,
+            length: row.get(13)?,
+            unique: row.get::<_, i64>(14)? != 0,
+            restricted_picklist: row.get::<_, i64>(15)? != 0,
+        })
+    })?;
+    rows.collect()
+}
+
+/// Deserialize a JSON column, mapping serde errors into rusqlite's error type.
+fn json_col<T: serde::de::DeserializeOwned>(s: &str) -> rusqlite::Result<T> {
+    serde_json::from_str(s).map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))
 }
 
 /// Delete an object's rows (objects + fields + fields_fts), case-insensitive
@@ -334,6 +366,7 @@ pub fn count_objects(conn: &Connection) -> rusqlite::Result<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{ChildRelationship, PicklistValue, RecordTypeInfo};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_db() -> std::path::PathBuf {
@@ -361,40 +394,60 @@ mod tests {
                     name: "OwnerId".into(),
                     label: "Owner ID".into(),
                     field_type: "reference".into(),
-                    custom: false,
-                    nillable: false,
                     reference_to: vec!["User".into(), "Group".into()],
                     relationship_name: Some("Owner".into()),
-                    picklist_values: vec![],
+                    ..Default::default()
                 },
                 Field {
                     name: "Type".into(),
                     label: "Account Type".into(),
                     field_type: "picklist".into(),
-                    custom: false,
                     nillable: true,
-                    reference_to: vec![],
-                    relationship_name: None,
+                    // Tier-1 detail must round-trip: dependency + valid_for.
+                    controller_name: Some("Industry".into()),
+                    dependent_picklist: true,
+                    restricted_picklist: true,
                     picklist_values: vec![
                         PicklistValue {
                             label: "Customer".into(),
                             value: "Customer".into(),
                             active: true,
                             default_value: true,
+                            valid_for: Some("gAAA".into()),
                         },
                         PicklistValue {
                             label: "Partner".into(),
                             value: "Partner".into(),
                             active: true,
                             default_value: false,
+                            valid_for: None,
                         },
                     ],
+                    ..Default::default()
+                },
+                Field {
+                    name: "Score__c".into(),
+                    label: "Score".into(),
+                    field_type: "double".into(),
+                    calculated: true,
+                    calculated_formula: Some("Amount * 2".into()),
+                    length: 18,
+                    unique: true,
+                    ..Default::default()
                 },
             ],
             child_relationships: vec![ChildRelationship {
                 child_sobject: "Contact".into(),
                 field: "AccountId".into(),
                 relationship_name: Some("Contacts".into()),
+            }],
+            record_type_infos: vec![RecordTypeInfo {
+                record_type_id: Some("012000000000001".into()),
+                name: "Business".into(),
+                developer_name: "Business".into(),
+                active: true,
+                master: false,
+                available: true,
             }],
         };
 

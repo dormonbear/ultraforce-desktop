@@ -206,13 +206,9 @@ mod tests {
     fn field(name: &str, ty: &str) -> sf_schema::model::Field {
         sf_schema::model::Field {
             name: name.into(),
-            label: String::new(),
             field_type: ty.into(),
-            custom: false,
             nillable: true,
-            reference_to: vec![],
-            relationship_name: None,
-            picklist_values: vec![],
+            ..Default::default()
         }
     }
 
