@@ -45,9 +45,31 @@ operator/type checks. Its only dependency is a closure
 
 ## C (Tier 1) — enrichment from the existing REST describe
 
-All additive; requires capturing more keys + a **reindex** (bump the index
-format version so stale snapshots are flagged — verify the version guard in
-`apex-lang::db`/`sqlite` and wire it).
+All additive; requires capturing more keys + a **reindex**.
+
+### 0. Schema-version guard (prerequisite — do FIRST)
+The `meta.schema_version` column exists but is **inert**: written as a hardcoded
+literal `1` (no `SCHEMA_VERSION` const), never compared, never enforced. Tables
+use `CREATE TABLE IF NOT EXISTS`, so a new binary opening an old `index.db` will
+NOT gain the new columns → `read_object`'s SELECT of a new column panics mid
+query with `no such column`. The OST index is a **rebuildable derived cache**,
+so version management = **guard-on-read + rebuild-on-reindex** (NOT ALTER-table
+migration, NOT data migration):
+- Define `pub const SCHEMA_VERSION: i64` in `apex-lang::db`; bump it whenever
+  EITHER crate's stored schema changes. One `schema_version` in the shared
+  `meta` row governs the whole file (apex-lang owns meta/apex_*; sf-schema owns
+  objects/fields/fts — both live in one `index.db`).
+- Write path (`snapshot.rs` reindex): stamp `schema_version = SCHEMA_VERSION`
+  (replace the literal), and recreate the schema-owned tables fresh so structure
+  is always current (`DROP TABLE IF EXISTS` the object/field/fts tables before
+  CREATE, or delete the file — reindex is a full rebuild, so no data cost).
+- Read path (`open_org` / the uf-ost `open`): `meta.schema_version !=
+  SCHEMA_VERSION` → return a `NotIndexed`-style "index built by an older
+  version — run ost_reindex" error. Never let a missing column panic. Surface it
+  in `ost_status` too (fail loud).
+- Bump to `2` in this phase (the first real schema change).
+
+### 1. Capture more (`crates/sf-schema`)
 
 ### 1. Capture more (`crates/sf-schema`)
 - `model.rs` `Field`: `controller_name: Option<String>`, `dependent_picklist:
@@ -102,7 +124,8 @@ that a reindex is required for the new attributes. Rebuild the release binary.
   (`ast/infer.rs`).
 
 ## Suggested execution order (incremental commits)
-1. B: `ost_soql` + snapshot resolve + suggestions (pure win, no index change).
-2. C-capture: model + sqlite + record_types table + format bump + reindex path.
-3. C-surface: `ost_object` tags/relationshipName; `ost_fields`; `ost_recordtype`.
-4. Docs + release rebuild.
+1. B: `ost_soql` + snapshot resolve + suggestions (pure win, no index change). ✅ done (704b19a)
+2. C-0: schema-version guard (SCHEMA_VERSION const, guard-on-read, rebuild-on-reindex).
+3. C-capture: model + sqlite + record_types table + bump SCHEMA_VERSION → 2.
+4. C-surface: `ost_object` tags/relationshipName; `ost_fields`; `ost_recordtype`.
+5. Docs + release rebuild + reindex the four omni orgs.

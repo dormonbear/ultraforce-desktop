@@ -126,7 +126,16 @@ pub fn replace_all_objects(
     objects: &[SObjectSchema],
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
-    tx.execute_batch("DELETE FROM fields; DELETE FROM objects; DELETE FROM fields_fts;")?;
+    // DROP + recreate (not DELETE) so a reindex after a SCHEMA_VERSION bump
+    // rebuilds these tables with the current column set — the index is a
+    // derived cache, never migrated. DDL here is transactional in SQLite, so a
+    // concurrent WAL reader still sees the whole old generation until commit.
+    tx.execute_batch(
+        "DROP TABLE IF EXISTS fields;
+         DROP TABLE IF EXISTS objects;
+         DROP TABLE IF EXISTS fields_fts;",
+    )?;
+    ensure_object_schema(&tx)?;
     for schema in objects {
         upsert_object(&tx, schema)?;
     }

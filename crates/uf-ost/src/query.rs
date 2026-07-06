@@ -20,6 +20,8 @@ use serde::Serialize;
 pub enum QueryError {
     /// No `index.db` for the org, or its `meta` row is missing.
     NotIndexed(String),
+    /// Index exists but was built by an incompatible schema version.
+    StaleIndex(String),
     /// Index exists but the requested object/field/type isn't in it.
     NotFound(String),
     /// Underlying SQLite error.
@@ -32,6 +34,10 @@ impl std::fmt::Display for QueryError {
             QueryError::NotIndexed(org) => write!(
                 f,
                 "org '{org}' is not indexed — run `ost_reindex` (or `uf-ost index --org {org}`)"
+            ),
+            QueryError::StaleIndex(org) => write!(
+                f,
+                "org '{org}' index was built by an older uf-ost — run `ost_reindex {org}` to rebuild it"
             ),
             QueryError::NotFound(what) => write!(f, "{what}"),
             QueryError::Db(e) => write!(f, "index read error: {e}"),
@@ -93,6 +99,11 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
     }
     let conn = sqlite::open_readonly(&path)?;
     let meta = db::read_meta(&conn)?.ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
+    // Reject an index built by an older schema before any tool SELECTs a column
+    // it may not have — fail loud with "reindex", never crash mid-query.
+    if meta.schema_version != db::SCHEMA_VERSION {
+        return Err(QueryError::StaleIndex(org.to_string()));
+    }
     Ok(Snapshot { conn, meta })
 }
 
@@ -350,7 +361,7 @@ pub fn field_drift(root: &Path, field: &str, org: Option<&str>) -> Result<FieldD
     for org in &orgs {
         let snap = match open_org(root, org) {
             Ok(s) => s,
-            Err(QueryError::NotIndexed(_)) => continue,
+            Err(QueryError::NotIndexed(_) | QueryError::StaleIndex(_)) => continue,
             Err(e) => return Err(e),
         };
         let age = human_age(&snap.meta.indexed_at);
@@ -569,6 +580,16 @@ mod tests {
         assert!(matches!(
             open_org(&root, "Nope"),
             Err(QueryError::NotIndexed(_))
+        ));
+
+        // Schema-version guard: a mismatched meta is StaleIndex, not a crash.
+        drop(snap);
+        let rw = sqlite::open(&sqlite::db_path(&root, "MyOrg")).unwrap();
+        rw.execute("UPDATE meta SET schema_version = 9999", []).unwrap();
+        drop(rw);
+        assert!(matches!(
+            open_org(&root, "MyOrg"),
+            Err(QueryError::StaleIndex(_))
         ));
 
         let _ = std::fs::remove_dir_all(&root);
