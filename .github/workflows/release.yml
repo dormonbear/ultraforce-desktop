@@ -111,3 +111,21 @@ jobs:
             cp "$dir/uf-ost" "uf-ost-$triple"
             gh release upload "${{ needs.release-please.outputs.tag_name }}" "uf-ost-$triple" --clobber
           fi
+
+  # 把 `@ultraforce/mcp` wrapper 发到 npm。它 postinstall 时按平台从本次 release
+  # 下载 uf-ost 二进制，所以 needs: build 确保 binary 已上传后再发包。
+  publish-npm:
+    needs: [release-please, build]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+      - name: Publish @ultraforce/mcp
+        working-directory: npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
