@@ -112,20 +112,23 @@ jobs:
             gh release upload "${{ needs.release-please.outputs.tag_name }}" "uf-ost-$triple" --clobber
           fi
 
-  # 把 `@ultraforce/mcp` wrapper 发到 npm。它 postinstall 时按平台从本次 release
-  # 下载 uf-ost 二进制，所以 needs: build 确保 binary 已上传后再发包。
+  # 把 `@dormon/ultraforce-mcp` wrapper 发到 npm。它 postinstall 时按平台从本次
+  # release 下载 uf-ost 二进制，所以 needs: build 确保 binary 已上传后再发包。
+  # 用 npm Trusted Publishing (OIDC) —— 无需 NPM_TOKEN，publish 自带 provenance。
   publish-npm:
     needs: [release-please, build]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # OIDC trusted publishing（job 级 permissions 会覆盖顶层，需写全）
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24   # trusted publishing 要求 Node >= 22.14
           registry-url: https://registry.npmjs.org
-      - name: Publish @ultraforce/mcp
+      - run: npm install -g npm@latest   # 要求 npm >= 11.5.1
+      - name: Publish @dormon/ultraforce-mcp
         working-directory: npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public

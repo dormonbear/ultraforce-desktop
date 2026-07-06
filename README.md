@@ -138,7 +138,7 @@ inventing picklist values, or triggering the ~145 s live SymbolTable query.
 
 **Get the server** — pick one (no Salesforce CLI or Rust toolchain required for the first two):
 
-- **npm (recommended):** `npx -y @ultraforce/mcp serve` — the package's postinstall
+- **npm (recommended):** `npx -y @dormon/ultraforce-mcp serve` — the package's postinstall
   fetches the prebuilt `uf-ost` binary for your platform from the matching release.
 - **Prebuilt binary:** download `uf-ost-<target>` from the
   [Releases page](https://github.com/dormonbear/ultraforce-desktop/releases/latest) and
@@ -156,7 +156,7 @@ uf-ost serve      # stdio; server name "ultraforce"
 Add it to your agent's `.mcp.json`:
 
 ```json
-{ "mcpServers": { "ultraforce": { "command": "npx", "args": ["-y", "@ultraforce/mcp", "serve"], "type": "stdio" } } }
+{ "mcpServers": { "ultraforce": { "command": "npx", "args": ["-y", "@dormon/ultraforce-mcp", "serve"], "type": "stdio" } } }
 ```
 
 Eight `ost_*` tools: `ost_object`, `ost_field` (cross-org drift), `ost_picklist`,

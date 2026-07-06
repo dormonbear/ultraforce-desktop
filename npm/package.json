@@ -1,9 +1,9 @@
 {
-  "name": "@ultraforce/mcp",
+  "name": "@dormon/ultraforce-mcp",
   "version": "0.3.10",
   "description": "Offline Salesforce org schema + Apex MCP server (ost_* tools). Ships the uf-ost binary; postinstall fetches the prebuilt release binary for your platform.",
   "bin": {
-    "mcp": "run.js",
+    "ultraforce-mcp": "run.js",
     "uf-ost": "run.js"
   },
   "scripts": {
