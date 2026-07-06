@@ -10,6 +10,7 @@ mod lock;
 mod query;
 mod root;
 mod server;
+mod soql;
 mod status_cmd;
 
 use std::path::PathBuf;

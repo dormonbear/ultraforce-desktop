@@ -4862,6 +4862,7 @@ dependencies = [
  "serde_json",
  "sf-core",
  "sf-schema",
+ "soql-lang",
  "tokio",
 ]
 

@@ -71,6 +71,7 @@ async fn mcp_stdio_contract() {
     let names: Vec<&str> = tools.tools.iter().map(|t| t.name.as_ref()).collect();
     for expected in [
         "ost_object",
+        "ost_soql",
         "ost_field",
         "ost_picklist",
         "ost_apex",
@@ -85,23 +86,38 @@ async fn mcp_stdio_contract() {
         );
     }
 
-    // 2. ost_object is stamped with org + age and carries the field.
-    let obj = call(
+    // 2. ost_object returns a compact text table, header-stamped with org + age
+    //    and carrying the field.
+    let obj = call_text(
         &client,
         "ost_object",
         serde_json::json!({"org":"TestOrg","object":"Account"}),
     )
     .await;
-    let stamp = &obj["stamp"];
-    assert_eq!(stamp["org"], "TestOrg", "org stamp present");
-    assert!(stamp["age"].is_string(), "age stamp present: {stamp}");
+    assert!(obj.contains("org=TestOrg"), "org stamp in header: {obj}");
+    assert!(obj.contains("age="), "age stamp in header: {obj}");
+    assert!(obj.contains("Industry"), "Industry field present: {obj}");
+
+    // 2b. filter narrows the table and reports the shown count.
+    let filtered = call_text(
+        &client,
+        "ost_object",
+        serde_json::json!({"org":"TestOrg","object":"Account","filter":"indus"}),
+    )
+    .await;
+    assert!(filtered.contains("shown=1"), "filter counts shown: {filtered}");
+    assert!(filtered.contains("Industry"), "filter keeps match: {filtered}");
+
+    // 2c. ost_soql validates offline and suggests the nearest field name.
+    let soql = call_text(
+        &client,
+        "ost_soql",
+        serde_json::json!({"org":"TestOrg","query":"SELECT Industri FROM Account"}),
+    )
+    .await;
     assert!(
-        obj["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|f| f["name"] == "Industry"),
-        "Industry field present"
+        soql.contains("Unknown field 'Industri'") && soql.contains("did you mean 'Industry'"),
+        "ost_soql suggests: {soql}"
     );
 
     // 3. ost_apex returns the offline signature (no live SymbolTable query).
@@ -159,4 +175,23 @@ where
         .unwrap_or_else(|e| panic!("{name} call failed: {e}"));
     res.structured_content
         .unwrap_or_else(|| panic!("{name} returned no structured content"))
+}
+
+/// Call a tool and return its first text content block (for text-shaped tools).
+async fn call_text<S>(
+    client: &rmcp::service::RunningService<rmcp::RoleClient, S>,
+    name: &'static str,
+    args: serde_json::Value,
+) -> String
+where
+    S: rmcp::Service<rmcp::RoleClient>,
+{
+    let res = client
+        .call_tool(mk_param(name, args))
+        .await
+        .unwrap_or_else(|e| panic!("{name} call failed: {e}"));
+    res.content
+        .into_iter()
+        .find_map(|c| c.as_text().map(|t| t.text.clone()))
+        .unwrap_or_else(|| panic!("{name} returned no text content"))
 }

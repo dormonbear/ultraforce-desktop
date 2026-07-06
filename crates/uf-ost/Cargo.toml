@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 apex-lang = { path = "../apex-lang" }
 sf-schema = { path = "../sf-schema" }
+soql-lang = { path = "../soql-lang" }
 sf-core = { path = "../sf-core" }
 features = { path = "../features" }
 serde = { workspace = true }

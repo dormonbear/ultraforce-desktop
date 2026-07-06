@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::lock;
 use crate::query::{self, QueryError, Stamp};
+use crate::soql;
 
 pub struct OstServer {
     root: PathBuf,
@@ -66,6 +67,8 @@ struct ObjectArgs {
     org: String,
     /// sObject API name (case-insensitive).
     object: String,
+    /// Case-insensitive substring over field names; omit for all fields.
+    filter: Option<String>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -74,6 +77,13 @@ struct FieldArgs {
     field: String,
     /// Optional org alias; omit to scan every indexed org for drift.
     org: Option<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct SoqlArgs {
+    org: String,
+    /// A SOQL query to validate offline against the indexed schema.
+    query: String,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -141,16 +151,30 @@ struct ReindexDto {
 
 #[tool_router]
 impl OstServer {
+    // The only firehose tool: returns a compact text table (not `Json<T>` like
+    // its siblings) so a big sObject can't flood the caller's context.
     #[tool(
         name = "ost_object",
-        description = "Fields of an sObject in an org: name, type, referenceTo, picklist flag, custom."
+        description = "Fields of an sObject as a compact table (name · type · →referenceTo). Pass filter to narrow to fields whose name contains a substring, e.g. filter=\"email\"."
     )]
     async fn ost_object(
         &self,
         Parameters(a): Parameters<ObjectArgs>,
-    ) -> Result<Json<query::ObjectDto>, ErrorData> {
+    ) -> Result<String, ErrorData> {
         let snap = self.open(&a.org)?;
-        query::object(&snap, &a.object).map(Json).map_err(to_err)
+        query::object(&snap, &a.object, a.filter.as_deref()).map_err(to_err)
+    }
+
+    #[tool(
+        name = "ost_soql",
+        description = "Validate a SOQL query offline against the org's indexed schema — unknown fields, bad relationship names, WHERE type mistakes — with did-you-mean suggestions. Catches INVALID_FIELD / No such column before you run it."
+    )]
+    async fn ost_soql(
+        &self,
+        Parameters(a): Parameters<SoqlArgs>,
+    ) -> Result<String, ErrorData> {
+        let snap = self.open(&a.org)?;
+        soql::soql_check(&snap, &a.query).map_err(to_err)
     }
 
     #[tool(
