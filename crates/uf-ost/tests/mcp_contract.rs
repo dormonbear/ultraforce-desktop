@@ -72,6 +72,8 @@ async fn mcp_stdio_contract() {
     for expected in [
         "ost_object",
         "ost_soql",
+        "ost_fields",
+        "ost_recordtype",
         "ost_field",
         "ost_picklist",
         "ost_apex",
@@ -119,6 +121,22 @@ async fn mcp_stdio_contract() {
         soql.contains("Unknown field 'Industri'") && soql.contains("did you mean 'Industry'"),
         "ost_soql suggests: {soql}"
     );
+
+    // 2d. ost_fields expands a specific field; ost_recordtype lists RTs.
+    let fd = call_text(
+        &client,
+        "ost_fields",
+        serde_json::json!({"org":"TestOrg","object":"Account","fields":["Industry"]}),
+    )
+    .await;
+    assert!(fd.contains("Industry"), "ost_fields detail: {fd}");
+    let rt = call_text(
+        &client,
+        "ost_recordtype",
+        serde_json::json!({"org":"TestOrg","object":"Account"}),
+    )
+    .await;
+    assert!(rt.contains("recordTypes="), "ost_recordtype header: {rt}");
 
     // 3. ost_apex returns the offline signature (no live SymbolTable query).
     let ax = call(

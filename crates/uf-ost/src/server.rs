@@ -12,6 +12,7 @@ use rmcp::{schemars, tool, tool_handler, tool_router, ErrorData, ServerHandler};
 use serde::{Deserialize, Serialize};
 
 use crate::lock;
+use crate::detail;
 use crate::query::{self, QueryError, Stamp};
 use crate::soql;
 
@@ -84,6 +85,20 @@ struct SoqlArgs {
     org: String,
     /// A SOQL query to validate offline against the indexed schema.
     query: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct FieldsArgs {
+    org: String,
+    object: String,
+    /// Field API names to expand (batch — pass several at once).
+    fields: Vec<String>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct RecordTypeArgs {
+    org: String,
+    object: String,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -175,6 +190,30 @@ impl OstServer {
     ) -> Result<String, ErrorData> {
         let snap = self.open(&a.org)?;
         soql::soql_check(&snap, &a.query).map_err(to_err)
+    }
+
+    #[tool(
+        name = "ost_fields",
+        description = "Full detail for specific fields (batch): formula body, picklist dependency map, length/unique/restricted, relationship name. Use after ost_object to expand the fields you care about."
+    )]
+    async fn ost_fields(
+        &self,
+        Parameters(a): Parameters<FieldsArgs>,
+    ) -> Result<String, ErrorData> {
+        let snap = self.open(&a.org)?;
+        detail::fields(&snap, &a.object, &a.fields).map_err(to_err)
+    }
+
+    #[tool(
+        name = "ost_recordtype",
+        description = "Record types of an object: developerName, id, active, master."
+    )]
+    async fn ost_recordtype(
+        &self,
+        Parameters(a): Parameters<RecordTypeArgs>,
+    ) -> Result<String, ErrorData> {
+        let snap = self.open(&a.org)?;
+        detail::record_types(&snap, &a.object).map_err(to_err)
     }
 
     #[tool(

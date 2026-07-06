@@ -128,11 +128,26 @@ pub fn object(snap: &Snapshot, object: &str, filter: Option<&str>) -> Result<Str
             None => true,
         })
         .map(|f| {
-            let ty = if f.reference_to.is_empty() {
-                f.field_type.clone()
+            // Formula fields show their result type tagged; lookups show their
+            // targets + relationship name (so the agent can write `Rel.Field`);
+            // dependent picklists point at their controller. Bodies stay out —
+            // `ost_fields` carries the formula text and dependency map.
+            let mut ty = if f.calculated {
+                format!("formula:{}", f.field_type)
             } else {
-                format!("{}→{}", f.field_type, f.reference_to.join(","))
+                f.field_type.clone()
             };
+            if !f.reference_to.is_empty() {
+                ty.push_str(&format!("→{}", f.reference_to.join(",")));
+                if let Some(rel) = &f.relationship_name {
+                    ty.push_str(&format!(" [{rel}]"));
+                }
+            }
+            if f.dependent_picklist {
+                if let Some(c) = &f.controller_name {
+                    ty.push_str(&format!(" dep→{c}"));
+                }
+            }
             (f.name.clone(), ty)
         })
         .collect();
