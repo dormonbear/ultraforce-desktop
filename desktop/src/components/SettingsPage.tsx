@@ -3,6 +3,9 @@ import { useEffect, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Github } from "lucide-react";
+import { Button as AstryxButton } from "@astryxdesign/core/Button";
+import { Card as AstryxCard } from "@astryxdesign/core/Card";
+import { Text as AstryxText } from "@astryxdesign/core/Text";
 import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
 import { getRoot, setRootOverride, type Tool } from "../fs/workspace";
@@ -115,6 +118,25 @@ export function SettingsPage({ onChanged }: Props) {
     <div className="h-full overflow-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 text-[12px]">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">Settings</h1>
+
+        <AstryxCard padding={3} variant="muted" className="astryx-spike-card">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <AstryxText type="label" display="block">
+                Astryx spike
+              </AstryxText>
+              <AstryxText type="supporting" display="block">
+                Verifies Astryx theme, typography, card, and button coexist with the current shell.
+              </AstryxText>
+            </div>
+            <AstryxButton
+              label="Check updates"
+              size="sm"
+              variant="secondary"
+              clickAction={() => checkForUpdates()}
+            />
+          </div>
+        </AstryxCard>
 
         <Section title="Appearance">
           <div className="flex flex-col gap-3">

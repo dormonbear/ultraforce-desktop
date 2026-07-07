@@ -4,6 +4,12 @@
   // their unused-export noise but keep the files analyzed so their deps (cmdk,
   // class-variance-authority, …) still count as used.
   "ignoreExports": [{ "file": "src/components/ui/**", "exports": ["*"] }],
+  // Astryx exposes theme CSS through package exports; Vite resolves it, but
+  // fallow's static resolver currently reports the CSS subpath as unresolved.
+  "ignoreUnresolvedImports": ["@astryxdesign/theme-neutral/theme.css"],
+  // Astryx CLI is used through the package script (`pnpm astryx ...`), not
+  // imported by source files.
+  "ignoreDependencies": ["@astryxdesign/cli"],
   // Exports only consumed within their own file aren't "unused" — don't flag them.
   "ignoreExportsUsedInFile": true
 }
