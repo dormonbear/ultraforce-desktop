@@ -29,7 +29,6 @@ import { useConfirm } from "../components/confirm";
 import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
-import { timing } from "../metrics";
 import { apexDiagnostics, apexSoqlDiagnostics, runApex } from "../ipc/apex";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
@@ -106,7 +105,6 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     setRunning(true);
     onPatch({ error: null });
     const source = srcRef.current;
-    const t0 = performance.now();
     try {
       const dto = await runApex(source);
       onPatch({ outcome: dto });
@@ -123,14 +121,10 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       } else if (!dto.success) {
         toast.error(dto.exceptionMessage ?? "Execution failed");
       }
-      const ms = performance.now() - t0;
-      void timing("run.apex", ms);
     } catch (e) {
       const message = formatIpcError(e);
       toast.error(parseSfError(message).detail);
       onPatch({ error: message, outcome: null });
-      const ms = performance.now() - t0;
-      void timing("run.apex", ms);
     } finally {
       setRunning(false);
     }

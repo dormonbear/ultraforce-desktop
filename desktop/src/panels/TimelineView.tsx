@@ -9,12 +9,21 @@ import {
   xToTime,
   minimapSkyline,
   hitTest,
+  timeAxisTicks,
+  formatAxisTime,
   type FlameRect,
 } from "./flame";
 import { flameColor } from "./flameColor";
 
 const ROW_H = 18;
+const MAX_FLAME_H = 720;
 
+function fmtDuration(ns: number | null | undefined): string {
+  if (ns == null) return "—";
+  return formatAxisTime(ns).replace(/^\+/, "");
+}
+
+// fallow-ignore-next-line complexity
 export function TimelineView({
   units,
   onSource,
@@ -26,6 +35,8 @@ export function TimelineView({
   const rects = useMemo(() => flameLayout(units.flatMap((u) => u.tree)), [units]);
   const span = useMemo(() => flameSpan(rects), [rects]);
   const maxDepth = useMemo(() => flameDepth(rects), [rects]);
+  const flameHeight = (maxDepth + 1) * ROW_H;
+  const flameViewportHeight = Math.min(MAX_FLAME_H, flameHeight + 8);
 
   // Viewport in ns; starts at the full span.
   const [view, setView] = useState<{ start: number; end: number }>(span);
@@ -34,12 +45,18 @@ export function TimelineView({
   const MINI_N = 120;
   const sky = useMemo(() => minimapSkyline(rects, span.start, span.end, MINI_N), [rects, span]);
   const skyMax = useMemo(() => Math.max(1, ...sky), [sky]);
+  const ticks = useMemo(
+    () => timeAxisTicks(view.start, view.end, span.start),
+    [view, span.start],
+  );
 
   // Track the canvas's displayed width so the bitmap is re-rendered at the right
   // resolution when the window/panel resizes. Without this the draw effect never
   // re-runs on resize and the browser stretches the old bitmap — scaling the bars
   // and the 11px labels up proportionally.
   const [width, setWidth] = useState(0);
+  const [selected, setSelected] = useState<FlameRect | null>(null);
+  // fallow-ignore-next-line complexity
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -75,6 +92,11 @@ export function TimelineView({
       const y = r.depth * ROW_H;
       ctx.fillStyle = flameColor(r.kind);
       ctx.fillRect(x0, y, w, ROW_H - 1);
+      if (r === selected) {
+        ctx.strokeStyle = "#eab308";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x0 + 0.5, y + 0.5, Math.max(1, w - 1), ROW_H - 2);
+      }
       if (w > 30) {
         ctx.fillStyle = "#0b0f1a";
         ctx.save();
@@ -85,14 +107,24 @@ export function TimelineView({
         ctx.restore();
       }
     }
-  }, [rects, view, maxDepth, width]);
+  }, [rects, view, maxDepth, width, selected]);
 
   const miniRef = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; start: number; end: number } | null>(null);
   const moved = useRef(false);
-  const [hover, setHover] = useState<{ x: number; y: number; rect: FlameRect } | null>(null);
+  const [hover, setHover] = useState<{
+    x: number;
+    y: number;
+    clientX: number;
+    clientY: number;
+    rect: FlameRect;
+  } | null>(null);
   const [measure, setMeasure] = useState<{ x0: number; x1: number } | null>(null);
   const measuring = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (selected && !rects.includes(selected)) setSelected(null);
+  }, [rects, selected]);
 
   // Native (non-passive) wheel listener: React 19 registers `onWheel` as a
   // passive root listener, so e.preventDefault() there is a no-op and the
@@ -131,6 +163,7 @@ export function TimelineView({
     }
     drag.current = { x: e.clientX, start: view.start, end: view.end };
   }
+  // fallow-ignore-next-line complexity
   function onMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -144,7 +177,7 @@ export function TimelineView({
       const px = e.clientX - rect.left;
       const py = e.clientY - rect.top;
       const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
-      setHover(hit ? { x: e.clientX - rect.left, y: e.clientY - rect.top, rect: hit } : null);
+      setHover(hit ? { x: px, y: py, clientX: e.clientX, clientY: e.clientY, rect: hit } : null);
       return;
     }
     moved.current = true;
@@ -167,7 +200,7 @@ export function TimelineView({
     const px = e.clientX - rect.left;
     const py = e.clientY - rect.top;
     const hit = hitTest(rects, px, py, view.start, view.end, rect.width, ROW_H);
-    if (hit?.source && onSource) onSource(hit.source as unknown as SourceRef);
+    setSelected(hit);
   }
 
   // Minimap wheel: zoom the viewport window in/out, centered on the cursor
@@ -262,11 +295,40 @@ export function TimelineView({
           Reset zoom
         </button>
         <span>scroll to zoom · drag to pan</span>
+        <span className="ml-auto font-mono">
+          {formatAxisTime(view.start - span.start)} – {formatAxisTime(view.end - span.start)}
+        </span>
+      </div>
+      <div className="relative h-5 shrink-0 rounded-t-md border border-b-0 border-border bg-card font-mono text-[10px] text-text-dim">
+        {ticks.map((tick) => (
+          <div
+            key={`${tick.time}-${tick.pct}`}
+            className="absolute inset-y-0 border-l border-border/80"
+            style={{ left: `${tick.pct * 100}%` }}
+          >
+            <span
+              className="absolute top-0.5 whitespace-nowrap"
+              style={{
+                transform:
+                  tick.pct === 0
+                    ? "translateX(3px)"
+                    : tick.pct === 1
+                      ? "translateX(calc(-100% - 3px))"
+                      : "translateX(calc(-50% + 1px))",
+              }}
+            >
+              {tick.label}
+            </span>
+          </div>
+        ))}
       </div>
       {/* x stays hidden: the canvas is w-full (pan/zoom, never scrolls), but the
           absolute hover tooltip near the right edge would otherwise widen the
           scroll area and pop a useless horizontal scrollbar. */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden rounded-md border border-border bg-card">
+      <div
+        className="relative shrink-0 overflow-y-auto overflow-x-hidden rounded-b-md border border-border bg-card"
+        style={{ height: flameViewportHeight }}
+      >
         <canvas
           ref={canvasRef}
           className="block w-full"
@@ -278,8 +340,8 @@ export function TimelineView({
         />
         {hover && (
           <div
-            className="pointer-events-none absolute z-10 max-w-xs rounded border border-border bg-popover px-2 py-1 text-[11px] shadow"
-            style={{ left: hover.x + 12, top: hover.y + 12 }}
+            className="pointer-events-none fixed z-50 max-w-xs rounded border border-border bg-popover px-2 py-1 text-[11px] shadow"
+            style={{ left: hover.clientX + 12, top: hover.clientY + 12 }}
           >
             <div className="truncate font-medium text-foreground">{hover.rect.label}</div>
             <div className="text-text-dim">
@@ -304,6 +366,33 @@ export function TimelineView({
               })()}
             </div>
           </>
+        )}
+      </div>
+      <div className="mt-2 shrink-0 rounded-md border border-border bg-card px-3 py-2 text-[12px]">
+        {selected ? (
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <div className="min-w-0">
+              <div className="truncate font-medium text-foreground">{selected.label}</div>
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-text-dim">
+                <span>{selected.kind}</span>
+                <span>start {formatAxisTime(selected.x - span.start)}</span>
+                <span>end {formatAxisTime(selected.x + selected.w - span.start)}</span>
+                <span>duration {fmtDuration(selected.w)}</span>
+                <span>depth {selected.depth}</span>
+              </div>
+            </div>
+            {selected.source && onSource && (
+              <button
+                type="button"
+                onClick={() => onSource(selected.source as SourceRef)}
+                className="focus-accent h-7 cursor-pointer rounded border border-border px-2 text-[11px] text-text-dim hover:border-primary hover:text-primary"
+              >
+                Open source
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-text-dim">Select a flame block to inspect timing and source details.</div>
         )}
       </div>
     </div>
