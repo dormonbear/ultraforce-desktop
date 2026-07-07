@@ -125,8 +125,9 @@ export function useLoggingConfig(org: string | null) {
         tracedEntityName: "",
         tracedEntityKind: "User",
         debugLevelKey: "",
-        startDate: null,
-        expirationDate: isoIn(24),
+        // Start tracing immediately; default a short half-hour window.
+        startDate: isoIn(0),
+        expirationDate: isoIn(0.5),
         creatorName: "",
       },
     ]);

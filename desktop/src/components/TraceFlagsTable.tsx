@@ -1,6 +1,6 @@
 import { Plus, Trash2, RefreshCw, Eraser } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { isExpired } from "../traceTime";
+import { isExpired, isoPlusHours } from "../traceTime";
 import { EntityCombobox } from "./EntityCombobox";
 import { DateTimePicker } from "./DateTimePicker";
 import type { useLoggingConfig } from "../useLoggingConfig";
@@ -137,11 +137,29 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                   />
                 </td>
                 <td className="px-2 py-0.5">
-                  <DateTimePicker
-                    value={r.expirationDate}
-                    invalid={expired}
-                    onChange={(iso) => cfg.updateFlag(r._key, { expirationDate: iso })}
-                  />
+                  <div className="flex items-center gap-1">
+                    <DateTimePicker
+                      value={r.expirationDate}
+                      invalid={expired}
+                      onChange={(iso) => cfg.updateFlag(r._key, { expirationDate: iso })}
+                    />
+                    {[1, 2].map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        aria-label={`Extend expiration by ${h} hour${h > 1 ? "s" : ""}`}
+                        title={`Extend expiration by ${h}h`}
+                        onClick={() =>
+                          cfg.updateFlag(r._key, {
+                            expirationDate: isoPlusHours(r.expirationDate, h),
+                          })
+                        }
+                        className="focus-accent h-6 shrink-0 cursor-pointer rounded border border-border bg-card px-1 text-[10px] text-text-dim hover:border-primary hover:text-primary"
+                      >
+                        +{h}h
+                      </button>
+                    ))}
+                  </div>
                 </td>
                 <td className="px-2 py-0.5">
                   <select
