@@ -261,8 +261,9 @@ test("Save As writes an untitled tab to the chosen path and retitles it", async 
   await expect(page.getByRole("tab", { name: /Untitled-\d+/ })).toBeVisible();
 
   // Put content in the untitled tab (via Monaco API so React state updates),
-  // then Save As. The save dialog is mocked to return /ws/export.csv
-  // (fixtures.ts), so the tab retitles to that basename and content is written.
+  // then Save As. The save dialog mock echoes the requested default path
+  // (/ws/Untitled-1.soql), so the tab retitles to that basename and content is
+  // written there.
   const editor = new MonacoEditor(page);
   await editor.setValueViaApi("SELECT Id FROM Account");
   await expect.poll(() => editor.text()).toBe("SELECT Id FROM Account");
@@ -276,7 +277,9 @@ test("Save As writes an untitled tab to the chosen path and retitles it", async 
   await expect(async () => {
     await editor.focus();
     await page.keyboard.press("Control+s");
-    await expect(page.getByRole("tab", { name: /export\.csv/ })).toBeVisible({
+    await expect(
+      page.getByRole("tab", { name: /Untitled-\d+\.soql/ }),
+    ).toBeVisible({
       timeout: 1500,
     });
   }).toPass({ timeout: 12000 });
@@ -284,7 +287,7 @@ test("Save As writes an untitled tab to the chosen path and retitles it", async 
   const saved = await page.evaluate(
     () =>
       (window as unknown as { __ufReadFile: (p: string) => string | null }).__ufReadFile(
-        "/ws/export.csv",
+        "/ws/Untitled-1.soql",
       ),
   );
   expect(saved).toBe("SELECT Id FROM Account");
@@ -366,6 +369,28 @@ test("SOQL results: the table renders rows and Filter rows prunes results", asyn
   }, { timeout: 4000 }).toMatch(/12/);
 
   // (The TABLE/TREE view toggle was removed — results always render as a table.)
+});
+
+test("hiding a column via the Columns menu removes it from the table", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await openSoql(page);
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  // The Industry column starts visible.
+  await expect(
+    page.getByRole("columnheader", { name: /Industry/ }),
+  ).toBeVisible();
+
+  // Toggle it off from the Columns menu → it disappears from the table.
+  await page.getByRole("button", { name: "Columns" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Industry" }).click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("columnheader", { name: /Industry/ }),
+  ).toHaveCount(0);
 });
 
 // ── 9. Copy a results column to the clipboard ─────────────────────────────
