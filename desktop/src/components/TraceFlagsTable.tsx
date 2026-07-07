@@ -32,6 +32,7 @@ const inGroup = (kind: string, logType: string): boolean =>
     : kind === "User";
 
 /** Editable table of TraceFlag records across users / classes / triggers. */
+// fallow-ignore-next-line complexity
 export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
   return (
     <div className="overflow-x-auto rounded-md border border-border">
@@ -67,7 +68,16 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           </Button>
         </div>
       </div>
-      <table className="w-full text-[11px]">
+      <table className="min-w-[1090px] table-fixed text-[11px]">
+        <colgroup>
+          <col className="w-64" />
+          <col className="w-72" />
+          <col className="w-28" />
+          <col className="w-36" />
+          <col className="w-48" />
+          <col className="w-40" />
+          <col className="w-7" />
+        </colgroup>
         <thead className="text-text-dim">
           <tr className="border-b border-border">
             <th className="px-2 py-0.5 text-left font-normal">Type</th>
@@ -80,11 +90,12 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           </tr>
         </thead>
         <tbody>
+          {/* fallow-ignore-next-line complexity */}
           {cfg.flags.map((r) => {
             const expired = isExpired(r.expirationDate);
             return (
               <tr key={r._key} className="border-b border-border/60">
-                <td className="px-2 py-0.5">
+                <td className="px-2 py-0.5 align-middle">
                   {r.id ? (
                     // LogType is set at creation and is NOT updatable on existing flags.
                     <span className="whitespace-nowrap text-foreground">{typeLabel(r.logType)}</span>
@@ -103,11 +114,12 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                     </select>
                   )}
                 </td>
-                <td className="px-2 py-0.5">
+                <td className="min-w-0 px-2 py-0.5 align-middle">
                   {r.id ? (
-                    <span className="text-foreground">{r.tracedEntityName}</span>
+                    <span className="whitespace-normal text-foreground">{r.tracedEntityName}</span>
                   ) : (
                     <EntityCombobox
+                      className="w-full"
                       options={cfg.entities.filter((e) => inGroup(e.kind, r.logType))}
                       valueLabel={
                         r.tracedEntityId
@@ -129,14 +141,14 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                     />
                   )}
                 </td>
-                <td className="px-2 py-0.5 text-text-dim">{r.creatorName || "—"}</td>
-                <td className="px-2 py-0.5">
+                <td className="px-2 py-0.5 align-middle text-text-dim">{r.creatorName || "—"}</td>
+                <td className="px-2 py-0.5 align-middle">
                   <DateTimePicker
                     value={r.startDate}
                     onChange={(iso) => cfg.updateFlag(r._key, { startDate: iso })}
                   />
                 </td>
-                <td className="px-2 py-0.5">
+                <td className="px-2 py-0.5 align-middle">
                   <div className="flex items-center gap-1">
                     <DateTimePicker
                       value={r.expirationDate}
@@ -147,11 +159,11 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                       <button
                         key={h}
                         type="button"
-                        aria-label={`Extend expiration by ${h} hour${h > 1 ? "s" : ""}`}
-                        title={`Extend expiration by ${h}h`}
+                        aria-label={`Set expiration ${h} hour${h > 1 ? "s" : ""} after start time`}
+                        title={`Start time +${h}h`}
                         onClick={() =>
                           cfg.updateFlag(r._key, {
-                            expirationDate: isoPlusHours(r.expirationDate, h),
+                            expirationDate: isoPlusHours(r.startDate, h),
                           })
                         }
                         className="focus-accent h-6 shrink-0 cursor-pointer rounded border border-border bg-card px-1 text-[10px] text-text-dim hover:border-primary hover:text-primary"
@@ -161,7 +173,7 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                     ))}
                   </div>
                 </td>
-                <td className="px-2 py-0.5">
+                <td className="px-2 py-0.5 align-middle">
                   <select
                     aria-label="Debug level"
                     className={`${SEL} w-40`}
@@ -178,7 +190,7 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                     ))}
                   </select>
                 </td>
-                <td className="px-1 py-0.5">
+                <td className="px-1 py-0.5 align-middle">
                   <Button
                     variant="ghost"
                     size="icon"

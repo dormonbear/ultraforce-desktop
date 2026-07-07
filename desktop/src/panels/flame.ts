@@ -56,6 +56,37 @@ export function xToTime(x: number, viewStart: number, viewEnd: number, width: nu
   return viewStart + (x / width) * (viewEnd - viewStart);
 }
 
+export function formatAxisTime(ns: number): string {
+  const sign = ns < 0 ? "-" : "+";
+  const abs = Math.abs(ns);
+  if (abs >= 1_000_000_000) return `${sign}${(abs / 1_000_000_000).toFixed(2)} s`;
+  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(2)} ms`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)} us`;
+  return `${sign}${Math.round(abs)} ns`;
+}
+
+export interface TimeTick {
+  time: number;
+  pct: number;
+  label: string;
+}
+
+export function timeAxisTicks(
+  viewStart: number,
+  viewEnd: number,
+  origin: number,
+  targetCount = 5,
+): TimeTick[] {
+  if (viewEnd <= viewStart || targetCount < 2) return [];
+  const count = Math.max(2, Math.floor(targetCount));
+  const span = viewEnd - viewStart;
+  return Array.from({ length: count }, (_, i) => {
+    const pct = i / (count - 1);
+    const time = viewStart + span * pct;
+    return { time, pct, label: formatAxisTime(time - origin) };
+  });
+}
+
 /** Topmost rect at canvas point (px, py) for the current viewport + row height. */
 export function hitTest(
   rects: FlameRect[],

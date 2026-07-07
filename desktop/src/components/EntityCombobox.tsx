@@ -30,6 +30,7 @@ interface Props {
 
 /** Searchable entity picker. cmdk's own filter is off and results are capped so
  * large entity sets (~2000 users) never mount thousands of nodes. */
+// fallow-ignore-next-line complexity
 export function EntityCombobox({
   options,
   valueLabel,
@@ -56,7 +57,7 @@ export function EntityCombobox({
     >
       <PopoverPrimitive.Trigger
         className={cn(
-          "focus-accent flex h-6 w-64 cursor-pointer items-center gap-1 rounded border border-border bg-card px-1.5 text-left text-[11px]",
+          "focus-accent flex h-6 w-full min-w-0 cursor-pointer items-center gap-1 rounded border border-border bg-card px-1.5 text-left text-[11px]",
           valueLabel ? "text-foreground" : "text-text-dim",
           className,
         )}
