@@ -26,27 +26,34 @@ const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
 
 // Verbatim privacy disclosure — the contract of exactly what telemetry sends.
 // Do not paraphrase, shorten, or reword; it was reviewed word-by-word.
-const TELEMETRY_DISCLOSURE = `Both are OFF by default; nothing is sent until you turn them on.
+const TELEMETRY_DISCLOSURE = `Both are OFF by default; nothing is recorded or sent until you turn them on.
 
-When "Anonymous usage statistics" is ON, each tool call sends a scrubbed event to Aptabase:
+"Anonymous usage statistics" (Aptabase) — when ON, each tool call sends a scrubbed
+event to Aptabase's cloud:
   • tool name (e.g. soql_query, apex_run)
   • result: success / failure
   • duration (ms)
   • error CATEGORY label (e.g. INVALID_FIELD) — never the error text
   • whether the target org is production (a true/false flag)
-  • Aptabase system info: OS name/version, app version, locale, a random per-session id
+  • basic system info: operating-system name, app version, and a random per-session id
 
-NEVER collected, in any state:
+"Local telemetry" — when ON, records the FULL detail of each tool call — including your
+SOQL/Apex text, the org alias, and error messages — to a database on THIS computer only.
+It never leaves your machine and is never uploaded anywhere; it is for your own
+troubleshooting.
+
+Sent to Aptabase's cloud — NEVER:
   • your SOQL / Apex query or code text
   • any record data: field values, record Ids, object contents
   • org names / aliases
-  • access tokens / credentials
   • error message text (only the category label)
   • any Salesforce business data
-  • your IP address, name, email, or other personal data
-  • cross-session tracking or device fingerprinting
 
-Local telemetry stays entirely on this computer (full detail, for your own troubleshooting).`;
+Recorded NOWHERE, under any setting:
+  • access tokens / credentials / passwords
+
+Aptabase does not store your IP address, name, email, or other personal data, and does no
+cross-session tracking or device fingerprinting.`;
 
 interface Props {
   /** Called after a workspace root changes so the owner can remount the panel. */
