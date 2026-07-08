@@ -5,13 +5,19 @@
 use rusqlite::Connection;
 use std::path::PathBuf;
 
+// The tool-call logging half (log/LogEntry/rotate + its size caps) has no
+// consumer until Task 9 wires it into the tool dispatch; the org_meta half
+// below is already live via LiveCtx. Targeted allows until then.
+#[allow(dead_code)]
 const MAX_PARAMS: usize = 512;
+#[allow(dead_code)]
 const MAX_DB_BYTES: u64 = 50 * 1024 * 1024;
 
 pub struct Telemetry {
     root: PathBuf,
 }
 
+#[allow(dead_code)]
 pub struct LogEntry<'a> {
     pub tool: &'a str,
     pub org: Option<&'a str>,
@@ -48,6 +54,7 @@ impl Telemetry {
         Ok(conn)
     }
 
+    #[allow(dead_code)]
     pub fn log(&self, e: LogEntry) {
         let res = (|| -> rusqlite::Result<()> {
             let conn = self.open()?;
@@ -67,6 +74,7 @@ impl Telemetry {
 
     /// ponytail: size check every insert is one fstat; trim oldest half when
     /// the file crosses 50MB. Upgrade to periodic vacuum if it ever matters.
+    #[allow(dead_code)]
     fn rotate(&self, conn: &Connection) {
         let size = std::fs::metadata(self.root.join("telemetry.db"))
             .map(|m| m.len())
