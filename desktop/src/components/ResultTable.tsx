@@ -20,6 +20,7 @@ import {
   ChevronsUpDown,
   Copy,
   Download,
+  Filter,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -61,6 +62,9 @@ import type { SoqlResultDto } from "../types";
 import { buildChildLookup } from "./resultTable/childData";
 import { flattenTable } from "./resultTable/flatten";
 import { ChildGrid } from "./resultTable/ChildGrid";
+import { FilterBuilder } from "./resultTable/filter/FilterBuilder";
+import { buildFilterFields } from "./resultTable/filter/fields";
+import type { RuleGroupType } from "react-querybuilder";
 
 interface GridRow {
   /** Original index into data.rows — stable across sort/filter. */
@@ -102,6 +106,12 @@ export function ResultTable({
   const [copied, setCopied] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"expand" | "flatten">("expand");
+  // Advanced filter rules (Task 10 consumes `advancedFilter` to actually filter).
+  const [advancedFilter, setAdvancedFilter] = useState<RuleGroupType>({
+    combinator: "and",
+    rules: [],
+  });
+  const [showFilter, setShowFilter] = useState(false);
 
   const toggleExpanded = (idx: number) =>
     setExpanded((old) => {
@@ -112,6 +122,10 @@ export function ResultTable({
     });
 
   const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
+  const filterFields = useMemo(
+    () => buildFilterFields(data.columns, lookup),
+    [data.columns, lookup],
+  );
 
   const flat = useMemo(
     () => flattenTable(data.columns, data.rows, lookup),
@@ -397,6 +411,24 @@ export function ResultTable({
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <button
+          type="button"
+          title="Advanced filter"
+          aria-label="Advanced filter"
+          onClick={() => setShowFilter((v) => !v)}
+          className={cn(
+            "focus-accent relative inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12px] cursor-pointer",
+            showFilter || advancedFilter.rules.length > 0
+              ? "text-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Filter size={13} /> Filter
+          {advancedFilter.rules.length > 0 && (
+            <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />
+          )}
+        </button>
+
         {lookup.relationships.length > 0 && (
           <div className="flex h-7 items-center rounded-md border border-input bg-card p-0.5 text-[12px]">
             {(["expand", "flatten"] as const).map((m) => (
@@ -475,6 +507,14 @@ export function ResultTable({
           </span>
         )}
       </div>
+
+      {showFilter && (
+        <FilterBuilder
+          fields={filterFields}
+          query={advancedFilter}
+          onQueryChange={setAdvancedFilter}
+        />
+      )}
 
       {data.rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-[13px] text-muted-foreground">
