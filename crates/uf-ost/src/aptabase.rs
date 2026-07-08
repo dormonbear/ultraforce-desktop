@@ -16,6 +16,7 @@ pub struct AptabaseClient {
     app_key: String,
     endpoint: String,
     session_id: String,
+    http: reqwest::Client,
 }
 
 /// Region-routed ingest endpoint. Pure — unit-tested.
@@ -83,6 +84,7 @@ pub fn new_if_enabled(cfg: &TelemetryConfig, session_id: &str) -> Option<Aptabas
         app_key,
         endpoint,
         session_id: session_id.to_string(),
+        http: reqwest::Client::new(),
     })
 }
 
@@ -154,8 +156,9 @@ impl AptabaseClient {
         };
         let endpoint = self.endpoint.clone();
         let app_key = self.app_key.clone();
+        let http = self.http.clone();
         tokio::spawn(async move {
-            let _ = reqwest::Client::new()
+            let _ = http
                 .post(&endpoint)
                 .header("App-Key", app_key)
                 .json(&body)
@@ -168,7 +171,13 @@ impl AptabaseClient {
 /// ISO-8601 UTC (`YYYY-MM-DDThh:mm:ss.sssZ`) from the system clock, without a
 /// date crate — days→civil via Howard Hinnant's algorithm.
 fn iso8601_now() -> String {
-    let now = std::time::SystemTime::now()
+    iso8601_at(std::time::SystemTime::now())
+}
+
+/// Pure formatting logic, split out from `iso8601_now` so the conversion can
+/// be pinned against known instants instead of only the live clock.
+fn iso8601_at(t: std::time::SystemTime) -> String {
+    let now = t
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     let secs = now.as_secs();
@@ -220,5 +229,33 @@ mod tests {
         let raw = "secret ProjectX MALFORMED_QUERY details";
         let cat = classify_error(raw);
         assert!(!cat.contains("ProjectX") && !cat.contains("secret"), "{cat}");
+    }
+
+    #[test]
+    fn civil_from_days_pins_known_dates() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        // 2024-01-01T00:00:00Z == epoch second 1704067200 == day 19723.
+        assert_eq!(civil_from_days(19_723), (2024, 1, 1));
+        // 2000-02-29T00:00:00Z (leap day) == epoch second 951782400 == day 11016.
+        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
+    }
+
+    #[test]
+    fn iso8601_at_pins_known_instants() {
+        use std::time::{Duration, UNIX_EPOCH};
+        assert_eq!(iso8601_at(UNIX_EPOCH), "1970-01-01T00:00:00.000Z");
+        assert_eq!(
+            iso8601_at(UNIX_EPOCH + Duration::from_secs(1_704_067_200)),
+            "2024-01-01T00:00:00.000Z"
+        );
+        assert_eq!(
+            iso8601_at(UNIX_EPOCH + Duration::from_secs(951_782_400)),
+            "2000-02-29T00:00:00.000Z"
+        );
+        // Millis and time-of-day components both render.
+        assert_eq!(
+            iso8601_at(UNIX_EPOCH + Duration::from_millis(1_704_067_200_500)),
+            "2024-01-01T00:00:00.500Z"
+        );
     }
 }
