@@ -1,7 +1,9 @@
-//! The `ultraforce` MCP server: 8 `ost_*` tools over stdio. Query tools read an
-//! org's `index.db` read-only; refresh tools drive `features`. Every org-scoped
-//! response carries the org + snapshot-age stamp so an agent can't silently mix
-//! a sandbox's schema into production code.
+//! The `ultraforce` MCP server: 18 tools over stdio — 11 `ost_*` offline
+//! (schema + Apex symbol index) + 7 live-org tools (soql_query, record_*,
+//! apex_run, rest_request). Offline query tools read an org's `index.db`
+//! read-only; refresh tools drive `features`. Every org-scoped response carries
+//! the org + snapshot-age stamp so an agent can't silently mix a sandbox's
+//! schema into production code. Every tool call is logged to telemetry.
 
 use std::path::PathBuf;
 
@@ -60,6 +62,29 @@ impl OstServer {
                 .await;
         });
         Ok(true)
+    }
+
+    /// Wrap a tool future: measure duration, log outcome to telemetry, pass the
+    /// result through untouched. Telemetry never changes a tool's return value
+    /// and never fails a tool (logging errors are swallowed in `Telemetry::log`).
+    async fn logged<T>(
+        &self,
+        tool: &'static str,
+        org: Option<&str>,
+        params: String,
+        fut: impl std::future::Future<Output = Result<T, ErrorData>>,
+    ) -> Result<T, ErrorData> {
+        let start = std::time::Instant::now();
+        let res = fut.await;
+        self.live.telemetry.log(crate::telemetry::LogEntry {
+            tool,
+            org,
+            params: &params,
+            outcome: if res.is_ok() { "ok" } else { "error" },
+            error: res.as_ref().err().map(|e| e.message.as_ref()),
+            duration_ms: start.elapsed().as_millis() as u64,
+        });
+        res
     }
 }
 
@@ -259,8 +284,13 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<ObjectArgs>,
     ) -> Result<String, ErrorData> {
-        let snap = self.open(&a.org)?;
-        query::object(&snap, &a.object, a.filter.as_deref()).map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("object={} filter={:?}", a.object, a.filter);
+        self.logged("ost_object", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            query::object(&snap, &a.object, a.filter.as_deref()).map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -271,8 +301,13 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<SoqlArgs>,
     ) -> Result<String, ErrorData> {
-        let snap = self.open(&a.org)?;
-        soql::soql_check(&snap, &a.query).map_err(to_err)
+        let org = a.org.clone();
+        let params = a.query.chars().take(400).collect::<String>();
+        self.logged("ost_soql", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            soql::soql_check(&snap, &a.query).map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -283,8 +318,13 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<FieldsArgs>,
     ) -> Result<String, ErrorData> {
-        let snap = self.open(&a.org)?;
-        detail::fields(&snap, &a.object, &a.fields).map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("object={} fields={:?}", a.object, a.fields);
+        self.logged("ost_fields", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            detail::fields(&snap, &a.object, &a.fields).map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -295,8 +335,13 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<RecordTypeArgs>,
     ) -> Result<String, ErrorData> {
-        let snap = self.open(&a.org)?;
-        detail::record_types(&snap, &a.object).map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("object={}", a.object);
+        self.logged("ost_recordtype", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            detail::record_types(&snap, &a.object).map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -307,9 +352,14 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<FieldArgs>,
     ) -> Result<Json<query::FieldDrift>, ErrorData> {
-        query::field_drift(&self.root, &a.field, a.org.as_deref())
-            .map(Json)
-            .map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("field={}", a.field);
+        self.logged("ost_field", org.as_deref(), params, async move {
+            query::field_drift(&self.root, &a.field, a.org.as_deref())
+                .map(Json)
+                .map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -320,10 +370,15 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<PicklistArgs>,
     ) -> Result<Json<query::PicklistDto>, ErrorData> {
-        let snap = self.open(&a.org)?;
-        query::picklist(&snap, &a.object, &a.field)
-            .map(Json)
-            .map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("object={} field={}", a.object, a.field);
+        self.logged("ost_picklist", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            query::picklist(&snap, &a.object, &a.field)
+                .map(Json)
+                .map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -334,8 +389,13 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<ApexArgs>,
     ) -> Result<Json<query::ApexDto>, ErrorData> {
-        let snap = self.open(&a.org)?;
-        query::apex(&snap, &a.name).map(Json).map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("name={}", a.name);
+        self.logged("ost_apex", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            query::apex(&snap, &a.name).map(Json).map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -346,8 +406,13 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<SearchArgs>,
     ) -> Result<Json<query::SearchDto>, ErrorData> {
-        let snap = self.open(&a.org)?;
-        query::search(&snap, &a.query, 25).map(Json).map_err(to_err)
+        let org = a.org.clone();
+        let params = format!("query={}", a.query);
+        self.logged("ost_search", Some(&org), params, async move {
+            let snap = self.open(&a.org)?;
+            query::search(&snap, &a.query, 25).map(Json).map_err(to_err)
+        })
+        .await
     }
 
     #[tool(
@@ -358,23 +423,27 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<StatusArgs>,
     ) -> Result<Json<StatusListDto>, ErrorData> {
-        let single = a.org.clone();
-        let orgs = match a.org {
-            Some(o) => vec![o],
-            None => query::list_orgs(&self.root),
-        };
-        let mut out = Vec::new();
-        for org in orgs {
-            match query::open_org(&self.root, &org) {
-                Ok(snap) => out.push(query::status(&snap, lock::is_running(&self.root, &org))),
-                Err(e) => {
-                    if single.is_some() {
-                        return Err(to_err(e));
+        let org = a.org.clone();
+        self.logged("ost_status", org.as_deref(), String::new(), async move {
+            let single = a.org.clone();
+            let orgs = match a.org {
+                Some(o) => vec![o],
+                None => query::list_orgs(&self.root),
+            };
+            let mut out = Vec::new();
+            for org in orgs {
+                match query::open_org(&self.root, &org) {
+                    Ok(snap) => out.push(query::status(&snap, lock::is_running(&self.root, &org))),
+                    Err(e) => {
+                        if single.is_some() {
+                            return Err(to_err(e));
+                        }
                     }
                 }
             }
-        }
-        Ok(Json(StatusListDto { orgs: out }))
+            Ok(Json(StatusListDto { orgs: out }))
+        })
+        .await
     }
 
     #[tool(
@@ -385,25 +454,29 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<OrgArgs>,
     ) -> Result<Json<SyncDto>, ErrorData> {
-        use std::sync::Arc as StdArc;
-        // Fail fast if the org was never indexed (sync is a no-op there).
-        self.open(&a.org)?;
-        let invoker = sf_core::SfInvoker::new(StdArc::new(sf_core::ProcessRunner));
-        let (outcome, _) = features::index::sync_org(
-            &invoker,
-            self.root.clone(),
-            &a.org,
-            &features::index::NamespacePolicy::All,
-        )
+        let org = a.org.clone();
+        self.logged("ost_sync", Some(&org), String::new(), async move {
+            use std::sync::Arc as StdArc;
+            // Fail fast if the org was never indexed (sync is a no-op there).
+            self.open(&a.org)?;
+            let invoker = sf_core::SfInvoker::new(StdArc::new(sf_core::ProcessRunner));
+            let (outcome, _) = features::index::sync_org(
+                &invoker,
+                self.root.clone(),
+                &a.org,
+                &features::index::NamespacePolicy::All,
+            )
+            .await
+            .map_err(|e| ErrorData::internal_error(format!("sync failed: {e}"), None))?;
+            let snap = self.open(&a.org)?;
+            Ok(Json(SyncDto {
+                stamp: snap.stamp(),
+                added: outcome.added,
+                updated: outcome.updated,
+                removed: outcome.removed,
+            }))
+        })
         .await
-        .map_err(|e| ErrorData::internal_error(format!("sync failed: {e}"), None))?;
-        let snap = self.open(&a.org)?;
-        Ok(Json(SyncDto {
-            stamp: snap.stamp(),
-            added: outcome.added,
-            updated: outcome.updated,
-            removed: outcome.removed,
-        }))
     }
 
     #[tool(
@@ -414,21 +487,25 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<OrgArgs>,
     ) -> Result<Json<ReindexDto>, ErrorData> {
-        let started = self.start_reindex(a.org.clone())?;
-        // Stamp with the age of the snapshot being replaced (None if never indexed).
-        let age = query::open_org(&self.root, &a.org)
-            .ok()
-            .map(|s| s.stamp().age);
-        Ok(Json(ReindexDto {
-            org: a.org,
-            status: if started {
-                "started"
-            } else {
-                "already_running"
-            }
-            .into(),
-            age,
-        }))
+        let org = a.org.clone();
+        self.logged("ost_reindex", Some(&org), String::new(), async move {
+            let started = self.start_reindex(a.org.clone())?;
+            // Stamp with the age of the snapshot being replaced (None if never indexed).
+            let age = query::open_org(&self.root, &a.org)
+                .ok()
+                .map(|s| s.stamp().age);
+            Ok(Json(ReindexDto {
+                org: a.org,
+                status: if started {
+                    "started"
+                } else {
+                    "already_running"
+                }
+                .into(),
+                age,
+            }))
+        })
+        .await
     }
 
     #[tool(
@@ -439,18 +516,23 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<SoqlQueryArgs>,
     ) -> Result<Json<live::query::SoqlResultDto>, ErrorData> {
-        live::query::soql_query(
-            &self.root,
-            &self.live,
-            &a.org,
-            &a.query,
-            a.tooling.unwrap_or(false),
-            a.all_rows.unwrap_or(false),
-            a.limit.unwrap_or(200),
-            a.skip_validation.unwrap_or(false),
-        )
+        let org = a.org.clone();
+        let params = a.query.chars().take(400).collect::<String>();
+        self.logged("soql_query", Some(&org), params, async move {
+            live::query::soql_query(
+                &self.root,
+                &self.live,
+                &a.org,
+                &a.query,
+                a.tooling.unwrap_or(false),
+                a.all_rows.unwrap_or(false),
+                a.limit.unwrap_or(200),
+                a.skip_validation.unwrap_or(false),
+            )
+            .await
+            .map(Json)
+        })
         .await
-        .map(Json)
     }
 
     #[tool(
@@ -461,9 +543,14 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<RecordGetArgs>,
     ) -> Result<Json<RecordDto>, ErrorData> {
-        live::dml::get(&self.live, &a.org, &a.object, &a.id)
-            .await
-            .map(|record| Json(RecordDto { record }))
+        let org = a.org.clone();
+        let params = format!("object={} id={}", a.object, a.id);
+        self.logged("record_get", Some(&org), params, async move {
+            live::dml::get(&self.live, &a.org, &a.object, &a.id)
+                .await
+                .map(|record| Json(RecordDto { record }))
+        })
+        .await
     }
 
     #[tool(
@@ -474,15 +561,20 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<RecordCreateArgs>,
     ) -> Result<Json<live::dml::MutationDto>, ErrorData> {
-        live::dml::create(
-            &self.live,
-            &a.org,
-            &a.object,
-            &a.fields,
-            a.confirm.unwrap_or(false),
-        )
+        let org = a.org.clone();
+        let params = format!("object={} fields=[{}]", a.object, field_keys(&a.fields));
+        self.logged("record_create", Some(&org), params, async move {
+            live::dml::create(
+                &self.live,
+                &a.org,
+                &a.object,
+                &a.fields,
+                a.confirm.unwrap_or(false),
+            )
+            .await
+            .map(Json)
+        })
         .await
-        .map(Json)
     }
 
     #[tool(
@@ -493,16 +585,26 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<RecordUpdateArgs>,
     ) -> Result<Json<live::dml::MutationDto>, ErrorData> {
-        live::dml::update(
-            &self.live,
-            &a.org,
-            &a.object,
-            &a.id,
-            &a.fields,
-            a.confirm.unwrap_or(false),
-        )
+        let org = a.org.clone();
+        let params = format!(
+            "object={} id={} fields=[{}]",
+            a.object,
+            a.id,
+            field_keys(&a.fields)
+        );
+        self.logged("record_update", Some(&org), params, async move {
+            live::dml::update(
+                &self.live,
+                &a.org,
+                &a.object,
+                &a.id,
+                &a.fields,
+                a.confirm.unwrap_or(false),
+            )
+            .await
+            .map(Json)
+        })
         .await
-        .map(Json)
     }
 
     #[tool(
@@ -513,15 +615,20 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<RecordDeleteArgs>,
     ) -> Result<Json<live::dml::MutationDto>, ErrorData> {
-        live::dml::delete(
-            &self.live,
-            &a.org,
-            &a.object,
-            &a.id,
-            a.confirm.unwrap_or(false),
-        )
+        let org = a.org.clone();
+        let params = format!("object={} id={}", a.object, a.id);
+        self.logged("record_delete", Some(&org), params, async move {
+            live::dml::delete(
+                &self.live,
+                &a.org,
+                &a.object,
+                &a.id,
+                a.confirm.unwrap_or(false),
+            )
+            .await
+            .map(Json)
+        })
         .await
-        .map(Json)
     }
 
     #[tool(
@@ -532,9 +639,14 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<ApexRunArgs>,
     ) -> Result<Json<live::apex::ApexRunDto>, ErrorData> {
-        live::apex::apex_run(&self.live, &a.org, &a.code, a.confirm.unwrap_or(false))
-            .await
-            .map(Json)
+        let org = a.org.clone();
+        let params = a.code.chars().take(400).collect::<String>();
+        self.logged("apex_run", Some(&org), params, async move {
+            live::apex::apex_run(&self.live, &a.org, &a.code, a.confirm.unwrap_or(false))
+                .await
+                .map(Json)
+        })
+        .await
     }
 
     #[tool(
@@ -545,16 +657,21 @@ impl OstServer {
         &self,
         Parameters(a): Parameters<RestRequestArgs>,
     ) -> Result<Json<live::rest::RestDto>, ErrorData> {
-        live::rest::rest(
-            &self.live,
-            &a.org,
-            &a.method,
-            &a.path,
-            a.body.as_ref(),
-            a.confirm.unwrap_or(false),
-        )
+        let org = a.org.clone();
+        let params = format!("method={} path={}", a.method, a.path);
+        self.logged("rest_request", Some(&org), params, async move {
+            live::rest::rest(
+                &self.live,
+                &a.org,
+                &a.method,
+                &a.path,
+                a.body.as_ref(),
+                a.confirm.unwrap_or(false),
+            )
+            .await
+            .map(Json)
+        })
         .await
-        .map(Json)
     }
 }
 
@@ -570,14 +687,24 @@ impl ServerHandler for OstServer {
         info.capabilities = ServerCapabilities::builder().enable_tools().build();
         info.server_info = server_info;
         info.instructions = Some(
-            "Offline Salesforce org index (schema + Apex symbols). Consult before writing \
-             SOQL/Apex or verifying a field/object/picklist. Every answer is stamped with \
-             the org and snapshot age — check it. On contradiction with reality: ost_sync \
-             (cheap), re-query; if unresolved, ost_reindex and use live `sf` meanwhile."
+            "Salesforce org toolkit. OFFLINE (ost_*): schema + Apex symbol index — consult before \
+             writing SOQL/Apex; answers are stamped with org + snapshot age. LIVE: soql_query \
+             (pre-validated), record_get/create/update/delete, apex_run, rest_request — use these \
+             instead of `sf data query` / `sf apex run` / raw REST (structured output, no --json \
+             pipelines). Mutations on production orgs require confirm:true AFTER user approval. \
+             On schema contradiction: ost_sync, re-query; if unresolved, ost_reindex."
                 .to_string(),
         );
         info
     }
+}
+
+/// Telemetry params summary for record mutations: the field *names* only —
+/// never the values, which can be large or sensitive.
+fn field_keys(v: &serde_json::Value) -> String {
+    v.as_object()
+        .map(|m| m.keys().cloned().collect::<Vec<_>>().join(","))
+        .unwrap_or_default()
 }
 
 /// Map a query failure onto an rmcp error: DB faults are internal, everything

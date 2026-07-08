@@ -1,6 +1,6 @@
 //! Phase 2 seam: drive the real `uf-ost serve` binary over MCP stdio with an
-//! rmcp client and assert the tool contract — all 8 tools listed, the org +
-//! snapshot-age stamp on every response, and the reindex error path.
+//! rmcp client and assert the tool contract — all 11 `ost_*` tools listed, the
+//! org + snapshot-age stamp on every response, and the reindex error path.
 
 use std::sync::Arc;
 
@@ -66,7 +66,7 @@ async fn mcp_stdio_contract() {
             .await
             .expect("client handshake");
 
-    // 1. All 8 ost_* tools are advertised.
+    // 1. All 11 ost_* tools are advertised.
     let tools = client.list_tools(Default::default()).await.unwrap();
     let names: Vec<&str> = tools.tools.iter().map(|t| t.name.as_ref()).collect();
     for expected in [
