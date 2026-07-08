@@ -79,6 +79,8 @@ describe("expandable subquery cells", () => {
     render(<ResultTable data={data} />);
     fireEvent.click(screen.getByRole("button", { name: "Flat" }));
     openMenu("Columns");
+    // Prove the position-column header is visible before toggling the group off.
+    expect(screen.getByText("Contacts[0].LastName")).toBeTruthy();
     // One group item, not one item per position column (fixture: 2 child rows ×
     // 2 child columns = 4 generated position columns collapsed into one toggle).
     expect(screen.getByText("Contacts (4 cols)")).toBeTruthy();
