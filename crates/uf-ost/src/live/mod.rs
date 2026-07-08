@@ -14,6 +14,7 @@ use crate::telemetry::Telemetry;
 pub mod apex;
 pub mod dml;
 pub mod query;
+pub mod rest;
 
 const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
 

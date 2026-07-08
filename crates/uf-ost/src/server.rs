@@ -187,6 +187,19 @@ struct RecordDeleteArgs {
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
+struct RestRequestArgs {
+    org: String,
+    /// GET | POST | PATCH | PUT | DELETE
+    method: String,
+    /// Absolute API path starting with /services/ (e.g. /services/data/v62.0/limits).
+    path: String,
+    /// JSON body for POST/PATCH/PUT.
+    body: Option<serde_json::Value>,
+    /// Required true for writes against production orgs.
+    confirm: Option<bool>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
 struct ApexRunArgs {
     org: String,
     /// Anonymous Apex source to execute.
@@ -522,6 +535,26 @@ impl OstServer {
         live::apex::apex_run(&self.live, &a.org, &a.code, a.confirm.unwrap_or(false))
             .await
             .map(Json)
+    }
+
+    #[tool(
+        name = "rest_request",
+        description = "Escape hatch: raw Salesforce REST call (path under /services/). Use when no dedicated tool covers the API. Writes to production refuse without confirm:true."
+    )]
+    async fn rest_request(
+        &self,
+        Parameters(a): Parameters<RestRequestArgs>,
+    ) -> Result<Json<live::rest::RestDto>, ErrorData> {
+        live::rest::rest(
+            &self.live,
+            &a.org,
+            &a.method,
+            &a.path,
+            a.body.as_ref(),
+            a.confirm.unwrap_or(false),
+        )
+        .await
+        .map(Json)
     }
 }
 
