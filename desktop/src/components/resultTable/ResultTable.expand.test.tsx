@@ -9,6 +9,19 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
   disconnect() {}
 };
+// jsdom lacks pointer-capture / scrollIntoView, which Radix DropdownMenu needs
+// to open and manage focus.
+const proto = window.HTMLElement.prototype as unknown as Record<string, unknown>;
+proto.hasPointerCapture ??= () => false;
+proto.releasePointerCapture ??= () => {};
+proto.scrollIntoView ??= () => {};
+
+/** Open a Radix DropdownMenu whose trigger contains the given text. */
+function openMenu(triggerText: string) {
+  const trigger = screen.getByText(triggerText);
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  fireEvent.pointerUp(trigger, { button: 0 });
+}
 
 const data = {
   columns: ["Id", "Name", "Contacts"],
@@ -60,5 +73,17 @@ describe("expandable subquery cells", () => {
     expect(screen.getByText("Yin")).toBeTruthy(); // child value inline, no expansion
     fireEvent.click(screen.getByRole("button", { name: "Nested" }));
     expect(screen.queryByText("Contacts[0].LastName")).toBeNull();
+  });
+
+  it("flatten mode groups relationship columns into one visibility toggle", () => {
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "Flat" }));
+    openMenu("Columns");
+    // One group item, not one item per position column (fixture: 2 child rows ×
+    // 2 child columns = 4 generated position columns collapsed into one toggle).
+    expect(screen.getByText("Contacts (4 cols)")).toBeTruthy();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Contacts[0].LastName" })).toBeNull();
+    fireEvent.click(screen.getByText("Contacts (4 cols)"));
+    expect(screen.queryByText("Contacts[0].LastName")).toBeNull(); // header gone
   });
 });

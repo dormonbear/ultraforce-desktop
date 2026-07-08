@@ -307,16 +307,46 @@ export function ResultTable({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
             <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-            {table.getAllLeafColumns().map((col) => (
-              <DropdownMenuCheckboxItem
-                key={col.id}
-                checked={col.getIsVisible()}
-                onCheckedChange={(v) => col.toggleVisibility(!!v)}
-                onSelect={(e) => e.preventDefault()}
-              >
-                {col.id}
-              </DropdownMenuCheckboxItem>
-            ))}
+            {(() => {
+              // In flatten mode the generated `rel[k].col` position columns are
+              // hidden from the individual list and toggled as one group each.
+              const grouped = new Set(
+                viewMode === "flatten" ? flat.groups.flatMap((g) => g.columns) : [],
+              );
+              const setGroup = (cols: string[], v: boolean) =>
+                setColumnVisibility((old) => ({
+                  ...old,
+                  ...Object.fromEntries(cols.map((c) => [c, v])),
+                }));
+              return (
+                <>
+                  {table
+                    .getAllLeafColumns()
+                    .filter((col) => !grouped.has(col.id))
+                    .map((col) => (
+                      <DropdownMenuCheckboxItem
+                        key={col.id}
+                        checked={col.getIsVisible()}
+                        onCheckedChange={(v) => col.toggleVisibility(!!v)}
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {col.id}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  {viewMode === "flatten" &&
+                    flat.groups.map((g) => (
+                      <DropdownMenuCheckboxItem
+                        key={g.relationship}
+                        checked={g.columns.every((c) => columnVisibility[c] !== false)}
+                        onCheckedChange={(v) => setGroup(g.columns, !!v)}
+                        onSelect={(e) => e.preventDefault()}
+                      >
+                        {`${g.relationship} (${g.columns.length} cols)`}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                </>
+              );
+            })()}
           </DropdownMenuContent>
         </DropdownMenu>
 
