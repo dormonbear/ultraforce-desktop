@@ -78,6 +78,49 @@
   --c-blue: #aeb4be;
 }
 
+/*
+ * Astryx → Ultraforce token bridge. Astryx components read these CSS vars
+ * (from @astryxdesign/theme-neutral); pointing them at the app palette keeps
+ * migrated and bespoke UI on ONE set of colors/fonts/radii. The app vars flip
+ * under `.dark`, so a single mapping covers both modes. Doubled attribute
+ * selector out-specifies the theme's scoped `:scope` rules.
+ */
+[data-astryx-theme="neutral"][data-astryx-theme] {
+  --font-family-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-heading: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-code: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background-body: var(--background);
+  --color-background-surface: var(--card);
+  --color-background-card: var(--card);
+  --color-background-popover: var(--popover);
+  --color-background-muted: var(--muted);
+
+  --color-accent: var(--primary);
+  --color-accent-muted: var(--accent);
+  --color-on-accent: var(--primary-foreground);
+
+  --color-text-primary: var(--foreground);
+  --color-text-secondary: var(--muted-foreground);
+  --color-text-accent: var(--primary);
+  --color-icon-primary: var(--foreground);
+  --color-icon-secondary: var(--muted-foreground);
+  --color-icon-accent: var(--primary);
+
+  --color-border: var(--border);
+  --color-border-emphasized: var(--c-line);
+
+  --color-error: var(--destructive);
+  --color-on-error: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-on-success: var(--success-foreground);
+  --color-warning: var(--c-amber);
+
+  --radius-container: var(--radius); /* cards, dialogs */
+  --radius-element: 0.375rem; /* buttons, inputs ≈ Tailwind rounded-md */
+  --radius-inner: 0.25rem;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import App from "./App";
 import { ThemeProvider } from "./theme";
-import { AstryxSpikeProvider } from "./AstryxSpikeProvider";
+import { AstryxThemeProvider } from "./AstryxThemeProvider";
 import { OrgProvider } from "./org";
 import { ConfirmProvider } from "./components/confirm";
 import { runMigrationOnce } from "./fs/migrate";
@@ -37,13 +37,13 @@ void runMigrationOnce().finally(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <ThemeProvider>
-        <AstryxSpikeProvider>
+        <AstryxThemeProvider>
           <OrgProvider>
             <ConfirmProvider>
               <App />
             </ConfirmProvider>
           </OrgProvider>
-        </AstryxSpikeProvider>
+        </AstryxThemeProvider>
       </ThemeProvider>
     </React.StrictMode>,
   );

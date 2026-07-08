@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Copy, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@astryxdesign/core/Button";
+import { Code } from "@astryxdesign/core/Code";
+import { EmptyState } from "@astryxdesign/core/EmptyState";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { Text } from "@astryxdesign/core/Text";
 import { sfStatus } from "../ipc/org";
 import type { SfStatus } from "../types";
-import { Button } from "@/components/ui/button";
 
 const INSTALL_CMD = "npm install -g @salesforce/cli";
 const UPGRADE_CMD = "npm update -g @salesforce/cli";
@@ -51,25 +55,29 @@ export function useSfStatus(): { status: SfStatus | null; refresh: () => void } 
 function CopyRow({ cmd }: { cmd: string }) {
   return (
     <div className="flex w-full max-w-md items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
-      <code className="truncate text-[12px] text-foreground">{cmd}</code>
-      <button
-        type="button"
-        onClick={() => void copy(cmd)}
-        aria-label="Copy command"
-        className="cursor-pointer text-text-dim hover:text-foreground"
-      >
-        <Copy size={14} />
-      </button>
+      <Code>{cmd}</Code>
+      <IconButton
+        label="Copy command"
+        variant="ghost"
+        size="sm"
+        icon={<Copy size={14} />}
+        clickAction={() => copy(cmd)}
+      />
     </div>
   );
 }
 
 function Centered({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 p-8">
+    <div className="flex h-full flex-col items-center justify-center p-8">
       {children}
     </div>
   );
+}
+
+/** Extra guidance rows rendered under an EmptyState (copy command, docs, retry). */
+function GuidanceExtras({ children }: { children: React.ReactNode }) {
+  return <div className="flex flex-col items-center gap-3">{children}</div>;
 }
 
 /**
@@ -87,29 +95,34 @@ export function CliGuidance({
   if (status.state === "ok") return null;
 
   const retry = (
-    <Button onClick={onRetry} variant="outline" className="cursor-pointer gap-2">
-      <RefreshCw size={14} />
-      Retry
-    </Button>
+    <Button
+      label="Retry"
+      variant="secondary"
+      icon={<RefreshCw size={14} />}
+      clickAction={() => onRetry()}
+    />
   );
+  const icon = <AlertTriangle className="text-primary" size={28} />;
 
   if (status.state === "outdated") {
     return (
       <Centered>
-        <AlertTriangle className="text-primary" size={28} />
-        <h2 className="text-lg font-medium text-foreground">
-          Salesforce CLI is too old
-        </h2>
-        <p className="max-w-sm text-center text-sm text-text-dim">
-          Ultraforce needs <code>sf</code> {status.minVersion} or newer.
-          {status.version ? ` Detected: ${status.version}.` : ""} Upgrade, then
-          retry.
-        </p>
-        <CopyRow cmd={UPGRADE_CMD} />
-        <p className="text-[12px] text-text-dim">
-          Docs: <span className="select-all text-foreground">{DOCS}</span>
-        </p>
-        {retry}
+        <EmptyState
+          icon={icon}
+          title="Salesforce CLI is too old"
+          description={`Ultraforce needs sf ${status.minVersion} or newer.${
+            status.version ? ` Detected: ${status.version}.` : ""
+          } Upgrade, then retry.`}
+          actions={
+            <GuidanceExtras>
+              <CopyRow cmd={UPGRADE_CMD} />
+              <Text type="supporting" display="block">
+                Docs: <span className="select-all">{DOCS}</span>
+              </Text>
+              {retry}
+            </GuidanceExtras>
+          }
+        />
       </Centered>
     );
   }
@@ -117,21 +130,22 @@ export function CliGuidance({
   if (status.state === "path_issue") {
     return (
       <Centered>
-        <AlertTriangle className="text-primary" size={28} />
-        <h2 className="text-lg font-medium text-foreground">
-          Salesforce CLI not on this app’s PATH
-        </h2>
-        <p className="max-w-sm text-center text-sm text-text-dim">
-          <code>sf</code> is installed
-          {status.foundAt ? ` at ${status.foundAt}` : ""}, but Ultraforce
-          can’t see it. This happens when the app is launched from the Dock, or
-          with shells like <code>fish</code>.
-        </p>
-        <p className="max-w-sm text-center text-[12px] text-text-dim">
-          Fix: relaunch Ultraforce from a terminal, or add <code>sf</code>’s
-          directory to your login shell’s <code>PATH</code>, then retry.
-        </p>
-        {retry}
+        <EmptyState
+          icon={icon}
+          title="Salesforce CLI not on this app’s PATH"
+          description={`sf is installed${
+            status.foundAt ? ` at ${status.foundAt}` : ""
+          }, but Ultraforce can’t see it. This happens when the app is launched from the Dock, or with shells like fish.`}
+          actions={
+            <GuidanceExtras>
+              <Text type="supporting" display="block" className="max-w-sm text-center">
+                Fix: relaunch Ultraforce from a terminal, or add sf’s directory
+                to your login shell’s PATH, then retry.
+              </Text>
+              {retry}
+            </GuidanceExtras>
+          }
+        />
       </Centered>
     );
   }
@@ -139,19 +153,21 @@ export function CliGuidance({
   // not_found
   return (
     <Centered>
-      <AlertTriangle className="text-primary" size={28} />
-      <h2 className="text-lg font-medium text-foreground">
-        Salesforce CLI not found
-      </h2>
-      <p className="max-w-sm text-center text-sm text-text-dim">
-        Ultraforce drives the <code>sf</code> CLI. Install it, then retry.
-      </p>
-      <CopyRow cmd={INSTALL_CMD} />
-      <p className="text-[12px] text-text-dim">
-        Or use the installer — docs:{" "}
-        <span className="select-all text-foreground">{DOCS}</span>
-      </p>
-      {retry}
+      <EmptyState
+        icon={icon}
+        title="Salesforce CLI not found"
+        description="Ultraforce drives the sf CLI. Install it, then retry."
+        actions={
+          <GuidanceExtras>
+            <CopyRow cmd={INSTALL_CMD} />
+            <Text type="supporting" display="block">
+              Or use the installer — docs:{" "}
+              <span className="select-all">{DOCS}</span>
+            </Text>
+            {retry}
+          </GuidanceExtras>
+        }
+      />
     </Centered>
   );
 }
@@ -163,8 +179,12 @@ export function CliGuidanceForError({ onRetry }: { onRetry: () => void }) {
   if (!status) {
     return (
       <Centered>
-        <Loader2 className="spin text-muted-foreground" size={20} />
-        <p className="text-sm text-text-dim">Checking Salesforce CLI…</p>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="spin text-muted-foreground" size={20} />
+          <Text type="supporting" display="block">
+            Checking Salesforce CLI…
+          </Text>
+        </div>
       </Centered>
     );
   }

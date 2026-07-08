@@ -7,14 +7,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button } from "@astryxdesign/core/Button";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { SoqlEditor } from "../components/SoqlEditor";
 import type { Reveal } from "../editor/monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
@@ -306,13 +300,15 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     </ResizablePanelGroup>
 
     <Dialog
-      open={largeConfirm != null}
+      isOpen={largeConfirm != null}
       onOpenChange={(o) => !o && setLargeConfirm(null)}
+      width={480}
     >
-      <DialogContent className="gap-4">
-        <DialogHeader>
-          <DialogTitle>Large result set</DialogTitle>
-        </DialogHeader>
+      <DialogHeader
+        title="Large result set"
+        onOpenChange={(o) => !o && setLargeConfirm(null)}
+      />
+      <div className="flex flex-col gap-4">
         <p className="text-sm text-text-dim">
           This query has no <code>LIMIT</code> and would return about{" "}
           <span className="font-medium text-foreground">
@@ -321,29 +317,29 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           rows — more than the {LARGE_THRESHOLD.toLocaleString()} row guard.
           Fetching them all may be slow.
         </p>
-        <DialogFooter className="gap-2 sm:gap-2">
-          <Button variant="ghost" onClick={() => setLargeConfirm(null)}>
-            Cancel
-          </Button>
+        <div className="flex justify-end gap-2">
           <Button
-            variant="outline"
+            label="Cancel"
+            variant="ghost"
+            onClick={() => setLargeConfirm(null)}
+          />
+          <Button
+            label={`Add LIMIT ${PREVIEW_LIMIT.toLocaleString()}`}
+            variant="secondary"
             onClick={() => {
               setLargeConfirm(null);
               void execute(`${query}\nLIMIT ${PREVIEW_LIMIT}`);
             }}
-          >
-            Add LIMIT {PREVIEW_LIMIT.toLocaleString()}
-          </Button>
+          />
           <Button
+            label="Run anyway"
             onClick={() => {
               setLargeConfirm(null);
               void execute(query);
             }}
-          >
-            Run anyway
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          />
+        </div>
+      </div>
     </Dialog>
     </>
   );
