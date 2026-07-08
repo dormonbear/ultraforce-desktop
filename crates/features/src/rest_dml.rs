@@ -19,6 +19,7 @@ fn sobject_url(auth: &AuthInfo, object: &str, id: Option<&str>) -> String {
 }
 
 /// Salesforce REST errors arrive as `[{"message","errorCode"}]`; surface both.
+/// Mirrors `soql::parse_rest_error` so REST and CLI errors render identically.
 fn map_rest_error(status: u16, body: &str) -> SfError {
     #[derive(serde::Deserialize)]
     struct RestErr {
@@ -27,16 +28,20 @@ fn map_rest_error(status: u16, body: &str) -> SfError {
         error_code: String,
     }
     match serde_json::from_str::<Vec<RestErr>>(body) {
-        Ok(errs) if !errs.is_empty() => SfError::Unexpected(
-            errs.iter()
+        Ok(errs) if !errs.is_empty() => SfError::Command {
+            status: status as i32,
+            name: errs[0].error_code.clone(),
+            message: errs
+                .iter()
                 .map(|e| format!("{}: {}", e.error_code, e.message))
                 .collect::<Vec<_>>()
                 .join("; "),
-        ),
-        _ => SfError::Unexpected(format!(
-            "HTTP {status}: {}",
-            body.chars().take(500).collect::<String>()
-        )),
+        },
+        _ => SfError::Command {
+            status: status as i32,
+            name: "Error".into(),
+            message: body.to_string(),
+        },
     }
 }
 
@@ -165,13 +170,23 @@ mod tests {
     fn maps_salesforce_error_array() {
         // Salesforce REST errors are a JSON array of {message, errorCode}
         let e = map_rest_error(400, r#"[{"message":"No such column 'Foo'","errorCode":"INVALID_FIELD"}]"#);
-        let msg = e.to_string();
-        assert!(msg.contains("INVALID_FIELD") && msg.contains("No such column"), "{msg}");
+        match &e {
+            SfError::Command { status, name, message } => {
+                assert_eq!(*status, 400);
+                assert_eq!(name, "INVALID_FIELD");
+                assert!(message.contains("INVALID_FIELD") && message.contains("No such column"));
+            }
+            _ => panic!("expected SfError::Command, got {e:?}"),
+        }
     }
 
     #[test]
     fn maps_non_json_error_body() {
         let e = map_rest_error(502, "<html>Bad Gateway</html>");
+        match &e {
+            SfError::Command { status, .. } => assert_eq!(*status, 502),
+            _ => panic!("expected SfError::Command, got {e:?}"),
+        }
         assert!(e.to_string().contains("502"));
     }
 
