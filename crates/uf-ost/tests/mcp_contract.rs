@@ -172,6 +172,60 @@ async fn mcp_stdio_contract() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// End-to-end telemetry gate through the REAL spawned `serve` binary: proves
+/// `<root>/telemetry.json` is honored at process startup. Off (default/absent)
+/// ⇒ no `tool_log` row after an `ost_status` call; `localEnabled:true` ⇒ one row.
+/// The two phases restart the binary because config loads once at startup.
+#[tokio::test]
+async fn telemetry_local_gate_end_to_end() {
+    let root = std::env::temp_dir().join(format!("uf-ost-tel-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+
+    // Phase 1: no telemetry.json ⇒ telemetry OFF by default ⇒ no row.
+    drive_ost_status(&root).await;
+    assert_eq!(
+        tool_log_rows(&root),
+        0,
+        "default-off: no tool_log row expected"
+    );
+
+    // Phase 2: opt in locally, restart, drive again ⇒ exactly one row.
+    std::fs::write(
+        root.join("telemetry.json"),
+        r#"{"localEnabled":true,"remoteEnabled":false}"#,
+    )
+    .unwrap();
+    drive_ost_status(&root).await;
+    assert_eq!(
+        tool_log_rows(&root),
+        1,
+        "opt-in: exactly one tool_log row expected"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Spawn the real binary over stdio, call `ost_status` (org: null — no index
+/// needed), then shut it down.
+async fn drive_ost_status(root: &std::path::Path) {
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_uf-ost"));
+    cmd.arg("serve").arg("--root").arg(root);
+    let client = ()
+        .serve(TokioChildProcess::new(cmd).expect("spawn uf-ost serve"))
+        .await
+        .expect("client handshake");
+    let _ = call(&client, "ost_status", serde_json::json!({})).await;
+    client.cancel().await.ok();
+}
+
+/// Row count in `<root>/telemetry.db`; 0 when the db/table never got created.
+fn tool_log_rows(root: &std::path::Path) -> i64 {
+    let conn = rusqlite::Connection::open(root.join("telemetry.db")).unwrap();
+    conn.query_row("SELECT count(*) FROM tool_log", [], |r| r.get(0))
+        .unwrap_or(0)
+}
+
 /// `CallToolRequestParam` is `#[non_exhaustive]`; build it via serde.
 fn mk_param(name: &str, args: serde_json::Value) -> CallToolRequestParam {
     serde_json::from_value(serde_json::json!({ "name": name, "arguments": args }))

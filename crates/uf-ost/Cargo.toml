@@ -27,3 +27,4 @@ rmcp = { version = "=2.1.0", features = ["server", "transport-io", "macros"] }
 rmcp = { version = "=2.1.0", features = ["client", "server", "transport-io", "transport-child-process", "macros"] }
 sf-core = { path = "../sf-core", features = ["test-util"] }
 serde_json = { workspace = true }
+rusqlite = { workspace = true }
