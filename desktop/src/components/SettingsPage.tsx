@@ -10,6 +10,8 @@ import { getNamespacePolicy, setNamespacePolicy } from "../indexSettings";
 import { getConfirmApexRun, setConfirmApexRun } from "../apexSettings";
 import { useOrgs } from "../org";
 import { reindexOrg } from "../ipc/schema";
+import { getTelemetryConfig, setTelemetryConfig } from "../ipc/config";
+import type { TelemetryConfig } from "../types";
 import { useTheme } from "../theme";
 import {
   HIGHLIGHT_SCHEMES,
@@ -21,6 +23,30 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 
 const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
+
+// Verbatim privacy disclosure — the contract of exactly what telemetry sends.
+// Do not paraphrase, shorten, or reword; it was reviewed word-by-word.
+const TELEMETRY_DISCLOSURE = `Both are OFF by default; nothing is sent until you turn them on.
+
+When "Anonymous usage statistics" is ON, each tool call sends a scrubbed event to Aptabase:
+  • tool name (e.g. soql_query, apex_run)
+  • result: success / failure
+  • duration (ms)
+  • error CATEGORY label (e.g. INVALID_FIELD) — never the error text
+  • whether the target org is production (a true/false flag)
+  • Aptabase system info: OS name/version, app version, locale, a random per-session id
+
+NEVER collected, in any state:
+  • your SOQL / Apex query or code text
+  • any record data: field values, record Ids, object contents
+  • org names / aliases
+  • access tokens / credentials
+  • error message text (only the category label)
+  • any Salesforce business data
+  • your IP address, name, email, or other personal data
+  • cross-session tracking or device fingerprinting
+
+Local telemetry stays entirely on this computer (full detail, for your own troubleshooting).`;
 
 interface Props {
   /** Called after a workspace root changes so the owner can remount the panel. */
@@ -72,6 +98,10 @@ export function SettingsPage({ onChanged }: Props) {
   const [ns, setNs] = useState<string>("all");
   const [version, setVersion] = useState("");
   const [confirmRun, setConfirmRun] = useState(false);
+  const [telemetry, setTelemetry] = useState<TelemetryConfig>({
+    localEnabled: false,
+    remoteEnabled: false,
+  });
 
   useEffect(() => {
     void Promise.all([getRoot("soql"), getRoot("apex")]).then(([soql, apex]) =>
@@ -80,7 +110,14 @@ export function SettingsPage({ onChanged }: Props) {
     void getNamespacePolicy().then(setNs);
     void getVersion().then(setVersion);
     void getConfirmApexRun().then(setConfirmRun);
+    void getTelemetryConfig().then(setTelemetry);
   }, []);
+
+  // Persist the updated telemetry pair whenever a toggle flips.
+  const changeTelemetry = (next: TelemetryConfig) => {
+    setTelemetry(next);
+    void setTelemetryConfig(next);
+  };
 
   // Change the index namespace scope and reindex the active org so it takes effect.
   const changeNs = async (value: string) => {
@@ -210,6 +247,47 @@ export function SettingsPage({ onChanged }: Props) {
               aria-label="Confirm before running anonymous Apex"
             />
           </label>
+        </Section>
+
+        <Section title="Privacy & Telemetry">
+          <div className="flex flex-col gap-3">
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span className="text-foreground">
+                Local telemetry
+                <span className="block text-text-dim">
+                  Local telemetry — record tool calls to a local database on
+                  this computer for your own debugging. Never leaves your
+                  machine.
+                </span>
+              </span>
+              <Checkbox
+                checked={telemetry.localEnabled}
+                onCheckedChange={(v) =>
+                  changeTelemetry({ ...telemetry, localEnabled: v === true })
+                }
+                aria-label="Local telemetry"
+              />
+            </label>
+            <label className="flex cursor-pointer items-center justify-between gap-4">
+              <span className="text-foreground">
+                Anonymous usage statistics
+                <span className="block text-text-dim">
+                  Anonymous usage statistics (Aptabase) — send scrubbed events
+                  to help improve the tool.
+                </span>
+              </span>
+              <Checkbox
+                checked={telemetry.remoteEnabled}
+                onCheckedChange={(v) =>
+                  changeTelemetry({ ...telemetry, remoteEnabled: v === true })
+                }
+                aria-label="Anonymous usage statistics"
+              />
+            </label>
+            <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-text-dim">
+              {TELEMETRY_DISCLOSURE}
+            </pre>
+          </div>
         </Section>
 
         <Section title="Indexing">
