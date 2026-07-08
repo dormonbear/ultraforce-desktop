@@ -38,12 +38,16 @@ pub fn validation_block(v: &Verdict) -> Option<String> {
 
 fn shape(qr: &features::soql::QueryResult, org: &str, limit: usize) -> SoqlResultDto {
     let table = qr.to_table();
-    let truncated = !qr.done;
+    // A single REST page can return up to 2000 rows with done=true — the cancel
+    // flag only stops pagination BETWEEN pages, so an in-page overflow must also
+    // count as truncation.
+    let truncated = !qr.done || table.rows.len() > limit;
+    let returned = table.rows.len().min(limit);
     SoqlResultDto {
         org: org.to_string(),
         total_size: qr.total_size,
-        returned: table.rows.len().min(limit),
-        done: qr.done,
+        returned,
+        done: !truncated,
         columns: table.columns,
         rows: table.rows.into_iter().take(limit).collect(),
         warning: truncated.then(|| {
@@ -127,6 +131,12 @@ mod tests {
         assert!(validation_block(&Verdict { object_known: false, errors: vec![] }).is_none());
         // known object, no errors ⇒ pass
         assert!(validation_block(&Verdict { object_known: true, errors: vec![] }).is_none());
+        // unknown object + errors ⇒ still pass through (index can't be trusted)
+        assert!(validation_block(&Verdict {
+            object_known: false,
+            errors: vec![(0, "anything".into())],
+        })
+        .is_none());
         // known object + field errors ⇒ block, message names both escapes
         let msg = validation_block(&Verdict {
             object_known: true,
@@ -145,5 +155,30 @@ mod tests {
         assert!(!dto.done);
         let w = dto.warning.unwrap();
         assert!(w.contains("200") && w.contains("500"), "{w}");
+    }
+
+    /// Single-page row-cap overflow: Salesforce's default REST batch can return
+    /// up to 2000 rows in ONE page with done=true. The truncation must still be
+    /// detected from row count alone.
+    #[test]
+    fn shapes_single_page_overflow_as_truncated() {
+        let limit = 3;
+        let records: Vec<features::soql::Record> = (0..5)
+            .map(|i| features::soql::Record {
+                sobject_type: "Account".into(),
+                fields: vec![(
+                    "Id".into(),
+                    features::soql::FieldValue::Scalar(serde_json::Value::String(format!(
+                        "001{i}"
+                    ))),
+                )],
+            })
+            .collect();
+        let qr = features::soql::QueryResult { total_size: 5, done: true, records };
+        let dto = shape(&qr, "SFDC_Staging", limit);
+        assert!(!dto.done, "single-page overflow must report done=false");
+        assert_eq!(dto.returned, limit);
+        let w = dto.warning.expect("truncation warning must fire");
+        assert!(w.contains(&limit.to_string()) && w.contains('5'), "{w}");
     }
 }
