@@ -15,6 +15,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
+  ChevronRight,
   ChevronsUpDown,
   Copy,
   Download,
@@ -57,6 +59,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { SoqlResultDto } from "../types";
 import { buildChildLookup } from "./resultTable/childData";
+import { ChildGrid } from "./resultTable/ChildGrid";
 
 interface GridRow {
   /** Original index into data.rows — stable across sort/filter. */
@@ -83,6 +86,7 @@ type ColMeta = { numeric?: boolean };
 
 const GUTTER_W = 52;
 
+// fallow-ignore-next-line complexity
 export function ResultTable({
   data,
 }: {
@@ -92,9 +96,19 @@ export function ResultTable({
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [copied, setCopied] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // Flatten rendering lands in Task 5; only the state + guards exist here.
+  const [viewMode] = useState<"expand" | "flatten">("expand");
+
+  const toggleExpanded = (idx: number) =>
+    setExpanded((old) => {
+      const next = new Set(old);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
 
   const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
-  void lookup;
 
   const rowHeight = 34;
 
@@ -211,12 +225,35 @@ export function ResultTable({
   };
 
   const tableRows = table.getRowModel().rows;
-  const virtualize = tableRows.length > 100;
+
+  // Expansion introduces variable row heights, so we virtualize a display list
+  // (one item per visible parent row + one per expanded detail row) rather than
+  // the table rows directly — each item renders exactly one <tr> so
+  // measureElement measures real heights.
+  type DisplayItem =
+    | { kind: "row"; row: (typeof tableRows)[number]; ordinal: number }
+    | { kind: "detail"; row: (typeof tableRows)[number] };
+
+  const displayItems = useMemo<DisplayItem[]>(() => {
+    const items: DisplayItem[] = [];
+    tableRows.forEach((row, ordinal) => {
+      items.push({ kind: "row", row, ordinal });
+      if (
+        viewMode === "expand" &&
+        expanded.has(row.original.idx) &&
+        lookup.byRow.has(row.original.idx)
+      )
+        items.push({ kind: "detail", row });
+    });
+    return items;
+  }, [tableRows, expanded, viewMode, lookup]);
+
+  const virtualize = displayItems.length > 100;
 
   const virtualizer = useVirtualizer({
-    count: tableRows.length,
+    count: displayItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => rowHeight,
+    estimateSize: (i) => (displayItems[i].kind === "row" ? rowHeight : 240),
     overscan: 12,
     enabled: virtualize,
   });
@@ -237,9 +274,9 @@ export function ResultTable({
     virtualize && virtualItems.length
       ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
       : 0;
-  const renderRows = virtualize
-    ? virtualItems.map((vi) => ({ row: tableRows[vi.index], index: vi.index }))
-    : tableRows.map((row, index) => ({ row, index }));
+  const renderItems = virtualize
+    ? virtualItems.map((vi) => ({ item: displayItems[vi.index], index: vi.index }))
+    : displayItems.map((item, index) => ({ item, index }));
 
   const tableWidth = GUTTER_W + table.getCenterTotalSize();
   const hasXOverflow = containerW > 0 && tableWidth > containerW + 1;
@@ -439,46 +476,111 @@ export function ResultTable({
                   <td colSpan={visibleLeafCount + 1} style={{ height: padTop }} />
                 </tr>
               )}
-              {renderRows.map(({ row, index }) => (
-                <TableRow
-                  key={row.id}
-                  style={{ height: rowHeight }}
-                  className={cn(
-                    "group/row border-0 hover:bg-accent/60",
-                    index % 2 === 1 && "bg-muted/50"
-                  )}
-                >
-                  <TableCell
-                    style={{ width: GUTTER_W }}
-                    className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
-                  >
-                    {index + 1}
-                  </TableCell>
-                  {row.getVisibleCells().map((cell) => {
-                    const text = cell.getValue<string>() ?? "";
-                    const isCopied = copied !== null && copied === text;
-                    return (
+              {renderItems.map(
+                // fallow-ignore-next-line complexity
+                ({ item, index }) => {
+                const row = item.row;
+                if (item.kind === "detail") {
+                  return (
+                    <TableRow
+                      key={`${row.id}-detail`}
+                      data-index={index}
+                      ref={virtualize ? virtualizer.measureElement : undefined}
+                      className="border-0 hover:bg-transparent"
+                    >
                       <TableCell
-                        key={cell.id}
-                        // Show the full value on hover (cells truncate); the cell
-                        // is still click-to-copy.
-                        title={text || undefined}
-                        onClick={() => copyCell(text)}
-                        style={{ width: cell.column.getSize() }}
-                        className={cn(
-                          "max-w-0 cursor-pointer truncate border-b border-border px-3 align-middle",
-                          numeric(cell.column)
-                            ? "text-right tabular-nums"
-                            : "text-left",
-                          isCopied ? "text-primary" : "text-foreground"
-                        )}
+                        colSpan={visibleLeafCount + 1}
+                        className="border-b border-border bg-muted/30 px-0"
                       >
-                        {text}
+                        {/* sticky left-0 + width:containerW keeps the subgrid in
+                            view while the parent grid is horizontally scrolled. */}
+                        <div
+                          className="sticky left-0 flex max-w-full flex-col gap-3 px-14 py-3"
+                          style={{ width: containerW || undefined }}
+                        >
+                          {[...(lookup.byRow.get(row.original.idx)?.values() ?? [])].map(
+                            (t) => (
+                              <ChildGrid key={t.column} table={t} />
+                            )
+                          )}
+                        </div>
                       </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
+                    </TableRow>
+                  );
+                }
+                const ordinal = item.ordinal;
+                const childCols = lookup.byRow.get(row.original.idx);
+                return (
+                  <TableRow
+                    key={row.id}
+                    data-index={index}
+                    ref={virtualize ? virtualizer.measureElement : undefined}
+                    style={{ height: rowHeight }}
+                    className={cn(
+                      "group/row border-0 hover:bg-accent/60",
+                      ordinal % 2 === 1 && "bg-muted/50"
+                    )}
+                  >
+                    <TableCell
+                      style={{ width: GUTTER_W }}
+                      className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
+                    >
+                      {ordinal + 1}
+                    </TableCell>
+                    {row.getVisibleCells().map((cell) => {
+                      const text = cell.getValue<string>() ?? "";
+                      const isExpandable =
+                        viewMode === "expand" &&
+                        lookup.childColumns.has(cell.column.id) &&
+                        !!childCols?.has(cell.column.id);
+                      if (isExpandable) {
+                        const isOpen = expanded.has(row.original.idx);
+                        return (
+                          <TableCell
+                            key={cell.id}
+                            style={{ width: cell.column.getSize() }}
+                            className="border-b border-border px-3 align-middle"
+                          >
+                            <button
+                              type="button"
+                              aria-label={`${isOpen ? "Collapse" : "Expand"} ${cell.column.id}`}
+                              onClick={() => toggleExpanded(row.original.idx)}
+                              className="inline-flex cursor-pointer items-center gap-1 text-primary hover:underline"
+                            >
+                              {isOpen ? (
+                                <ChevronDown size={12} />
+                              ) : (
+                                <ChevronRight size={12} />
+                              )}
+                              {text}
+                            </button>
+                          </TableCell>
+                        );
+                      }
+                      const isCopied = copied !== null && copied === text;
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          // Show the full value on hover (cells truncate); the cell
+                          // is still click-to-copy.
+                          title={text || undefined}
+                          onClick={() => copyCell(text)}
+                          style={{ width: cell.column.getSize() }}
+                          className={cn(
+                            "max-w-0 cursor-pointer truncate border-b border-border px-3 align-middle",
+                            numeric(cell.column)
+                              ? "text-right tabular-nums"
+                              : "text-left",
+                            isCopied ? "text-primary" : "text-foreground"
+                          )}
+                        >
+                          {text}
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                );
+              })}
               {padBottom > 0 && (
                 <tr>
                   <td
