@@ -15,8 +15,6 @@ use crate::query::{QueryError, Snapshot};
 pub struct Verdict {
     /// FROM object resolved in the index. False ⇒ caller must NOT block on it
     /// (covers both "no FROM clause" and "FROM object not in this index").
-    // Read by Task 5's live-query tool; `soql_check` re-derives the message text.
-    #[allow(dead_code)]
     pub object_known: bool,
     /// (column, message) definite errors, sorted by column.
     pub errors: Vec<(usize, String)>,

@@ -13,11 +13,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::lock;
 use crate::detail;
+use crate::live;
 use crate::query::{self, QueryError, Stamp};
 use crate::soql;
 
 pub struct OstServer {
     root: PathBuf,
+    live: live::LiveCtx,
     // Read by the `#[tool_handler]`-generated dispatch; rustc can't see that use.
     #[allow(dead_code)]
     tool_router: ToolRouter<OstServer>,
@@ -26,6 +28,7 @@ pub struct OstServer {
 impl OstServer {
     pub fn new(root: PathBuf) -> Self {
         Self {
+            live: live::LiveCtx::new(root.clone()),
             root,
             tool_router: Self::tool_router(),
         }
@@ -131,6 +134,22 @@ struct StatusArgs {
 #[derive(Deserialize, schemars::JsonSchema)]
 struct OrgArgs {
     org: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct SoqlQueryArgs {
+    org: String,
+    /// SOQL to execute against the live org (validated offline first).
+    query: String,
+    /// Query the Tooling API instead of the data API.
+    tooling: Option<bool>,
+    /// Include deleted/archived rows (queryAll).
+    all_rows: Option<bool>,
+    /// Max rows returned (default 200).
+    limit: Option<usize>,
+    /// Skip offline pre-validation (use after ost_sync disagrees with reality).
+    skip_validation: Option<bool>,
 }
 
 // ---- refresh-tool output shapes --------------------------------------------
@@ -346,6 +365,28 @@ impl OstServer {
             .into(),
             age,
         }))
+    }
+
+    #[tool(
+        name = "soql_query",
+        description = "Execute SOQL against the LIVE org. Validated offline first (typos blocked locally with did-you-mean, zero org round-trip); returns clean columns/rows JSON — no --json | jq pipelines. Default cap 200 rows."
+    )]
+    async fn soql_query(
+        &self,
+        Parameters(a): Parameters<SoqlQueryArgs>,
+    ) -> Result<Json<live::query::SoqlResultDto>, ErrorData> {
+        live::query::soql_query(
+            &self.root,
+            &self.live,
+            &a.org,
+            &a.query,
+            a.tooling.unwrap_or(false),
+            a.all_rows.unwrap_or(false),
+            a.limit.unwrap_or(200),
+            a.skip_validation.unwrap_or(false),
+        )
+        .await
+        .map(Json)
     }
 }
 

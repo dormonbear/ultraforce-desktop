@@ -11,16 +11,15 @@ use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
 
 use crate::telemetry::Telemetry;
 
+pub mod query;
+
 const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
 
-// No consumers until Task 5 registers the live tools; drop this allow then.
-#[allow(dead_code)]
 pub struct LiveCtx {
     auth: tokio::sync::Mutex<HashMap<String, (AuthInfo, Instant)>>,
     pub telemetry: Telemetry,
 }
 
-#[allow(dead_code)]
 impl LiveCtx {
     pub fn new(root: PathBuf) -> Self {
         Self {
@@ -60,6 +59,8 @@ impl LiveCtx {
 
     /// Fail-safe prod detection: cached `Organization.IsSandbox`, one live
     /// query on miss; any failure ⇒ treat as production, do NOT cache.
+    // Consumed by Task 6's write gate; drop this allow then.
+    #[allow(dead_code)]
     pub async fn is_prod(&self, org: &str) -> bool {
         if let Some(is_sandbox) = self.telemetry.get_org_meta(org) {
             return !is_sandbox;
