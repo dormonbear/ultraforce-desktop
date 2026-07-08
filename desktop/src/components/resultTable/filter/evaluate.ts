@@ -77,6 +77,9 @@ type MatchInfo = { mode: string; threshold?: number };
 
 /** Evaluate an RQB group against one parent row (+ its typed child tables). */
 export function evaluateGroup(group: RuleGroupType, ctx: RowCtx): boolean {
+  // Empty group = no filtering — even nested (an empty `or` would otherwise
+  // evaluate [].some() = false and drop every row).
+  if (group.rules.length === 0) return true;
   const results = group.rules.map((r) => {
     if (typeof r === "string") return true; // independent-combinator strings: unused here
     if ("rules" in r) return evaluateGroup(r, ctx);
@@ -119,6 +122,8 @@ function evaluateRule(rule: RuleType, ctx: RowCtx): boolean {
 
 /** Evaluate a subquery rule group against one typed child row. */
 function evalChildRow(group: RuleGroupType, cols: string[], row: Scalar[]): boolean {
+  // Empty group = no filtering (see evaluateGroup).
+  if (group.rules.length === 0) return true;
   const results = group.rules.map((r) => {
     if (typeof r === "string") return true;
     if ("rules" in r) return evalChildRow(r, cols, row);
