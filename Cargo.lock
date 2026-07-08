@@ -4856,6 +4856,7 @@ version = "0.1.0"
 dependencies = [
  "apex-lang",
  "features",
+ "reqwest 0.12.28",
  "rmcp",
  "rusqlite",
  "serde",

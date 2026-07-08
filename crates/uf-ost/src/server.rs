@@ -76,17 +76,14 @@ impl OstServer {
     ) -> Result<T, ErrorData> {
         let start = std::time::Instant::now();
         let res = fut.await;
-        // Local tool_log is opt-in; org_meta prod-detection stays always-on.
-        if self.live.config.local_enabled {
-            self.live.telemetry.log(crate::telemetry::LogEntry {
-                tool,
-                org,
-                params: &params,
-                outcome: if res.is_ok() { "ok" } else { "error" },
-                error: res.as_ref().err().map(|e| e.message.as_ref()),
-                duration_ms: start.elapsed().as_millis() as u64,
-            });
-        }
+        self.live.record_telemetry(
+            tool,
+            org,
+            &params,
+            if res.is_ok() { "ok" } else { "error" },
+            res.as_ref().err().map(|e| e.message.as_ref()),
+            start.elapsed().as_millis() as u64,
+        );
         res
     }
 }

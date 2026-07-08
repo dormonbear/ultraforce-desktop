@@ -10,7 +10,8 @@ use features::telemetry_config::{self, TelemetryConfig};
 use rmcp::ErrorData;
 use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
 
-use crate::telemetry::Telemetry;
+use crate::aptabase::{self, AptabaseClient};
+use crate::telemetry::{LogEntry, Telemetry};
 
 pub mod apex;
 pub mod dml;
@@ -25,16 +26,25 @@ pub struct LiveCtx {
     /// Loaded once at startup. Gates local `tool_log` writes only — NOT the
     /// `org_meta` prod-detection cache, which is functional and always on.
     pub config: TelemetryConfig,
+    /// Opt-in scrubbed remote sink; `None` unless `remote_enabled`.
+    pub aptabase: Option<AptabaseClient>,
+    /// Per-process session id shared with `aptabase`.
+    pub session_id: String,
 }
 
 impl LiveCtx {
     pub fn new(root: PathBuf) -> Self {
         let config = telemetry_config::load(&root);
-        Self {
+        let mut ctx = Self {
             auth: tokio::sync::Mutex::new(HashMap::new()),
             telemetry: Telemetry::new(root),
             config,
-        }
+            aptabase: None,
+            session_id: aptabase::gen_session_id(),
+        };
+        // Built from the stored session so `session_id` is the single source of truth.
+        ctx.aptabase = aptabase::new_if_enabled(&ctx.config, &ctx.session_id);
+        ctx
     }
 
     /// Cached `sf org display` auth. TTL 15 min — `sf org display` refreshes
@@ -64,6 +74,38 @@ impl LiveCtx {
     /// Called by tools on `INVALID_SESSION_ID` so the next call re-fetches.
     pub async fn drop_auth(&self, org: &str) {
         self.auth.lock().await.remove(org);
+    }
+
+    /// Emit one tool call to both sinks. Local `tool_log` is opt-in
+    /// (`local_enabled`); the remote Aptabase sink is opt-in and scrubbed —
+    /// `errorCategory` is a CLASSIFIED label (never the raw message) and
+    /// `isProd` reads the org_meta CACHE ONLY (never triggers a live query).
+    pub fn record_telemetry(
+        &self,
+        tool: &'static str,
+        org: Option<&str>,
+        params: &str,
+        outcome: &str,
+        error: Option<&str>,
+        duration_ms: u64,
+    ) {
+        if self.config.local_enabled {
+            self.telemetry.log(LogEntry {
+                tool,
+                org,
+                params,
+                outcome,
+                error,
+                duration_ms,
+            });
+        }
+        if let Some(ap) = &self.aptabase {
+            let is_prod = org
+                .and_then(|o| self.telemetry.get_org_meta(o))
+                .map(|is_sandbox| !is_sandbox);
+            let err_category = error.map(aptabase::classify_error);
+            ap.track(tool, outcome, duration_ms, err_category, is_prod);
+        }
     }
 
     /// Fail-safe prod detection: cached `Organization.IsSandbox`, one live
