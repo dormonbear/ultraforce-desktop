@@ -740,17 +740,6 @@ mod tests {
         assert_eq!(field_keys(&serde_json::json!([1, 2, 3])), "");
     }
 
-    fn sample_entry() -> crate::telemetry::LogEntry<'static> {
-        crate::telemetry::LogEntry {
-            tool: "ost_probe",
-            org: Some("dev"),
-            params: "object=Account",
-            outcome: "ok",
-            error: None,
-            duration_ms: 1,
-        }
-    }
-
     fn row_count(dir: &std::path::Path) -> i64 {
         let conn = rusqlite::Connection::open(dir.join("telemetry.db")).unwrap();
         // No db/table yet ⇒ nothing was ever logged ⇒ 0 rows.
@@ -758,29 +747,47 @@ mod tests {
             .unwrap_or(0)
     }
 
-    #[test]
-    fn local_logging_gated_by_config() {
+    // Regression pin for the real gate in `OstServer::logged`: drives an actual
+    // tool call (`ost_status`, org: None — no live org / indexed DB needed,
+    // `query::list_orgs` just returns empty on a fresh root) through a real
+    // `OstServer` and asserts local `tool_log` only appears when
+    // `telemetry.json` has `localEnabled: true`. Config is loaded once at
+    // `OstServer::new`, so each half rebuilds the server after rewriting the file.
+    #[tokio::test]
+    async fn local_logging_gated_by_config() {
         let dir = std::env::temp_dir().join(format!("uf-gate-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        // remoteEnabled irrelevant here; localEnabled drives tool_log
-        let tel = crate::telemetry::Telemetry::new(dir.clone());
-        // simulate the gated call the `logged` helper makes:
-        let cfg_off = features::telemetry_config::TelemetryConfig {
-            local_enabled: false,
-            remote_enabled: false,
-        };
-        if cfg_off.local_enabled {
-            tel.log(sample_entry());
-        }
+
+        features::telemetry_config::save(
+            &dir,
+            &features::telemetry_config::TelemetryConfig {
+                local_enabled: false,
+                remote_enabled: false,
+            },
+        )
+        .unwrap();
+        let server = OstServer::new(dir.clone());
+        server
+            .ost_status(Parameters(StatusArgs { org: None }))
+            .await
+            .unwrap();
         assert_eq!(row_count(&dir), 0);
-        let cfg_on = features::telemetry_config::TelemetryConfig {
-            local_enabled: true,
-            remote_enabled: false,
-        };
-        if cfg_on.local_enabled {
-            tel.log(sample_entry());
-        }
+
+        features::telemetry_config::save(
+            &dir,
+            &features::telemetry_config::TelemetryConfig {
+                local_enabled: true,
+                remote_enabled: false,
+            },
+        )
+        .unwrap();
+        let server = OstServer::new(dir.clone()); // config is loaded once at construction
+        server
+            .ost_status(Parameters(StatusArgs { org: None }))
+            .await
+            .unwrap();
         assert_eq!(row_count(&dir), 1);
+
         std::fs::remove_dir_all(&dir).ok();
     }
 }
