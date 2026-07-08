@@ -5,26 +5,38 @@
 use std::collections::{HashMap, HashSet};
 
 use sf_schema::{sqlite, SObjectSchema};
-use soql_lang::{diagnostics, outline};
+use soql_lang::{diagnostics, outline, SoqlOutline};
 
 use crate::query::{QueryError, Snapshot};
 
-/// Validate `query` against the snapshot's indexed schema.
-///
-/// Reuses `soql_lang::diagnostics` for flat-field + WHERE checks; relationship
-/// existence is checked here because `diagnostics` stays silent on unresolved
-/// relationships (a no-false-positive choice for the live editor, but this is a
-/// validate-a-finished-query call where the bad relationship IS the answer).
-pub fn soql_check(snap: &Snapshot, query: &str) -> Result<String, QueryError> {
-    let stamp = snap.stamp();
-    let head = |body: &str| format!("org={}  age={}\n{body}\n", stamp.org, stamp.age);
+/// Structured outcome of validating a SOQL query against an org snapshot.
+/// Task 5's live-query tool consumes this instead of `soql_check`'s text.
+#[derive(Debug)]
+pub struct Verdict {
+    /// FROM object resolved in the index. False ⇒ caller must NOT block on it
+    /// (covers both "no FROM clause" and "FROM object not in this index").
+    // Read by Task 5's live-query tool; `soql_check` re-derives the message text.
+    #[allow(dead_code)]
+    pub object_known: bool,
+    /// (column, message) definite errors, sorted by column.
+    pub errors: Vec<(usize, String)>,
+}
 
+/// Structured validation. Same schema-graph preload as `soql_check`, then
+/// delegates to the pure core so tests don't need a `Snapshot`.
+pub fn verdict(snap: &Snapshot, query: &str) -> Result<Verdict, QueryError> {
     let o = outline(query);
     let Some(from) = o.from_object.as_deref() else {
-        return Ok(head("No FROM clause found."));
+        return Ok(Verdict {
+            object_known: false,
+            errors: vec![],
+        });
     };
     let Some(root) = sqlite::read_object(snap.conn(), from)? else {
-        return Ok(head(&format!("Unknown object '{from}' — not in this index.")));
+        return Ok(Verdict {
+            object_known: false,
+            errors: vec![],
+        });
     };
 
     // Preload objects reachable via the relationship-name segments this query
@@ -68,7 +80,18 @@ pub fn soql_check(snap: &Snapshot, query: &str) -> Result<String, QueryError> {
         }
     }
 
-    let root = &map[&from_key];
+    Ok(verdict_core(&map, &from_key, &o, query))
+}
+
+/// Pure core over a preloaded schema map: the per-SELECT-field check plus the
+/// WHERE-only `diagnostics` merge, returning column-sorted (col, msg) errors.
+fn verdict_core(
+    map: &HashMap<String, SObjectSchema>,
+    from_key: &str,
+    o: &SoqlOutline,
+    query: &str,
+) -> Verdict {
+    let root = &map[from_key];
     let resolve = |name: &str| map.get(name);
 
     let mut diags: Vec<(usize, String)> = Vec::new();
@@ -89,14 +112,43 @@ pub fn soql_check(snap: &Snapshot, query: &str) -> Result<String, QueryError> {
     }
     diags.sort_by_key(|(pos, _)| *pos);
 
-    if diags.is_empty() {
+    Verdict {
+        object_known: true,
+        errors: diags,
+    }
+}
+
+/// Validate `query` against the snapshot's indexed schema.
+///
+/// Reuses `soql_lang::diagnostics` for flat-field + WHERE checks; relationship
+/// existence is checked here because `diagnostics` stays silent on unresolved
+/// relationships (a no-false-positive choice for the live editor, but this is a
+/// validate-a-finished-query call where the bad relationship IS the answer).
+pub fn soql_check(snap: &Snapshot, query: &str) -> Result<String, QueryError> {
+    let stamp = snap.stamp();
+    let head = |body: &str| format!("org={}  age={}\n{body}\n", stamp.org, stamp.age);
+
+    // Formatter over `verdict()`. The "No FROM"/"Unknown object" texts are a
+    // presentation concern, so they stay here; `object_known == false` collapses
+    // both, and we re-derive which one applies for the message + OK-line detail.
+    let o = outline(query);
+    let Some(from) = o.from_object.as_deref() else {
+        return Ok(head("No FROM clause found."));
+    };
+    let Some(root) = sqlite::read_object(snap.conn(), from)? else {
+        return Ok(head(&format!("Unknown object '{from}' — not in this index.")));
+    };
+
+    let v = verdict(snap, query)?;
+    if v.errors.is_empty() {
         return Ok(head(&format!(
             "OK — {} SELECT field(s) resolve against {}.",
             o.select_fields.len(),
             root.name
         )));
     }
-    let body: String = diags
+    let body: String = v
+        .errors
         .iter()
         .map(|(pos, msg)| format!("ERROR col {pos}: {msg}"))
         .collect::<Vec<_>>()
@@ -256,5 +308,34 @@ mod tests {
             ff.contains("Unknown field 'Emial'") && ff.contains("Email"),
             "{ff}"
         );
+    }
+
+    fn verdict_over(map: &HashMap<String, SObjectSchema>, from: &str, query: &str) -> Verdict {
+        verdict_core(map, from, &outline(query), query)
+    }
+
+    #[test]
+    fn verdict_reports_object_known_and_errors() {
+        let user = SObjectSchema {
+            name: "User".into(),
+            fields: vec![field("Email", "email")],
+            ..Default::default()
+        };
+        let account = SObjectSchema {
+            name: "Account".into(),
+            fields: vec![field("Name", "string"), lookup("OwnerId", "Owner", "User")],
+            ..Default::default()
+        };
+        let mut map = HashMap::new();
+        map.insert("User".to_string(), user);
+        map.insert("Account".to_string(), account);
+
+        let v = verdict_over(&map, "Account", "SELECT Naem FROM Account");
+        assert!(v.object_known);
+        assert_eq!(v.errors.len(), 1);
+        assert!(v.errors[0].1.contains("did you mean 'Name'"));
+
+        let ok = verdict_over(&map, "Account", "SELECT Name, Owner.Email FROM Account");
+        assert!(ok.object_known && ok.errors.is_empty());
     }
 }
