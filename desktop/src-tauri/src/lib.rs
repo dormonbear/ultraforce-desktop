@@ -13,6 +13,7 @@ mod setup;
 mod sf_cli;
 mod soql_exec;
 mod state;
+mod telemetry_cfg;
 
 use error::CommandError;
 use state::{cached_log_view, current_org, parsed_log, AppState};
@@ -224,6 +225,16 @@ async fn set_debug_config(
 }
 
 #[tauri::command]
+async fn get_telemetry_config() -> Result<dto::TelemetryConfigDto, CommandError> {
+    telemetry_cfg::get_telemetry_config()
+}
+
+#[tauri::command]
+async fn set_telemetry_config(config: dto::TelemetryConfigDto) -> Result<(), CommandError> {
+    telemetry_cfg::set_telemetry_config(config)
+}
+
+#[tauri::command]
 async fn quick_self_trace(
     minutes: Option<u32>,
     state: State<'_, AppState>,
@@ -361,6 +372,8 @@ pub fn run() {
             set_target_org,
             get_debug_config,
             set_debug_config,
+            get_telemetry_config,
+            set_telemetry_config,
             quick_self_trace,
             load_logging_config,
             save_logging_config,
