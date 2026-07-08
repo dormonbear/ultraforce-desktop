@@ -11,6 +11,7 @@ use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
 
 use crate::telemetry::Telemetry;
 
+pub mod apex;
 pub mod dml;
 pub mod query;
 

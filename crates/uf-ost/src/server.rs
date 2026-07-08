@@ -186,6 +186,15 @@ struct RecordDeleteArgs {
     confirm: Option<bool>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema)]
+struct ApexRunArgs {
+    org: String,
+    /// Anonymous Apex source to execute.
+    code: String,
+    /// Required true for production orgs, after the user approved the change.
+    confirm: Option<bool>,
+}
+
 // ---- refresh-tool output shapes --------------------------------------------
 
 #[derive(Serialize, schemars::JsonSchema)]
@@ -500,6 +509,19 @@ impl OstServer {
         )
         .await
         .map(Json)
+    }
+
+    #[tool(
+        name = "apex_run",
+        description = "Execute anonymous Apex in the LIVE org. Returns structured compile/runtime result + USER_DEBUG lines (no raw log dump). 5-min timeout. Production orgs refuse without confirm:true."
+    )]
+    async fn apex_run(
+        &self,
+        Parameters(a): Parameters<ApexRunArgs>,
+    ) -> Result<Json<live::apex::ApexRunDto>, ErrorData> {
+        live::apex::apex_run(&self.live, &a.org, &a.code, a.confirm.unwrap_or(false))
+            .await
+            .map(Json)
     }
 }
 
