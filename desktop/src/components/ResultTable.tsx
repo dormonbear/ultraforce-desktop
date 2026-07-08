@@ -19,27 +19,16 @@ import {
   ChevronRight,
   ChevronsUpDown,
   Copy,
-  Download,
-  Filter,
-  Search,
-  SlidersHorizontal,
 } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import { copyText } from "../clipboard";
 import {
-  EXPORT_FORMATS,
   toJson,
   toMarkdown,
   writeExportFile,
   type ExportFormatDef,
 } from "./export";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
 import {
   Table,
   TableBody,
@@ -48,25 +37,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { SoqlResultDto } from "../types";
 import { buildChildLookup } from "./resultTable/childData";
 import { flattenTable } from "./resultTable/flatten";
 import { ChildGrid } from "./resultTable/ChildGrid";
+import { Toolbar } from "./resultTable/Toolbar";
 import { FilterBuilder } from "./resultTable/filter/FilterBuilder";
 import { buildFilterFields } from "./resultTable/filter/fields";
 import type { RuleGroupType } from "react-querybuilder";
 
-interface GridRow {
+export interface GridRow {
   /** Original index into data.rows — stable across sort/filter. */
   idx: number;
   cells: Record<string, string>;
@@ -351,162 +332,29 @@ export function ResultTable({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            placeholder="Filter rows…"
-            className="h-7 w-56 pl-8 text-[12px]"
-          />
-        </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="focus-accent inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12px] text-muted-foreground hover:text-foreground cursor-pointer">
-            <SlidersHorizontal size={13} /> Columns
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
-            <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
-            {(() => {
-              // In flatten mode the generated `rel[k].col` position columns are
-              // hidden from the individual list and toggled as one group each.
-              const grouped = new Set(
-                viewMode === "flatten" ? flat.groups.flatMap((g) => g.columns) : [],
-              );
-              const setGroup = (cols: string[], v: boolean) =>
-                setColumnVisibility((old) => ({
-                  ...old,
-                  ...Object.fromEntries(cols.map((c) => [c, v])),
-                }));
-              return (
-                <>
-                  {table
-                    .getAllLeafColumns()
-                    .filter((col) => !grouped.has(col.id))
-                    .map((col) => (
-                      <DropdownMenuCheckboxItem
-                        key={col.id}
-                        checked={col.getIsVisible()}
-                        onCheckedChange={(v) => col.toggleVisibility(!!v)}
-                        onSelect={(e) => e.preventDefault()}
-                      >
-                        {col.id}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  {viewMode === "flatten" &&
-                    flat.groups.map((g) => (
-                      <DropdownMenuCheckboxItem
-                        key={g.relationship}
-                        checked={g.columns.every((c) => columnVisibility[c] !== false)}
-                        onCheckedChange={(v) => setGroup(g.columns, !!v)}
-                        onSelect={(e) => e.preventDefault()}
-                      >
-                        {`${g.relationship} (${g.columns.length} cols)`}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                </>
-              );
-            })()}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <button
-          type="button"
-          title="Advanced filter"
-          aria-label="Advanced filter"
-          onClick={() => setShowFilter((v) => !v)}
-          className={cn(
-            "focus-accent relative inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12px] cursor-pointer",
-            showFilter || advancedFilter.rules.length > 0
-              ? "text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Filter size={13} /> Filter
-          {advancedFilter.rules.length > 0 && (
-            <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />
-          )}
-        </button>
-
-        {lookup.relationships.length > 0 && (
-          <div className="flex h-7 items-center rounded-md border border-input bg-card p-0.5 text-[12px]">
-            {(["expand", "flatten"] as const).map((m) => (
-              <button
-                key={m}
-                type="button"
-                onClick={() => {
-                  setViewMode(m);
-                  setSorting([]);
-                  setColumnVisibility({});
-                  setExpanded(new Set());
-                }}
-                className={cn(
-                  "cursor-pointer rounded px-2 py-0.5",
-                  viewMode === m
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {m === "expand" ? "Nested" : "Flat"}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="flex-1" />
-
-        <ContextMenu>
-          <ContextMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="Copy result"
-              title="Copy all rows (tab-separated — right-click for Markdown / JSON)"
-              onClick={() => copyAs("tsv")}
-              className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-            >
-              <Copy size={14} />
-            </button>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem onSelect={() => copyAs("md")}>
-              Copy as Markdown
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => copyAs("json")}>
-              Copy as JSON
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              title="Export"
-              className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
-            >
-              <Download size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuLabel>Export as</DropdownMenuLabel>
-            {EXPORT_FORMATS.map((fmt) => (
-              <DropdownMenuItem
-                key={fmt.id}
-                onSelect={() => void exportAs(fmt)}
-              >
-                {fmt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {/* Only shown when the visible set differs from the full result (filtered
-            or partially loaded); the full count lives in the panel status line. */}
-        {tableRows.length !== data.totalSize && (
-          <span className="tnum text-[11px] text-muted-foreground">
-            {tableRows.length.toLocaleString()} / {data.totalSize.toLocaleString()} shown
-          </span>
-        )}
-      </div>
+      <Toolbar
+        globalFilter={globalFilter}
+        onGlobalFilterChange={setGlobalFilter}
+        table={table}
+        viewMode={viewMode}
+        onViewModeChange={(m) => {
+          setViewMode(m);
+          setSorting([]);
+          setColumnVisibility({});
+          setExpanded(new Set());
+        }}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        flat={flat}
+        lookup={lookup}
+        showFilter={showFilter}
+        onToggleFilter={() => setShowFilter((v) => !v)}
+        advancedFilter={advancedFilter}
+        copyAs={copyAs}
+        exportAs={exportAs}
+        shownCount={tableRows.length}
+        totalSize={data.totalSize}
+      />
 
       {showFilter && (
         <FilterBuilder
