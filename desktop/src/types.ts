@@ -168,6 +168,11 @@ export type DebugConfigDto = {
   expirationDate: string | null;
 };
 
+export type TelemetryConfig = {
+  localEnabled: boolean;
+  remoteEnabled: boolean;
+};
+
 // ---- Debug Traces management (Configure Logging dialog) ----
 
 export type TracedEntityKind = "User" | "ApexClass" | "ApexTrigger" | "Unknown";

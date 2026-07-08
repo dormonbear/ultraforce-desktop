@@ -5,12 +5,17 @@
 //!
 //! Snapshot root resolves `--root` > `UF_OST_ROOT` > the app's default cache.
 
+mod aptabase;
+mod detail;
 mod index_cmd;
+mod live;
 mod lock;
 mod query;
 mod root;
 mod server;
+mod soql;
 mod status_cmd;
+mod telemetry;
 
 use std::path::PathBuf;
 

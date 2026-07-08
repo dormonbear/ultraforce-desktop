@@ -5,6 +5,7 @@ import type {
   LoggingConfigDto,
   LoggingDiffDto,
   SaveOutcomeDto,
+  TelemetryConfig,
 } from "../types";
 
 /** The running user's TraceFlag / DebugLevel config. */
@@ -30,4 +31,14 @@ export function loadLoggingConfig(): Promise<LoggingConfigDto> {
 /** Apply a logging-config diff (adds / edits / removals). */
 export function saveLoggingConfig(diff: LoggingDiffDto): Promise<SaveOutcomeDto> {
   return invoke<SaveOutcomeDto>("save_logging_config", { diff });
+}
+
+/** The persisted local + remote telemetry opt-in flags (both OFF by default). */
+export function getTelemetryConfig(): Promise<TelemetryConfig> {
+  return invoke<TelemetryConfig>("get_telemetry_config");
+}
+
+/** Persist the local + remote telemetry opt-in flags. */
+export function setTelemetryConfig(config: TelemetryConfig): Promise<void> {
+  return invoke<void>("set_telemetry_config", { config });
 }

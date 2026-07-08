@@ -136,12 +136,27 @@ The same offline index powers an MCP server, so an AI coding agent can ask about
 your org's **real** schema and Apex symbols instead of guessing field API names,
 inventing picklist values, or triggering the ~145 s live SymbolTable query.
 
+**Get the server** — pick one (no Salesforce CLI or Rust toolchain required for the first two):
+
+- **npm (recommended):** `npx -y @dormon/ultraforce-mcp serve` — the package's postinstall
+  fetches the prebuilt `uf-ost` binary for your platform from the matching release.
+- **Prebuilt binary:** download `uf-ost-<target>` from the
+  [Releases page](https://github.com/dormonbear/ultraforce-desktop/releases/latest) and
+  put it on your `PATH`.
+- **From source (Rust):** `cargo install --git https://github.com/dormonbear/ultraforce-desktop uf-ost`.
+
 ```bash
 # Index an org once (headless; also runnable from launchd/cron):
-cargo run -p uf-ost -- index --org <alias>
+uf-ost index --org <alias>
 
 # Then point your agent's MCP config at:
-cargo run -p uf-ost -- serve      # stdio; server name "ultraforce"
+uf-ost serve      # stdio; server name "ultraforce"
+```
+
+Add it to your agent's `.mcp.json`:
+
+```json
+{ "mcpServers": { "ultraforce": { "command": "npx", "args": ["-y", "@dormon/ultraforce-mcp", "serve"], "type": "stdio" } } }
 ```
 
 Eight `ost_*` tools: `ost_object`, `ost_field` (cross-org drift), `ost_picklist`,
@@ -149,7 +164,14 @@ Eight `ost_*` tools: `ost_object`, `ost_field` (cross-org drift), `ost_picklist`
 `ost_reindex` (async full rebuild). Every response is stamped with the org alias
 and the snapshot's age. The bundled [`skills/ost`](skills/ost/SKILL.md) teaches
 the retrieval discipline (verify freshness → sync → reindex + fall back to live
-`sf`).
+`sf`). Install it in your agent by referencing this repo from your skills config
+(e.g. agentskills `skills-lock.json`):
+
+```json
+{ "ost": { "source": "dormonbear/ultraforce-desktop", "sourceType": "github", "skillPath": "skills/ost/SKILL.md" } }
+```
+
+or copy `skills/ost/SKILL.md` into your agent's skills directory.
 
 - **Storage:** one SQLite `index.db` per org under `<cache>/ultraforce/<alias>/`
   (`$XDG_CACHE_HOME` / `~/.cache` / `%LOCALAPPDATA%`), overridable with `--root`

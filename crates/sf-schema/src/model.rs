@@ -20,10 +20,14 @@ pub struct SObjectSchema {
     pub fields: Vec<Field>,
     #[serde(default, rename = "childRelationships")]
     pub child_relationships: Vec<ChildRelationship>,
+    /// Record types on this object (identity only — per-RT picklist availability
+    /// is Phase 2, needs the UI API).
+    #[serde(default, rename = "recordTypeInfos")]
+    pub record_type_infos: Vec<RecordTypeInfo>,
 }
 
 /// A field on an object.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub struct Field {
     pub name: String,
     #[serde(default)]
@@ -40,10 +44,29 @@ pub struct Field {
     pub relationship_name: Option<String>,
     #[serde(default, rename = "picklistValues")]
     pub picklist_values: Vec<PicklistValue>,
+    // ---- Tier-1 detail (surfaced via ost_fields; ost_object only tags them) --
+    /// Controlling field of a dependent picklist (`None` if independent).
+    #[serde(default, rename = "controllerName")]
+    pub controller_name: Option<String>,
+    #[serde(default, rename = "dependentPicklist")]
+    pub dependent_picklist: bool,
+    #[serde(default)]
+    pub calculated: bool,
+    /// Formula body for a formula field (`None` if not calculated).
+    #[serde(default, rename = "calculatedFormula")]
+    pub calculated_formula: Option<String>,
+    #[serde(default, rename = "defaultValueFormula")]
+    pub default_value_formula: Option<String>,
+    #[serde(default)]
+    pub length: i64,
+    #[serde(default)]
+    pub unique: bool,
+    #[serde(default, rename = "restrictedPicklist")]
+    pub restricted_picklist: bool,
 }
 
 /// One entry in a picklist field.
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
 pub struct PicklistValue {
     #[serde(default)]
     pub label: String,
@@ -52,6 +75,28 @@ pub struct PicklistValue {
     pub active: bool,
     #[serde(default, rename = "defaultValue")]
     pub default_value: bool,
+    /// Base64 dependency bitmap (present only on a dependent picklist's entries);
+    /// decoded against the controlling field's active values at query time.
+    #[serde(default, rename = "validFor")]
+    pub valid_for: Option<String>,
+}
+
+/// Record type identity from `recordTypeInfos` in the object describe.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RecordTypeInfo {
+    #[serde(default)]
+    pub record_type_id: Option<String>,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub developer_name: String,
+    #[serde(default)]
+    pub active: bool,
+    #[serde(default)]
+    pub master: bool,
+    #[serde(default)]
+    pub available: bool,
 }
 
 /// A child relationship pointing back to this object.

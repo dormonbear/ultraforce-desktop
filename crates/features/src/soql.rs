@@ -543,6 +543,7 @@ fn empty_schema() -> sf_schema::SObjectSchema {
         custom: false,
         fields: vec![],
         child_relationships: vec![],
+        record_type_infos: vec![],
     }
 }
 

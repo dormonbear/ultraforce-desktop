@@ -169,6 +169,33 @@ impl From<&DebugConfig> for DebugConfigDto {
     }
 }
 
+// ---- Opt-in telemetry config ----
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TelemetryConfigDto {
+    pub local_enabled: bool,
+    pub remote_enabled: bool,
+}
+
+impl From<&features::telemetry_config::TelemetryConfig> for TelemetryConfigDto {
+    fn from(c: &features::telemetry_config::TelemetryConfig) -> Self {
+        TelemetryConfigDto {
+            local_enabled: c.local_enabled,
+            remote_enabled: c.remote_enabled,
+        }
+    }
+}
+
+impl From<&TelemetryConfigDto> for features::telemetry_config::TelemetryConfig {
+    fn from(d: &TelemetryConfigDto) -> Self {
+        features::telemetry_config::TelemetryConfig {
+            local_enabled: d.local_enabled,
+            remote_enabled: d.remote_enabled,
+        }
+    }
+}
+
 // ---- Debug Traces management (Configure Logging dialog) ----
 
 #[derive(serde::Serialize)]
