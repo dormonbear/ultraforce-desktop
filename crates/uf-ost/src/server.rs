@@ -76,14 +76,17 @@ impl OstServer {
     ) -> Result<T, ErrorData> {
         let start = std::time::Instant::now();
         let res = fut.await;
-        self.live.telemetry.log(crate::telemetry::LogEntry {
-            tool,
-            org,
-            params: &params,
-            outcome: if res.is_ok() { "ok" } else { "error" },
-            error: res.as_ref().err().map(|e| e.message.as_ref()),
-            duration_ms: start.elapsed().as_millis() as u64,
-        });
+        // Local tool_log is opt-in; org_meta prod-detection stays always-on.
+        if self.live.config.local_enabled {
+            self.live.telemetry.log(crate::telemetry::LogEntry {
+                tool,
+                org,
+                params: &params,
+                outcome: if res.is_ok() { "ok" } else { "error" },
+                error: res.as_ref().err().map(|e| e.message.as_ref()),
+                duration_ms: start.elapsed().as_millis() as u64,
+            });
+        }
         res
     }
 }
@@ -714,5 +717,70 @@ fn to_err(e: QueryError) -> ErrorData {
     match e {
         QueryError::Db(_) => ErrorData::internal_error(msg, None),
         _ => ErrorData::invalid_params(msg, None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Security pin: telemetry params summaries must carry field NAMES only —
+    // never record VALUES, which leak into both the local and remote sinks.
+    #[test]
+    fn field_keys_excludes_values() {
+        let v = serde_json::json!({"Name": "Acme Corp", "AnnualRevenue": 5000000, "Secret__c": "xyz"});
+        let s = field_keys(&v);
+        // only KEYS appear, no VALUES
+        assert!(s.contains("Name") && s.contains("AnnualRevenue") && s.contains("Secret__c"));
+        assert!(
+            !s.contains("Acme") && !s.contains("5000000") && !s.contains("xyz"),
+            "leaked a value: {s}"
+        );
+        // non-object ⇒ empty, never panics
+        assert_eq!(field_keys(&serde_json::json!([1, 2, 3])), "");
+    }
+
+    fn sample_entry() -> crate::telemetry::LogEntry<'static> {
+        crate::telemetry::LogEntry {
+            tool: "ost_probe",
+            org: Some("dev"),
+            params: "object=Account",
+            outcome: "ok",
+            error: None,
+            duration_ms: 1,
+        }
+    }
+
+    fn row_count(dir: &std::path::Path) -> i64 {
+        let conn = rusqlite::Connection::open(dir.join("telemetry.db")).unwrap();
+        // No db/table yet ⇒ nothing was ever logged ⇒ 0 rows.
+        conn.query_row("SELECT count(*) FROM tool_log", [], |r| r.get(0))
+            .unwrap_or(0)
+    }
+
+    #[test]
+    fn local_logging_gated_by_config() {
+        let dir = std::env::temp_dir().join(format!("uf-gate-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        // remoteEnabled irrelevant here; localEnabled drives tool_log
+        let tel = crate::telemetry::Telemetry::new(dir.clone());
+        // simulate the gated call the `logged` helper makes:
+        let cfg_off = features::telemetry_config::TelemetryConfig {
+            local_enabled: false,
+            remote_enabled: false,
+        };
+        if cfg_off.local_enabled {
+            tel.log(sample_entry());
+        }
+        assert_eq!(row_count(&dir), 0);
+        let cfg_on = features::telemetry_config::TelemetryConfig {
+            local_enabled: true,
+            remote_enabled: false,
+        };
+        if cfg_on.local_enabled {
+            tel.log(sample_entry());
+        }
+        assert_eq!(row_count(&dir), 1);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

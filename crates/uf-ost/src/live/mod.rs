@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
+use features::telemetry_config::{self, TelemetryConfig};
 use rmcp::ErrorData;
 use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
 
@@ -21,13 +22,18 @@ const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
 pub struct LiveCtx {
     auth: tokio::sync::Mutex<HashMap<String, (AuthInfo, Instant)>>,
     pub telemetry: Telemetry,
+    /// Loaded once at startup. Gates local `tool_log` writes only — NOT the
+    /// `org_meta` prod-detection cache, which is functional and always on.
+    pub config: TelemetryConfig,
 }
 
 impl LiveCtx {
     pub fn new(root: PathBuf) -> Self {
+        let config = telemetry_config::load(&root);
         Self {
             auth: tokio::sync::Mutex::new(HashMap::new()),
             telemetry: Telemetry::new(root),
+            config,
         }
     }
 
