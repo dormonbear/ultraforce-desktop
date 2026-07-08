@@ -152,6 +152,40 @@ struct SoqlQueryArgs {
     skip_validation: Option<bool>,
 }
 
+#[derive(Deserialize, schemars::JsonSchema)]
+struct RecordGetArgs {
+    org: String,
+    object: String,
+    id: String,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct RecordCreateArgs {
+    org: String,
+    object: String,
+    /// {FieldApiName: value} JSON object.
+    fields: serde_json::Value,
+    /// Required true for production orgs, after the user approved the change.
+    confirm: Option<bool>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct RecordUpdateArgs {
+    org: String,
+    object: String,
+    id: String,
+    fields: serde_json::Value,
+    confirm: Option<bool>,
+}
+
+#[derive(Deserialize, schemars::JsonSchema)]
+struct RecordDeleteArgs {
+    org: String,
+    object: String,
+    id: String,
+    confirm: Option<bool>,
+}
+
 // ---- refresh-tool output shapes --------------------------------------------
 
 #[derive(Serialize, schemars::JsonSchema)]
@@ -169,6 +203,14 @@ struct SyncDto {
 #[serde(rename_all = "camelCase")]
 struct StatusListDto {
     orgs: Vec<query::StatusDto>,
+}
+
+/// A live record's fields are an arbitrary JSON object; MCP requires an
+/// object-rooted output schema, so wrap the bare value.
+#[derive(Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+struct RecordDto {
+    record: serde_json::Value,
 }
 
 #[derive(Serialize, schemars::JsonSchema)]
@@ -384,6 +426,77 @@ impl OstServer {
             a.all_rows.unwrap_or(false),
             a.limit.unwrap_or(200),
             a.skip_validation.unwrap_or(false),
+        )
+        .await
+        .map(Json)
+    }
+
+    #[tool(
+        name = "record_get",
+        description = "Fetch one record by Id from the LIVE org (all fields). Replaces `sf data get record`."
+    )]
+    async fn record_get(
+        &self,
+        Parameters(a): Parameters<RecordGetArgs>,
+    ) -> Result<Json<RecordDto>, ErrorData> {
+        live::dml::get(&self.live, &a.org, &a.object, &a.id)
+            .await
+            .map(|record| Json(RecordDto { record }))
+    }
+
+    #[tool(
+        name = "record_create",
+        description = "Create ONE record in the LIVE org. Production orgs refuse without confirm:true (get user approval first)."
+    )]
+    async fn record_create(
+        &self,
+        Parameters(a): Parameters<RecordCreateArgs>,
+    ) -> Result<Json<live::dml::MutationDto>, ErrorData> {
+        live::dml::create(
+            &self.live,
+            &a.org,
+            &a.object,
+            &a.fields,
+            a.confirm.unwrap_or(false),
+        )
+        .await
+        .map(Json)
+    }
+
+    #[tool(
+        name = "record_update",
+        description = "Update ONE record by Id in the LIVE org. Production orgs refuse without confirm:true (get user approval first)."
+    )]
+    async fn record_update(
+        &self,
+        Parameters(a): Parameters<RecordUpdateArgs>,
+    ) -> Result<Json<live::dml::MutationDto>, ErrorData> {
+        live::dml::update(
+            &self.live,
+            &a.org,
+            &a.object,
+            &a.id,
+            &a.fields,
+            a.confirm.unwrap_or(false),
+        )
+        .await
+        .map(Json)
+    }
+
+    #[tool(
+        name = "record_delete",
+        description = "Delete ONE record by Id in the LIVE org. Production orgs refuse without confirm:true (get user approval first)."
+    )]
+    async fn record_delete(
+        &self,
+        Parameters(a): Parameters<RecordDeleteArgs>,
+    ) -> Result<Json<live::dml::MutationDto>, ErrorData> {
+        live::dml::delete(
+            &self.live,
+            &a.org,
+            &a.object,
+            &a.id,
+            a.confirm.unwrap_or(false),
         )
         .await
         .map(Json)

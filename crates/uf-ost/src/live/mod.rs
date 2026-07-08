@@ -11,6 +11,7 @@ use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
 
 use crate::telemetry::Telemetry;
 
+pub mod dml;
 pub mod query;
 
 const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
@@ -59,8 +60,6 @@ impl LiveCtx {
 
     /// Fail-safe prod detection: cached `Organization.IsSandbox`, one live
     /// query on miss; any failure ⇒ treat as production, do NOT cache.
-    // Consumed by Task 6's write gate; drop this allow then.
-    #[allow(dead_code)]
     pub async fn is_prod(&self, org: &str) -> bool {
         if let Some(is_sandbox) = self.telemetry.get_org_meta(org) {
             return !is_sandbox;
@@ -101,7 +100,6 @@ pub fn parse_is_sandbox(qr: &features::soql::QueryResult) -> Option<bool> {
 }
 
 /// The write-confirm rail. Every mutating tool calls this before touching the org.
-#[allow(dead_code)]
 pub fn gate_write(is_prod: bool, confirm: bool) -> Result<(), ErrorData> {
     if is_prod && !confirm {
         return Err(ErrorData::invalid_params(
