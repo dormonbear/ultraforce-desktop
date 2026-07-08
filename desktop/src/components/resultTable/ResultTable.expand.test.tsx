@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { ResultTable } from "../ResultTable";
 
@@ -87,6 +87,20 @@ describe("expandable subquery cells", () => {
     expect(screen.queryByRole("menuitemcheckbox", { name: "Contacts[0].LastName" })).toBeNull();
     fireEvent.click(screen.getByText("Contacts (4 cols)"));
     expect(screen.queryByText("Contacts[0].LastName")).toBeNull(); // header gone
+  });
+
+  it("copy uses the flattened projection regardless of view mode", async () => {
+    let copiedText = "";
+    vi.stubGlobal("navigator", {
+      ...navigator,
+      clipboard: { writeText: (t: string) => ((copiedText = t), Promise.resolve()) },
+    });
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: /copy result/i }));
+    await Promise.resolve();
+    expect(copiedText).toContain("Contacts[0].LastName"); // flattened header
+    expect(copiedText).toContain("Yin"); // child data present even in Nested view
+    vi.unstubAllGlobals();
   });
 
   it("renders many columns without crashing when column virtualization kicks in", () => {

@@ -129,24 +129,26 @@ export function ResultTable({
         filters: [{ name: fmt.label, extensions: [fmt.ext] }],
       });
       if (!path) return;
-      await writeExportFile(path, fmt, data.columns, data.rows);
-      toast.success(`Exported ${data.rows.length} rows to ${fmt.label}`);
+      const t = exportTable();
+      await writeExportFile(path, fmt, t.columns, t.rows);
+      toast.success(`Exported ${t.rows.length} rows to ${fmt.label}`);
     } catch (e) {
       toast.error(`Export failed: ${formatIpcError(e)}`);
     }
   };
 
   const copyAs = (kind: "tsv" | "md" | "json") => {
-    const n = data.rows.length;
+    const t = exportTable();
+    const n = t.rows.length;
     const suffix = `${n} row${n === 1 ? "" : "s"}`;
     if (kind === "md") {
-      void copyText(toMarkdown(data.columns, data.rows), `Copied ${suffix} as Markdown`);
+      void copyText(toMarkdown(t.columns, t.rows), `Copied ${suffix} as Markdown`);
     } else if (kind === "json") {
-      void copyText(toJson(data.columns, data.rows), `Copied ${suffix} as JSON`);
+      void copyText(toJson(t.columns, t.rows), `Copied ${suffix} as JSON`);
     } else {
       const tsv = [
-        data.columns.join("\t"),
-        ...data.rows.map((r) =>
+        t.columns.join("\t"),
+        ...t.rows.map((r) =>
           r.map((c) => (c == null ? "" : String(c))).join("\t"),
         ),
       ].join("\n");
@@ -197,6 +199,12 @@ export function ResultTable({
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
+  });
+
+  /** Flattened projection of the currently visible rows (filter + sort applied). */
+  const exportTable = (): { columns: string[]; rows: string[][] } => ({
+    columns: flat.columns,
+    rows: table.getRowModel().rows.map((r) => flat.rows[r.original.idx]),
   });
 
   const parentRef = useRef<HTMLDivElement>(null);
