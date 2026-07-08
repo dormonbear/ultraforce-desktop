@@ -114,4 +114,29 @@ describe("expandable subquery cells", () => {
     render(<ResultTable data={wide} />);
     expect(screen.getByText("C0")).toBeTruthy();
   });
+
+  it("advanced filter hides parent rows whose children fail the predicate", () => {
+    render(
+      <ResultTable
+        data={data}
+        initialAdvancedFilter={{
+          combinator: "and",
+          rules: [
+            {
+              field: "Contacts",
+              operator: "=",
+              match: { mode: "some" },
+              value: {
+                combinator: "and",
+                rules: [{ field: "Age__c", operator: ">=", value: "10" }],
+              },
+            } as never,
+          ],
+        }}
+      />
+    );
+    expect(screen.getByText("Acme")).toBeTruthy(); // has a contact aged 10
+    expect(screen.queryByText("Globex")).toBeNull(); // no children → some=false
+    expect(screen.getByText(/1 \/ 2 shown/)).toBeTruthy();
+  });
 });

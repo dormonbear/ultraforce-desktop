@@ -45,6 +45,7 @@ import { ChildGrid } from "./resultTable/ChildGrid";
 import { Toolbar } from "./resultTable/Toolbar";
 import { FilterBuilder } from "./resultTable/filter/FilterBuilder";
 import { buildFilterFields } from "./resultTable/filter/fields";
+import { evaluateGroup } from "./resultTable/filter/evaluate";
 import type { RuleGroupType } from "react-querybuilder";
 
 export interface GridRow {
@@ -78,8 +79,10 @@ const COL_VIRTUALIZE_MIN = 40;
 // fallow-ignore-next-line complexity
 export function ResultTable({
   data,
+  initialAdvancedFilter,
 }: {
   data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize" | "childTables">;
+  initialAdvancedFilter?: RuleGroupType;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
@@ -87,11 +90,10 @@ export function ResultTable({
   const [copied, setCopied] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"expand" | "flatten">("expand");
-  // Advanced filter rules (Task 10 consumes `advancedFilter` to actually filter).
-  const [advancedFilter, setAdvancedFilter] = useState<RuleGroupType>({
-    combinator: "and",
-    rules: [],
-  });
+  // Advanced filter rules; `activeIdx` below applies them to the visible rows.
+  const [advancedFilter, setAdvancedFilter] = useState<RuleGroupType>(
+    initialAdvancedFilter ?? { combinator: "and", rules: [] },
+  );
   const [showFilter, setShowFilter] = useState(false);
 
   const toggleExpanded = (idx: number) =>
@@ -114,6 +116,22 @@ export function ResultTable({
   );
   const activeColumns = viewMode === "flatten" ? flat.columns : data.columns;
   const activeRows = viewMode === "flatten" ? flat.rows : data.rows;
+
+  // Original-index list surviving the advanced filter. Predicates evaluate
+  // against ORIGINAL parent columns + typed child tables, so filtering is
+  // view-independent (same result in Nested and Flat).
+  const activeIdx = useMemo(() => {
+    const all = data.rows.map((_, i) => i);
+    if (advancedFilter.rules.length === 0) return all;
+    return all.filter((i) =>
+      evaluateGroup(advancedFilter, {
+        parent: Object.fromEntries(
+          data.columns.map((c, ci) => [c, data.rows[i][ci] ?? ""]),
+        ),
+        children: lookup.byRow.get(i) ?? new Map(),
+      }),
+    );
+  }, [data, advancedFilter, lookup]);
 
   const rowHeight = 34;
 
@@ -153,12 +171,12 @@ export function ResultTable({
 
   const rows = useMemo<GridRow[]>(
     () =>
-      activeRows.map((cells, idx) => {
+      activeIdx.map((idx) => {
         const o: Record<string, string> = {};
-        activeColumns.forEach((c, i) => (o[c] = cells[i] ?? ""));
+        activeColumns.forEach((c, i) => (o[c] = activeRows[idx][i] ?? ""));
         return { idx, cells: o };
       }),
-    [activeColumns, activeRows]
+    [activeIdx, activeColumns, activeRows]
   );
 
   const numericCols = useMemo(() => {
