@@ -8,4 +8,5 @@ pub mod debug_log;
 pub mod debug_traces;
 pub mod index;
 pub mod query_plan;
+pub mod rest_dml;
 pub mod soql;
