@@ -13,6 +13,9 @@ mod root;
 mod server;
 mod soql;
 mod status_cmd;
+// Consumed by the live-tool tasks that follow; allow until then so the
+// workspace clippy -D warnings gate stays green.
+#[allow(dead_code)]
 mod telemetry;
 
 use std::path::PathBuf;
