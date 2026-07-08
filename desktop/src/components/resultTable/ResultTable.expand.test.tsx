@@ -52,4 +52,13 @@ describe("expandable subquery cells", () => {
     render(<ResultTable data={data} />);
     expect(screen.getAllByRole("button", { name: /expand Contacts/i })).toHaveLength(1);
   });
+
+  it("flatten mode replaces count columns with rel[i].col position columns", () => {
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "Flat" }));
+    expect(screen.getByText("Contacts[0].LastName")).toBeTruthy();
+    expect(screen.getByText("Yin")).toBeTruthy(); // child value inline, no expansion
+    fireEvent.click(screen.getByRole("button", { name: "Nested" }));
+    expect(screen.queryByText("Contacts[0].LastName")).toBeNull();
+  });
 });

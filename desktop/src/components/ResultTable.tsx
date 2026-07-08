@@ -59,6 +59,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { SoqlResultDto } from "../types";
 import { buildChildLookup } from "./resultTable/childData";
+import { flattenTable } from "./resultTable/flatten";
 import { ChildGrid } from "./resultTable/ChildGrid";
 
 interface GridRow {
@@ -97,8 +98,7 @@ export function ResultTable({
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [copied, setCopied] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  // Flatten rendering lands in Task 5; only the state + guards exist here.
-  const [viewMode] = useState<"expand" | "flatten">("expand");
+  const [viewMode, setViewMode] = useState<"expand" | "flatten">("expand");
 
   const toggleExpanded = (idx: number) =>
     setExpanded((old) => {
@@ -109,6 +109,13 @@ export function ResultTable({
     });
 
   const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
+
+  const flat = useMemo(
+    () => flattenTable(data.columns, data.rows, lookup),
+    [data.columns, data.rows, lookup],
+  );
+  const activeColumns = viewMode === "flatten" ? flat.columns : data.columns;
+  const activeRows = viewMode === "flatten" ? flat.rows : data.rows;
 
   const rowHeight = 34;
 
@@ -146,23 +153,23 @@ export function ResultTable({
 
   const rows = useMemo<GridRow[]>(
     () =>
-      data.rows.map((cells, idx) => {
+      activeRows.map((cells, idx) => {
         const o: Record<string, string> = {};
-        data.columns.forEach((c, i) => (o[c] = cells[i] ?? ""));
+        activeColumns.forEach((c, i) => (o[c] = cells[i] ?? ""));
         return { idx, cells: o };
       }),
-    [data]
+    [activeColumns, activeRows]
   );
 
   const numericCols = useMemo(() => {
     const set = new Set<string>();
-    for (const c of data.columns) if (isNumericColumn(c, rows)) set.add(c);
+    for (const c of activeColumns) if (isNumericColumn(c, rows)) set.add(c);
     return set;
-  }, [data.columns, rows]);
+  }, [activeColumns, rows]);
 
   const columns = useMemo<ColumnDef<GridRow>[]>(
     () =>
-      data.columns.map((col) => ({
+      activeColumns.map((col) => ({
         id: col,
         accessorFn: (r) => r.cells[col],
         header: col,
@@ -170,7 +177,7 @@ export function ResultTable({
         enableHiding: true,
         meta: { numeric: numericCols.has(col) } satisfies ColMeta,
       })),
-    [data.columns, numericCols]
+    [activeColumns, numericCols]
   );
 
   const table = useReactTable({
@@ -312,6 +319,31 @@ export function ResultTable({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {lookup.relationships.length > 0 && (
+          <div className="flex h-7 items-center rounded-md border border-input bg-card p-0.5 text-[12px]">
+            {(["expand", "flatten"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setViewMode(m);
+                  setSorting([]);
+                  setColumnVisibility({});
+                  setExpanded(new Set());
+                }}
+                className={cn(
+                  "cursor-pointer rounded px-2 py-0.5",
+                  viewMode === m
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m === "expand" ? "Nested" : "Flat"}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="flex-1" />
 
@@ -527,7 +559,9 @@ export function ResultTable({
                     >
                       {ordinal + 1}
                     </TableCell>
-                    {row.getVisibleCells().map((cell) => {
+                    {row.getVisibleCells().map(
+                      // fallow-ignore-next-line complexity
+                      (cell) => {
                       const text = cell.getValue<string>() ?? "";
                       const isExpandable =
                         viewMode === "expand" &&
