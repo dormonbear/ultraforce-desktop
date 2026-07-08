@@ -23,6 +23,12 @@ pub fn check_path_and_method(path: &str, method: &str) -> Result<bool, ErrorData
             None,
         ));
     }
+    if path.split('/').any(|seg| seg == ".." || seg == ".") {
+        return Err(ErrorData::invalid_params(
+            format!("path must not contain '.' or '..' segments — got '{path}'"),
+            None,
+        ));
+    }
     match method {
         "GET" => Ok(false),
         "POST" | "PATCH" | "PUT" | "DELETE" => Ok(true),
@@ -82,5 +88,8 @@ mod tests {
         assert!(check_path_and_method("/secur/frontdoor.jsp", "GET").is_err());
         // unknown method refused
         assert!(check_path_and_method("/services/data/v62.0/x", "TRACE").is_err());
+        // dot-segment traversal refused even though it starts with /services/
+        assert!(check_path_and_method("/services/../secur/frontdoor.jsp", "GET").is_err());
+        assert!(check_path_and_method("/services/data/./v62.0/limits", "GET").is_err());
     }
 }
