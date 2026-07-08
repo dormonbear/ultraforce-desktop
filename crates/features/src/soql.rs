@@ -61,15 +61,19 @@ impl<'de> Deserialize<'de> for Record {
                 let mut sobject_type = String::new();
                 let mut fields: Vec<(String, FieldValue)> = Vec::new();
 
-                while let Some((key, value)) = map.next_entry::<String, serde_json::Value>()? {
+                while let Some((key, value)) =
+                    map.next_entry::<String, Box<serde_json::value::RawValue>>()?
+                {
                     if key == "attributes" {
-                        sobject_type = value
+                        let attrs: serde_json::Value =
+                            serde_json::from_str(value.get()).map_err(de::Error::custom)?;
+                        sobject_type = attrs
                             .get("type")
                             .and_then(|t| t.as_str())
                             .ok_or_else(|| de::Error::custom("record attributes missing `type`"))?
                             .to_string();
                     } else {
-                        fields.push((key, classify::<M::Error>(value)?));
+                        fields.push((key, classify::<M::Error>(&value)?));
                     }
                 }
 
@@ -86,21 +90,24 @@ impl<'de> Deserialize<'de> for Record {
 
 /// Classify a raw JSON value into a [`FieldValue`].
 ///
-// ponytail: a Parent's *nested* field order falls back to serde_json's default
-// (sorted) since the value goes through Value; top-level/query order is
-// preserved. Upgrade to preserve_order when SP-E needs deep nested order.
-fn classify<E>(v: serde_json::Value) -> Result<FieldValue, E>
+/// Nested objects (Parent records, child subqueries) re-parse from their raw
+/// JSON text — not a materialized `serde_json::Value` (a sorted map) — so the
+/// custom [`Record`] visitor preserves source field order recursively. The
+/// cheap `Value` parse here only decides the shape; nested subtrees are small,
+/// so the double parse is fine.
+fn classify<E>(raw: &serde_json::value::RawValue) -> Result<FieldValue, E>
 where
     E: de::Error,
 {
+    let v: serde_json::Value = serde_json::from_str(raw.get()).map_err(de::Error::custom)?;
     match v {
         serde_json::Value::Null => Ok(FieldValue::Null),
         serde_json::Value::Object(ref map) if map.contains_key("records") => {
-            let qr = serde_json::from_value::<QueryResult>(v).map_err(de::Error::custom)?;
+            let qr = serde_json::from_str::<QueryResult>(raw.get()).map_err(de::Error::custom)?;
             Ok(FieldValue::Children(qr))
         }
         serde_json::Value::Object(ref map) if map.contains_key("attributes") => {
-            let rec = serde_json::from_value::<Record>(v).map_err(de::Error::custom)?;
+            let rec = serde_json::from_str::<Record>(raw.get()).map_err(de::Error::custom)?;
             Ok(FieldValue::Parent(Box::new(rec)))
         }
         other => Ok(FieldValue::Scalar(other)),
@@ -149,7 +156,7 @@ impl QueryResult {
 }
 
 /// Record every field path that appears as a `Parent` in any record.
-fn collect_parent_paths(
+pub(crate) fn collect_parent_paths(
     fields: &[(String, FieldValue)],
     prefix: &str,
     parent_paths: &mut Vec<String>,
@@ -166,7 +173,7 @@ fn collect_parent_paths(
 }
 
 /// Walk fields in order, accumulating leaf column paths (first-seen wins).
-fn collect_columns(
+pub(crate) fn collect_columns(
     fields: &[(String, FieldValue)],
     prefix: &str,
     parent_paths: &[String],
