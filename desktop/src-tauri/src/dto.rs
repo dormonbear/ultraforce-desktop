@@ -8,7 +8,6 @@ use features::debug_traces::{
     DebugLevelDraft, DebugLevelInfo, DebugLevelMod, EntityOption, LoggingConfig, LoggingDiff,
     RecordResult, SaveOutcome, TraceFlagDraft, TraceFlagInfo, TraceFlagMod,
 };
-use features::soql::{FieldValue, Record};
 use log_parser::debug_session::{DebugSession, Frame, Step, VarValue};
 use log_parser::event::LogEvent;
 use log_parser::source::SourceRef;
@@ -407,88 +406,6 @@ impl From<&LoggingDiffDto> for LoggingDiff {
     }
 }
 
-/// One Salesforce record in a SOQL result tree, ready for the frontend.
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecordDto {
-    pub sobject_type: String,
-    pub fields: Vec<FieldDto>,
-}
-
-/// One field of a record: its name and tagged value.
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldDto {
-    pub name: String,
-    pub value: FieldValueDto,
-}
-
-/// A tagged field value: scalar text, a parent record, or child records.
-#[derive(serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldValueDto {
-    pub kind: &'static str, // "null" | "scalar" | "parent" | "children"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scalar: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub parent: Option<Box<RecordDto>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub children: Option<Vec<RecordDto>>,
-}
-
-/// Render a scalar JSON value as display text (strings unquoted).
-fn scalar_text(v: &serde_json::Value) -> String {
-    match v {
-        serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Null => String::new(),
-        other => other.to_string(),
-    }
-}
-
-/// Recursively map a `Record` into its serializable DTO.
-pub fn map_record(r: &Record) -> RecordDto {
-    RecordDto {
-        sobject_type: r.sobject_type.clone(),
-        fields: r
-            .fields
-            .iter()
-            .map(|(name, value)| FieldDto {
-                name: name.clone(),
-                value: map_field_value(value),
-            })
-            .collect(),
-    }
-}
-
-fn map_field_value(v: &FieldValue) -> FieldValueDto {
-    match v {
-        FieldValue::Null => FieldValueDto {
-            kind: "null",
-            scalar: None,
-            parent: None,
-            children: None,
-        },
-        FieldValue::Scalar(s) => FieldValueDto {
-            kind: "scalar",
-            scalar: Some(scalar_text(s)),
-            parent: None,
-            children: None,
-        },
-        FieldValue::Parent(rec) => FieldValueDto {
-            kind: "parent",
-            scalar: None,
-            parent: Some(Box::new(map_record(rec))),
-            children: None,
-        },
-        FieldValue::Children(qr) => FieldValueDto {
-            kind: "children",
-            scalar: None,
-            parent: None,
-            children: Some(qr.records.iter().map(map_record).collect()),
-        },
-    }
-}
-
 /// Max length of a node's joined `detail` string before truncation.
 const MAX_DETAIL_LEN: usize = 300;
 
@@ -782,7 +699,33 @@ pub fn map_units(view: &DebugLogView) -> Vec<UnitDto> {
 
 // ---- Command result / event payload DTOs ----
 
-/// A SOQL query result: flat table projection plus the raw record tree.
+/// One subquery result attached to one parent row. Cells are raw JSON scalars
+/// (string/number/bool/null) — the UI stringifies at render time so filters
+/// compare numbers numerically.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChildTableDto {
+    pub row_index: usize,
+    pub column: String,
+    pub total_size: u64,
+    pub done: bool,
+    pub columns: Vec<String>,
+    pub rows: Vec<Vec<serde_json::Value>>,
+}
+
+pub fn map_child_table(t: features::soql_children::ChildTable) -> ChildTableDto {
+    ChildTableDto {
+        row_index: t.row_index,
+        column: t.column,
+        total_size: t.total_size,
+        done: t.done,
+        columns: t.columns,
+        rows: t.rows,
+    }
+}
+
+/// A SOQL query result: flat table projection plus a sparse sidecar of typed
+/// child tables (one per subquery occurrence).
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SoqlResultDto {
@@ -790,7 +733,7 @@ pub struct SoqlResultDto {
     pub rows: Vec<Vec<String>>,
     pub total_size: u64,
     pub done: bool,
-    pub tree: Vec<RecordDto>,
+    pub child_tables: Vec<ChildTableDto>,
 }
 
 /// Incremental progress for a running SOQL query, emitted as `soql-progress`.
@@ -1050,48 +993,21 @@ mod tests {
     }
 
     #[test]
-    fn record_dto_maps_scalar_parent_children() {
-        use features::soql::{FieldValue, QueryResult, Record};
-        let parent = Record {
-            sobject_type: "User".into(),
-            fields: vec![("Name".into(), FieldValue::Scalar(serde_json::json!("Amy")))],
-        };
-        let child = Record {
-            sobject_type: "Contact".into(),
-            fields: vec![(
-                "LastName".into(),
-                FieldValue::Scalar(serde_json::json!("Lee")),
-            )],
-        };
-        let rec = Record {
-            sobject_type: "Account".into(),
-            fields: vec![
-                ("Id".into(), FieldValue::Scalar(serde_json::json!("001"))),
-                ("Phone".into(), FieldValue::Null),
-                ("Owner".into(), FieldValue::Parent(Box::new(parent))),
-                (
-                    "Contacts".into(),
-                    FieldValue::Children(QueryResult {
-                        total_size: 1,
-                        done: true,
-                        records: vec![child],
-                    }),
-                ),
-            ],
-        };
-        let d = map_record(&rec);
-        assert_eq!(d.sobject_type, "Account");
-        assert_eq!(d.fields.len(), 4);
-        assert_eq!(d.fields[0].value.kind, "scalar");
-        assert_eq!(d.fields[0].value.scalar.as_deref(), Some("001"));
-        assert_eq!(d.fields[1].value.kind, "null");
-        assert_eq!(d.fields[2].value.kind, "parent");
-        assert_eq!(
-            d.fields[2].value.parent.as_ref().unwrap().sobject_type,
-            "User"
-        );
-        assert_eq!(d.fields[3].value.kind, "children");
-        assert_eq!(d.fields[3].value.children.as_ref().unwrap().len(), 1);
+    fn child_table_dto_serializes_camel_case_with_typed_rows() {
+        let dto = map_child_table(features::soql_children::ChildTable {
+            row_index: 3,
+            column: "Contacts".into(),
+            total_size: 250,
+            done: false,
+            columns: vec!["LastName".into(), "Age__c".into()],
+            rows: vec![vec![serde_json::json!("Yin"), serde_json::json!(9)]],
+        });
+        let v: serde_json::Value = serde_json::to_value(&dto).unwrap();
+        assert_eq!(v["rowIndex"], 3);
+        assert_eq!(v["totalSize"], 250);
+        assert_eq!(v["done"], false);
+        // Typed passthrough: the number survives as a JSON number.
+        assert_eq!(v["rows"][0][1], serde_json::json!(9));
     }
 
     #[test]
