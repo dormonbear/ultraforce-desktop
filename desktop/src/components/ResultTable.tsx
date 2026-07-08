@@ -87,6 +87,9 @@ type ColMeta = { numeric?: boolean };
 
 const GUTTER_W = 52;
 
+/** Above this many visible leaf columns, window the columns horizontally. */
+const COL_VIRTUALIZE_MIN = 40;
+
 // fallow-ignore-next-line complexity
 export function ResultTable({
   data,
@@ -265,6 +268,27 @@ export function ResultTable({
     enabled: virtualize,
   });
 
+  // Horizontal column windowing for very wide (flattened) results. The scroll
+  // container is overflow-x:hidden but horizontal scrollLeft is still written
+  // programmatically (floating bar + wheel forwarding), which fires `scroll`
+  // events the virtualizer listens to — so it layers on top of the existing
+  // sync machinery without touching it.
+  const visibleColumns = table.getVisibleLeafColumns();
+  const colVirtualize = visibleColumns.length > COL_VIRTUALIZE_MIN;
+  const colVirtualizer = useVirtualizer({
+    horizontal: true,
+    count: visibleColumns.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (i) => visibleColumns[i].getSize(),
+    overscan: 6,
+    enabled: colVirtualize,
+  });
+  // Column widths change on resize/visibility — remeasure.
+  useEffect(() => {
+    colVirtualizer.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.getCenterTotalSize(), visibleColumns.length]);
+
   function copyCell(text: string) {
     void navigator.clipboard?.writeText(text);
     setCopied(text);
@@ -284,6 +308,21 @@ export function ResultTable({
   const renderItems = virtualize
     ? virtualItems.map((vi) => ({ item: displayItems[vi.index], index: vi.index }))
     : displayItems.map((item, index) => ({ item, index }));
+
+  const virtualCols = colVirtualizer.getVirtualItems();
+  // Only window once the virtualizer has actually measured a viewport and
+  // produced items; before that (or when disabled) render every column, which
+  // keeps below-threshold output identical and avoids a blank first paint.
+  const windowCols = colVirtualize && virtualCols.length > 0;
+  const colPadLeft = windowCols ? virtualCols[0].start : 0;
+  const colPadRight = windowCols
+    ? colVirtualizer.getTotalSize() - virtualCols[virtualCols.length - 1].end
+    : 0;
+  // Full-width spanning rows (detail panel + vertical spacers) must cover the
+  // gutter, the windowed cells, and any left/right spacer cells.
+  const detailColSpan = windowCols
+    ? virtualCols.length + (colPadLeft > 0 ? 1 : 0) + (colPadRight > 0 ? 1 : 0) + 1
+    : visibleLeafCount + 1;
 
   const tableWidth = GUTTER_W + table.getCenterTotalSize();
   const hasXOverflow = containerW > 0 && tableWidth > containerW + 1;
@@ -454,7 +493,16 @@ export function ResultTable({
                   >
                     #
                   </TableHead>
-                  {hg.headers.map((header) => {
+                  {colPadLeft > 0 && (
+                    <TableHead
+                      style={{ width: colPadLeft, padding: 0 }}
+                      className="border-b border-border bg-secondary"
+                    />
+                  )}
+                  {(windowCols
+                    ? virtualCols.map((vc) => hg.headers[vc.index])
+                    : hg.headers
+                  ).map((header) => {
                     const sorted = header.column.getIsSorted();
                     return (
                       <TableHead
@@ -529,13 +577,19 @@ export function ResultTable({
                       </TableHead>
                     );
                   })}
+                  {colPadRight > 0 && (
+                    <TableHead
+                      style={{ width: colPadRight, padding: 0 }}
+                      className="border-b border-border bg-secondary"
+                    />
+                  )}
                 </TableRow>
               ))}
             </TableHeader>
             <TableBody>
               {padTop > 0 && (
                 <tr>
-                  <td colSpan={visibleLeafCount + 1} style={{ height: padTop }} />
+                  <td colSpan={detailColSpan} style={{ height: padTop }} />
                 </tr>
               )}
               {renderItems.map(
@@ -551,7 +605,7 @@ export function ResultTable({
                       className="border-0 hover:bg-transparent"
                     >
                       <TableCell
-                        colSpan={visibleLeafCount + 1}
+                        colSpan={detailColSpan}
                         className="border-b border-border bg-muted/30 px-0"
                       >
                         {/* sticky left-0 + width:containerW keeps the subgrid in
@@ -589,7 +643,16 @@ export function ResultTable({
                     >
                       {ordinal + 1}
                     </TableCell>
-                    {row.getVisibleCells().map(
+                    {colPadLeft > 0 && (
+                      <TableCell
+                        style={{ width: colPadLeft, padding: 0 }}
+                        className="border-b border-border"
+                      />
+                    )}
+                    {(windowCols
+                      ? virtualCols.map((vc) => row.getVisibleCells()[vc.index])
+                      : row.getVisibleCells()
+                    ).map(
                       // fallow-ignore-next-line complexity
                       (cell) => {
                       const text = cell.getValue<string>() ?? "";
@@ -642,15 +705,18 @@ export function ResultTable({
                         </TableCell>
                       );
                     })}
+                    {colPadRight > 0 && (
+                      <TableCell
+                        style={{ width: colPadRight, padding: 0 }}
+                        className="border-b border-border"
+                      />
+                    )}
                   </TableRow>
                 );
               })}
               {padBottom > 0 && (
                 <tr>
-                  <td
-                    colSpan={visibleLeafCount + 1}
-                    style={{ height: padBottom }}
-                  />
+                  <td colSpan={detailColSpan} style={{ height: padBottom }} />
                 </tr>
               )}
             </TableBody>

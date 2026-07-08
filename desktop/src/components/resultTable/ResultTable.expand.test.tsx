@@ -88,4 +88,16 @@ describe("expandable subquery cells", () => {
     fireEvent.click(screen.getByText("Contacts (4 cols)"));
     expect(screen.queryByText("Contacts[0].LastName")).toBeNull(); // header gone
   });
+
+  it("renders many columns without crashing when column virtualization kicks in", () => {
+    const cols = Array.from({ length: 60 }, (_, i) => `C${i}`);
+    const wide = {
+      columns: cols,
+      rows: [cols.map((_, i) => String(i))],
+      totalSize: 1,
+      childTables: [],
+    };
+    render(<ResultTable data={wide} />);
+    expect(screen.getByText("C0")).toBeTruthy();
+  });
 });
