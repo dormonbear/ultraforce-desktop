@@ -56,16 +56,21 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { SoqlResultDto } from "../types";
+import { buildChildLookup } from "./resultTable/childData";
 
-type Row = Record<string, string>;
+interface GridRow {
+  /** Original index into data.rows — stable across sort/filter. */
+  idx: number;
+  cells: Record<string, string>;
+}
 
 const NUMERIC = /^-?\d+(\.\d+)?$/;
 
 /** Right-align a column only when its values are genuine numbers (Ids stay left). */
-function isNumericColumn(col: string, rows: Row[]): boolean {
+function isNumericColumn(col: string, rows: GridRow[]): boolean {
   let seen = 0;
   for (const r of rows) {
-    const v = r[col];
+    const v = r.cells[col];
     if (v === "" || v == null) continue;
     seen++;
     if (!NUMERIC.test(v)) return false;
@@ -81,12 +86,15 @@ const GUTTER_W = 52;
 export function ResultTable({
   data,
 }: {
-  data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize">;
+  data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize" | "childTables">;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const [copied, setCopied] = useState<string | null>(null);
+
+  const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
+  void lookup;
 
   const rowHeight = 34;
 
@@ -122,12 +130,12 @@ export function ResultTable({
     }
   };
 
-  const rows = useMemo<Row[]>(
+  const rows = useMemo<GridRow[]>(
     () =>
-      data.rows.map((cells) => {
-        const o: Row = {};
+      data.rows.map((cells, idx) => {
+        const o: Record<string, string> = {};
         data.columns.forEach((c, i) => (o[c] = cells[i] ?? ""));
-        return o;
+        return { idx, cells: o };
       }),
     [data]
   );
@@ -138,11 +146,11 @@ export function ResultTable({
     return set;
   }, [data.columns, rows]);
 
-  const columns = useMemo<ColumnDef<Row>[]>(
+  const columns = useMemo<ColumnDef<GridRow>[]>(
     () =>
       data.columns.map((col) => ({
         id: col,
-        accessorFn: (r) => r[col],
+        accessorFn: (r) => r.cells[col],
         header: col,
         enableSorting: true,
         enableHiding: true,
@@ -154,6 +162,7 @@ export function ResultTable({
   const table = useReactTable({
     data: rows,
     columns,
+    getRowId: (r) => String(r.idx),
     state: { sorting, globalFilter, columnVisibility },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
@@ -218,7 +227,7 @@ export function ResultTable({
     window.setTimeout(() => setCopied(null), 1200);
   }
 
-  const numeric = (c: Column<Row>) =>
+  const numeric = (c: Column<GridRow>) =>
     (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
 
   const virtualItems = virtualizer.getVirtualItems();
