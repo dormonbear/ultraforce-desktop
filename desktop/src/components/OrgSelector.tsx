@@ -1,12 +1,7 @@
 import { useState } from "react";
-import { Globe, Check, ChevronDown, Loader2, Plus } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Globe, Check, Loader2, Plus } from "lucide-react";
+import { DropdownMenu, DropdownMenuItem } from "@astryxdesign/core/DropdownMenu";
+import { Divider } from "@astryxdesign/core/Divider";
 import { useOrgs } from "../org";
 import { ConnectOrgDialog } from "./ConnectOrg";
 
@@ -28,57 +23,52 @@ export function OrgSelector() {
 
   return (
     <>
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="Select Salesforce org"
-        disabled={loading || orgs.length === 0}
-        className="focus-accent inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-2.5 py-1 text-[12px] text-text-dim transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {loading ? (
-          <Loader2 size={12} className="spin text-muted-foreground" />
-        ) : (
-          <Globe size={12} className="text-primary" />
-        )}
-        <span className="normal-case tracking-normal">{label}</span>
-        <ChevronDown size={12} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="max-h-72 w-72 overflow-auto text-[12px]"
+      <DropdownMenu
+        menuWidth={288}
+        className="max-h-72 overflow-auto text-[12px]"
+        button={{
+          label,
+          "aria-label": "Select Salesforce org",
+          variant: "secondary",
+          size: "sm",
+          isDisabled: loading || orgs.length === 0,
+          icon: loading ? (
+            <Loader2 size={12} className="spin text-muted-foreground" />
+          ) : (
+            <Globe size={12} className="text-primary" />
+          ),
+        }}
       >
         {orgs.map((o) => (
           <DropdownMenuItem
             key={o.username}
-            onSelect={() => select(o.username)}
-            className={`flex cursor-pointer items-center justify-between gap-2 ${
-              o.username === selected ? "text-primary" : ""
-            }`}
-          >
-            <span className="truncate">
-              {o.alias ? `${o.alias} · ` : ""}
-              {o.username}
-            </span>
-            <span className="flex items-center gap-1 text-muted-foreground">
-              {o.isDefault && (
-                <span className="text-[11px]">default</span>
-              )}
-              {o.username === selected && (
-                <Check size={12} className="text-primary" />
-              )}
-            </span>
-          </DropdownMenuItem>
+            onClick={() => select(o.username)}
+            className={o.username === selected ? "text-primary" : undefined}
+            label={
+              <span className="truncate">
+                {o.alias ? `${o.alias} · ` : ""}
+                {o.username}
+              </span>
+            }
+            endContent={
+              <span className="flex items-center gap-1 text-muted-foreground">
+                {o.isDefault && <span className="text-[11px]">default</span>}
+                {o.username === selected && (
+                  <Check size={12} className="text-primary" />
+                )}
+              </span>
+            }
+          />
         ))}
-        <DropdownMenuSeparator />
+        <Divider />
         <DropdownMenuItem
-          onSelect={() => setConnectOpen(true)}
-          className="flex cursor-pointer items-center gap-2 text-text-dim"
-        >
-          <Plus size={12} />
-          Connect another org…
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-    <ConnectOrgDialog open={connectOpen} onOpenChange={setConnectOpen} />
+          icon={<Plus size={12} />}
+          label="Connect another org…"
+          onClick={() => setConnectOpen(true)}
+          className="text-text-dim"
+        />
+      </DropdownMenu>
+      <ConnectOrgDialog open={connectOpen} onOpenChange={setConnectOpen} />
     </>
   );
 }
