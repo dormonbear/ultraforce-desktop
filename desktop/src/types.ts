@@ -1,25 +1,24 @@
 import type { SourceRef } from "./panels/sourceRef";
 
-export interface FieldValueDto {
-  kind: "null" | "scalar" | "parent" | "children";
-  scalar?: string;
-  parent?: RecordDto;
-  children?: RecordDto[];
+/** A raw JSON scalar from a SOQL child table (typed — numbers stay numbers). */
+export type Scalar = string | number | boolean | null;
+
+/** One subquery result attached to one parent row (sparse sidecar entry). */
+export interface ChildTableDto {
+  rowIndex: number;
+  column: string;
+  totalSize: number;
+  done: boolean;
+  columns: string[];
+  rows: Scalar[][];
 }
-export interface FieldDto {
-  name: string;
-  value: FieldValueDto;
-}
-export interface RecordDto {
-  sobjectType: string;
-  fields: FieldDto[];
-}
+
 export interface SoqlResultDto {
   columns: string[];
   rows: string[][];
   totalSize: number;
   done: boolean;
-  tree: RecordDto[];
+  childTables: ChildTableDto[];
 }
 
 export interface PlanNoteDto {
@@ -166,6 +165,11 @@ export type DebugConfigDto = {
   traceFlagId: string | null;
   levels: CategoryLevels;
   expirationDate: string | null;
+};
+
+export type TelemetryConfig = {
+  localEnabled: boolean;
+  remoteEnabled: boolean;
 };
 
 // ---- Debug Traces management (Configure Logging dialog) ----

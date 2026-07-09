@@ -20,6 +20,8 @@ use serde::Serialize;
 pub enum QueryError {
     /// No `index.db` for the org, or its `meta` row is missing.
     NotIndexed(String),
+    /// Index exists but was built by an incompatible schema version.
+    StaleIndex(String),
     /// Index exists but the requested object/field/type isn't in it.
     NotFound(String),
     /// Underlying SQLite error.
@@ -32,6 +34,10 @@ impl std::fmt::Display for QueryError {
             QueryError::NotIndexed(org) => write!(
                 f,
                 "org '{org}' is not indexed — run `ost_reindex` (or `uf-ost index --org {org}`)"
+            ),
+            QueryError::StaleIndex(org) => write!(
+                f,
+                "org '{org}' index was built by an older uf-ost — run `ost_reindex {org}` to rebuild it"
             ),
             QueryError::NotFound(what) => write!(f, "{what}"),
             QueryError::Db(e) => write!(f, "index read error: {e}"),
@@ -77,6 +83,11 @@ impl Snapshot {
     pub fn stamp(&self) -> Stamp {
         Stamp::from_meta(&self.meta)
     }
+
+    /// Read-only connection to the snapshot's `index.db` (for sibling modules).
+    pub(crate) fn conn(&self) -> &Connection {
+        &self.conn
+    }
 }
 
 /// Open an org's `index.db` read-only. `NotIndexed` when the file or `meta`
@@ -88,53 +99,77 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
     }
     let conn = sqlite::open_readonly(&path)?;
     let meta = db::read_meta(&conn)?.ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
+    // Reject an index built by an older schema before any tool SELECTs a column
+    // it may not have — fail loud with "reindex", never crash mid-query.
+    if meta.schema_version != db::SCHEMA_VERSION {
+        return Err(QueryError::StaleIndex(org.to_string()));
+    }
     Ok(Snapshot { conn, meta })
 }
 
-#[derive(Serialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct FieldDto {
-    pub name: String,
-    #[serde(rename = "type")]
-    pub field_type: String,
-    pub reference_to: Vec<String>,
-    pub picklist: bool,
-    pub custom: bool,
-}
-
-#[derive(Serialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ObjectDto {
-    pub stamp: Stamp,
-    pub object: String,
-    pub label: String,
-    pub key_prefix: Option<String>,
-    pub custom: bool,
-    pub fields: Vec<FieldDto>,
-}
-
-/// Every field of `object` in this org: name, type, referenceTo, picklist flag.
-pub fn object(snap: &Snapshot, object: &str) -> Result<ObjectDto, QueryError> {
+/// Compact text table of `object`'s fields — one line each: name, type, and
+/// (for lookups) `→` what they reference. This is the one firehose tool, so it
+/// returns text rather than `Json<T>` to keep a big sObject from flooding the
+/// caller's context. The `custom`/`picklist` bools are intentionally dropped:
+/// `custom` shows in the `__c` suffix and a picklist field's type is already
+/// `picklist`. `filter` keeps only fields whose name contains the substring
+/// (case-insensitive).
+pub fn object(snap: &Snapshot, object: &str, filter: Option<&str>) -> Result<String, QueryError> {
     let schema = sqlite::read_object(&snap.conn, object)?
         .ok_or_else(|| QueryError::NotFound(format!("object '{object}' not in index")))?;
-    Ok(ObjectDto {
-        stamp: Stamp::from_meta(&snap.meta),
-        object: schema.name,
-        label: schema.label,
-        key_prefix: schema.key_prefix,
-        custom: schema.custom,
-        fields: schema
-            .fields
-            .into_iter()
-            .map(|f| FieldDto {
-                name: f.name,
-                field_type: f.field_type,
-                reference_to: f.reference_to,
-                picklist: !f.picklist_values.is_empty(),
-                custom: f.custom,
-            })
-            .collect(),
-    })
+    let stamp = Stamp::from_meta(&snap.meta);
+    let needle = filter.map(str::to_ascii_lowercase);
+
+    let rows: Vec<(String, String)> = schema
+        .fields
+        .iter()
+        .filter(|f| match needle.as_deref() {
+            Some(n) => f.name.to_ascii_lowercase().contains(n),
+            None => true,
+        })
+        .map(|f| {
+            // Formula fields show their result type tagged; lookups show their
+            // targets + relationship name (so the agent can write `Rel.Field`);
+            // dependent picklists point at their controller. Bodies stay out —
+            // `ost_fields` carries the formula text and dependency map.
+            let mut ty = if f.calculated {
+                format!("formula:{}", f.field_type)
+            } else {
+                f.field_type.clone()
+            };
+            if !f.reference_to.is_empty() {
+                ty.push_str(&format!("→{}", f.reference_to.join(",")));
+                if let Some(rel) = &f.relationship_name {
+                    ty.push_str(&format!(" [{rel}]"));
+                }
+            }
+            if f.dependent_picklist {
+                if let Some(c) = &f.controller_name {
+                    ty.push_str(&format!(" dep→{c}"));
+                }
+            }
+            (f.name.clone(), ty)
+        })
+        .collect();
+
+    let width = rows.iter().map(|(n, _)| n.len()).max().unwrap_or(0);
+    let count = match filter {
+        Some(_) => format!("fields={} shown={}", schema.fields.len(), rows.len()),
+        None => format!("fields={}", schema.fields.len()),
+    };
+    let mut out = format!(
+        "{} ({})  org={}  prefix={}  {}  age={}\n",
+        schema.name,
+        schema.label,
+        stamp.org,
+        schema.key_prefix.as_deref().unwrap_or("-"),
+        count,
+        stamp.age,
+    );
+    for (name, ty) in rows {
+        out.push_str(&format!("{name:<width$}  {ty}\n"));
+    }
+    Ok(out)
 }
 
 #[derive(Serialize, schemars::JsonSchema)]
@@ -341,7 +376,7 @@ pub fn field_drift(root: &Path, field: &str, org: Option<&str>) -> Result<FieldD
     for org in &orgs {
         let snap = match open_org(root, org) {
             Ok(s) => s,
-            Err(QueryError::NotIndexed(_)) => continue,
+            Err(QueryError::NotIndexed(_) | QueryError::StaleIndex(_)) => continue,
             Err(e) => return Err(e),
         };
         let age = human_age(&snap.meta.indexed_at);
@@ -513,14 +548,25 @@ mod tests {
 
         let snap = open_org(&root, "MyOrg").unwrap();
 
-        // Object + stamp.
-        let obj = object(&snap, "account").unwrap();
-        assert_eq!(obj.object, "Account");
-        assert_eq!(obj.stamp.org, "MyOrg");
-        assert!(obj
-            .fields
-            .iter()
-            .any(|f| f.name == "Industry" && f.picklist));
+        // Object: compact text, header-stamped, carrying the picklist field.
+        let obj = object(&snap, "account", None).unwrap();
+        assert!(obj.contains("Account (Account)"), "{obj}");
+        assert!(obj.contains("org=MyOrg"), "{obj}");
+        assert!(obj.contains("Industry"), "{obj}");
+        // Filter narrows and reports the shown count.
+        let filtered = object(&snap, "account", Some("indus")).unwrap();
+        assert!(filtered.contains("shown=1"), "{filtered}");
+
+        // SOQL validation: clean query OK, typo flagged + suggested, bad object.
+        let ok = crate::soql::soql_check(&snap, "SELECT Industry FROM Account").unwrap();
+        assert!(ok.contains("OK"), "{ok}");
+        let bad = crate::soql::soql_check(&snap, "SELECT Industri FROM Account").unwrap();
+        assert!(
+            bad.contains("Unknown field 'Industri'") && bad.contains("did you mean 'Industry'"),
+            "{bad}"
+        );
+        let obj = crate::soql::soql_check(&snap, "SELECT Id FROM Bogus").unwrap();
+        assert!(obj.contains("Unknown object 'Bogus'"), "{obj}");
 
         // Picklist keeps active-only.
         let pl = picklist(&snap, "Account", "Industry").unwrap();
@@ -549,6 +595,16 @@ mod tests {
         assert!(matches!(
             open_org(&root, "Nope"),
             Err(QueryError::NotIndexed(_))
+        ));
+
+        // Schema-version guard: a mismatched meta is StaleIndex, not a crash.
+        drop(snap);
+        let rw = sqlite::open(&sqlite::db_path(&root, "MyOrg")).unwrap();
+        rw.execute("UPDATE meta SET schema_version = 9999", []).unwrap();
+        drop(rw);
+        assert!(matches!(
+            open_org(&root, "MyOrg"),
+            Err(QueryError::StaleIndex(_))
         ));
 
         let _ = std::fs::remove_dir_all(&root);

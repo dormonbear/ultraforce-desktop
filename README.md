@@ -136,9 +136,14 @@ The same offline index powers an MCP server, so an AI coding agent can ask about
 your org's **real** schema and Apex symbols instead of guessing field API names,
 inventing picklist values, or triggering the ~145 s live SymbolTable query.
 
-**Get the server:** download the `uf-ost-<target>` binary for your platform from the
-[Releases page](https://github.com/dormonbear/ultraforce-desktop/releases/latest) and
-put it on your `PATH`, or build from source (`cargo build --release -p uf-ost`).
+**Get the server** — pick one (no Salesforce CLI or Rust toolchain required for the first two):
+
+- **npm (recommended):** `npx -y @dormon/ultraforce-mcp serve` — the package's postinstall
+  fetches the prebuilt `uf-ost` binary for your platform from the matching release.
+- **Prebuilt binary:** download `uf-ost-<target>` from the
+  [Releases page](https://github.com/dormonbear/ultraforce-desktop/releases/latest) and
+  put it on your `PATH`.
+- **From source (Rust):** `cargo install --git https://github.com/dormonbear/ultraforce-desktop uf-ost`.
 
 ```bash
 # Index an org once (headless; also runnable from launchd/cron):
@@ -151,7 +156,7 @@ uf-ost serve      # stdio; server name "ultraforce"
 Add it to your agent's `.mcp.json`:
 
 ```json
-{ "mcpServers": { "ultraforce": { "command": "uf-ost", "args": ["serve"], "type": "stdio" } } }
+{ "mcpServers": { "ultraforce": { "command": "npx", "args": ["-y", "@dormon/ultraforce-mcp", "serve"], "type": "stdio" } } }
 ```
 
 Eight `ost_*` tools: `ost_object`, `ost_field` (cross-org drift), `ost_picklist`,

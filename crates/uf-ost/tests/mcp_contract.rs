@@ -1,6 +1,6 @@
 //! Phase 2 seam: drive the real `uf-ost serve` binary over MCP stdio with an
-//! rmcp client and assert the tool contract — all 8 tools listed, the org +
-//! snapshot-age stamp on every response, and the reindex error path.
+//! rmcp client and assert the tool contract — all 11 `ost_*` tools listed, the
+//! org + snapshot-age stamp on every response, and the reindex error path.
 
 use std::sync::Arc;
 
@@ -66,11 +66,14 @@ async fn mcp_stdio_contract() {
             .await
             .expect("client handshake");
 
-    // 1. All 8 ost_* tools are advertised.
+    // 1. All 11 ost_* tools are advertised.
     let tools = client.list_tools(Default::default()).await.unwrap();
     let names: Vec<&str> = tools.tools.iter().map(|t| t.name.as_ref()).collect();
     for expected in [
         "ost_object",
+        "ost_soql",
+        "ost_fields",
+        "ost_recordtype",
         "ost_field",
         "ost_picklist",
         "ost_apex",
@@ -85,24 +88,55 @@ async fn mcp_stdio_contract() {
         );
     }
 
-    // 2. ost_object is stamped with org + age and carries the field.
-    let obj = call(
+    // 2. ost_object returns a compact text table, header-stamped with org + age
+    //    and carrying the field.
+    let obj = call_text(
         &client,
         "ost_object",
         serde_json::json!({"org":"TestOrg","object":"Account"}),
     )
     .await;
-    let stamp = &obj["stamp"];
-    assert_eq!(stamp["org"], "TestOrg", "org stamp present");
-    assert!(stamp["age"].is_string(), "age stamp present: {stamp}");
+    assert!(obj.contains("org=TestOrg"), "org stamp in header: {obj}");
+    assert!(obj.contains("age="), "age stamp in header: {obj}");
+    assert!(obj.contains("Industry"), "Industry field present: {obj}");
+
+    // 2b. filter narrows the table and reports the shown count.
+    let filtered = call_text(
+        &client,
+        "ost_object",
+        serde_json::json!({"org":"TestOrg","object":"Account","filter":"indus"}),
+    )
+    .await;
+    assert!(filtered.contains("shown=1"), "filter counts shown: {filtered}");
+    assert!(filtered.contains("Industry"), "filter keeps match: {filtered}");
+
+    // 2c. ost_soql validates offline and suggests the nearest field name.
+    let soql = call_text(
+        &client,
+        "ost_soql",
+        serde_json::json!({"org":"TestOrg","query":"SELECT Industri FROM Account"}),
+    )
+    .await;
     assert!(
-        obj["fields"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|f| f["name"] == "Industry"),
-        "Industry field present"
+        soql.contains("Unknown field 'Industri'") && soql.contains("did you mean 'Industry'"),
+        "ost_soql suggests: {soql}"
     );
+
+    // 2d. ost_fields expands a specific field; ost_recordtype lists RTs.
+    let fd = call_text(
+        &client,
+        "ost_fields",
+        serde_json::json!({"org":"TestOrg","object":"Account","fields":["Industry"]}),
+    )
+    .await;
+    assert!(fd.contains("Industry"), "ost_fields detail: {fd}");
+    let rt = call_text(
+        &client,
+        "ost_recordtype",
+        serde_json::json!({"org":"TestOrg","object":"Account"}),
+    )
+    .await;
+    assert!(rt.contains("recordTypes="), "ost_recordtype header: {rt}");
 
     // 3. ost_apex returns the offline signature (no live SymbolTable query).
     let ax = call(
@@ -138,6 +172,60 @@ async fn mcp_stdio_contract() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// End-to-end telemetry gate through the REAL spawned `serve` binary: proves
+/// `<root>/telemetry.json` is honored at process startup. Off (default/absent)
+/// ⇒ no `tool_log` row after an `ost_status` call; `localEnabled:true` ⇒ one row.
+/// The two phases restart the binary because config loads once at startup.
+#[tokio::test]
+async fn telemetry_local_gate_end_to_end() {
+    let root = std::env::temp_dir().join(format!("uf-ost-tel-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+
+    // Phase 1: no telemetry.json ⇒ telemetry OFF by default ⇒ no row.
+    drive_ost_status(&root).await;
+    assert_eq!(
+        tool_log_rows(&root),
+        0,
+        "default-off: no tool_log row expected"
+    );
+
+    // Phase 2: opt in locally, restart, drive again ⇒ exactly one row.
+    std::fs::write(
+        root.join("telemetry.json"),
+        r#"{"localEnabled":true,"remoteEnabled":false}"#,
+    )
+    .unwrap();
+    drive_ost_status(&root).await;
+    assert_eq!(
+        tool_log_rows(&root),
+        1,
+        "opt-in: exactly one tool_log row expected"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Spawn the real binary over stdio, call `ost_status` (org: null — no index
+/// needed), then shut it down.
+async fn drive_ost_status(root: &std::path::Path) {
+    let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_uf-ost"));
+    cmd.arg("serve").arg("--root").arg(root);
+    let client = ()
+        .serve(TokioChildProcess::new(cmd).expect("spawn uf-ost serve"))
+        .await
+        .expect("client handshake");
+    let _ = call(&client, "ost_status", serde_json::json!({})).await;
+    client.cancel().await.ok();
+}
+
+/// Row count in `<root>/telemetry.db`; 0 when the db/table never got created.
+fn tool_log_rows(root: &std::path::Path) -> i64 {
+    let conn = rusqlite::Connection::open(root.join("telemetry.db")).unwrap();
+    conn.query_row("SELECT count(*) FROM tool_log", [], |r| r.get(0))
+        .unwrap_or(0)
+}
+
 /// `CallToolRequestParam` is `#[non_exhaustive]`; build it via serde.
 fn mk_param(name: &str, args: serde_json::Value) -> CallToolRequestParam {
     serde_json::from_value(serde_json::json!({ "name": name, "arguments": args }))
@@ -159,4 +247,23 @@ where
         .unwrap_or_else(|e| panic!("{name} call failed: {e}"));
     res.structured_content
         .unwrap_or_else(|| panic!("{name} returned no structured content"))
+}
+
+/// Call a tool and return its first text content block (for text-shaped tools).
+async fn call_text<S>(
+    client: &rmcp::service::RunningService<rmcp::RoleClient, S>,
+    name: &'static str,
+    args: serde_json::Value,
+) -> String
+where
+    S: rmcp::Service<rmcp::RoleClient>,
+{
+    let res = client
+        .call_tool(mk_param(name, args))
+        .await
+        .unwrap_or_else(|e| panic!("{name} call failed: {e}"));
+    res.content
+        .into_iter()
+        .find_map(|c| c.as_text().map(|t| t.text.clone()))
+        .unwrap_or_else(|| panic!("{name} returned no text content"))
 }

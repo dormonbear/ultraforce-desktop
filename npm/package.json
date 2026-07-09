@@ -1,0 +1,32 @@
+{
+  "name": "@dormon/ultraforce-mcp",
+  "version": "0.3.10",
+  "description": "Offline Salesforce org schema + Apex MCP server (ost_* tools). Ships the uf-ost binary; postinstall fetches the prebuilt release binary for your platform.",
+  "bin": {
+    "ultraforce-mcp": "run.js",
+    "uf-ost": "run.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": [
+    "run.js",
+    "postinstall.js"
+  ],
+  "keywords": [
+    "salesforce",
+    "mcp",
+    "model-context-protocol",
+    "soql",
+    "apex"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dormonbear/ultraforce-desktop.git",
+    "directory": "npm"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

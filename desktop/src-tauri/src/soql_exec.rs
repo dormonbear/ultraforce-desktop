@@ -135,6 +135,10 @@ pub(crate) async fn run_soql(
         CommandError::from(e)
     })?;
     let table = result.to_table();
+    let child_tables = features::soql_children::child_tables(&result)
+        .into_iter()
+        .map(dto::map_child_table)
+        .collect();
     tracing::info!(
         elapsed_ms = start.elapsed().as_millis(),
         outcome = "ok",
@@ -145,7 +149,7 @@ pub(crate) async fn run_soql(
         rows: table.rows,
         total_size: result.total_size,
         done: result.done,
-        tree: result.records.iter().map(dto::map_record).collect(),
+        child_tables,
     })
 }
 
