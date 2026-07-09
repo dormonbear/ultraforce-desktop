@@ -251,39 +251,26 @@ export function SettingsPage({ onChanged }: Props) {
 
         <Section title="Privacy & Telemetry">
           <div className="flex flex-col gap-3">
-            <label className="flex cursor-pointer items-center justify-between gap-4">
-              <span className="text-foreground">
-                Local telemetry
-                <span className="block text-text-dim">
-                  Local telemetry — record tool calls to a local database on
-                  this computer for your own debugging. Never leaves your
-                  machine.
-                </span>
-              </span>
-              <Checkbox
-                checked={telemetry.localEnabled}
-                onCheckedChange={(v) =>
-                  changeTelemetry({ ...telemetry, localEnabled: v === true })
-                }
-                aria-label="Local telemetry"
-              />
-            </label>
-            <label className="flex cursor-pointer items-center justify-between gap-4">
-              <span className="text-foreground">
-                Anonymous usage statistics
-                <span className="block text-text-dim">
-                  Anonymous usage statistics (Aptabase) — send scrubbed events
-                  to help improve the tool.
-                </span>
-              </span>
-              <Checkbox
-                checked={telemetry.remoteEnabled}
-                onCheckedChange={(v) =>
-                  changeTelemetry({ ...telemetry, remoteEnabled: v === true })
-                }
-                aria-label="Anonymous usage statistics"
-              />
-            </label>
+            <Switch
+              label="Local telemetry"
+              description="Local telemetry — record tool calls to a local database on this computer for your own debugging. Never leaves your machine."
+              labelPosition="start"
+              labelSpacing="spread"
+              value={telemetry.localEnabled}
+              onChange={(next) =>
+                changeTelemetry({ ...telemetry, localEnabled: next })
+              }
+            />
+            <Switch
+              label="Anonymous usage statistics"
+              description="Anonymous usage statistics (Aptabase) — send scrubbed events to help improve the tool."
+              labelPosition="start"
+              labelSpacing="spread"
+              value={telemetry.remoteEnabled}
+              onChange={(next) =>
+                changeTelemetry({ ...telemetry, remoteEnabled: next })
+              }
+            />
             <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-text-dim">
               {TELEMETRY_DISCLOSURE}
             </pre>
