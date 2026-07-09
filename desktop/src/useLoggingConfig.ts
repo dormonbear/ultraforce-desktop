@@ -8,6 +8,7 @@ import type {
   CategoryLevels,
   EntityDto,
   LoggingDiffDto,
+  SaveOutcomeDto,
 } from "./types";
 
 /** An editable DebugLevel row. `id===null` = locally added, not yet saved. */
@@ -36,12 +37,19 @@ function levelChanged(a: CategoryLevels, b: CategoryLevels): boolean {
   return JSON.stringify(a) !== JSON.stringify(b);
 }
 
+function createdIds(out: SaveOutcomeDto, sobject: string): string[] {
+  return out.results
+    .filter((r) => r.ok && r.sobject === sobject && r.op === "create" && r.id)
+    .map((r) => r.id as string);
+}
+
 /**
  * Loads the org's trace flags / debug levels / entities for the Configure
  * Logging dialog, holds editable local rows, and commits a computed diff on
  * save (`added`/`modified`/`removed` derived from the original snapshot).
  * Re-fetches when `org` changes.
  */
+// fallow-ignore-next-line complexity
 export function useLoggingConfig(org: string | null) {
   const [entities, setEntities] = useState<EntityDto[]>([]);
   const [levels, setLevels] = useState<LevelRow[]>([]);
@@ -125,8 +133,9 @@ export function useLoggingConfig(org: string | null) {
         tracedEntityName: "",
         tracedEntityKind: "User",
         debugLevelKey: "",
-        startDate: null,
-        expirationDate: isoIn(24),
+        // Start tracing immediately; default a short half-hour window.
+        startDate: isoIn(0),
+        expirationDate: isoIn(0.5),
         creatorName: "",
       },
     ]);
@@ -149,6 +158,7 @@ export function useLoggingConfig(org: string | null) {
   }, []);
 
   // ---- diff ----
+  // fallow-ignore-next-line complexity
   const buildDiff = useCallback((): LoggingDiffDto => {
     const origLevels = original.current.levels;
     const origFlags = original.current.flags;
@@ -232,6 +242,7 @@ export function useLoggingConfig(org: string | null) {
     );
   }, [buildDiff]);
 
+  // fallow-ignore-next-line complexity
   const save = useCallback(async (): Promise<boolean> => {
     setSaving(true);
     setError(null);
@@ -247,7 +258,43 @@ export function useLoggingConfig(org: string | null) {
         return false;
       }
       toast.success("Logging configuration saved");
-      await load();
+      const newLevelIds = createdIds(out, "DebugLevel");
+      const newFlagIds = createdIds(out, "TraceFlag");
+      if (
+        newLevelIds.length !== diff.debugLevelsAdded.length ||
+        newFlagIds.length !== diff.traceFlagsAdded.length
+      ) {
+        await load();
+        return true;
+      }
+
+      const levelIdByLocalKey = new Map(
+        diff.debugLevelsAdded.map((r, i) => [r.localKey, newLevelIds[i]]),
+      );
+      const flagIdByLocalKey = new Map(
+        flags.filter((r) => r.id === null).map((r, i) => [r._key, newFlagIds[i]]),
+      );
+
+      const savedLevels = levels.map((r) => {
+        const id = r.id ?? levelIdByLocalKey.get(r._key) ?? r._key;
+        return { ...r, _key: id, id };
+      });
+      const savedFlags = flags.map((r) => {
+        const id = r.id ?? flagIdByLocalKey.get(r._key) ?? r._key;
+        return {
+          ...r,
+          _key: id,
+          id,
+          debugLevelKey: levelIdByLocalKey.get(r.debugLevelKey) ?? r.debugLevelKey,
+        };
+      });
+
+      setLevels(savedLevels);
+      setFlags(savedFlags);
+      original.current = {
+        levels: new Map(savedLevels.map((r) => [r._key, r])),
+        flags: new Map(savedFlags.map((r) => [r._key, r])),
+      };
       return true;
     } catch (e) {
       const msg = formatIpcError(e);
@@ -257,7 +304,7 @@ export function useLoggingConfig(org: string | null) {
     } finally {
       setSaving(false);
     }
-  }, [buildDiff, load]);
+  }, [buildDiff, flags, levels, load]);
 
   return {
     entities,

@@ -75,11 +75,34 @@ test("exporting query results writes a CSV file", async ({ page }) => {
   const csv = await page.evaluate(() =>
     (
       window as unknown as { __ufReadFile: (p: string) => string | null }
-    ).__ufReadFile("/ws/export.csv"),
+    ).__ufReadFile("/ws/query-result.csv"),
   );
   expect(csv).not.toBeNull();
   expect(csv).toContain("Id,Name,Industry\r\n");
   expect((csv ?? "").trimEnd().split("\r\n")).toHaveLength(13); // header + 12 rows
+});
+
+test("exporting query results as JSON writes a parseable array", async ({
+  page,
+}) => {
+  await gotoApp(page);
+  await page.getByText("accounts.soql").click();
+  await page.getByText("RUN", { exact: false }).first().click();
+  await expect(page.getByText(/rows returned/)).toBeVisible();
+
+  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("menuitem", { name: "JSON" }).click();
+  await expect(page.getByText(/Exported .* rows to JSON/)).toBeVisible();
+
+  const written = await page.evaluate(() =>
+    (
+      window as unknown as { __ufReadFile: (p: string) => string | null }
+    ).__ufReadFile("/ws/query-result.json"),
+  );
+  expect(written).not.toBeNull();
+  const parsed = JSON.parse(written ?? "null") as unknown[];
+  expect(Array.isArray(parsed)).toBe(true);
+  expect(parsed).toHaveLength(12);
 });
 
 test("Tooling API toggle threads use_tooling_api to run_soql", async ({

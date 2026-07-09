@@ -63,6 +63,11 @@ const RESP: Record<string, unknown> = {
   set_target_org: null,
   get_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
   set_debug_config: { traceFlagId: "7tf1", levels: LEVELS },
+  quick_self_trace: {
+    traceFlagId: "7tf1",
+    levels: LEVELS,
+    expirationDate: "2099-01-01T00:00:00.000+0000",
+  },
   load_logging_config: {
     traceFlags: [
       {
@@ -330,8 +335,13 @@ async function installMocks(
         return Promise.resolve(null);
       }
       if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
-      // Save dialog: return a fixed fake path so export flows can proceed.
-      if (cmd === "plugin:dialog|save") return Promise.resolve("/ws/export.csv");
+      // Save dialog: echo the requested default path under /ws so tests can
+      // assert the right file (and format ↔ extension mismatches surface).
+      // plugin-dialog wraps its options: invoke('plugin:dialog|save', { options }).
+      if (cmd === "plugin:dialog|save") {
+        const options = args.options as { defaultPath?: string } | undefined;
+        return Promise.resolve(`/ws/${options?.defaultPath ?? "export.csv"}`);
+      }
       // Open dialog: return a fixed fake .log path so open flows can proceed.
       if (cmd === "plugin:dialog|open") return Promise.resolve("/ws/sample.log");
       if (cmd.startsWith("plugin:dialog|")) return Promise.resolve(null);
@@ -355,6 +365,13 @@ async function installMocks(
     },
     { resp: { ...RESP, ...overrides }, dirs: FAKE_DIRS, files: FAKE_FILES },
   );
+}
+
+/** Open the Apex tool and the hello.apex fixture file — the shared setup for
+ * anonymous-Apex specs. */
+export async function openApexFile(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Apex" }).click();
+  await page.getByRole("treeitem", { name: "hello.apex" }).click();
 }
 
 /** Open a local log by simulating an OS file drag-drop onto the window. The
