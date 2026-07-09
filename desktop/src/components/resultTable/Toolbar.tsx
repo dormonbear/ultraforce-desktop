@@ -3,7 +3,7 @@ import type { Table } from "@tanstack/react-table";
 import type { VisibilityState } from "@tanstack/react-table";
 import { Copy, Download, Filter, Search, SlidersHorizontal } from "lucide-react";
 import type { RuleGroupType } from "react-querybuilder";
-import { Input } from "@/components/ui/input";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -64,13 +64,17 @@ export function Toolbar({
 }: ToolbarProps) {
   return (
     <div className="flex items-center gap-2 px-4 py-2">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
+      <div>
+        <TextInput
+          label="Filter rows"
+          isLabelHidden
           value={globalFilter}
-          onChange={(e) => onGlobalFilterChange(e.target.value)}
+          onChange={(value) => onGlobalFilterChange(value)}
           placeholder="Filter rows…"
-          className="h-7 w-56 pl-8 text-[12px]"
+          size="sm"
+          startIcon={<Search className="size-3.5" />}
+          width={224}
+          className="text-[12px]"
         />
       </div>
       <DropdownMenu>

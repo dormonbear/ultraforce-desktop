@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Trash2, X, ChevronLeft, Copy, FileInput } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@astryxdesign/core/Badge";
 import { copyText } from "../clipboard";
 import { LogView } from "./LogView";
 import {
@@ -33,11 +33,10 @@ function statusLabel(e: ApexHistoryEntry): string {
 function StatusBadge({ e }: { e: ApexHistoryEntry }) {
   return (
     <Badge
-      variant={e.compiled && e.success ? "success" : "destructive"}
+      variant={e.compiled && e.success ? "success" : "error"}
+      label={statusLabel(e)}
       className="text-[11px]"
-    >
-      {statusLabel(e)}
-    </Badge>
+    />
   );
 }
 

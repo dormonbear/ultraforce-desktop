@@ -3,6 +3,16 @@ import { useEffect, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Github } from "lucide-react";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Selector } from "@astryxdesign/core/Selector";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
+import { Switch } from "@astryxdesign/core/Switch";
+import { Text } from "@astryxdesign/core/Text";
 import { getVersion } from "@tauri-apps/api/app";
 import { toast } from "sonner";
 import { getRoot, setRootOverride, type Tool } from "../fs/workspace";
@@ -19,8 +29,6 @@ import {
   type HighlightScheme,
 } from "../editor-themes";
 import { checkForUpdates } from "../updater";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 
 const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
 
@@ -63,8 +71,10 @@ interface Props {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="micro-label">{title}</h2>
-      <div className="rounded-md border border-border bg-card p-4">{children}</div>
+      <Text type="label" color="secondary" display="block">
+        {title}
+      </Text>
+      <Card padding={3}>{children}</Card>
     </section>
   );
 }
@@ -158,47 +168,39 @@ export function SettingsPage({ onChanged }: Props) {
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 text-[12px]">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Settings</h1>
+        <Heading level={1}>Settings</Heading>
 
         <Section title="Appearance">
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-foreground">Theme</span>
-              <div className="flex gap-1 rounded-md border border-border p-0.5">
-                {(["light", "dark"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      if (theme !== t) toggle();
-                    }}
-                    className={`cursor-pointer rounded px-3 py-1 capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 ${
-                      theme === t
-                        ? "bg-primary/15 text-primary"
-                        : "text-text-dim hover:text-foreground"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+              <Text>Theme</Text>
+              <SegmentedControl
+                label="Theme"
+                size="sm"
+                value={theme}
+                onChange={(t) => {
+                  if (theme !== t) toggle();
+                }}
+              >
+                <SegmentedControlItem value="light" label="Light" />
+                <SegmentedControlItem value="dark" label="Dark" />
+              </SegmentedControl>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-foreground">Syntax highlighting</span>
-              <select
+              <Text>Syntax highlighting</Text>
+              <Selector
+                label="Syntax highlighting scheme"
+                isLabelHidden
+                size="sm"
                 value={scheme}
-                onChange={(e) =>
-                  setScheme(e.target.value as (typeof HIGHLIGHT_SCHEMES)[number]["id"])
+                onChange={(v) =>
+                  setScheme(v as (typeof HIGHLIGHT_SCHEMES)[number]["id"])
                 }
-                aria-label="Syntax highlighting scheme"
-                className="native-select cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                {HIGHLIGHT_SCHEMES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+                options={HIGHLIGHT_SCHEMES.map((s) => ({
+                  value: s.id,
+                  label: s.label,
+                }))}
+              />
             </div>
             <SchemePreview scheme={scheme} dark={theme === "dark"} />
           </div>
@@ -208,27 +210,25 @@ export function SettingsPage({ onChanged }: Props) {
           <div className="flex flex-col gap-3">
             {(["soql", "apex"] as Tool[]).map((tool) => (
               <div key={tool} className="flex flex-col gap-1">
-                <span className="text-text-dim">
+                <Text type="supporting" display="block">
                   {tool} workspace
-                </span>
+                </Text>
                 <span className="truncate text-foreground" title={roots[tool]}>
                   {roots[tool] || "…"}
                 </span>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void pick(tool)}
-                    className="cursor-pointer rounded-md px-2 py-0.5 text-text-dim hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    Change…
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void reset(tool)}
-                    className="cursor-pointer rounded-md px-2 py-0.5 text-text-dim hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                  >
-                    Reset
-                  </button>
+                  <Button
+                    label="Change…"
+                    variant="ghost"
+                    size="sm"
+                    clickAction={() => pick(tool)}
+                  />
+                  <Button
+                    label="Reset"
+                    variant="ghost"
+                    size="sm"
+                    clickAction={() => reset(tool)}
+                  />
                 </div>
               </div>
             ))}
@@ -236,61 +236,41 @@ export function SettingsPage({ onChanged }: Props) {
         </Section>
 
         <Section title="Apex">
-          <label className="flex cursor-pointer items-center justify-between gap-4">
-            <span className="text-foreground">
-              Confirm before running anonymous Apex
-              <span className="block text-text-dim">
-                Ask for confirmation on every run — a guard against executing
-                DML in the wrong org.
-              </span>
-            </span>
-            <Checkbox
-              checked={confirmRun}
-              onCheckedChange={(v) => {
-                const next = v === true;
-                setConfirmRun(next);
-                void setConfirmApexRun(next);
-              }}
-              aria-label="Confirm before running anonymous Apex"
-            />
-          </label>
+          <Switch
+            label="Confirm before running anonymous Apex"
+            description="Ask for confirmation on every run — a guard against executing DML in the wrong org."
+            labelPosition="start"
+            labelSpacing="spread"
+            value={confirmRun}
+            onChange={(next) => {
+              setConfirmRun(next);
+              void setConfirmApexRun(next);
+            }}
+          />
         </Section>
 
         <Section title="Privacy & Telemetry">
           <div className="flex flex-col gap-3">
-            <label className="flex cursor-pointer items-center justify-between gap-4">
-              <span className="text-foreground">
-                Local telemetry
-                <span className="block text-text-dim">
-                  Local telemetry — record tool calls to a local database on
-                  this computer for your own debugging. Never leaves your
-                  machine.
-                </span>
-              </span>
-              <Checkbox
-                checked={telemetry.localEnabled}
-                onCheckedChange={(v) =>
-                  changeTelemetry({ ...telemetry, localEnabled: v === true })
-                }
-                aria-label="Local telemetry"
-              />
-            </label>
-            <label className="flex cursor-pointer items-center justify-between gap-4">
-              <span className="text-foreground">
-                Anonymous usage statistics
-                <span className="block text-text-dim">
-                  Anonymous usage statistics (Aptabase) — send scrubbed events
-                  to help improve the tool.
-                </span>
-              </span>
-              <Checkbox
-                checked={telemetry.remoteEnabled}
-                onCheckedChange={(v) =>
-                  changeTelemetry({ ...telemetry, remoteEnabled: v === true })
-                }
-                aria-label="Anonymous usage statistics"
-              />
-            </label>
+            <Switch
+              label="Local telemetry"
+              description="Local telemetry — record tool calls to a local database on this computer for your own debugging. Never leaves your machine."
+              labelPosition="start"
+              labelSpacing="spread"
+              value={telemetry.localEnabled}
+              onChange={(next) =>
+                changeTelemetry({ ...telemetry, localEnabled: next })
+              }
+            />
+            <Switch
+              label="Anonymous usage statistics"
+              description="Anonymous usage statistics (Aptabase) — send scrubbed events to help improve the tool."
+              labelPosition="start"
+              labelSpacing="spread"
+              value={telemetry.remoteEnabled}
+              onChange={(next) =>
+                changeTelemetry({ ...telemetry, remoteEnabled: next })
+              }
+            />
             <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-text-dim">
               {TELEMETRY_DISCLOSURE}
             </pre>
@@ -298,43 +278,37 @@ export function SettingsPage({ onChanged }: Props) {
         </Section>
 
         <Section title="Indexing">
-          <div className="flex flex-col gap-1">
-            <span className="text-text-dim">index scope</span>
-            <select
-              value={ns}
-              onChange={(e) => void changeNs(e.target.value)}
-              className="native-select cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              aria-label="Index namespace scope"
-            >
-              <option value="all">All objects</option>
-              <option value="unmanaged">Unmanaged only (skip managed packages)</option>
-            </select>
-          </div>
+          <Selector
+            label="Index scope"
+            value={ns}
+            changeAction={changeNs}
+            options={[
+              { value: "all", label: "All objects" },
+              {
+                value: "unmanaged",
+                label: "Unmanaged only (skip managed packages)",
+              },
+            ]}
+          />
         </Section>
 
         <Section title="About">
           <div className="flex items-center justify-between">
-            <span className="text-foreground">
-              Ultraforce{version && ` v${version}`}
-            </span>
+            <Text>Ultraforce{version && ` v${version}`}</Text>
             <div className="flex items-center gap-1">
               <Button
+                label="GitHub"
                 variant="ghost"
                 size="sm"
-                onClick={() => void openUrl(REPO_URL)}
-                className="cursor-pointer gap-1.5 text-text-dim hover:text-foreground"
-              >
-                <Github size={14} />
-                GitHub
-              </Button>
+                icon={<Github size={14} />}
+                clickAction={() => openUrl(REPO_URL)}
+              />
               <Button
+                label="Check for updates"
                 variant="ghost"
                 size="sm"
-                onClick={() => void checkForUpdates(true)}
-                className="cursor-pointer text-text-dim hover:text-foreground"
-              >
-                Check for updates
-              </Button>
+                clickAction={() => checkForUpdates(true)}
+              />
             </div>
           </div>
         </Section>

@@ -1,18 +1,9 @@
 import * as React from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 
 interface ConfirmOptions {
   title?: string;
-  description?: React.ReactNode;
+  description?: string;
   confirmText?: string;
   cancelText?: string;
 }
@@ -23,7 +14,7 @@ const ConfirmContext = React.createContext<ConfirmFn | null>(null);
 
 /** Command-style in-app confirmation: `if (await confirm({...})) …`. Replaces
  * `window.confirm` (a silent no-op inside the Tauri webview) with a themed,
- * accessible Radix AlertDialog. Must be used under {@link ConfirmProvider}. */
+ * accessible Astryx AlertDialog. Must be used under {@link ConfirmProvider}. */
 export function useConfirm(): ConfirmFn {
   const ctx = React.useContext(ConfirmContext);
   if (!ctx) throw new Error("useConfirm must be used within a ConfirmProvider");
@@ -42,7 +33,11 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     (next) =>
       new Promise<boolean>((resolve) => {
         resolveRef.current = resolve;
-        setOpts(next);
+        // setTimeout hops out of any ambient React transition. Astryx Buttons
+        // run clickAction inside startTransition(async …); if setOpts joined
+        // that transition it would never commit (the transition awaits this
+        // promise, which needs the dialog rendered to settle) — deadlock.
+        setTimeout(() => setOpts(next), 0);
       }),
     [],
   );
@@ -61,8 +56,10 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The dialog surface for the current request; cyclomatic count is inflated by
- * per-field option fallbacks, not real branching. */
+/** The dialog surface for the current request. Settling on action runs before
+ * the close-driven onOpenChange; the second settle is a no-op (resolver ref is
+ * already cleared). Cyclomatic count is inflated by per-field option
+ * fallbacks, not real branching. */
 // fallow-ignore-next-line complexity
 function ConfirmDialog({
   opts,
@@ -73,27 +70,15 @@ function ConfirmDialog({
 }) {
   return (
     <AlertDialog
-      open={opts !== null}
+      isOpen={opts !== null}
       onOpenChange={(open) => {
         if (!open) onSettle(false);
       }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{opts?.title ?? "Are you sure?"}</AlertDialogTitle>
-          {opts?.description != null && (
-            <AlertDialogDescription>{opts.description}</AlertDialogDescription>
-          )}
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => onSettle(false)}>
-            {opts?.cancelText ?? "Cancel"}
-          </AlertDialogCancel>
-          <AlertDialogAction onClick={() => onSettle(true)}>
-            {opts?.confirmText ?? "Confirm"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      title={opts?.title ?? "Are you sure?"}
+      description={opts?.description ?? ""}
+      cancelLabel={opts?.cancelText ?? "Cancel"}
+      actionLabel={opts?.confirmText ?? "Confirm"}
+      onAction={() => onSettle(true)}
+    />
   );
 }

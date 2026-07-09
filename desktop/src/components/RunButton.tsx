@@ -1,5 +1,5 @@
-import { Play, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Play } from "lucide-react";
+import { Button } from "@astryxdesign/core/Button";
 import { runShortcut } from "../platform";
 
 interface Props {
@@ -20,18 +20,13 @@ export function RunButton({
 }: Props) {
   return (
     <Button
-      type="button"
+      label={running ? runningLabel : label}
+      icon={<Play size={14} fill="currentColor" />}
+      isLoading={running}
+      size="md"
+      tooltip={`Run (${runShortcut()})`}
       onClick={onRun}
-      disabled={running}
-      title={`Run (${runShortcut()})`}
-      className="ml-3 h-8 cursor-pointer gap-1.5 px-3 text-[13px] font-medium disabled:opacity-40"
-    >
-      {running ? (
-        <Loader2 size={14} className="spin" />
-      ) : (
-        <Play size={14} fill="currentColor" />
-      )}
-      {running ? runningLabel : label}
-    </Button>
+      className="ml-3"
+    />
   );
 }

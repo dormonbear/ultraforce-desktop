@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuItem } from "@astryxdesign/core/DropdownMenu";
 import type { TabBase } from "./types";
 
 interface TabStripProps {
@@ -164,31 +159,37 @@ export function TabStrip({
         <Plus size={14} />
       </button>
       {tabs.length > 1 && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label="All tabs"
-              title="All tabs"
-              className="focus-accent flex h-7 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
-            >
-              <ChevronDown size={14} />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-auto">
-            {tabs.map((t) => (
-              <DropdownMenuItem
-                key={t.id}
-                onSelect={() => onSelect(t.id)}
-                className={t.id === activeId ? "text-primary" : ""}
-              >
-                {dirtyIds?.includes(t.id) && (
-                  <span className="size-1.5 shrink-0 rounded-full bg-current" />
-                )}
-                <span className="truncate">{t.title}</span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
+        <DropdownMenu
+          menuWidth={224}
+          hasChevron={false}
+          className="max-h-72 overflow-auto"
+          button={{
+            label: "All tabs",
+            "aria-label": "All tabs",
+            tooltip: "All tabs",
+            variant: "ghost",
+            size: "sm",
+            isIconOnly: true,
+            icon: <ChevronDown size={14} />,
+            className:
+              "h-7 w-6 shrink-0 text-text-dim hover:text-foreground",
+          }}
+        >
+          {tabs.map((t) => (
+            <DropdownMenuItem
+              key={t.id}
+              onClick={() => onSelect(t.id)}
+              className={t.id === activeId ? "text-primary" : undefined}
+              label={
+                <span className="flex items-center gap-1.5">
+                  {dirtyIds?.includes(t.id) && (
+                    <span className="size-1.5 shrink-0 rounded-full bg-current" />
+                  )}
+                  <span className="truncate">{t.title}</span>
+                </span>
+              }
+            />
+          ))}
         </DropdownMenu>
       )}
     </div>

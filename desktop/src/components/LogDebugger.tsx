@@ -12,12 +12,7 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
@@ -128,19 +123,22 @@ export function LogDebugger({
   ];
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex h-[85vh] max-h-[85vh] w-[85vw] max-w-[85vw] flex-col gap-3 sm:max-w-[85vw]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-3">
-            <span>Debug</span>
-            {step && (
-              <span className="text-[12px] font-normal text-text-dim">
-                {frame?.signature} · line {frame?.line ?? "—"} · step {i + 1}/
-                {steps.length}
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
+    <Dialog
+      isOpen={open}
+      onOpenChange={(o) => !o && onClose()}
+      width="85vw"
+      maxHeight="85vh"
+    >
+      <DialogHeader
+        title="Debug"
+        subtitle={
+          step
+            ? `${frame?.signature} · line ${frame?.line ?? "—"} · step ${i + 1}/${steps.length}`
+            : undefined
+        }
+        onOpenChange={(o) => !o && onClose()}
+      />
+      <div className="flex h-[72vh] flex-col gap-3">
 
         {/* Transport controls */}
         <div className="flex items-center gap-1">
@@ -239,7 +237,7 @@ export function LogDebugger({
             </div>
           </div>
         )}
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }

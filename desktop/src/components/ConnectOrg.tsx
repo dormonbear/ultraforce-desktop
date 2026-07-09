@@ -1,17 +1,14 @@
 import { formatIpcError } from "../errorFormat";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Button } from "@astryxdesign/core/Button";
+import { Card } from "@astryxdesign/core/Card";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { Selector } from "@astryxdesign/core/Selector";
+import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { useOrgs } from "../org";
 import { loginOrg } from "../ipc/org";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 type Env = "production" | "sandbox" | "custom";
 
@@ -55,54 +52,49 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
   };
 
   return (
-    <div className="flex w-full max-w-md flex-col gap-3 rounded-md border border-border bg-card p-4 text-[12px]">
-      <label className="flex flex-col gap-1">
-        <span className="text-text-dim">Environment</span>
-        <select
+    <Card padding={3} className="w-full max-w-md">
+      <div className="flex flex-col gap-3">
+        <Selector
+          label="Environment"
           value={env}
-          onChange={(e) => setEnv(e.target.value as Env)}
-          disabled={busy}
-          className="native-select cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-        >
-          <option value="production">Production / Developer (login.salesforce.com)</option>
-          <option value="sandbox">Sandbox (test.salesforce.com)</option>
-          <option value="custom">Custom domain / My Domain…</option>
-        </select>
-      </label>
-
-      {env === "custom" && (
-        <label className="flex flex-col gap-1">
-          <span className="text-text-dim">Instance URL</span>
-          <Input
-            value={customUrl}
-            onChange={(e) => setCustomUrl(e.target.value)}
-            placeholder="https://mydomain.my.salesforce.com"
-            disabled={busy}
-          />
-        </label>
-      )}
-
-      <label className="flex flex-col gap-1">
-        <span className="text-text-dim">Alias (optional)</span>
-        <Input
-          value={alias}
-          onChange={(e) => setAlias(e.target.value)}
-          placeholder="my-org"
-          disabled={busy}
+          onChange={(v) => setEnv(v as Env)}
+          isDisabled={busy}
+          options={[
+            {
+              value: "production",
+              label: "Production / Developer (login.salesforce.com)",
+            },
+            { value: "sandbox", label: "Sandbox (test.salesforce.com)" },
+            { value: "custom", label: "Custom domain / My Domain…" },
+          ]}
         />
-      </label>
 
-      <Button onClick={() => void login()} disabled={busy} className="cursor-pointer">
-        {busy ? (
-          <>
-            <Loader2 className="spin mr-2" size={14} />
-            Waiting for browser…
-          </>
-        ) : (
-          "Log in"
+        {env === "custom" && (
+          <TextInput
+            label="Instance URL"
+            value={customUrl}
+            onChange={(v) => setCustomUrl(v)}
+            placeholder="https://mydomain.my.salesforce.com"
+            isDisabled={busy}
+          />
         )}
-      </Button>
-    </div>
+
+        <TextInput
+          label="Alias"
+          isOptional
+          value={alias}
+          onChange={(v) => setAlias(v)}
+          placeholder="my-org"
+          isDisabled={busy}
+        />
+
+        <Button
+          label={busy ? "Waiting for browser…" : "Log in"}
+          isLoading={busy}
+          clickAction={login}
+        />
+      </div>
+    </Card>
   );
 }
 
@@ -117,21 +109,22 @@ export function ConnectOrgDialog({
 }) {
   const { reload } = useOrgs();
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-4">
-        <DialogHeader>
-          <DialogTitle>Connect a Salesforce org</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-text-dim">
+    <Dialog isOpen={open} onOpenChange={onOpenChange} width={480}>
+      <DialogHeader
+        title="Connect a Salesforce org"
+        onOpenChange={onOpenChange}
+      />
+      <div className="flex flex-col gap-4">
+        <Text type="supporting" display="block">
           Log in via your browser. Pick the environment, optionally set an alias.
-        </p>
+        </Text>
         <ConnectOrgForm
           onConnected={() => {
             reload();
             onOpenChange(false);
           }}
         />
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }

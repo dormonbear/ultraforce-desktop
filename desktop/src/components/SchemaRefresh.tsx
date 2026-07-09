@@ -2,12 +2,7 @@ import { formatIpcError } from "../errorFormat";
 import { useState } from "react";
 import { toast } from "sonner";
 import { RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { useOrgs } from "../org";
 import { getNamespacePolicy } from "../indexSettings";
 import { reindexOrg } from "../ipc/schema";
@@ -38,20 +33,14 @@ export function SchemaRefresh() {
   };
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={refresh}
-          disabled={busy}
-          aria-label="Reindex org"
-          className="size-7 cursor-pointer text-text-dim hover:text-foreground"
-        >
-          <RefreshCw size={15} className={busy ? "spin" : ""} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Reindex org</TooltipContent>
-    </Tooltip>
+    <IconButton
+      label="Reindex org"
+      tooltip="Reindex org"
+      variant="ghost"
+      size="sm"
+      icon={<RefreshCw size={15} />}
+      isLoading={busy}
+      onClick={() => void refresh()}
+    />
   );
 }

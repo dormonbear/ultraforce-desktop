@@ -2,12 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
@@ -62,16 +57,23 @@ export function SourceDialog({
     highlight(instance, target?.line ?? null);
   };
 
+  const title = [
+    target?.className,
+    src ? src.kind : null,
+    target?.line != null ? `line ${target.line}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <Dialog open={target != null} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="flex h-[85vh] max-h-[85vh] w-[85vw] max-w-[85vw] flex-col gap-3 sm:max-w-[85vw]">
-        <DialogHeader>
-          <DialogTitle>
-            {target?.className}
-            {src ? ` · ${src.kind}` : ""}
-            {target?.line != null ? ` · line ${target.line}` : ""}
-          </DialogTitle>
-        </DialogHeader>
+    <Dialog
+      isOpen={target != null}
+      onOpenChange={(o) => !o && onClose()}
+      width="85vw"
+      maxHeight="85vh"
+    >
+      <DialogHeader title={title} onOpenChange={(o) => !o && onClose()} />
+      <div className="flex flex-col gap-3">
         {!src && !error && (
           <div className="flex items-center gap-2 py-6 text-sm text-text-dim">
             <Loader2 className="spin" size={16} /> Fetching source…
@@ -79,7 +81,7 @@ export function SourceDialog({
         )}
         {error && <div className="py-4 text-[12px] text-destructive">{error}</div>}
         {src && (
-          <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
+          <div className="h-[72vh] overflow-hidden rounded-md border border-border">
             <Editor
               height="100%"
               language="apex"
@@ -99,7 +101,7 @@ export function SourceDialog({
             />
           </div>
         )}
-      </DialogContent>
+      </div>
     </Dialog>
   );
 }

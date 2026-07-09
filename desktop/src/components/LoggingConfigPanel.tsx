@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@astryxdesign/core/Button";
 import { useLoggingConfig } from "../useLoggingConfig";
 import { TraceFlagsTable } from "./TraceFlagsTable";
 import { DebugLevelsTable } from "./DebugLevelsTable";
@@ -25,18 +25,17 @@ export function LoggingConfigPanel({ org, onClose }: Props) {
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
+            label="Cancel"
             onClick={onClose}
             className="cursor-pointer"
-          >
-            Cancel
-          </Button>
+          />
           <Button
+            variant="primary"
+            label={cfg.saving ? "Saving…" : "Save"}
             onClick={onSave}
-            disabled={cfg.saving || cfg.loading}
+            isDisabled={cfg.saving || cfg.loading}
             className="cursor-pointer"
-          >
-            {cfg.saving ? "Saving…" : "Save"}
-          </Button>
+          />
         </div>
       </div>
 

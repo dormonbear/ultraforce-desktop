@@ -8,9 +8,9 @@ import {
   SlidersHorizontal,
   Timer,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@astryxdesign/core/Badge";
+import { Button } from "@astryxdesign/core/Button";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -77,71 +77,73 @@ export function LogListPane({
         <Button
           variant="ghost"
           size="sm"
+          label="Refresh"
+          icon={
+            listLoading ? (
+              <Loader2 size={12} className="spin" />
+            ) : (
+              <RefreshCw size={12} />
+            )
+          }
           onClick={onRefresh}
-          disabled={listLoading}
+          isDisabled={listLoading}
           className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
-        >
-          {listLoading ? (
-            <Loader2 size={12} className="spin" />
-          ) : (
-            <RefreshCw size={12} />
-          )}
-          Refresh
-        </Button>
+        />
         <Button
           variant="ghost"
           size="sm"
+          label="Logging"
           aria-label="Configure logging"
+          icon={<SlidersHorizontal size={12} />}
           onClick={onOpenConfig}
           className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
-        >
-          <SlidersHorizontal size={12} />
-          Logging
-        </Button>
+        />
         <Button
           variant="ghost"
           size="sm"
+          label={tracing ? `Tracing · ${traceMinsLeft}m` : "Set My Trace"}
           aria-label={
             tracing
               ? `Tracing you — ${traceMinsLeft} min left; click to extend`
               : "Trace myself for 30 minutes"
           }
-          title={
+          tooltip={
             tracing
               ? `Traced until ${new Date(traceExpiry!).toLocaleTimeString()} — click to extend 30 min`
               : "Trace yourself for 30 minutes"
           }
+          icon={
+            tracingBusy ? (
+              <Loader2 size={12} className="spin" />
+            ) : tracing ? (
+              <span className="size-2 rounded-full bg-primary animate-pulse" />
+            ) : (
+              <Timer size={12} />
+            )
+          }
           onClick={quickSelfTrace}
-          disabled={tracingBusy}
+          isDisabled={tracingBusy}
           className={`h-7 cursor-pointer gap-1 px-1.5 text-[11px] hover:text-foreground ${
             tracing ? "text-primary" : "text-text-dim"
           }`}
-        >
-          {tracingBusy ? (
-            <Loader2 size={12} className="spin" />
-          ) : tracing ? (
-            <span className="size-2 rounded-full bg-primary animate-pulse" />
-          ) : (
-            <Timer size={12} />
-          )}
-          {tracing ? `Tracing · ${traceMinsLeft}m` : "Set My Trace"}
-        </Button>
+        />
       </div>
 
       {logs.length > 0 && (
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <div className="relative flex-1">
-            <Search
-              size={12}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-text-dim"
-            />
-            <Input
+          <div className="flex-1">
+            <TextInput
+              label="Filter logs"
+              isLabelHidden
               value={filter.query}
-              onChange={(e) =>
-                setFilter((f) => ({ ...f, query: e.target.value }))
+              onChange={(value) =>
+                setFilter((f) => ({ ...f, query: value }))
               }
               placeholder="Filter operation / user"
-              className="h-7 pl-7 text-[12px]"
+              size="sm"
+              startIcon={<Search size={12} />}
+              width="100%"
+              className="text-[12px]"
             />
           </div>
         </div>
@@ -209,13 +211,13 @@ export function LogListPane({
                               aria-label="Cached locally"
                             />
                           )}
-                          <Badge
-                            variant={ok ? "success" : "destructive"}
-                            title={log.status}
-                            className="shrink-0 px-1.5 py-0 text-[10px]"
-                          >
-                            {ok ? "Success" : "Failed"}
-                          </Badge>
+                          <span title={log.status} className="shrink-0">
+                            <Badge
+                              variant={ok ? "success" : "error"}
+                              label={ok ? "Success" : "Failed"}
+                              className="px-1.5 py-0 text-[10px]"
+                            />
+                          </span>
                         </div>
                         <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
                           {log.user && (

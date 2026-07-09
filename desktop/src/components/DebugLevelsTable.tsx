@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import {
   CATEGORY_FIELDS,
   LOG_LEVELS,
@@ -29,12 +30,12 @@ export function DebugLevelsTable({ cfg }: { cfg: Cfg }) {
         <Button
           variant="ghost"
           size="sm"
+          label="Add Debug Level"
           aria-label="Add debug level"
+          icon={<Plus size={12} />}
           onClick={cfg.addLevel}
           className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
-        >
-          <Plus size={12} /> Add Debug Level
-        </Button>
+        />
       </div>
       <table className="w-full text-[11px]">
         <thead className="text-text-dim">
@@ -58,11 +59,14 @@ export function DebugLevelsTable({ cfg }: { cfg: Cfg }) {
                   {r.id ? (
                     <span className="whitespace-nowrap text-foreground">{r.developerName}</span>
                   ) : (
-                    <Input
-                      aria-label="Debug level name"
+                    <TextInput
+                      label="Debug level name"
+                      isLabelHidden
                       value={r.developerName}
-                      onChange={(e) => cfg.updateLevel(r._key, { developerName: e.target.value })}
-                      className="h-6 w-36 text-[11px]"
+                      onChange={(value) => cfg.updateLevel(r._key, { developerName: value })}
+                      size="sm"
+                      width={144}
+                      className="text-[11px]"
                     />
                   )}
                 </td>
@@ -108,15 +112,14 @@ export function DebugLevelsTable({ cfg }: { cfg: Cfg }) {
                   </td>
                 ))}
                 <td className="px-1 py-0.5">
-                  <Button
+                  <IconButton
                     variant="ghost"
-                    size="icon"
-                    aria-label="Remove debug level"
+                    size="sm"
+                    label="Remove debug level"
+                    icon={<Trash2 size={12} />}
                     onClick={() => cfg.removeLevel(r._key)}
                     className="size-6 cursor-pointer text-text-dim hover:text-destructive"
-                  >
-                    <Trash2 size={12} />
-                  </Button>
+                  />
                 </td>
               </tr>
             );
