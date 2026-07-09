@@ -8,9 +8,9 @@ import {
   SlidersHorizontal,
   Timer,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -130,18 +130,19 @@ export function LogListPane({
 
       {logs.length > 0 && (
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">
-          <div className="relative flex-1">
-            <Search
-              size={12}
-              className="absolute left-2 top-1/2 -translate-y-1/2 text-text-dim"
-            />
-            <Input
+          <div className="flex-1">
+            <TextInput
+              label="Filter logs"
+              isLabelHidden
               value={filter.query}
-              onChange={(e) =>
-                setFilter((f) => ({ ...f, query: e.target.value }))
+              onChange={(value) =>
+                setFilter((f) => ({ ...f, query: value }))
               }
               placeholder="Filter operation / user"
-              className="h-7 pl-7 text-[12px]"
+              size="sm"
+              startIcon={<Search size={12} />}
+              width="100%"
+              className="text-[12px]"
             />
           </div>
         </div>
@@ -209,13 +210,13 @@ export function LogListPane({
                               aria-label="Cached locally"
                             />
                           )}
-                          <Badge
-                            variant={ok ? "success" : "destructive"}
-                            title={log.status}
-                            className="shrink-0 px-1.5 py-0 text-[10px]"
-                          >
-                            {ok ? "Success" : "Failed"}
-                          </Badge>
+                          <span title={log.status} className="shrink-0">
+                            <Badge
+                              variant={ok ? "success" : "error"}
+                              label={ok ? "Success" : "Failed"}
+                              className="px-1.5 py-0 text-[10px]"
+                            />
+                          </span>
                         </div>
                         <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
                           {log.user && (

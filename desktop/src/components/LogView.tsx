@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, Copy } from "lucide-react";
 import { copyText } from "../clipboard";
-import { Input } from "@/components/ui/input";
+import { TextInput } from "@astryxdesign/core/TextInput";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import type { SourceRef } from "../panels/sourceRef";
 
@@ -129,17 +129,17 @@ export function LogView({
   return (
     <div className="select-text flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-border px-3 py-1.5 text-[11px]">
-        <div className="relative flex-1">
-          <Search
-            size={12}
-            className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
+        <div className="flex-1">
+          <TextInput
+            label="Filter log"
+            isLabelHidden
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(value) => setQ(value)}
             placeholder="filter log…"
-            aria-label="Filter log"
-            className="h-7 pl-7 text-[12px]"
+            size="sm"
+            startIcon={<Search size={12} />}
+            width="100%"
+            className="text-[12px]"
           />
         </div>
         <CheckboxInput

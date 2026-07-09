@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { ChevronRight, Loader2, Copy, History, SlidersHorizontal } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@astryxdesign/core/Badge";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { retriggerSuggestOnEdit } from "../editor/monaco-retrigger";
 import { trimContextMenu } from "../editor/monaco-contextmenu";
@@ -37,11 +37,10 @@ import { useTheme, monacoTheme } from "../theme";
 function StatusChip({ label, ok }: { label: string; ok: boolean }) {
   return (
     <Badge
-      variant={ok ? "success" : "destructive"}
+      variant={ok ? "success" : "error"}
+      label={label}
       className="text-[11px]"
-    >
-      {label}
-    </Badge>
+    />
   );
 }
 
