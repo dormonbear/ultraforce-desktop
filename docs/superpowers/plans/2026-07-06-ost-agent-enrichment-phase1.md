@@ -124,8 +124,9 @@ that a reindex is required for the new attributes. Rebuild the release binary.
   (`ast/infer.rs`).
 
 ## Suggested execution order (incremental commits)
-1. B: `ost_soql` + snapshot resolve + suggestions (pure win, no index change). ✅ done (704b19a)
-2. C-0: schema-version guard (SCHEMA_VERSION const, guard-on-read, rebuild-on-reindex).
-3. C-capture: model + sqlite + record_types table + bump SCHEMA_VERSION → 2.
-4. C-surface: `ost_object` tags/relationshipName; `ost_fields`; `ost_recordtype`.
-5. Docs + release rebuild + reindex the four omni orgs.
+1. B: `ost_soql` + snapshot resolve + suggestions (pure win, no index change). ✅ 704b19a
+2. C-0: schema-version guard (SCHEMA_VERSION, guard-on-read, rebuild-on-reindex). ✅ 0f84261
+3. C-capture: model + sqlite + recordTypeInfos + bump SCHEMA_VERSION → 2. ✅ 317df59
+4. C-surface: `ost_object` tags/relationshipName; `ost_fields`; `ost_recordtype`. ✅ 1c498c4
+5. Docs (omni-stack skill) + release rebuild ✅ + reindex the four omni orgs (SFDC_Staging
+   in progress; SFDC_Live / SFOA_Live / SFOA_Staging still need a v2 reindex).
