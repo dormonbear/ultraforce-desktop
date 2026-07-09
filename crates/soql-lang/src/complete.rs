@@ -425,6 +425,52 @@ pub fn subquery_at(input: &str, cursor: usize) -> Option<Subquery> {
     })
 }
 
+/// True when `cursor` sits inside an unclosed `(` that opens a child-subquery slot
+/// in the outer query's SELECT list (right after the outer `SELECT` or a `,`), and
+/// the text typed inside so far is a possibly-empty case-insensitive prefix of
+/// `SELECT` (e.g. "", "s", "sel", "selec"). At that point `subquery_at` cannot yet
+/// see a subquery, so the only useful completion is the `SELECT` keyword that
+/// starts one — not object/field/function noise.
+fn opening_child_subquery(input: &str, cursor: usize) -> bool {
+    use crate::lexer::{lex, TokenKind};
+    let bytes = input.as_bytes();
+    // Innermost unclosed '(' before the cursor.
+    let mut depth = 0i32;
+    let mut open = None;
+    for i in (0..cursor).rev() {
+        match bytes[i] {
+            b')' => depth += 1,
+            b'(' => {
+                if depth == 0 {
+                    open = Some(i);
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    let Some(open) = open else {
+        return false;
+    };
+    // Everything typed inside the paren so far must be a prefix of SELECT. A full
+    // `SELECT` (len 6) is already handled by `subquery_at`.
+    let inner = input[open + 1..cursor].trim();
+    if inner.len() >= 6 || !"SELECT".starts_with(inner.to_ascii_uppercase().as_str()) {
+        return false;
+    }
+    // The '(' must open a select-list item: the token just before it is the outer
+    // SELECT keyword or a comma — not a function name (`COUNT(`) or an `IN (…)` list.
+    let prev = lex(input)
+        .into_iter()
+        .filter(|t| t.kind != TokenKind::Whitespace && t.end <= open)
+        .next_back();
+    prev.is_some_and(|t| {
+        t.kind == TokenKind::Comma
+            || (t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case("SELECT"))
+    })
+}
+
 /// Resolve a child-relationship name to its child sObject schema.
 fn resolve_child<'a>(
     schema: &'a SObjectSchema,
@@ -464,6 +510,17 @@ pub fn complete<'a>(
             .and_then(|rel| resolve_child(schema, rel, resolve))
             .unwrap_or(schema);
         return complete(&sub.inner, sub.cursor, child, &child_rel_names, resolve);
+    }
+
+    // A freshly opened paren in the outer SELECT list starts a child subquery: the
+    // only sensible completion is the `SELECT` keyword (suppress object/field noise).
+    if opening_child_subquery(input, cursor) {
+        let candidates = vec![Candidate {
+            label: "SELECT".to_string(),
+            kind: CandidateKind::Keyword,
+            detail: None,
+        }];
+        return finish_candidates(candidates, partial_at(input, cursor));
     }
 
     let o = outline(input);
@@ -711,6 +768,66 @@ mod tests {
                 .iter()
                 .any(|c| c.label == "Contacts" && c.kind == CandidateKind::Object),
             "{cands:?}"
+        );
+    }
+
+    #[test]
+    fn offers_select_keyword_in_fresh_select_list_paren_with_prefix() {
+        let account = account_with_contacts();
+        let objects = vec![
+            "Account".to_string(),
+            "Self_Installment__c".to_string(),
+            "Contact".to_string(),
+        ];
+        let input = "SELECT Id, (selec FROM Account";
+        let cursor = "SELECT Id, (selec".len();
+        let cands = complete(input, cursor, &account, &objects, &|_| None);
+        assert!(
+            cands
+                .iter()
+                .any(|c| c.label == "SELECT" && c.kind == CandidateKind::Keyword),
+            "expected SELECT keyword inside a fresh select-list paren: {cands:?}"
+        );
+        assert!(
+            !cands.iter().any(|c| c.kind == CandidateKind::Object),
+            "object names must not be offered inside a select-list paren: {cands:?}"
+        );
+        assert!(
+            !cands.iter().any(|c| c.kind == CandidateKind::Field),
+            "parent fields must not be offered inside a select-list paren: {cands:?}"
+        );
+    }
+
+    #[test]
+    fn offers_select_keyword_in_empty_select_list_paren() {
+        let account = account_with_contacts();
+        let objects = vec!["Account".to_string(), "Contact".to_string()];
+        let input = "SELECT Id, ( FROM Account";
+        let cursor = "SELECT Id, (".len();
+        let cands = complete(input, cursor, &account, &objects, &|_| None);
+        assert!(
+            cands
+                .iter()
+                .any(|c| c.label == "SELECT" && c.kind == CandidateKind::Keyword),
+            "expected SELECT keyword inside an empty select-list paren: {cands:?}"
+        );
+        assert!(
+            !cands.iter().any(|c| c.kind == CandidateKind::Object),
+            "object names must not be offered inside a select-list paren: {cands:?}"
+        );
+    }
+
+    #[test]
+    fn function_call_paren_in_select_does_not_offer_select_keyword() {
+        let account = account_schema();
+        let input = "SELECT COUNT( FROM Account";
+        let cursor = "SELECT COUNT(".len();
+        let cands = complete(input, cursor, &account, &[], &|_| None);
+        assert!(
+            !cands
+                .iter()
+                .any(|c| c.label == "SELECT" && c.kind == CandidateKind::Keyword),
+            "SELECT keyword must not leak into a function-call paren: {cands:?}"
         );
     }
 
