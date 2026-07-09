@@ -10,6 +10,7 @@
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         { "type": "json", "path": "desktop/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "npm/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "desktop/src-tauri/tauri.conf.json", "jsonpath": "$.version" },
         { "type": "toml", "path": "desktop/src-tauri/Cargo.toml", "jsonpath": "$.package.version" }
       ]

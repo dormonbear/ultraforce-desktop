@@ -274,13 +274,8 @@ mod tests {
     fn field(name: &str) -> Field {
         Field {
             name: name.to_string(),
-            label: String::new(),
             field_type: "string".to_string(),
-            custom: false,
-            nillable: false,
-            reference_to: vec![],
-            relationship_name: None,
-            picklist_values: vec![],
+            ..Default::default()
         }
     }
 
@@ -298,6 +293,7 @@ mod tests {
                 field("OwnerId"),
             ],
             child_relationships: vec![],
+            ..Default::default()
         }
     }
 
@@ -312,6 +308,7 @@ mod tests {
             custom: false,
             fields: vec![field("Id"), field("Email"), age],
             child_relationships: vec![],
+            ..Default::default()
         }
     }
 
@@ -413,6 +410,7 @@ mod tests {
             custom: false,
             fields: vec![field("Id"), field("LastName")],
             child_relationships: vec![],
+            ..Default::default()
         }
     }
 
@@ -466,6 +464,7 @@ mod tests {
             custom: false,
             fields: vec![field("Id"), company],
             child_relationships: vec![],
+            ..Default::default()
         }
     }
 

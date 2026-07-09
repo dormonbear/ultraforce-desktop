@@ -99,7 +99,7 @@ pub fn save_snapshot(root: &Path, ost: &Ost, manifest: &IndexManifest) -> std::i
 
     tx.execute(
         "INSERT INTO meta (id, schema_version, alias, org_id, api_version, indexed_at, generation, namespaces, classes, sobjects, stdlib_error)
-         VALUES (1, 1, ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         VALUES (1, ?9, ?1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(id) DO UPDATE SET
            schema_version = excluded.schema_version, alias = excluded.alias, org_id = excluded.org_id,
            api_version = excluded.api_version, indexed_at = excluded.indexed_at, generation = excluded.generation,
@@ -114,6 +114,7 @@ pub fn save_snapshot(root: &Path, ost: &Ost, manifest: &IndexManifest) -> std::i
             manifest.classes as i64,
             manifest.sobjects as i64,
             manifest.stdlib_error,
+            crate::db::SCHEMA_VERSION,
         ],
     )
     .map_err(std::io::Error::other)?;
