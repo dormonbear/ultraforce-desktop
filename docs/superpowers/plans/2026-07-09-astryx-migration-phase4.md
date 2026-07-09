@@ -133,3 +133,49 @@
 - [ ] `npx tsc --noEmit` / `pnpm lint` / `pnpm test` / `pnpm build` all green.
 - [ ] Recount remaining shadcn consumers; update `docs/astryx-spike.md` Phase 4 section.
 - [ ] Commit: `feat(desktop): migrate log detail toggle group to SegmentedControl, drop shadcn toggle`
+
+---
+
+# Phase 5 — remaining leaf primitives (added 2026-07-09 after Phase 4 landed)
+
+**Scope decision:** migrate `badge`, `input`, `tooltip`, `button`, `dropdown-menu`, `context-menu` (Astryx equivalents exist for all). Keep bespoke and do NOT touch: `table` (ResultTable dense core), `resizable` (structural panel layout, 4 panels), `scroll-area` (no Astryx equivalent), `sonner` (self-contained global toast infra). All Global Constraints above still apply.
+
+### Task 4: badge + input + tooltip → Astryx; delete three ui files — ✅ DONE (1251918)
+
+> Outcome: Badge (success/destructive→success/error, `label` prop, `title` needs span wrapper — BaseProps omits it) and TextInput (`onChange(value, e)`, `startIcon` replaces overlay-icon hack, `width` prop) migrated; ui/badge.tsx + ui/input.tsx deleted. `ui/tooltip.tsx` KEPT — plan assumption wrong: App.tsx actively uses Tooltip for sidebar nav (lines ~131–192), not a dead provider. Sidebar Tooltip migration moved to Task 6.
+
+**Files:**
+- Modify: `desktop/src/panels/LogListPane.tsx`, `desktop/src/panels/ApexPanel.tsx`, `desktop/src/components/ApexHistoryDrawer.tsx` (Badge usages)
+- Modify: `desktop/src/panels/LogListPane.tsx`, `desktop/src/components/DebugLevelsTable.tsx`, `desktop/src/components/resultTable/Toolbar.tsx`, `desktop/src/components/LogView.tsx` (Input → Astryx `TextInput`)
+- Modify: `desktop/src/App.tsx` (ui/tooltip import — likely a now-dead `TooltipProvider`; remove it if nothing consumes shadcn Tooltip anymore)
+- Delete: `desktop/src/components/ui/badge.tsx`, `desktop/src/components/ui/input.tsx`, `desktop/src/components/ui/tooltip.tsx` (each only after verifying zero importers)
+
+**Requirements:**
+- Swap components in place; keep surrounding layout/classNames; these usages sit inside dense panes — change ONLY the swapped element. Read Badge/TextInput `.d.ts` first; map shadcn `variant`s to nearest Astryx Badge variants and note any visual mapping in the commit body. TextInput: preserve size/placeholder/controlled-value behavior of each filter input.
+- Commit: `feat(desktop): migrate badge/input/tooltip primitives to Astryx`
+
+### Task 5: button → Astryx Button; delete ui/button.tsx — ✅ DONE (92e360a)
+
+> Outcome: 8 text buttons → Button, 2 icon-only → IconButton (no `icon` size in Astryx; `sm` + className). All handlers use `onClick`; footgun audit found zero awaited dialogs. ui/button.tsx deleted; orphaned `class-variance-authority` dep removed.
+
+**Files:**
+- Modify: `desktop/src/panels/LogListPane.tsx`, `desktop/src/components/LoggingConfigPanel.tsx`, `desktop/src/components/DebugLevelsTable.tsx`, `desktop/src/components/TraceFlagsTable.tsx`
+- Delete: `desktop/src/components/ui/button.tsx`
+
+**Requirements:**
+- **Footgun applies with force here:** any handler that awaits `confirm()` (likely delete flows in DebugLevelsTable / TraceFlagsTable) MUST use `onClick`, never `clickAction`. Audit every migrated handler for awaited dialogs and say in the report which ones needed `onClick`.
+- Map shadcn variants (`ghost`/`outline`/`destructive`/sizes) to Astryx Button props per RunButton/Phase 1–3 precedent. Icon-only buttons → `IconButton` where that matches (SchemaRefresh precedent).
+- Commit: `feat(desktop): migrate remaining shadcn buttons to Astryx`
+
+### Task 6: dropdown-menu + context-menu → Astryx; wrap up Phase 5 — ✅ DONE (b477ca7)
+
+> Outcome: TabStrip → DropdownMenu; App.tsx sidebar tooltips → Astryx Tooltip (provider removed, `placement="end"`); ui/tooltip.tsx deleted. KEPT on shadcn with verified reasons: Toolbar Columns dropdown (Astryx DropdownMenuItem force-closes on click, no checkbox-item — stay-open multi-toggle inexpressible) + sibling Export menu (no-blend rule); LogListPane row context menu (Astryx ContextMenu wraps trigger in a block div, breaks virtualizer row measurement); Explorer.tsx also imports ui/context-menu (was missed in the original consumer count). radix-ui meta still required (DateTimePicker, scroll-area, dropdown-menu, context-menu).
+
+**Files:**
+- Modify: `desktop/src/tabs/TabStrip.tsx`, `desktop/src/components/resultTable/Toolbar.tsx` (DropdownMenu — follow OrgSelector precedent)
+- Modify: `desktop/src/panels/LogListPane.tsx`, `desktop/src/components/resultTable/Toolbar.tsx` (ContextMenu — read Astryx ContextMenu `.d.ts` first)
+- Modify: `desktop/src/App.tsx` (sidebar-nav Tooltip/TooltipTrigger/TooltipContent, ~lines 131–192 → Astryx `Tooltip`; read its `.d.ts`)
+- Delete: `desktop/src/components/ui/dropdown-menu.tsx`, `desktop/src/components/ui/context-menu.tsx`, `desktop/src/components/ui/tooltip.tsx` (after zero-importer check)
+- Modify: `docs/astryx-spike.md` — "Phase 5 done" section: what migrated, what remains bespoke and why (table/resizable/scroll-area/sonner), recounted remaining ui/ list; re-audit whether the `radix-ui` meta-package is still needed (scroll-area/resizable/table still use it — expected yes, state the surviving importers).
+- Final verification adds `pnpm build`.
+- Commit: `feat(desktop): migrate menus to Astryx, finish phase 5 leaf migration`
