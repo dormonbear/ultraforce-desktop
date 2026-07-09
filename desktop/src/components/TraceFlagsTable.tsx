@@ -1,5 +1,6 @@
 import { Plus, Trash2, RefreshCw, Eraser } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@astryxdesign/core/Button";
+import { IconButton } from "@astryxdesign/core/IconButton";
 import { isExpired, isoPlusHours } from "../traceTime";
 import { EntityCombobox } from "./EntityCombobox";
 import { DateTimePicker } from "./DateTimePicker";
@@ -42,30 +43,30 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           <Button
             variant="ghost"
             size="sm"
+            label="Add Trace Flag"
             aria-label="Add trace flag"
+            icon={<Plus size={12} />}
             onClick={cfg.addFlag}
             className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
-          >
-            <Plus size={12} /> Add Trace Flag
-          </Button>
+          />
           <Button
             variant="ghost"
             size="sm"
+            label="Refresh expired"
             aria-label="Refresh expired trace flags"
+            icon={<RefreshCw size={12} />}
             onClick={cfg.refreshExpired}
             className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
-          >
-            <RefreshCw size={12} /> Refresh expired
-          </Button>
+          />
           <Button
             variant="ghost"
             size="sm"
+            label="Remove expired"
             aria-label="Remove expired trace flags"
+            icon={<Eraser size={12} />}
             onClick={cfg.removeExpired}
             className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
-          >
-            <Eraser size={12} /> Remove expired
-          </Button>
+          />
         </div>
       </div>
       <table className="min-w-[1090px] table-fixed text-[11px]">
@@ -191,15 +192,14 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                   </select>
                 </td>
                 <td className="px-1 py-0.5 align-middle">
-                  <Button
+                  <IconButton
                     variant="ghost"
-                    size="icon"
-                    aria-label="Remove trace flag"
+                    size="sm"
+                    label="Remove trace flag"
+                    icon={<Trash2 size={12} />}
                     onClick={() => cfg.removeFlag(r._key)}
                     className="size-6 cursor-pointer text-text-dim hover:text-destructive"
-                  >
-                    <Trash2 size={12} />
-                  </Button>
+                  />
                 </td>
               </tr>
             );
