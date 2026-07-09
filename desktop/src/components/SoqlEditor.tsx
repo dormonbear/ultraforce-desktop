@@ -50,13 +50,21 @@ export function SoqlEditor({
   const onMount: OnMount = (editorInstance, monaco) => {
     editorRef.current = editorInstance;
     monacoRef.current = monaco;
-    editorInstance.addCommand(
-      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
-      () => onRunRef.current()
-    );
-    editorInstance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
-      onSaveRef.current?.()
-    );
+    // addAction (not addCommand) scopes each keybinding to this editor instance
+    // via an `editorId == this.getId()` precondition, so the SOQL shortcuts only
+    // fire when this editor is focused — not in a focused Apex tab.
+    editorInstance.addAction({
+      id: "uf.runSoqlQuery",
+      label: "Run Query",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => onRunRef.current(),
+    });
+    editorInstance.addAction({
+      id: "uf.saveSoql",
+      label: "Save",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => onSaveRef.current?.(),
+    });
     retriggerSuggestOnEdit(editorInstance);
     trimContextMenu(editorInstance);
     flushPending();
