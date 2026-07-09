@@ -66,6 +66,50 @@ Branch: `spike/astryx-local`
     `context-menu` (3), `dropdown-menu` (2), `input` (4), `resizable` (4),
     `scroll-area` (1), `sonner` (1), `table` (1), `tooltip` (1). Dense surfaces
     stay bespoke.
+- **Phase 5 done — finished the remaining leaf primitives.**
+  - Task 4: `badge` → Astryx `Badge` (`success`/`error`, `label` prop),
+    `input` → Astryx `TextInput` (`onChange(value, e)`, `startIcon`); deleted
+    `ui/badge.tsx` + `ui/input.tsx`.
+  - Task 5: shadcn buttons → Astryx `Button`/`IconButton`; deleted
+    `ui/button.tsx`. Orphaned `class-variance-authority` dep removed. Footgun
+    audit found zero awaited `confirm()` dialogs — all handlers use `onClick`.
+  - Task 6 (menus + tooltip):
+    - `TabStrip` "all tabs" menu → Astryx `DropdownMenu`/`DropdownMenuItem`
+      (compound mode; icon-only `ghost` trigger via the `button` prop,
+      `hasChevron={false}`; plain `onClick`, no `clickAction` transition).
+    - `App.tsx` sidebar-nav tooltips → Astryx `Tooltip` (`content` prop,
+      `placement="end"`); the shadcn `TooltipProvider` wrapper is gone (Astryx
+      tooltips need no provider). Deleted `ui/tooltip.tsx` (App was the only
+      importer).
+  - **Kept on shadcn (genuine API mismatches, reported):**
+    - `resultTable/Toolbar.tsx` **"Columns" dropdown** — a checkbox
+      multi-select that must stay open across toggles and show a per-item check.
+      Astryx `DropdownMenuItem` force-closes the menu on every click
+      (`ctx.closeMenu()` → `popover.hide()`) and has no checkbox-item variant,
+      so this usage cannot be expressed. Because that pins `ui/dropdown-menu.tsx`
+      in place anyway, the sibling "Export" dropdown was left on shadcn too
+      rather than blending two dropdown libraries in one file.
+    - `LogListPane.tsx` **log-row context menu** — the trigger is a virtualized,
+      absolutely-positioned row (`rowVirtualizer.measureElement` + `transform`).
+      Astryx `ContextMenu` wraps the trigger in an extra block `div`, which would
+      disrupt the per-row measurement/positioning; left on shadcn.
+    - `Toolbar.tsx` **copy context menu** and `Explorer.tsx` context menus
+      (Explorer out of Phase 5 scope) keep `ui/context-menu.tsx` alive
+      regardless, so the copy menu stayed on shadcn (no file-deletion payoff).
+  - Deleted this phase: `ui/badge.tsx`, `ui/input.tsx`, `ui/button.tsx`,
+    `ui/tooltip.tsx`. Deps removed: `cmdk` (Phase 4, Task 1),
+    `class-variance-authority` (Task 5).
+  - **Stays bespoke (no clean Astryx swap):** `ui/table.tsx` (ResultTable dense
+    core), `ui/resizable.tsx` (structural 4-panel layout), `ui/scroll-area.tsx`
+    (no Astryx equivalent), `ui/sonner.tsx` (self-contained global toast infra).
+  - Remaining shadcn `ui/` files after Phase 5 (consumer counts):
+    `context-menu` (3: LogListPane, Explorer, Toolbar), `dropdown-menu`
+    (1: Toolbar Columns), `resizable` (4), `scroll-area` (1), `sonner` (1),
+    `table` (1).
+  - **`radix-ui` meta-package verdict: still required.** Surviving importers:
+    `DateTimePicker.tsx`, `ui/scroll-area.tsx`, `ui/dropdown-menu.tsx`,
+    `ui/context-menu.tsx` (down from 7 pre-Phase-5). No per-package
+    `@radix-ui/*` deps exist to prune.
 
 ## Original spike scope
 

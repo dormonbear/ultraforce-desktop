@@ -21,12 +21,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { checkForUpdates } from "./updater";
 import { useTheme } from "./theme";
 import { Toaster } from "@/components/ui/sonner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip } from "@astryxdesign/core/Tooltip";
 
 type ActivePanel = "soql" | "apex" | "logs" | "settings";
 
@@ -87,7 +82,6 @@ export default function App() {
   }, []);
 
   return (
-    <TooltipProvider>
     <div className="flex h-full flex-col bg-background text-foreground">
       {/* Top bar — doubles as the window drag region (native title bar hidden) */}
       <header
@@ -128,67 +122,74 @@ export default function App() {
           {RAIL.map(({ id, icon: Icon, label, enabled }, index) => {
             const current = enabled && id === active;
             return (
-              <Tooltip key={id}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-disabled={!enabled}
-                    aria-label={label}
-                    aria-current={current ? "page" : undefined}
-                    onClick={() => enabled && setActive(id as ActivePanel)}
-                    className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-md ${
-                      current
-                        ? "text-primary"
-                        : enabled
-                          ? "text-text-dim hover:text-foreground"
-                          : "text-muted-foreground"
-                    } ${enabled ? "cursor-pointer" : "cursor-not-allowed"}`}
-                  >
-                    {current && (
-                      <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
+              <Tooltip
+                key={id}
+                placement="end"
+                content={
+                  <>
+                    {label}
+                    {enabled ? (
+                      <span className="ml-2 text-muted-foreground">
+                        {isMac() ? "⌘" : "Ctrl+"}
+                        {index + 1}
+                      </span>
+                    ) : (
+                      <span className="ml-2 text-muted-foreground">
+                        Coming soon
+                      </span>
                     )}
-                    <Icon size={18} />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  {label}
-                  {enabled ? (
-                    <span className="ml-2 text-muted-foreground">
-                      {isMac() ? "⌘" : "Ctrl+"}
-                      {index + 1}
-                    </span>
-                  ) : (
-                    <span className="ml-2 text-muted-foreground">Coming soon</span>
+                  </>
+                }
+              >
+                <button
+                  type="button"
+                  aria-disabled={!enabled}
+                  aria-label={label}
+                  aria-current={current ? "page" : undefined}
+                  onClick={() => enabled && setActive(id as ActivePanel)}
+                  className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-md ${
+                    current
+                      ? "text-primary"
+                      : enabled
+                        ? "text-text-dim hover:text-foreground"
+                        : "text-muted-foreground"
+                  } ${enabled ? "cursor-pointer" : "cursor-not-allowed"}`}
+                >
+                  {current && (
+                    <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
                   )}
-                </TooltipContent>
+                  <Icon size={18} />
+                </button>
               </Tooltip>
             );
           })}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label="Settings"
-                aria-current={active === "settings" ? "page" : undefined}
-                onClick={() => setActive("settings")}
-                className={`focus-accent relative mt-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-md ${
-                  active === "settings"
-                    ? "text-primary"
-                    : "text-text-dim hover:text-foreground"
-                }`}
-              >
-                {active === "settings" && (
-                  <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
-                )}
-                <Settings size={18} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              Settings
-              <span className="ml-2 text-muted-foreground">
-                {isMac() ? "⌘," : "Ctrl+,"}
-              </span>
-            </TooltipContent>
+          <Tooltip
+            placement="end"
+            content={
+              <>
+                Settings
+                <span className="ml-2 text-muted-foreground">
+                  {isMac() ? "⌘," : "Ctrl+,"}
+                </span>
+              </>
+            }
+          >
+            <button
+              type="button"
+              aria-label="Settings"
+              aria-current={active === "settings" ? "page" : undefined}
+              onClick={() => setActive("settings")}
+              className={`focus-accent relative mt-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-md ${
+                active === "settings"
+                  ? "text-primary"
+                  : "text-text-dim hover:text-foreground"
+              }`}
+            >
+              {active === "settings" && (
+                <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded bg-primary" />
+              )}
+              <Settings size={18} />
+            </button>
           </Tooltip>
         </nav>
 
@@ -231,6 +232,5 @@ export default function App() {
       <SyncToast />
       <Toaster theme={theme} />
     </div>
-    </TooltipProvider>
   );
 }
