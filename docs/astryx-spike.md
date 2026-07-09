@@ -42,6 +42,30 @@ Branch: `spike/astryx-local`
 - Remaining candidates: `EntityCombobox`/command palette, `OrgSelector`,
   toggle-group consumers. Dense surfaces (result tables, Timeline, Trace
   Flags, Monaco panels, log analysis) stay bespoke.
+- **Phase 4 done — finished the low-risk leaf migrations.**
+  - `SettingsPage` "Privacy & Telemetry" — the shadcn `Checkbox` pair that
+    arrived in the main merge migrated to Astryx `Switch` (matching the
+    existing Apex-confirm toggle); fixed the `TS2304` merge fallout.
+  - `EntityCombobox` (Trace Flags) → Astryx `Typeahead` + `createStaticSource`;
+    exported props unchanged so `TraceFlagsTable` was untouched.
+  - `OrgSelector` → Astryx `DropdownMenu` (menu-like: org picks + a "Connect
+    another org" action; plain `onClick` avoids the `clickAction` transition
+    footgun). Exported props unchanged; `App.tsx` untouched.
+  - `LogDetailPane` tab switcher → Astryx `SegmentedControl` (same idiom as the
+    Settings theme toggle).
+  - `LogView` "Debug Only" / "Highlight" toggles → Astryx `CheckboxInput`
+    (preserves the checkbox affordance; the component renders its own label, so
+    the wrapping `<label>` was dropped).
+  - Deleted shadcn primitives: `ui/checkbox.tsx`, `ui/command.tsx`,
+    `ui/dialog.tsx`, `ui/toggle-group.tsx`, `ui/toggle.tsx`. npm dep `cmdk`
+    removed (Task 1). No `@radix-ui/react-*` deps to remove: this repo uses the
+    unified `radix-ui` meta-package, still imported by 7 surviving files
+    (`DateTimePicker` + `ui/{badge,button,context-menu,dropdown-menu,scroll-area,tooltip}`),
+    so it stays.
+  - Remaining shadcn `ui/` files (consumer counts): `badge` (3), `button` (4),
+    `context-menu` (3), `dropdown-menu` (2), `input` (4), `resizable` (4),
+    `scroll-area` (1), `sonner` (1), `table` (1), `tooltip` (1). Dense surfaces
+    stay bespoke.
 
 ## Original spike scope
 

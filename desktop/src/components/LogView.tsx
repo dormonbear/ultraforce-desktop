@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Search, Copy } from "lucide-react";
 import { copyText } from "../clipboard";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import type { SourceRef } from "../panels/sourceRef";
 
 const LINE_H = 18;
@@ -142,22 +142,18 @@ export function LogView({
             className="h-7 pl-7 text-[12px]"
           />
         </div>
-        <label className="flex cursor-pointer items-center gap-1.5 text-text-dim">
-          <Checkbox
-            checked={debugOnly}
-            onCheckedChange={(v) => setDebugOnly(v === true)}
-            aria-label="Show debug lines only"
-          />
-          Debug Only
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5 text-text-dim">
-          <Checkbox
-            checked={highlight}
-            onCheckedChange={(v) => setHighlight(v === true)}
-            aria-label="Toggle syntax highlighting"
-          />
-          Highlight
-        </label>
+        <CheckboxInput
+          label="Debug Only"
+          size="sm"
+          value={debugOnly}
+          onChange={(v) => setDebugOnly(v)}
+        />
+        <CheckboxInput
+          label="Highlight"
+          size="sm"
+          value={highlight}
+          onChange={(v) => setHighlight(v)}
+        />
         <button
           type="button"
           aria-label="Copy log"

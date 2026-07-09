@@ -1,6 +1,9 @@
 import { Bug } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import {
+  SegmentedControl,
+  SegmentedControlItem,
+} from "@astryxdesign/core/SegmentedControl";
 import { LogView } from "../../components/LogView";
 import { LogoLoader } from "../../components/LogoLoader";
 import { TimelineView } from "../TimelineView";
@@ -79,13 +82,11 @@ export function LogDetailPane({
                 <Bug size={13} /> Debug
               </button>
             </div>
-            <ToggleGroup
-              type="single"
+            <SegmentedControl
+              label="Log detail view"
+              size="sm"
               value={tab}
-              onValueChange={(next) => {
-                if (next) setTab(next as DetailTab);
-              }}
-              className="gap-1"
+              onChange={(next) => setTab(next as DetailTab)}
             >
               {([
                 "raw",
@@ -95,15 +96,13 @@ export function LogDetailPane({
                 "queries",
                 "limits",
               ] as DetailTab[]).map((t) => (
-                <ToggleGroupItem
+                <SegmentedControlItem
                   key={t}
                   value={t}
-                  className="focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[11px] font-medium capitalize text-text-dim hover:text-foreground data-[state=on]:bg-primary/15 data-[state=on]:text-primary"
-                >
-                  {t}
-                </ToggleGroupItem>
+                  label={t[0].toUpperCase() + t.slice(1)}
+                />
               ))}
-            </ToggleGroup>
+            </SegmentedControl>
           </div>
 
           {tab === "raw" || tab === "timeline" ? (
