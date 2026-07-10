@@ -498,8 +498,7 @@ fn opening_child_subquery(input: &str, cursor: usize) -> bool {
     // SELECT keyword or a comma — not a function name (`COUNT(`) or an `IN (…)` list.
     let prev = lex(input)
         .into_iter()
-        .filter(|t| t.kind != TokenKind::Whitespace && t.end <= open)
-        .next_back();
+        .rfind(|t| t.kind != TokenKind::Whitespace && t.end <= open);
     prev.is_some_and(|t| {
         t.kind == TokenKind::Comma
             || (t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case("SELECT"))
