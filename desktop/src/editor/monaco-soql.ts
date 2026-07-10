@@ -41,6 +41,49 @@ function kindIcon(
   return icons[kind] ?? K.Field;
 }
 
+/** Insert-text and post-accept command for one item. A bare `SELECT` keyword
+ * (query start or a freshly opened child-subquery paren) inserts a trailing
+ * space and retriggers the popup so field recommendations appear immediately
+ * (same triggerSuggest mechanism as monaco-retrigger.ts). */
+function insertBehavior(item: CompletionItemDto): {
+  insertText: string;
+  command?: { id: string; title: string };
+} {
+  const isSelectKeyword =
+    item.kind === "keyword" && item.label.toUpperCase() === "SELECT";
+  if (!isSelectKeyword) return { insertText: item.label };
+  return {
+    insertText: `${item.label} `,
+    command: { id: "editor.action.triggerSuggest", title: "Suggest fields" },
+  };
+}
+
+/** Map one backend completion item to a Monaco suggestion. `index` drives
+ * `sortText` so Monaco keeps the backend ranking (common fields first) instead of
+ * re-sorting alphabetically by label. */
+function toSuggestion(
+  monaco: Monaco,
+  item: CompletionItemDto,
+  index: number,
+  range: {
+    startLineNumber: number;
+    endLineNumber: number;
+    startColumn: number;
+    endColumn: number;
+  },
+) {
+  const { insertText, command } = insertBehavior(item);
+  return {
+    label: item.label,
+    detail: item.detail ?? undefined,
+    kind: kindIcon(monaco, item.kind),
+    insertText,
+    range,
+    sortText: index.toString().padStart(4, "0"),
+    command,
+  };
+}
+
 /** Register a SOQL CompletionItemProvider backed by the `soql_complete` Tauri command.
  * HMR-safe: dispose the previous provider (kept on the singleton monaco) before
  * re-registering, so a dev hot-reload can't stack providers (duplicate suggestions). */
@@ -66,13 +109,9 @@ function registerSoqlCompletion(monaco: Monaco): void {
         endColumn: word.endColumn,
       };
       return {
-        suggestions: items.map((item) => ({
-          label: item.label,
-          detail: item.detail ?? undefined,
-          kind: kindIcon(monaco, item.kind),
-          insertText: item.label,
-          range,
-        })),
+        suggestions: items.map((item, index) =>
+          toSuggestion(monaco, item, index, range),
+        ),
       };
     },
   });

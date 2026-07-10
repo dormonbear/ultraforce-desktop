@@ -140,12 +140,21 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const onMount: OnMount = (instance, monaco) => {
     editorRef.current = instance;
     monacoRef.current = monaco;
-    instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () =>
-      runRef.current()
-    );
-    instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () =>
-      onSaveRef.current?.()
-    );
+    // addAction (not addCommand) scopes each keybinding to this editor instance
+    // via an `editorId == this.getId()` precondition, so the Apex shortcuts only
+    // fire when this editor is focused — not in a focused SOQL tab.
+    instance.addAction({
+      id: "uf.runAnonymousApex",
+      label: "Run Anonymous Apex",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => runRef.current(),
+    });
+    instance.addAction({
+      id: "uf.saveApex",
+      label: "Save",
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => onSaveRef.current?.(),
+    });
     retriggerSuggestOnEdit(instance);
     trimContextMenu(instance);
     flushPending();

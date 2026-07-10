@@ -311,9 +311,44 @@ fn push_candidate(
     });
 }
 
-fn finish_candidates(mut candidates: Vec<Candidate>, partial: &str) -> Vec<Candidate> {
+/// Sort rank for the common fields surfaced first in a SELECT list. Tier 1
+/// (`Id`, `Name`) outranks tier 2 (`CreatedDate`, `LastModifiedDate`, `OwnerId`),
+/// which outrank everything else. Only labels actually present in the candidate
+/// list are ranked, so an object lacking e.g. `Name` never fakes one.
+fn common_field_rank(label: &str) -> u8 {
+    match label.to_ascii_lowercase().as_str() {
+        "id" => 0,
+        "name" => 1,
+        "createddate" => 2,
+        "lastmodifieddate" => 3,
+        "ownerid" => 4,
+        _ => u8::MAX,
+    }
+}
+
+/// Filter to the partial, order candidates, and dedupe. When `boost_common` (the
+/// SELECT field list), the common fields sort to the top; otherwise ordering is
+/// plain alphabetical. Ties (and duplicates) fall back to case-insensitive label.
+fn finish_candidates(
+    mut candidates: Vec<Candidate>,
+    partial: &str,
+    boost_common: bool,
+) -> Vec<Candidate> {
     candidates.retain(|candidate| matches_partial(&candidate.label, partial));
-    candidates.sort_by_key(|candidate| candidate.label.to_ascii_lowercase());
+    let rank = |c: &Candidate| {
+        if boost_common && c.kind == CandidateKind::Field {
+            common_field_rank(&c.label)
+        } else {
+            u8::MAX
+        }
+    };
+    candidates.sort_by(|a, b| {
+        rank(a).cmp(&rank(b)).then_with(|| {
+            a.label
+                .to_ascii_lowercase()
+                .cmp(&b.label.to_ascii_lowercase())
+        })
+    });
     candidates.dedup_by(|a, b| a.label.eq_ignore_ascii_case(&b.label));
     candidates
 }
@@ -425,6 +460,51 @@ pub fn subquery_at(input: &str, cursor: usize) -> Option<Subquery> {
     })
 }
 
+/// True when `cursor` sits inside an unclosed `(` that opens a child-subquery slot
+/// in the outer query's SELECT list (right after the outer `SELECT` or a `,`), and
+/// the text typed inside so far is a possibly-empty case-insensitive prefix of
+/// `SELECT` (e.g. "", "s", "sel", "selec"). At that point `subquery_at` cannot yet
+/// see a subquery, so the only useful completion is the `SELECT` keyword that
+/// starts one — not object/field/function noise.
+fn opening_child_subquery(input: &str, cursor: usize) -> bool {
+    use crate::lexer::{lex, TokenKind};
+    let bytes = input.as_bytes();
+    // Innermost unclosed '(' before the cursor.
+    let mut depth = 0i32;
+    let mut open = None;
+    for i in (0..cursor).rev() {
+        match bytes[i] {
+            b')' => depth += 1,
+            b'(' => {
+                if depth == 0 {
+                    open = Some(i);
+                    break;
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+    }
+    let Some(open) = open else {
+        return false;
+    };
+    // Everything typed inside the paren so far must be a prefix of SELECT. A full
+    // `SELECT` (len 6) is already handled by `subquery_at`.
+    let inner = input[open + 1..cursor].trim();
+    if inner.len() >= 6 || !"SELECT".starts_with(inner.to_ascii_uppercase().as_str()) {
+        return false;
+    }
+    // The '(' must open a select-list item: the token just before it is the outer
+    // SELECT keyword or a comma — not a function name (`COUNT(`) or an `IN (…)` list.
+    let prev = lex(input)
+        .into_iter()
+        .rfind(|t| t.kind != TokenKind::Whitespace && t.end <= open);
+    prev.is_some_and(|t| {
+        t.kind == TokenKind::Comma
+            || (t.kind == TokenKind::Keyword && t.text.eq_ignore_ascii_case("SELECT"))
+    })
+}
+
 /// Resolve a child-relationship name to its child sObject schema.
 fn resolve_child<'a>(
     schema: &'a SObjectSchema,
@@ -466,6 +546,17 @@ pub fn complete<'a>(
         return complete(&sub.inner, sub.cursor, child, &child_rel_names, resolve);
     }
 
+    // A freshly opened paren in the outer SELECT list starts a child subquery: the
+    // only sensible completion is the `SELECT` keyword (suppress object/field noise).
+    if opening_child_subquery(input, cursor) {
+        let candidates = vec![Candidate {
+            label: "SELECT".to_string(),
+            kind: CandidateKind::Keyword,
+            detail: None,
+        }];
+        return finish_candidates(candidates, partial_at(input, cursor), false);
+    }
+
     let o = outline(input);
     let clause = clause_at(&o, input, cursor);
     let partial = partial_at(input, cursor);
@@ -478,7 +569,7 @@ pub fn complete<'a>(
         for target in resolve_chain_targets(schema, &chain, resolve) {
             push_fields_and_relationships(&mut candidates, target);
         }
-        return finish_candidates(candidates, partial);
+        return finish_candidates(candidates, partial, false);
     }
 
     match clause {
@@ -533,7 +624,7 @@ pub fn complete<'a>(
         Clause::Limit | Clause::Offset => {}
     }
 
-    finish_candidates(candidates, partial)
+    finish_candidates(candidates, partial, matches!(clause, Clause::Select))
 }
 
 #[cfg(test)]
@@ -711,6 +802,66 @@ mod tests {
                 .iter()
                 .any(|c| c.label == "Contacts" && c.kind == CandidateKind::Object),
             "{cands:?}"
+        );
+    }
+
+    #[test]
+    fn offers_select_keyword_in_fresh_select_list_paren_with_prefix() {
+        let account = account_with_contacts();
+        let objects = vec![
+            "Account".to_string(),
+            "Self_Installment__c".to_string(),
+            "Contact".to_string(),
+        ];
+        let input = "SELECT Id, (selec FROM Account";
+        let cursor = "SELECT Id, (selec".len();
+        let cands = complete(input, cursor, &account, &objects, &|_| None);
+        assert!(
+            cands
+                .iter()
+                .any(|c| c.label == "SELECT" && c.kind == CandidateKind::Keyword),
+            "expected SELECT keyword inside a fresh select-list paren: {cands:?}"
+        );
+        assert!(
+            !cands.iter().any(|c| c.kind == CandidateKind::Object),
+            "object names must not be offered inside a select-list paren: {cands:?}"
+        );
+        assert!(
+            !cands.iter().any(|c| c.kind == CandidateKind::Field),
+            "parent fields must not be offered inside a select-list paren: {cands:?}"
+        );
+    }
+
+    #[test]
+    fn offers_select_keyword_in_empty_select_list_paren() {
+        let account = account_with_contacts();
+        let objects = vec!["Account".to_string(), "Contact".to_string()];
+        let input = "SELECT Id, ( FROM Account";
+        let cursor = "SELECT Id, (".len();
+        let cands = complete(input, cursor, &account, &objects, &|_| None);
+        assert!(
+            cands
+                .iter()
+                .any(|c| c.label == "SELECT" && c.kind == CandidateKind::Keyword),
+            "expected SELECT keyword inside an empty select-list paren: {cands:?}"
+        );
+        assert!(
+            !cands.iter().any(|c| c.kind == CandidateKind::Object),
+            "object names must not be offered inside a select-list paren: {cands:?}"
+        );
+    }
+
+    #[test]
+    fn function_call_paren_in_select_does_not_offer_select_keyword() {
+        let account = account_schema();
+        let input = "SELECT COUNT( FROM Account";
+        let cursor = "SELECT COUNT(".len();
+        let cands = complete(input, cursor, &account, &[], &|_| None);
+        assert!(
+            !cands
+                .iter()
+                .any(|c| c.label == "SELECT" && c.kind == CandidateKind::Keyword),
+            "SELECT keyword must not leak into a function-call paren: {cands:?}"
         );
     }
 
@@ -991,5 +1142,60 @@ mod tests {
             .map(|c| c.label)
             .collect();
         assert!(labels.contains(&"Name".to_string()), "{labels:?}");
+    }
+
+    #[test]
+    fn select_ranks_common_fields_first() {
+        let schema = account_schema(); // Id, Name, Industry, OwnerId
+        let input = "SELECT  FROM Account";
+        let cursor = "SELECT ".len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert_eq!(labels.first().map(String::as_str), Some("Id"), "{labels:?}");
+        assert_eq!(labels.get(1).map(String::as_str), Some("Name"), "{labels:?}");
+        // Tier-2 OwnerId still outranks the non-common field Industry.
+        let owner = labels.iter().position(|l| l == "OwnerId").unwrap();
+        let industry = labels.iter().position(|l| l == "Industry").unwrap();
+        assert!(owner < industry, "OwnerId should precede Industry: {labels:?}");
+    }
+
+    #[test]
+    fn select_does_not_fake_missing_name() {
+        let schema = SObjectSchema {
+            name: "NoName__c".to_string(),
+            fields: vec![field("Id"), field("Amount__c")],
+            ..Default::default()
+        };
+        let input = "SELECT  FROM NoName__c";
+        let cursor = "SELECT ".len();
+        let labels: Vec<String> = complete(input, cursor, &schema, &[], &|_| None)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert_eq!(labels.first().map(String::as_str), Some("Id"), "{labels:?}");
+        assert!(
+            !labels.contains(&"Name".to_string()),
+            "must not fake a Name field: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn subquery_select_list_ranks_common_fields_first() {
+        let account = account_with_contacts();
+        let mut child = contact_schema(); // Id, LastName
+        child.fields.push(field("Name"));
+        let mut map = std::collections::HashMap::new();
+        map.insert("Contact".to_string(), child);
+        let resolve = |n: &str| map.get(n);
+        let input = "SELECT Id, (SELECT  FROM Contacts) FROM Account";
+        let cursor = input.find("SELECT  FROM Contacts").unwrap() + "SELECT ".len();
+        let labels: Vec<String> = complete(input, cursor, &account, &[], &resolve)
+            .into_iter()
+            .map(|c| c.label)
+            .collect();
+        assert_eq!(labels.first().map(String::as_str), Some("Id"), "{labels:?}");
+        assert_eq!(labels.get(1).map(String::as_str), Some("Name"), "{labels:?}");
     }
 }
