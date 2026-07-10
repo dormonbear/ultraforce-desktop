@@ -174,10 +174,8 @@ fn check_select<'a>(
         let Some(rel) = find_rel(cur, seg) else {
             return Some(unknown("relationship", seg, &cur.name, &rel_names(cur)));
         };
-        match rel.reference_to.first().and_then(|t| resolve(t)) {
-            Some(next) => cur = next,
-            None => return None, // target not indexed — don't false-flag
-        }
+        // Target not indexed — bail without false-flagging.
+        cur = rel.reference_to.first().and_then(|t| resolve(t))?;
     }
     let last_rel = segs[segs.len() - 2];
     let field = segs[segs.len() - 1];

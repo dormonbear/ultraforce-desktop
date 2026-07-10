@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use rmcp::model::CallToolRequestParam;
+use rmcp::model::CallToolRequestParams;
 use rmcp::transport::TokioChildProcess;
 use rmcp::ServiceExt;
 use sf_core::{runner::MockRunner, SfInvoker};
@@ -226,8 +226,8 @@ fn tool_log_rows(root: &std::path::Path) -> i64 {
         .unwrap_or(0)
 }
 
-/// `CallToolRequestParam` is `#[non_exhaustive]`; build it via serde.
-fn mk_param(name: &str, args: serde_json::Value) -> CallToolRequestParam {
+/// `CallToolRequestParams` is `#[non_exhaustive]`; build it via serde.
+fn mk_param(name: &str, args: serde_json::Value) -> CallToolRequestParams {
     serde_json::from_value(serde_json::json!({ "name": name, "arguments": args }))
         .expect("valid call param")
 }

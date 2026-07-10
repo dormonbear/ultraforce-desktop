@@ -68,22 +68,10 @@ mod tests {
 
     #[test]
     fn validates_path_and_classifies_writes() {
-        assert_eq!(
-            check_path_and_method("/services/data/v62.0/limits", "GET").unwrap(),
-            false
-        );
-        assert_eq!(
-            check_path_and_method("/services/data/v62.0/sobjects/Account", "POST").unwrap(),
-            true
-        );
-        assert_eq!(
-            check_path_and_method("/services/data/v62.0/x", "PATCH").unwrap(),
-            true
-        );
-        assert_eq!(
-            check_path_and_method("/services/data/v62.0/x", "DELETE").unwrap(),
-            true
-        );
+        assert!(!check_path_and_method("/services/data/v62.0/limits", "GET").unwrap());
+        assert!(check_path_and_method("/services/data/v62.0/sobjects/Account", "POST").unwrap());
+        assert!(check_path_and_method("/services/data/v62.0/x", "PATCH").unwrap());
+        assert!(check_path_and_method("/services/data/v62.0/x", "DELETE").unwrap());
         // non-/services/ path refused
         assert!(check_path_and_method("/secur/frontdoor.jsp", "GET").is_err());
         // unknown method refused
