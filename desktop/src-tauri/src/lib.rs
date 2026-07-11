@@ -9,6 +9,7 @@ mod debug_cfg;
 mod dto;
 mod error;
 mod indexing;
+mod schema_browse;
 mod setup;
 mod sf_cli;
 mod soql_exec;
@@ -318,6 +319,33 @@ async fn reindex_org(
 }
 
 #[tauri::command]
+async fn schema_list_objects(
+    org: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<dto::SchemaObjectDto>, CommandError> {
+    schema_browse::list_objects(&org, &state)
+}
+
+#[tauri::command]
+async fn schema_object_detail(
+    org: String,
+    object: String,
+    state: State<'_, AppState>,
+) -> Result<dto::SchemaObjectDetailDto, CommandError> {
+    schema_browse::object_detail(org, object, &state).await
+}
+
+#[tauri::command]
+async fn schema_search(
+    org: String,
+    query: String,
+    limit: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<Vec<dto::SchemaSearchHitDto>, CommandError> {
+    schema_browse::search(&org, &query, limit, &state)
+}
+
+#[tauri::command]
 async fn soql_column_labels(
     query: String,
     columns: Vec<String>,
@@ -395,6 +423,9 @@ pub fn run() {
             refresh_schema_cache,
             index_org,
             reindex_org,
+            schema_list_objects,
+            schema_object_detail,
+            schema_search,
             soql_column_labels,
             soql_diagnostics,
             apex_soql_diagnostics,

@@ -282,3 +282,75 @@ export interface CompletionItemDto {
   kind: string;
   detail?: string | null;
 }
+
+// ---- Schema browser DTOs (mirror of src-tauri/src/dto.rs) ------------------
+
+/** One object in the schema-browser list. */
+export interface SchemaObjectDto {
+  name: string;
+  label: string;
+  custom: boolean;
+  keyPrefix?: string | null;
+}
+
+/** One picklist entry on a schema field. */
+export interface SchemaPicklistValueDto {
+  label: string;
+  value: string;
+  active: boolean;
+  defaultValue: boolean;
+}
+
+/** A single field in an object's schema detail. */
+export interface SchemaFieldDto {
+  name: string;
+  label: string;
+  fieldType: string;
+  custom: boolean;
+  nillable: boolean;
+  referenceTo: string[];
+  relationshipName?: string | null;
+  picklistValues: SchemaPicklistValueDto[];
+  restrictedPicklist: boolean;
+  dependentPicklist: boolean;
+  calculated: boolean;
+  calculatedFormula?: string | null;
+  length: number;
+  unique: boolean;
+  inlineHelpText?: string | null;
+}
+
+/** A record type's identity in an object's schema detail. */
+export interface SchemaRecordTypeDto {
+  name: string;
+  developerName: string;
+  active: boolean;
+  master: boolean;
+  available: boolean;
+}
+
+/** A child relationship pointing back to the object. */
+export interface SchemaChildRelationshipDto {
+  childSObject: string;
+  relationshipName?: string | null;
+  field: string;
+}
+
+/** Full schema detail for one object. */
+export interface SchemaObjectDetailDto {
+  name: string;
+  label: string;
+  keyPrefix?: string | null;
+  custom: boolean;
+  fields: SchemaFieldDto[];
+  childRelationships: SchemaChildRelationshipDto[];
+  recordTypes: SchemaRecordTypeDto[];
+}
+
+/** One hit from the schema search palette. */
+export interface SchemaSearchHitDto {
+  objectName: string;
+  fieldName: string;
+  fieldLabel: string;
+  snippet: string;
+}

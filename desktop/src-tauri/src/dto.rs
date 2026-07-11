@@ -931,6 +931,92 @@ pub struct SfStatusDto {
     pub found_at: Option<String>,
 }
 
+// ---- Schema browser DTOs (mapped in `schema_browse.rs`) --------------------
+
+/// One object in the schema-browser list.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaObjectDto {
+    pub name: String,
+    pub label: String,
+    pub custom: bool,
+    pub key_prefix: Option<String>,
+}
+
+/// One picklist entry on a schema field.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaPicklistValueDto {
+    pub label: String,
+    pub value: String,
+    pub active: bool,
+    pub default_value: bool,
+}
+
+/// A single field in an object's schema detail.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaFieldDto {
+    pub name: String,
+    pub label: String,
+    pub field_type: String,
+    pub custom: bool,
+    pub nillable: bool,
+    pub reference_to: Vec<String>,
+    pub relationship_name: Option<String>,
+    pub picklist_values: Vec<SchemaPicklistValueDto>,
+    pub restricted_picklist: bool,
+    pub dependent_picklist: bool,
+    pub calculated: bool,
+    pub calculated_formula: Option<String>,
+    pub length: i64,
+    pub unique: bool,
+    pub inline_help_text: Option<String>,
+}
+
+/// A record type's identity in an object's schema detail.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaRecordTypeDto {
+    pub name: String,
+    pub developer_name: String,
+    pub active: bool,
+    pub master: bool,
+    pub available: bool,
+}
+
+/// A child relationship pointing back to the object.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaChildRelationshipDto {
+    pub child_s_object: String,
+    pub relationship_name: Option<String>,
+    pub field: String,
+}
+
+/// Full schema detail for one object.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaObjectDetailDto {
+    pub name: String,
+    pub label: String,
+    pub key_prefix: Option<String>,
+    pub custom: bool,
+    pub fields: Vec<SchemaFieldDto>,
+    pub child_relationships: Vec<SchemaChildRelationshipDto>,
+    pub record_types: Vec<SchemaRecordTypeDto>,
+}
+
+/// One hit from the schema search palette.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchemaSearchHitDto {
+    pub object_name: String,
+    pub field_name: String,
+    pub field_label: String,
+    pub snippet: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
