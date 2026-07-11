@@ -67,3 +67,32 @@ existing measure logic for the root cause before patching.
 Rewrite `ResultTable.expand.test.tsx`: clicking a row opens the panel;
 panel shows `ChildGrid` content; `Esc` / re-click closes; childless rows
 render `—`; Flat mode unaffected.
+
+## v2 — Vertical record cards + multi-level subqueries (2026-07-11)
+
+User feedback after v1: the panel should read as a *detail* view, and SOQL
+supports nested child subqueries (up to 5 levels) which the current model
+collapses into a bare count (`soql_children.rs` `typed_cell`, Children arm).
+
+### Panel layout v2
+
+- Per relationship: a section header `RelName (count)` + truncation hint
+  (unchanged), but records render **vertically**: one key-value card per
+  child record — left column field name, right column value.
+- Card header: record ordinal + Id value (when an `Id` column exists).
+- A child record that itself has subqueries renders those as nested
+  sections inside its card (indented, recursive; SOQL caps depth at 5).
+- The horizontal `ChildGrid` grid is retired from the panel.
+- Many child records simply scroll; no per-record collapse in v2.
+
+### Data model
+
+- `features::soql_children::ChildTable` gains `children: Vec<ChildTable>`
+  (each with `row_index` pointing into the *enclosing* table's `rows`);
+  the projection recurses instead of collapsing nested subqueries to a
+  count. The scalar count column stays in `columns`/`rows` for backward
+  compatibility with flatten/filter.
+- `ChildTableDto` (dto.rs) and `types.ts` mirror the `children` field —
+  both sides in the same commit.
+- Flatten mode and the advanced filter keep operating on level-1 children
+  only; deeper levels are visible only in the panel.
