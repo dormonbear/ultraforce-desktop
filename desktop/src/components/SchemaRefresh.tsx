@@ -16,10 +16,10 @@ import { useIndexProgress } from "./IndexProgress";
 export function SchemaRefresh() {
   const { selected: org } = useOrgs();
   const [busy, setBusy] = useState(false);
-  // The top-bar progress pill already owns the indexing spinner. Suppress this
-  // button's own spinner and disable it whenever an index is running — whether
-  // this button kicked it off (`busy`) or it was triggered elsewhere (the
-  // `index-progress` stream) — so users see one spinner and can't double-fire.
+  // The top-bar progress pill already shows the indexing spinner + phase. Hide
+  // this button entirely while an index is running — whether this button kicked
+  // it off (`busy`) or it was triggered elsewhere (the `index-progress` stream)
+  // — so the pill is the only indicator and the button can't be double-fired.
   const indexing = useIndexProgress() !== null;
 
   const refresh = async () => {
@@ -38,6 +38,8 @@ export function SchemaRefresh() {
     }
   };
 
+  if (busy || indexing) return null;
+
   return (
     <IconButton
       label="Reindex org"
@@ -45,7 +47,6 @@ export function SchemaRefresh() {
       variant="ghost"
       size="sm"
       icon={<RefreshCw size={15} />}
-      isDisabled={busy || indexing}
       onClick={() => void refresh()}
     />
   );

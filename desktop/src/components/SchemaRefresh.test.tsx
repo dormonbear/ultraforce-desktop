@@ -38,31 +38,24 @@ describe("SchemaRefresh spinner dedupe", () => {
   });
   afterEach(cleanup);
 
-  it("is enabled with no spinner when idle", () => {
+  it("shows the button with no spinner when idle", () => {
     render(<SchemaRefresh />);
     const button = screen.getByRole("button", { name: "Reindex org" });
-    expect(button.getAttribute("aria-disabled")).not.toBe("true");
     expect(button.getAttribute("aria-busy")).not.toBe("true");
     expect(within(button).queryByLabelText("Loading")).toBeNull();
   });
 
-  it("disables the button without a second spinner while indexing", () => {
+  it("hides the button entirely while indexing (pill owns the only spinner)", () => {
     render(<SchemaRefresh />);
     emit("sobjects");
-    const button = screen.getByRole("button", { name: "Reindex org" });
-    // Disabled state is conveyed to assistive tech...
-    expect(button.getAttribute("aria-disabled")).toBe("true");
-    // ...but the button never shows its own loading spinner (the top-bar pill
-    // owns the single spinner during indexing).
-    expect(button.getAttribute("aria-busy")).not.toBe("true");
-    expect(within(button).queryByLabelText("Loading")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reindex org" })).toBeNull();
   });
 
-  it("re-enables the button once indexing completes", () => {
+  it("shows the button again once indexing completes", () => {
     render(<SchemaRefresh />);
     emit("sobjects");
     emit("done");
-    const button = screen.getByRole("button", { name: "Reindex org" });
-    expect(button.getAttribute("aria-disabled")).not.toBe("true");
+    // getByRole throws if absent, so this asserts the button is back.
+    expect(screen.getByRole("button", { name: "Reindex org" })).toBeTruthy();
   });
 });
