@@ -6,8 +6,9 @@ use sf_schema::model::{ChildRelationship, Field, PicklistValue, SObjectSchema};
 use sf_schema::{sqlite, SchemaStore};
 
 use crate::dto::{
-    SchemaChildRelationshipDto, SchemaFieldDto, SchemaObjectDetailDto, SchemaObjectDto,
-    SchemaPicklistValueDto, SchemaRecordTypeDto, SchemaSearchHitDto,
+    FieldDependenciesDto, FieldDependencyDto, SchemaChildRelationshipDto, SchemaFieldDto,
+    SchemaObjectDetailDto, SchemaObjectDto, SchemaPicklistValueDto, SchemaRecordTypeDto,
+    SchemaSearchHitDto,
 };
 use crate::error::CommandError;
 use crate::state::AppState;
@@ -136,6 +137,105 @@ pub fn search(
         .collect())
 }
 
+// ---- Field where-used (MetadataComponentDependency + SQLite cache) --------
+
+fn dep_dto(component_type: String, component_name: String, component_id: String) -> FieldDependencyDto {
+    FieldDependencyDto {
+        component_type,
+        component_name,
+        component_id,
+    }
+}
+
+/// Current wall-clock time in epoch milliseconds (0 before the epoch).
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+/// Pure cache decision: serve the where-used result from cache, or `None` to
+/// signal a fresh fetch is required. A forced `refresh` or a cache miss both
+/// return `None`; a hit (even zero deps) maps to a `supported` DTO.
+fn cached_where_used(
+    refresh: bool,
+    cached: Option<(Vec<sqlite::FieldDep>, i64)>,
+) -> Option<FieldDependenciesDto> {
+    if refresh {
+        return None;
+    }
+    let (deps, fetched_at) = cached?;
+    Some(FieldDependenciesDto {
+        supported: true,
+        items: deps
+            .into_iter()
+            .map(|d| dep_dto(d.component_type, d.component_name, d.component_id))
+            .collect(),
+        fetched_at: Some(fetched_at),
+    })
+}
+
+/// Map a cache (SQLite) error to a user-readable `CommandError` via `Display`
+/// (no `Debug` leakage, no direct `rusqlite` dependency on this crate).
+fn cache_err(e: impl std::fmt::Display) -> CommandError {
+    CommandError::new("cache", format!("Field dependency cache error: {e}"))
+}
+
+/// Field "where-used": referencing components for `object.field`, cached in the
+/// per-org `field_deps` table. Serves the cache unless `refresh`; on a miss (or
+/// refresh) queries the org, caches a `Deps` result, and returns it. Standard
+/// fields short-circuit to `supported: false` and are never cached.
+pub async fn field_dependencies(
+    org: String,
+    object: String,
+    field: String,
+    refresh: bool,
+    state: &AppState,
+) -> Result<FieldDependenciesDto, CommandError> {
+    // Writable open: creates the db + `field_deps` tables on first use, so a
+    // never-indexed org can still cache where-used lookups.
+    let path = sqlite::db_path(&SchemaStore::default_root(), &org);
+    let conn = sqlite::open(&path).map_err(cache_err)?;
+
+    if !refresh {
+        let cached = sqlite::get_field_deps(&conn, &object, &field).map_err(cache_err)?;
+        if let Some(dto) = cached_where_used(false, cached) {
+            return Ok(dto);
+        }
+    }
+
+    let auth = sf_core::OrgRegistry::auth_info(&state.invoker, Some(&org)).await?;
+    match features::field_deps::fetch_field_dependencies(&auth, &object, &field).await? {
+        features::field_deps::WhereUsed::Unsupported => Ok(FieldDependenciesDto {
+            supported: false,
+            items: vec![],
+            fetched_at: None,
+        }),
+        features::field_deps::WhereUsed::Deps(deps) => {
+            let fetched_at = now_ms();
+            let rows: Vec<sqlite::FieldDep> = deps
+                .iter()
+                .map(|d| sqlite::FieldDep {
+                    component_type: d.component_type.clone(),
+                    component_name: d.component_name.clone(),
+                    component_id: d.component_id.clone(),
+                })
+                .collect();
+            sqlite::replace_field_deps(&conn, &object, &field, &rows, fetched_at)
+                .map_err(cache_err)?;
+            Ok(FieldDependenciesDto {
+                supported: true,
+                items: deps
+                    .into_iter()
+                    .map(|d| dep_dto(d.component_type, d.component_name, d.component_id))
+                    .collect(),
+                fetched_at: Some(fetched_at),
+            })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +285,42 @@ mod tests {
         assert_eq!(json["fields"][0]["picklistValues"][0]["defaultValue"], false);
         assert_eq!(json["childRelationships"][0]["childSObject"], "Contact");
         assert_eq!(json["recordTypes"][0]["developerName"], "Master");
+    }
+
+    fn dep(name: &str) -> sqlite::FieldDep {
+        sqlite::FieldDep {
+            component_type: "ApexClass".into(),
+            component_name: name.into(),
+            component_id: "01pXXX".into(),
+        }
+    }
+
+    #[test]
+    fn cached_where_used_forced_refresh_ignores_cache() {
+        let cached = Some((vec![dep("AccountService")], 1234));
+        assert!(cached_where_used(true, cached).is_none());
+    }
+
+    #[test]
+    fn cached_where_used_miss_returns_none() {
+        assert!(cached_where_used(false, None).is_none());
+    }
+
+    #[test]
+    fn cached_where_used_hit_maps_dto() {
+        let dto = cached_where_used(false, Some((vec![dep("AccountService")], 1234)))
+            .expect("cache hit → dto");
+        assert!(dto.supported);
+        assert_eq!(dto.fetched_at, Some(1234));
+        assert_eq!(dto.items.len(), 1);
+        assert_eq!(dto.items[0].component_name, "AccountService");
+    }
+
+    #[test]
+    fn cached_where_used_zero_deps_is_a_supported_hit() {
+        let dto = cached_where_used(false, Some((vec![], 5678))).expect("fetched-and-zero → dto");
+        assert!(dto.supported);
+        assert!(dto.items.is_empty());
+        assert_eq!(dto.fetched_at, Some(5678));
     }
 }

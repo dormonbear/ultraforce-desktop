@@ -354,3 +354,19 @@ export interface SchemaSearchHitDto {
   fieldLabel: string;
   snippet: string;
 }
+
+/** One metadata component that references a field ("where-used" row). */
+export interface FieldDependency {
+  componentType: string;
+  componentName: string;
+  componentId: string;
+}
+
+/** A field's where-used result plus when the cache was populated.
+ * `supported: false` (with `fetchedAt: null`) marks a standard field the
+ * Dependency API can't track. */
+export interface FieldDependencies {
+  supported: boolean;
+  items: FieldDependency[];
+  fetchedAt: number | null;
+}

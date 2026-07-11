@@ -346,6 +346,17 @@ async fn schema_search(
 }
 
 #[tauri::command]
+async fn schema_field_dependencies(
+    org: String,
+    object: String,
+    field: String,
+    refresh: bool,
+    state: State<'_, AppState>,
+) -> Result<dto::FieldDependenciesDto, CommandError> {
+    schema_browse::field_dependencies(org, object, field, refresh, &state).await
+}
+
+#[tauri::command]
 async fn soql_column_labels(
     query: String,
     columns: Vec<String>,
@@ -426,6 +437,7 @@ pub fn run() {
             schema_list_objects,
             schema_object_detail,
             schema_search,
+            schema_field_dependencies,
             soql_column_labels,
             soql_diagnostics,
             apex_soql_diagnostics,

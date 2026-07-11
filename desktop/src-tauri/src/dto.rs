@@ -1017,6 +1017,26 @@ pub struct SchemaSearchHitDto {
     pub snippet: String,
 }
 
+/// One metadata component that references a field ("where-used" row).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldDependencyDto {
+    pub component_type: String,
+    pub component_name: String,
+    pub component_id: String,
+}
+
+/// A field's where-used result: the referencing components plus when the cache
+/// was populated. `supported == false` (with `fetched_at == None`) marks a
+/// standard field the Dependency API can't track — never cached.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldDependenciesDto {
+    pub supported: bool,
+    pub items: Vec<FieldDependencyDto>,
+    pub fetched_at: Option<i64>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1267,6 +1287,36 @@ mod tests {
         let dto = map_node(&n);
         assert!(dto.detail.chars().count() <= MAX_DETAIL_LEN + 1);
         assert!(dto.detail.ends_with('…'));
+    }
+
+    #[test]
+    fn field_dependencies_dto_serializes_camel_case() {
+        let dto = FieldDependenciesDto {
+            supported: true,
+            items: vec![FieldDependencyDto {
+                component_type: "ApexClass".into(),
+                component_name: "AccountService".into(),
+                component_id: "01pAAA".into(),
+            }],
+            fetched_at: Some(1_700_000_000_000),
+        };
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["fetchedAt"], 1_700_000_000_000i64);
+        assert_eq!(json["items"][0]["componentType"], "ApexClass");
+        assert_eq!(json["items"][0]["componentName"], "AccountService");
+        assert_eq!(json["items"][0]["componentId"], "01pAAA");
+    }
+
+    #[test]
+    fn field_dependencies_dto_unsupported_has_null_fetched_at() {
+        let dto = FieldDependenciesDto {
+            supported: false,
+            items: vec![],
+            fetched_at: None,
+        };
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["supported"], false);
+        assert_eq!(json["fetchedAt"], serde_json::Value::Null);
     }
 
     #[test]
