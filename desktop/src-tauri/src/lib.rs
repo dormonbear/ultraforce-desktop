@@ -318,6 +318,16 @@ async fn reindex_org(
 }
 
 #[tauri::command]
+async fn soql_column_labels(
+    query: String,
+    columns: Vec<String>,
+    child_columns: std::collections::HashMap<String, Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<dto::ColumnLabelsDto, CommandError> {
+    completion::soql_column_labels(query, columns, child_columns, &state).await
+}
+
+#[tauri::command]
 async fn soql_diagnostics(
     query: String,
     state: State<'_, AppState>,
@@ -385,6 +395,7 @@ pub fn run() {
             refresh_schema_cache,
             index_org,
             reindex_org,
+            soql_column_labels,
             soql_diagnostics,
             apex_soql_diagnostics,
             apex_diagnostics,

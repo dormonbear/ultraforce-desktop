@@ -1,18 +1,25 @@
 import { displayValue } from "./childData";
-import type { ChildTableDto, Scalar } from "../../types";
+import type { ChildLabelsDto, ChildTableDto, Scalar } from "../../types";
 
 /**
  * One relationship inside the detail panel: section header (name + total +
  * truncation hint) followed by one key-value card per child record. Recursive:
  * a child record's own subqueries render as nested sections inside its card
- * (SOQL caps nesting at 5 levels).
+ * (SOQL caps nesting at 5 levels). `labels` (label mode) swaps the displayed
+ * relationship title and field names; nested levels fall back to API names.
  */
-export function RelationshipSection({ table }: { table: ChildTableDto }) {
+export function RelationshipSection({
+  table,
+  labels,
+}: {
+  table: ChildTableDto;
+  labels?: ChildLabelsDto;
+}) {
   return (
     <div className="min-w-0">
       <div className="mb-1 flex items-baseline gap-2">
         <span className="text-[12px] font-semibold text-foreground">
-          {table.column} ({table.totalSize.toLocaleString()})
+          {labels?.label ?? table.column} ({table.totalSize.toLocaleString()})
         </span>
         {!table.done && (
           <span className="text-[11px] text-muted-foreground">
@@ -22,7 +29,7 @@ export function RelationshipSection({ table }: { table: ChildTableDto }) {
       </div>
       <div className="flex flex-col gap-2">
         {table.rows.map((row, i) => (
-          <RecordCard key={i} table={table} row={row} ordinal={i} />
+          <RecordCard key={i} table={table} row={row} ordinal={i} labels={labels} />
         ))}
       </div>
     </div>
@@ -34,10 +41,12 @@ function RecordCard({
   table,
   row,
   ordinal,
+  labels,
 }: {
   table: ChildTableDto;
   row: Scalar[];
   ordinal: number;
+  labels?: ChildLabelsDto;
 }) {
   const nested = table.children.filter((c) => c.rowIndex === ordinal);
   // Relationships shown as nested sections skip their scalar count field.
@@ -55,13 +64,14 @@ function RecordCard({
           {table.columns.map((c, ci) => {
             if (nestedRels.has(c)) return null;
             const text = displayValue(row[ci] ?? null);
+            const name = labels?.columns[c] ?? c;
             return (
               <tr key={c}>
                 <td
-                  title={c}
+                  title={name}
                   className="w-px whitespace-nowrap border-b border-border px-2 py-1 text-muted-foreground"
                 >
-                  {c}
+                  {name}
                 </td>
                 <td
                   title={text || undefined}

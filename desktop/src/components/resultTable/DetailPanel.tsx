@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import type { ChildTableDto } from "../../types";
+import type { ChildLabelsDto, ChildTableDto } from "../../types";
 import { RelationshipSection } from "./RecordCards";
 
 /**
@@ -12,11 +12,14 @@ export function DetailPanel({
   rowOrdinal,
   parentId,
   tables,
+  childLabels,
   onClose,
 }: {
   rowOrdinal: number;
   parentId: string | null;
   tables: ChildTableDto[];
+  /** Per-relationship display labels (label mode); absent → API names. */
+  childLabels?: Record<string, ChildLabelsDto>;
   onClose: () => void;
 }) {
   return (
@@ -43,7 +46,13 @@ export function DetailPanel({
         {tables.length === 0 ? (
           <div className="text-[12px] text-muted-foreground">No child records</div>
         ) : (
-          tables.map((t) => <RelationshipSection key={t.column} table={t} />)
+          tables.map((t) => (
+            <RelationshipSection
+              key={t.column}
+              table={t}
+              labels={childLabels?.[t.column]}
+            />
+          ))
         )}
       </div>
     </div>

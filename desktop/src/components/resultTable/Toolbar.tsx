@@ -36,6 +36,9 @@ interface ToolbarProps {
   lookup: ChildLookup;
   showFilter: boolean;
   onToggleFilter: () => void;
+  labelMode: boolean;
+  /** Absent → the label toggle is hidden (no query to resolve labels from). */
+  onToggleLabelMode?: () => void;
   advancedFilter: RuleGroupType;
   copyAs: (kind: "tsv" | "md" | "json") => void;
   exportAs: (fmt: ExportFormatDef) => void | Promise<void>;
@@ -56,6 +59,8 @@ export function Toolbar({
   lookup,
   showFilter,
   onToggleFilter,
+  labelMode,
+  onToggleLabelMode,
   advancedFilter,
   copyAs,
   exportAs,
@@ -125,6 +130,22 @@ export function Toolbar({
           })()}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {onToggleLabelMode && (
+        <button
+          type="button"
+          title="Show field labels"
+          aria-label="Show field labels"
+          aria-pressed={labelMode}
+          onClick={onToggleLabelMode}
+          className={cn(
+            "focus-accent inline-flex h-7 cursor-pointer items-center rounded-md border border-input bg-card px-2.5 text-[12px]",
+            labelMode ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Aa
+        </button>
+      )}
 
       <button
         type="button"

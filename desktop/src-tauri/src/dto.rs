@@ -728,6 +728,42 @@ pub fn map_child_table(t: features::soql_children::ChildTable) -> ChildTableDto 
     }
 }
 
+/// Display labels for one child relationship's table (label toggle).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChildLabelsDto {
+    pub label: Option<String>,
+    pub columns: std::collections::HashMap<String, String>,
+}
+
+/// Display labels for a query's result columns (API name ↔ label toggle).
+/// Unresolvable columns are absent — the frontend falls back to API names.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnLabelsDto {
+    pub parent: std::collections::HashMap<String, String>,
+    pub children: std::collections::HashMap<String, ChildLabelsDto>,
+}
+
+pub fn map_column_labels(l: features::soql_labels::ColumnLabels) -> ColumnLabelsDto {
+    ColumnLabelsDto {
+        parent: l.parent,
+        children: l
+            .children
+            .into_iter()
+            .map(|(rel, c)| {
+                (
+                    rel,
+                    ChildLabelsDto {
+                        label: c.label,
+                        columns: c.columns,
+                    },
+                )
+            })
+            .collect(),
+    }
+}
+
 /// A SOQL query result: flat table projection plus a sparse sidecar of typed
 /// child tables (one per subquery occurrence).
 #[derive(serde::Serialize)]
@@ -1025,6 +1061,27 @@ mod tests {
         assert_eq!(v["children"][0]["column"], "Cases");
         assert_eq!(v["children"][0]["rowIndex"], 0);
         assert_eq!(v["children"][0]["children"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn column_labels_dto_serializes_camel_case() {
+        let labels = features::soql_labels::ColumnLabels {
+            parent: std::collections::HashMap::from([("Owner.Name".into(), "Full Name".into())]),
+            children: std::collections::HashMap::from([(
+                "Contacts".into(),
+                features::soql_labels::ChildLabels {
+                    label: Some("Contacts".into()),
+                    columns: std::collections::HashMap::from([(
+                        "LastName".into(),
+                        "Last Name".into(),
+                    )]),
+                },
+            )]),
+        };
+        let v: serde_json::Value = serde_json::to_value(map_column_labels(labels)).unwrap();
+        assert_eq!(v["parent"]["Owner.Name"], "Full Name");
+        assert_eq!(v["children"]["Contacts"]["label"], "Contacts");
+        assert_eq!(v["children"]["Contacts"]["columns"]["LastName"], "Last Name");
     }
 
     #[test]

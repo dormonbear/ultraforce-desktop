@@ -23,6 +23,21 @@ export interface SoqlResultDto {
   childTables: ChildTableDto[];
 }
 
+/** Display labels for one child relationship's table (label toggle). */
+export interface ChildLabelsDto {
+  label: string | null;
+  columns: Record<string, string>;
+}
+
+/**
+ * Display labels for a query's result columns (API name ↔ label toggle).
+ * Unresolvable columns are absent — fall back to API names.
+ */
+export interface ColumnLabelsDto {
+  parent: Record<string, string>;
+  children: Record<string, ChildLabelsDto>;
+}
+
 export interface PlanNoteDto {
   description: string;
   fields: string[];

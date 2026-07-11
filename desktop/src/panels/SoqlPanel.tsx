@@ -292,7 +292,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 Run a query to see results
               </div>
             ) : (
-              <ResultTable data={result} />
+              <ResultTable data={result} query={query} />
             )}
           </div>
         </div>

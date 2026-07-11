@@ -11,4 +11,5 @@ pub mod query_plan;
 pub mod rest_dml;
 pub mod soql;
 pub mod soql_children;
+pub mod soql_labels;
 pub mod telemetry_config;

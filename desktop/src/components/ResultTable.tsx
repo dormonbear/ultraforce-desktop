@@ -1,7 +1,6 @@
 import { formatIpcError } from "../errorFormat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
@@ -36,7 +35,8 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
-import type { SoqlResultDto } from "../types";
+import type { ColumnLabelsDto, SoqlResultDto } from "../types";
+import { soqlColumnLabels } from "../ipc/soql";
 import { buildChildLookup } from "./resultTable/childData";
 import { computeFillRatio } from "./resultTable/fill";
 import { flattenTable } from "./resultTable/flatten";
@@ -81,9 +81,12 @@ const COL_VIRTUALIZE_MIN = 40;
 // fallow-ignore-next-line complexity
 export function ResultTable({
   data,
+  query,
   initialAdvancedFilter,
 }: {
   data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize" | "childTables">;
+  /** The executed SOQL — enables the API-name ↔ label toggle when provided. */
+  query?: string;
   initialAdvancedFilter?: RuleGroupType;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -100,6 +103,14 @@ export function ResultTable({
     initialAdvancedFilter ?? { combinator: "and", rules: [] },
   );
   const [showFilter, setShowFilter] = useState(false);
+  // API name ↔ label display toggle; the label map is fetched lazily on first
+  // enable and cached per result (columns ids stay API names throughout).
+  const [labelMode, setLabelMode] = useState(false);
+  const [labels, setLabels] = useState<ColumnLabelsDto | null>(null);
+  useEffect(() => {
+    setLabelMode(false);
+    setLabels(null);
+  }, [data]);
 
   const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
   const filterFields = useMemo(
@@ -325,6 +336,24 @@ export function ResultTable({
   const numeric = (c: Column<GridRow>) =>
     (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
 
+  const toggleLabelMode = () => {
+    const next = !labelMode;
+    setLabelMode(next);
+    if (next && !labels && query) {
+      soqlColumnLabels({
+        query,
+        columns: data.columns,
+        childColumns: Object.fromEntries(lookup.childColumns),
+      })
+        .then(setLabels)
+        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`));
+    }
+  };
+
+  /** Display text for a column header: schema label in label mode, else the id. */
+  const displayCol = (id: string) =>
+    (labelMode ? labels?.parent[id] : undefined) ?? id;
+
   const virtualItems = virtualizer.getVirtualItems();
   const visibleLeafCount = table.getVisibleLeafColumns().length;
   const padTop = virtualize && virtualItems.length ? virtualItems[0].start : 0;
@@ -377,6 +406,8 @@ export function ResultTable({
         lookup={lookup}
         showFilter={showFilter}
         onToggleFilter={() => setShowFilter((v) => !v)}
+        labelMode={labelMode}
+        onToggleLabelMode={query ? toggleLabelMode : undefined}
         advancedFilter={advancedFilter}
         copyAs={copyAs}
         exportAs={exportAs}
@@ -460,10 +491,7 @@ export function ResultTable({
                           className="inline-flex max-w-full items-center gap-1 truncate hover:text-foreground cursor-pointer"
                         >
                           <span className="truncate">
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
+                            {displayCol(header.column.id)}
                           </span>
                           {sorted === "asc" ? (
                             <ArrowUp size={12} className="shrink-0 text-primary" />
@@ -637,6 +665,7 @@ export function ResultTable({
                   tables={[
                     ...(lookup.byRow.get(selectedIdx as number)?.values() ?? []),
                   ]}
+                  childLabels={labelMode ? labels?.children : undefined}
                   onClose={() => setSelectedIdx(null)}
                 />
               </ResizablePanel>
