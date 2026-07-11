@@ -202,6 +202,43 @@ pub fn search_fields(
     rows.collect()
 }
 
+/// One FTS5 hit for the schema search palette: identity columns plus a
+/// `snippet()` of the matched row with `[`/`]` around matched tokens.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaSearchHit {
+    pub object_name: String,
+    pub field_name: String,
+    pub field_label: String,
+    /// FTS5 snippet() over the matched row, `[`/`]` markers, 10 tokens.
+    pub snippet: String,
+}
+
+/// FTS5 prefix search over `fields_fts`, ranked by relevance, with a `[`/`]`
+/// highlighted snippet per hit. `query` is raw user input: it is escaped into a
+/// single quoted FTS5 string with a prefix `*`, so operators (`OR`, quotes) are
+/// matched literally rather than injected.
+pub fn search_schema(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<SchemaSearchHit>> {
+    let match_expr = format!("\"{}\"*", query.replace('"', ""));
+    let mut stmt = conn.prepare(
+        "SELECT object_name, field_name, field_label,
+                snippet(fields_fts, -1, '[', ']', '…', 10)
+         FROM fields_fts WHERE fields_fts MATCH ?1 ORDER BY rank LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![match_expr, limit as i64], |row| {
+        Ok(SchemaSearchHit {
+            object_name: row.get(0)?,
+            field_name: row.get(1)?,
+            field_label: row.get(2)?,
+            snippet: row.get(3)?,
+        })
+    })?;
+    rows.collect()
+}
+
 /// Look up an object by name (case-insensitive), reconstructing its fields in
 /// insertion order.
 pub fn read_object(conn: &Connection, name: &str) -> rusqlite::Result<Option<SObjectSchema>> {
@@ -668,6 +705,76 @@ mod tests {
 
         // Never fetched = None.
         assert_eq!(get_field_deps(&conn, "Account", "Nope").unwrap(), None);
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// FTS search palette: a picklist-value match yields a `[`/`]` snippet,
+    /// a miss returns empty, and raw operator-ish input can't inject FTS syntax.
+    #[test]
+    fn search_schema_snippets_and_injection_safe() {
+        let path = temp_db();
+        let mut conn = open(&path).unwrap();
+
+        let picklist_obj = SObjectSchema {
+            name: "Case".into(),
+            label: "Case".into(),
+            label_plural: "Cases".into(),
+            key_prefix: Some("500".into()),
+            custom: false,
+            fields: vec![Field {
+                name: "Status".into(),
+                label: "Status".into(),
+                field_type: "picklist".into(),
+                picklist_values: vec![PicklistValue {
+                    label: "Pending Review".into(),
+                    value: "Pending Review".into(),
+                    active: true,
+                    default_value: false,
+                    valid_for: None,
+                }],
+                ..Default::default()
+            }],
+            child_relationships: vec![],
+            record_type_infos: vec![],
+        };
+        // Second object matches the same search on its field name instead.
+        let name_obj = SObjectSchema {
+            name: "Lead".into(),
+            label: "Lead".into(),
+            label_plural: "Leads".into(),
+            key_prefix: Some("00Q".into()),
+            custom: false,
+            fields: vec![Field {
+                name: "Pending_Owner__c".into(),
+                label: "Pending Owner".into(),
+                field_type: "text".into(),
+                ..Default::default()
+            }],
+            child_relationships: vec![],
+            record_type_infos: vec![],
+        };
+        write_objects(&mut conn, &[picklist_obj, name_obj]).unwrap();
+
+        // Picklist-value match: snippet marks the matched token with `[`/`]`.
+        let hits = search_schema(&conn, "pending", 10).unwrap();
+        let picklist_hit = hits
+            .iter()
+            .find(|h| h.object_name == "Case" && h.field_name == "Status")
+            .expect("picklist value match present");
+        assert!(
+            picklist_hit.snippet.contains("[Pending]"),
+            "snippet highlights matched token, got {:?}",
+            picklist_hit.snippet
+        );
+
+        // No match => empty.
+        assert!(search_schema(&conn, "nonexistentxyz", 10)
+            .unwrap()
+            .is_empty());
+
+        // Raw operator-ish input is escaped, not injected: must not error.
+        search_schema(&conn, "pen\"ding OR 1", 10).unwrap();
 
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
