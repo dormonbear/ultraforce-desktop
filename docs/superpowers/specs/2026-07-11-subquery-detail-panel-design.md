@@ -112,3 +112,27 @@ Add a right-click context menu on column headers:
   removes) a tagged rule into `advancedFilter` (single source of truth) so
   it is visible, combinable, and clearable in the FilterBuilder panel.
 - Menu uses the app's existing menu primitive (Astryx); no new dependency.
+
+## v4 — Cell interactions + API-name/label toggle (2026-07-11)
+
+User feedback batch three:
+
+### Cell copy moves to context menu
+
+- Left-click on a cell no longer copies; it only selects the row (panel).
+- Cells get a right-click context menu with "Copy value" (toast feedback,
+  same `copyText` path as header copy). The click-to-copy flash state goes.
+- The `title` hover tooltip on main-table cells is removed.
+
+### API name ↔ Label display toggle
+
+- One toggle (Toolbar) switches BOTH the main table headers and the detail
+  panel field names / relationship titles between API names and schema
+  labels. Column ids stay API names internally (sorting, filter, export
+  unchanged) — only display text swaps. Missing labels fall back to API name.
+- Labels resolve from the schema index (`sf-schema` `Field.label`): new
+  IPC command returning a label map for a query's result columns — parent
+  columns (including dotted paths via relationship traversal, reusing the
+  existing soql-lang/sf-schema resolution) and each child table's columns.
+  Fetched lazily on first toggle, cached per result. DTO camelCase, typed
+  ipc/ wrapper, per repo arch rules.
