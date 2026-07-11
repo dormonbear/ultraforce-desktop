@@ -11,6 +11,10 @@
     "updater:default",
     "process:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [{ "path": "**" }]
+    },
     "fs:allow-mkdir",
     "fs:allow-read-dir",
     "fs:allow-read-text-file",

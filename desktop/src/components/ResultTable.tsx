@@ -13,6 +13,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, ArrowUp, ChevronsUpDown, Copy } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { copyText } from "../clipboard";
 import {
@@ -153,7 +154,9 @@ export function ResultTable({
       if (!path) return;
       const t = exportTable();
       await writeExportFile(path, fmt, t.columns, t.rows);
-      toast.success(`Exported ${t.rows.length} rows to ${fmt.label}`);
+      toast.success(`Exported ${t.rows.length} rows to ${fmt.label}`, {
+        action: { label: "Open", onClick: () => void openPath(path) },
+      });
     } catch (e) {
       toast.error(`Export failed: ${formatIpcError(e)}`);
     }

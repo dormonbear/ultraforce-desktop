@@ -3,9 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ResultTable } from "../ResultTable";
 import { writeExportFile } from "../export";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { toast } from "sonner";
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   save: vi.fn(async () => "/tmp/query-result.out"),
+}));
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openPath: vi.fn(async () => {}),
+}));
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../export", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../export")>()),
@@ -57,5 +65,17 @@ describe("export button", () => {
     fireEvent.click(screen.getByText("Export as JSON"));
     await waitFor(() => expect(writeExportFile).toHaveBeenCalledTimes(1));
     expect(vi.mocked(writeExportFile).mock.calls[0][1].id).toBe("json");
+  });
+
+  it("success toast carries an Open action that opens the file", async () => {
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledTimes(1));
+    const opts = vi.mocked(toast.success).mock.calls[0][1] as {
+      action: { label: string; onClick: () => void };
+    };
+    expect(opts.action.label).toBe("Open");
+    opts.action.onClick();
+    expect(openPath).toHaveBeenCalledWith("/tmp/query-result.out");
   });
 });
