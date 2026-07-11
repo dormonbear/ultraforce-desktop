@@ -1,11 +1,12 @@
 import { X } from "lucide-react";
 import type { ChildTableDto } from "../../types";
-import { ChildGrid } from "./ChildGrid";
+import { RelationshipSection } from "./RecordCards";
 
 /**
  * Side panel showing the selected parent row's subquery child tables. Replaces
  * the old inline between-row expansion: the main table stays stable on the left
- * while this renders one stacked `ChildGrid` per relationship on the right.
+ * while this renders one stacked section of vertical record cards per
+ * relationship on the right (recursing into nested subqueries).
  */
 export function DetailPanel({
   rowOrdinal,
@@ -42,7 +43,7 @@ export function DetailPanel({
         {tables.length === 0 ? (
           <div className="text-[12px] text-muted-foreground">No child records</div>
         ) : (
-          tables.map((t) => <ChildGrid key={t.column} table={t} />)
+          tables.map((t) => <RelationshipSection key={t.column} table={t} />)
         )}
       </div>
     </div>

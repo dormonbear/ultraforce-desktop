@@ -37,12 +37,22 @@ const data = {
       column: "Contacts",
       totalSize: 250,
       done: false,
-      columns: ["LastName", "Age__c"],
+      columns: ["Id", "LastName", "Age__c", "Cases"],
       rows: [
-        ["Yin", 9],
-        ["Zhao", 10],
+        ["003X", "Yin", 9, 1],
+        ["003Y", "Zhao", 10, null],
       ],
-      children: [],
+      children: [
+        {
+          rowIndex: 0,
+          column: "Cases",
+          totalSize: 1,
+          done: true,
+          columns: ["Subject"],
+          rows: [["Broken widget"]],
+          children: [],
+        },
+      ],
     },
     {
       rowIndex: 2,
@@ -59,7 +69,7 @@ const data = {
 describe("subquery detail panel", () => {
   afterEach(cleanup);
 
-  it("opens the panel with child content and highlights the row on click", () => {
+  it("opens the panel with vertical record cards and highlights the row on click", () => {
     render(<ResultTable data={data} />);
     const row = screen.getByText("Acme").closest("tr")!;
     expect(row.classList.contains("bg-accent")).toBe(false);
@@ -67,10 +77,40 @@ describe("subquery detail panel", () => {
 
     fireEvent.click(screen.getByText("Acme"));
 
-    // ChildGrid header (column + totalSize) + a child cell value show in panel.
+    // Section header (relationship + totalSize) and truncation hint.
     expect(screen.getByText("Contacts (250)")).toBeTruthy();
-    expect(screen.getByText("Yin")).toBeTruthy();
+    expect(screen.getByText(/2 of 250 loaded/)).toBeTruthy();
+    // Key-value cards: one per child record, field name in the left cell with
+    // the value beside it.
+    const labels = screen.getAllByText("LastName", { selector: "td" });
+    expect(labels).toHaveLength(2);
+    expect(labels[0].closest("tr")!.textContent).toContain("Yin");
+    expect(labels[1].closest("tr")!.textContent).toContain("Zhao");
+    expect(screen.getByText("Zhao")).toBeTruthy();
     expect(row.classList.contains("bg-accent")).toBe(true);
+  });
+
+  it("shows record ordinal and Id in each card header", () => {
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByText("Acme"));
+    // "#1" appears twice: Yin's card and the nested Cases record card. The Id
+    // value shows in the card header (span) besides its own field row (td).
+    expect(screen.getAllByText("#1").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("003X", { selector: "span" })).toBeTruthy();
+    expect(screen.getByText("#2")).toBeTruthy();
+    expect(screen.getByText("003Y", { selector: "span" })).toBeTruthy();
+  });
+
+  it("renders nested grandchild sections inside the parent record card", () => {
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByText("Acme"));
+    // Yin's card carries a nested Cases section with its record content.
+    expect(screen.getByText("Cases (1)")).toBeTruthy();
+    const subject = screen.getByText("Subject", { selector: "td" });
+    expect(subject.closest("tr")!.textContent).toContain("Broken widget");
+    // Yin's scalar Cases count field is skipped (rendered as a section instead);
+    // Zhao has no nested Cases, so exactly one bare "Cases" field label remains.
+    expect(screen.getAllByText("Cases", { selector: "td" })).toHaveLength(1);
   });
 
   it("closes the panel when the same row is clicked again", () => {
@@ -130,12 +170,12 @@ describe("subquery detail panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Flat" }));
     openMenu("Columns");
     expect(screen.getByText("Contacts[0].LastName")).toBeTruthy();
-    // 2 child rows × 2 child columns = 4 position columns collapsed into one toggle.
-    expect(screen.getByText("Contacts (4 cols)")).toBeTruthy();
+    // 2 child rows × 4 child columns = 8 position columns collapsed into one toggle.
+    expect(screen.getByText("Contacts (8 cols)")).toBeTruthy();
     expect(
       screen.queryByRole("menuitemcheckbox", { name: "Contacts[0].LastName" }),
     ).toBeNull();
-    fireEvent.click(screen.getByText("Contacts (4 cols)"));
+    fireEvent.click(screen.getByText("Contacts (8 cols)"));
     expect(screen.queryByText("Contacts[0].LastName")).toBeNull();
   });
 
