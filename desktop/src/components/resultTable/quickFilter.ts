@@ -46,7 +46,10 @@ export function setQuickFilter(
       field: column,
       operator: "=",
       match: { mode },
-      value: { combinator: "and", rules: [] },
+      // The inner group MUST carry an id: react-querybuilder's controlled
+      // round-trip re-emits its stale internal query — reverting this
+      // injection — whenever the incoming query contains an id-less node.
+      value: { id: `${quickId(column)}:group`, combinator: "and", rules: [] },
     } as RuleType);
   }
   return { ...filter, rules };

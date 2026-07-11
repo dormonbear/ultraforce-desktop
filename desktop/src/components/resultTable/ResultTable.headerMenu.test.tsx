@@ -113,6 +113,21 @@ describe("header context menu", () => {
     expect(screen.getByText(/1 \/ 3 shown/)).toBeTruthy();
   });
 
+  it("quick filter still works while the FilterBuilder panel is open", () => {
+    render(<ResultTable data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "Advanced filter" }));
+
+    openHeaderMenu("Contacts");
+    fireEvent.click(screen.getByText("Only with child records"));
+    expect(screen.queryByText("Globex")).toBeNull();
+    expect(screen.getByText(/2 \/ 3 shown/)).toBeTruthy();
+
+    // And clears again with the panel still open.
+    openHeaderMenu("Contacts");
+    fireEvent.click(screen.getByText("Only with child records"));
+    expect(screen.getByText("Globex")).toBeTruthy();
+  });
+
   it("keeps user-authored filter rules across quick-rule add and remove", () => {
     render(
       <ResultTable

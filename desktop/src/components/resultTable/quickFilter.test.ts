@@ -14,7 +14,12 @@ describe("quick child-presence filter rules", () => {
     expect(r.field).toBe("Contacts");
     expect(r.match).toEqual({ mode: "some" });
     // Empty subgroup: matches every loaded child row (evaluator semantics).
-    expect(r.value).toEqual({ combinator: "and", rules: [] });
+    // The id keeps react-querybuilder's controlled round-trip lossless.
+    expect(r.value).toEqual({
+      id: "quick:Contacts:group",
+      combinator: "and",
+      rules: [],
+    });
     expect(getQuickMode(f, "Contacts")).toBe("some");
     expect(getQuickMode(f, "Opportunities")).toBeNull();
   });
