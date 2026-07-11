@@ -22,13 +22,22 @@ pub struct ChildTable {
     /// Dotted leaf paths, first-seen order (same rules as `to_table`).
     pub columns: Vec<String>,
     pub rows: Vec<Vec<serde_json::Value>>,
+    /// Nested subqueries inside child records (SOQL nests up to 5 levels).
+    /// Each entry's `row_index` points into *this* table's `rows`.
+    pub children: Vec<ChildTable>,
 }
 
 /// Project every subquery in `qr` into a sparse list of [`ChildTable`]s.
 /// Rows whose subquery field is `Null` contribute no entry.
 pub fn child_tables(qr: &QueryResult) -> Vec<ChildTable> {
+    tables_for_records(&qr.records)
+}
+
+/// One [`ChildTable`] per subquery occurrence across `records`, recursing into
+/// nested subqueries. `row_index` is the record's ordinal within `records`.
+fn tables_for_records(records: &[Record]) -> Vec<ChildTable> {
     let mut out = Vec::new();
-    for (row_index, record) in qr.records.iter().enumerate() {
+    for (row_index, record) in records.iter().enumerate() {
         for (name, value) in &record.fields {
             let FieldValue::Children(child) = value else {
                 continue;
@@ -53,6 +62,7 @@ pub fn child_tables(qr: &QueryResult) -> Vec<ChildTable> {
                 done: child.done,
                 columns,
                 rows,
+                children: tables_for_records(&child.records),
             });
         }
     }
@@ -70,7 +80,8 @@ fn typed_cell(record: &Record, column: &str) -> serde_json::Value {
     match value {
         FieldValue::Null => serde_json::Value::Null,
         FieldValue::Scalar(v) => v.clone(),
-        // SOQL subqueries nest one level only; defensively render as a count.
+        // Nested subqueries keep their scalar count here (flatten/filter
+        // compatibility); the records project into `ChildTable::children`.
         FieldValue::Children(qr) => serde_json::Value::from(qr.total_size),
         FieldValue::Parent(child) => {
             let rest = parts.collect::<Vec<_>>().join(".");
@@ -86,16 +97,19 @@ mod tests {
     use serde_json::json;
 
     /// Two Accounts; row 0 has two subqueries (Contacts done, Opportunities
-    /// truncated), row 1 has null subqueries. Contacts include a numeric field
-    /// and a dotted parent path.
+    /// truncated), row 1 has null subqueries. Contacts include a numeric field,
+    /// a dotted parent path, and (row 0) a grandchild `Cases` subquery.
     const JSON: &str = r#"{
       "totalSize": 2, "done": true,
       "records": [
         {"attributes":{"type":"Account"},"Id":"001A","Name":"Acme",
          "Contacts":{"totalSize":2,"done":true,"records":[
             {"attributes":{"type":"Contact"},"LastName":"Yin","Age__c":9,
-             "Owner":{"attributes":{"type":"User"},"Name":"Alice"}},
-            {"attributes":{"type":"Contact"},"LastName":"Zhao","Age__c":10,"Owner":null}]},
+             "Owner":{"attributes":{"type":"User"},"Name":"Alice"},
+             "Cases":{"totalSize":1,"done":true,"records":[
+                {"attributes":{"type":"Case"},"Subject":"Broken widget"}]}},
+            {"attributes":{"type":"Contact"},"LastName":"Zhao","Age__c":10,"Owner":null,
+             "Cases":null}]},
          "Opportunities":{"totalSize":250,"done":false,"records":[
             {"attributes":{"type":"Opportunity"},"Amount":1200.5}]}},
         {"attributes":{"type":"Account"},"Id":"001B","Name":"Globex",
@@ -121,10 +135,36 @@ mod tests {
     fn carries_typed_scalars_not_strings() {
         let tables = child_tables(&qr());
         let contacts = &tables[0];
-        assert_eq!(contacts.columns, ["LastName", "Age__c", "Owner.Name"]);
+        // The grandchild relationship keeps its scalar count column (flatten /
+        // filter compatibility); null subquery → null cell.
+        assert_eq!(contacts.columns, ["LastName", "Age__c", "Owner.Name", "Cases"]);
         // Numbers stay JSON numbers → `9 < 10` compares numerically downstream.
-        assert_eq!(contacts.rows[0], vec![json!("Yin"), json!(9), json!("Alice")]);
-        assert_eq!(contacts.rows[1], vec![json!("Zhao"), json!(10), json!(null)]);
+        assert_eq!(
+            contacts.rows[0],
+            vec![json!("Yin"), json!(9), json!("Alice"), json!(1)]
+        );
+        assert_eq!(
+            contacts.rows[1],
+            vec![json!("Zhao"), json!(10), json!(null), json!(null)]
+        );
+    }
+
+    #[test]
+    fn projects_nested_grandchild_subqueries_recursively() {
+        let tables = child_tables(&qr());
+        let contacts = &tables[0];
+        assert_eq!(contacts.children.len(), 1);
+        let cases = &contacts.children[0];
+        // row_index points into the enclosing (Contacts) table's rows.
+        assert_eq!(cases.row_index, 0);
+        assert_eq!(cases.column, "Cases");
+        assert_eq!(cases.total_size, 1);
+        assert!(cases.done);
+        assert_eq!(cases.columns, ["Subject"]);
+        assert_eq!(cases.rows, vec![vec![json!("Broken widget")]]);
+        assert!(cases.children.is_empty());
+        // Relationships without nested subqueries carry no children.
+        assert!(tables[1].children.is_empty());
     }
 
     #[test]

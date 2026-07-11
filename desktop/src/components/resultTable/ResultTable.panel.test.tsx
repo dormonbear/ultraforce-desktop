@@ -42,6 +42,7 @@ const data = {
         ["Yin", 9],
         ["Zhao", 10],
       ],
+      children: [],
     },
     {
       rowIndex: 2,
@@ -50,6 +51,7 @@ const data = {
       done: true,
       columns: ["LastName", "Age__c"],
       rows: [["Wang", 42]],
+      children: [],
     },
   ],
 };

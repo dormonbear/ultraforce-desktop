@@ -10,6 +10,7 @@ const contacts = (rows: ChildTableDto["rows"]): ChildTableDto => ({
   done: true,
   columns: ["LastName", "Age__c"],
   rows,
+  children: [],
 });
 
 const ctx = (children?: ChildTableDto): RowCtx => ({

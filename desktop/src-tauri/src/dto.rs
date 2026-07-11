@@ -711,6 +711,9 @@ pub struct ChildTableDto {
     pub done: bool,
     pub columns: Vec<String>,
     pub rows: Vec<Vec<serde_json::Value>>,
+    /// Nested subqueries inside child records; `row_index` points into this
+    /// table's `rows`.
+    pub children: Vec<ChildTableDto>,
 }
 
 pub fn map_child_table(t: features::soql_children::ChildTable) -> ChildTableDto {
@@ -721,6 +724,7 @@ pub fn map_child_table(t: features::soql_children::ChildTable) -> ChildTableDto 
         done: t.done,
         columns: t.columns,
         rows: t.rows,
+        children: t.children.into_iter().map(map_child_table).collect(),
     }
 }
 
@@ -1001,6 +1005,15 @@ mod tests {
             done: false,
             columns: vec!["LastName".into(), "Age__c".into()],
             rows: vec![vec![serde_json::json!("Yin"), serde_json::json!(9)]],
+            children: vec![features::soql_children::ChildTable {
+                row_index: 0,
+                column: "Cases".into(),
+                total_size: 1,
+                done: true,
+                columns: vec!["Subject".into()],
+                rows: vec![vec![serde_json::json!("Broken")]],
+                children: vec![],
+            }],
         });
         let v: serde_json::Value = serde_json::to_value(&dto).unwrap();
         assert_eq!(v["rowIndex"], 3);
@@ -1008,6 +1021,10 @@ mod tests {
         assert_eq!(v["done"], false);
         // Typed passthrough: the number survives as a JSON number.
         assert_eq!(v["rows"][0][1], serde_json::json!(9));
+        // Nested subqueries map recursively.
+        assert_eq!(v["children"][0]["column"], "Cases");
+        assert_eq!(v["children"][0]["rowIndex"], 0);
+        assert_eq!(v["children"][0]["children"], serde_json::json!([]));
     }
 
     #[test]

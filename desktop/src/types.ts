@@ -11,6 +11,8 @@ export interface ChildTableDto {
   done: boolean;
   columns: string[];
   rows: Scalar[][];
+  /** Nested subqueries inside child records; rowIndex points into `rows`. */
+  children: ChildTableDto[];
 }
 
 export interface SoqlResultDto {
