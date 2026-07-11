@@ -1,5 +1,9 @@
 import { QueryBuilder, type Field, type RuleGroupType } from "react-querybuilder";
+import { X } from "lucide-react";
 import "react-querybuilder/dist/query-builder.css";
+
+/** Lucide icon instead of RQB's text "⨯" — centers geometrically. */
+const removeLabel = { label: <X size={13} aria-hidden /> };
 
 /** Thin RQB wrapper: UI only — evaluation lives in filter/evaluate.ts. */
 export function FilterBuilder({
@@ -19,6 +23,7 @@ export function FilterBuilder({
         onQueryChange={onQueryChange}
         showNotToggle
         resetOnFieldChange
+        translations={{ removeRule: removeLabel, removeGroup: removeLabel }}
       />
     </div>
   );
