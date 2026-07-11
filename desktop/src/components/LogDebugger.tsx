@@ -147,7 +147,6 @@ export function LogDebugger({
               key={label}
               type="button"
               aria-label={label}
-              title={label}
               onClick={onClick}
               disabled={disabled || steps.length === 0}
               className="focus-accent flex h-7 w-7 items-center justify-center rounded-md border border-border text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"

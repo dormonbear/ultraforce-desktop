@@ -397,6 +397,17 @@ textarea,
   padding: 0 0.5rem;
   font-size: 12px;
 }
+.uf-querybuilder input[type="checkbox"] {
+  height: auto;
+  padding: 0;
+  border: none;
+  accent-color: var(--primary);
+}
+.uf-querybuilder .ruleGroup-notToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
 .uf-querybuilder button {
   background: var(--card);
   color: var(--muted-foreground);
@@ -408,4 +419,15 @@ textarea,
 }
 .uf-querybuilder button:hover {
   color: var(--foreground);
+}
+/* Remove-rule/group buttons render a text "⨯" — center it and size it up. */
+.uf-querybuilder .rule-remove,
+.uf-querybuilder .ruleGroup-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
 }

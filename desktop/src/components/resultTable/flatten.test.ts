@@ -14,6 +14,7 @@ const childTables: ChildTableDto[] = [
       ["Yin", 9],
       ["Zhao", 10],
     ],
+    children: [],
   },
   {
     rowIndex: 0,
@@ -22,6 +23,7 @@ const childTables: ChildTableDto[] = [
     done: true,
     columns: ["Amount"],
     rows: [[1200.5]],
+    children: [],
   },
 ];
 const columns = ["Id", "Contacts", "Name", "Opportunities"];

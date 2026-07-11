@@ -711,6 +711,9 @@ pub struct ChildTableDto {
     pub done: bool,
     pub columns: Vec<String>,
     pub rows: Vec<Vec<serde_json::Value>>,
+    /// Nested subqueries inside child records; `row_index` points into this
+    /// table's `rows`.
+    pub children: Vec<ChildTableDto>,
 }
 
 pub fn map_child_table(t: features::soql_children::ChildTable) -> ChildTableDto {
@@ -721,6 +724,43 @@ pub fn map_child_table(t: features::soql_children::ChildTable) -> ChildTableDto 
         done: t.done,
         columns: t.columns,
         rows: t.rows,
+        children: t.children.into_iter().map(map_child_table).collect(),
+    }
+}
+
+/// Display labels for one child relationship's table (label toggle).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChildLabelsDto {
+    pub label: Option<String>,
+    pub columns: std::collections::HashMap<String, String>,
+}
+
+/// Display labels for a query's result columns (API name ↔ label toggle).
+/// Unresolvable columns are absent — the frontend falls back to API names.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColumnLabelsDto {
+    pub parent: std::collections::HashMap<String, String>,
+    pub children: std::collections::HashMap<String, ChildLabelsDto>,
+}
+
+pub fn map_column_labels(l: features::soql_labels::ColumnLabels) -> ColumnLabelsDto {
+    ColumnLabelsDto {
+        parent: l.parent,
+        children: l
+            .children
+            .into_iter()
+            .map(|(rel, c)| {
+                (
+                    rel,
+                    ChildLabelsDto {
+                        label: c.label,
+                        columns: c.columns,
+                    },
+                )
+            })
+            .collect(),
     }
 }
 
@@ -1001,6 +1041,15 @@ mod tests {
             done: false,
             columns: vec!["LastName".into(), "Age__c".into()],
             rows: vec![vec![serde_json::json!("Yin"), serde_json::json!(9)]],
+            children: vec![features::soql_children::ChildTable {
+                row_index: 0,
+                column: "Cases".into(),
+                total_size: 1,
+                done: true,
+                columns: vec!["Subject".into()],
+                rows: vec![vec![serde_json::json!("Broken")]],
+                children: vec![],
+            }],
         });
         let v: serde_json::Value = serde_json::to_value(&dto).unwrap();
         assert_eq!(v["rowIndex"], 3);
@@ -1008,6 +1057,31 @@ mod tests {
         assert_eq!(v["done"], false);
         // Typed passthrough: the number survives as a JSON number.
         assert_eq!(v["rows"][0][1], serde_json::json!(9));
+        // Nested subqueries map recursively.
+        assert_eq!(v["children"][0]["column"], "Cases");
+        assert_eq!(v["children"][0]["rowIndex"], 0);
+        assert_eq!(v["children"][0]["children"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn column_labels_dto_serializes_camel_case() {
+        let labels = features::soql_labels::ColumnLabels {
+            parent: std::collections::HashMap::from([("Owner.Name".into(), "Full Name".into())]),
+            children: std::collections::HashMap::from([(
+                "Contacts".into(),
+                features::soql_labels::ChildLabels {
+                    label: Some("Contacts".into()),
+                    columns: std::collections::HashMap::from([(
+                        "LastName".into(),
+                        "Last Name".into(),
+                    )]),
+                },
+            )]),
+        };
+        let v: serde_json::Value = serde_json::to_value(map_column_labels(labels)).unwrap();
+        assert_eq!(v["parent"]["Owner.Name"], "Full Name");
+        assert_eq!(v["children"]["Contacts"]["label"], "Contacts");
+        assert_eq!(v["children"]["Contacts"]["columns"]["LastName"], "Last Name");
     }
 
     #[test]

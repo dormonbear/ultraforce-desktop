@@ -48,9 +48,8 @@ export function QueriesView({ units }: { units: UnitDto[] }) {
             <tr
               key={i}
               className={`border-t border-border/50 ${g.count > 1 ? "text-destructive" : "text-text-dim"}`}
-              title={g.count > 1 ? "run more than once — possible N+1 / loop" : g.sample}
             >
-              <td className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground" title={g.sample}>
+              <td className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground">
                 <span
                   className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-success/10"
                   style={{ width: `${maxNs > 0 ? (g.totalNs / maxNs) * 100 : 0}%` }}

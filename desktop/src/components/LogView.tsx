@@ -157,7 +157,6 @@ export function LogView({
         <button
           type="button"
           aria-label="Copy log"
-          title="Copy the full log to the clipboard"
           onClick={() => void copyText(raw, "Log copied")}
           className="focus-accent flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
         >
@@ -185,7 +184,6 @@ export function LogView({
                 <div
                   key={vi.key}
                   role={clickable ? "button" : undefined}
-                  title={clickable ? "Jump to Apex source" : undefined}
                   onClick={
                     clickable
                       ? async () => {

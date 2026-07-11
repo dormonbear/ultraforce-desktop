@@ -211,7 +211,7 @@ export function LogListPane({
                               aria-label="Cached locally"
                             />
                           )}
-                          <span title={log.status} className="shrink-0">
+                          <span className="shrink-0">
                             <Badge
                               variant={ok ? "success" : "error"}
                               label={ok ? "Success" : "Failed"}

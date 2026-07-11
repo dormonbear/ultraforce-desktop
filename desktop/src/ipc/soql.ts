@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  ColumnLabelsDto,
   CompletionItemDto,
   QueryPlanDto,
   SoqlDiagnosticDto,
@@ -51,4 +52,16 @@ export function soqlComplete(
 /** Pretty-print a SOQL query. */
 export function formatSoql(query: string): Promise<string> {
   return invoke<string>("format_soql", { query });
+}
+
+/**
+ * Schema labels for a query's result columns (API name ↔ label toggle).
+ * Best-effort: unresolvable columns are absent from the maps.
+ */
+export function soqlColumnLabels(args: {
+  query: string;
+  columns: string[];
+  childColumns: Record<string, string[]>;
+}): Promise<ColumnLabelsDto> {
+  return invoke<ColumnLabelsDto>("soql_column_labels", args);
 }

@@ -1,7 +1,6 @@
 import { formatIpcError } from "../errorFormat";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
@@ -12,15 +11,9 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import {
-  ArrowDown,
-  ArrowUp,
-  ChevronDown,
-  ChevronRight,
-  ChevronsUpDown,
-  Copy,
-} from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronsUpDown, Copy } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { copyText } from "../clipboard";
 import {
@@ -37,11 +30,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
-import type { SoqlResultDto } from "../types";
+import type { ColumnLabelsDto, SoqlResultDto } from "../types";
+import { soqlColumnLabels } from "../ipc/soql";
 import { buildChildLookup } from "./resultTable/childData";
+import { displayColumnLabel } from "./resultTable/columnLabel";
+import { computeFillRatio } from "./resultTable/fill";
 import { flattenTable } from "./resultTable/flatten";
-import { ChildGrid } from "./resultTable/ChildGrid";
+import { DetailPanel } from "./resultTable/DetailPanel";
+import { CellContextMenu } from "./resultTable/CellMenu";
+import { HeaderContextMenu } from "./resultTable/HeaderMenu";
+import { getQuickMode, setQuickFilter } from "./resultTable/quickFilter";
 import { Toolbar } from "./resultTable/Toolbar";
 import { FilterBuilder } from "./resultTable/filter/FilterBuilder";
 import { buildFilterFields } from "./resultTable/filter/fields";
@@ -79,30 +83,36 @@ const COL_VIRTUALIZE_MIN = 40;
 // fallow-ignore-next-line complexity
 export function ResultTable({
   data,
+  query,
   initialAdvancedFilter,
 }: {
   data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize" | "childTables">;
+  /** The executed SOQL — enables the API-name ↔ label toggle when provided. */
+  query?: string;
   initialAdvancedFilter?: RuleGroupType;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [copied, setCopied] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  // Text of the last right-clicked cell — feeds the shared cell context menu.
+  const [cellMenuText, setCellMenuText] = useState("");
+  // Original index (`row.original.idx`) of the row whose subquery detail panel
+  // is open, or null when no row is selected.
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"expand" | "flatten">("expand");
   // Advanced filter rules; `activeIdx` below applies them to the visible rows.
   const [advancedFilter, setAdvancedFilter] = useState<RuleGroupType>(
     initialAdvancedFilter ?? { combinator: "and", rules: [] },
   );
   const [showFilter, setShowFilter] = useState(false);
-
-  const toggleExpanded = (idx: number) =>
-    setExpanded((old) => {
-      const next = new Set(old);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
+  // API name ↔ label display toggle; the label map is fetched lazily on first
+  // enable and cached per result (columns ids stay API names throughout).
+  const [labelMode, setLabelMode] = useState(false);
+  const [labels, setLabels] = useState<ColumnLabelsDto | null>(null);
+  useEffect(() => {
+    setLabelMode(false);
+    setLabels(null);
+  }, [data]);
 
   const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
   const filterFields = useMemo(
@@ -144,7 +154,9 @@ export function ResultTable({
       if (!path) return;
       const t = exportTable();
       await writeExportFile(path, fmt, t.columns, t.rows);
-      toast.success(`Exported ${t.rows.length} rows to ${fmt.label}`);
+      toast.success(`Exported ${t.rows.length} rows to ${fmt.label}`, {
+        action: { label: "Open", onClick: () => void openPath(path) },
+      });
     } catch (e) {
       toast.error(`Export failed: ${formatIpcError(e)}`);
     }
@@ -228,6 +240,13 @@ export function ResultTable({
   const [containerW, setContainerW] = useState(0);
   const hasRows = data.rows.length > 0;
 
+  // Natural column widths often undershoot the container, leaving the right
+  // half empty while narrow columns truncate. Stretch every rendered width by
+  // this ratio at render time (never shrinking below natural size) so the
+  // table fills the container; manual resize recomputes it from the new totals.
+  const totalColW = table.getCenterTotalSize();
+  const fillRatio = computeFillRatio(containerW, GUTTER_W, totalColW);
+
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
@@ -257,37 +276,36 @@ export function ResultTable({
 
   const tableRows = table.getRowModel().rows;
 
-  // Expansion introduces variable row heights, so we virtualize a display list
-  // (one item per visible parent row + one per expanded detail row) rather than
-  // the table rows directly — each item renders exactly one <tr> so
-  // measureElement measures real heights.
-  type DisplayItem =
-    | { kind: "row"; row: (typeof tableRows)[number]; ordinal: number }
-    | { kind: "detail"; row: (typeof tableRows)[number] };
-
-  const displayItems = useMemo<DisplayItem[]>(() => {
-    const items: DisplayItem[] = [];
-    tableRows.forEach((row, ordinal) => {
-      items.push({ kind: "row", row, ordinal });
-      if (
-        viewMode === "expand" &&
-        expanded.has(row.original.idx) &&
-        lookup.byRow.has(row.original.idx)
-      )
-        items.push({ kind: "detail", row });
-    });
-    return items;
-  }, [tableRows, expanded, viewMode, lookup]);
-
-  const virtualize = displayItems.length > 100;
+  // Rows are fixed-height (subquery detail moved to the side panel), so we
+  // virtualize the table rows directly with a constant row height.
+  const virtualize = tableRows.length > 100;
 
   const virtualizer = useVirtualizer({
-    count: displayItems.length,
+    count: tableRows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (i) => (displayItems[i].kind === "row" ? rowHeight : 240),
+    estimateSize: () => rowHeight,
     overscan: 12,
     enabled: virtualize,
   });
+
+  // The detail panel opens for a selected row in Nested mode. Selection tracks
+  // the original row index; find its current ordinal in the visible rows (a
+  // selected row filtered out closes the panel).
+  const selectedOrdinal =
+    selectedIdx == null
+      ? -1
+      : tableRows.findIndex((r) => r.original.idx === selectedIdx);
+  const panelOpen = viewMode === "expand" && selectedOrdinal >= 0;
+
+  // Close the panel on Esc while it is open.
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedIdx(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [panelOpen]);
 
   // Horizontal column windowing for very wide (flattened) results. The scroll
   // container is overflow-x:hidden but horizontal scrollLeft is still written
@@ -300,24 +318,45 @@ export function ResultTable({
     horizontal: true,
     count: visibleColumns.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (i) => visibleColumns[i].getSize(),
+    estimateSize: (i) => visibleColumns[i].getSize() * fillRatio,
     overscan: 6,
     enabled: colVirtualize,
   });
-  // Column widths change on resize/visibility — remeasure.
+  // Column widths change on resize/visibility/fill — remeasure.
   useEffect(() => {
     colVirtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getCenterTotalSize(), visibleColumns.length]);
+  }, [totalColW, visibleColumns.length, fillRatio]);
 
-  function copyCell(text: string) {
-    void navigator.clipboard?.writeText(text);
-    setCopied(text);
-    window.setTimeout(() => setCopied(null), 1200);
-  }
+  /** Copy one column's visible values (respects filter/sort). */
+  const copyColumn = (col: string) => {
+    const vals = table.getRowModel().rows.map((r) => String(r.getValue(col) ?? ""));
+    void copyText(
+      vals.join("\n"),
+      `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
+    );
+  };
 
   const numeric = (c: Column<GridRow>) =>
     (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
+
+  const toggleLabelMode = () => {
+    const next = !labelMode;
+    setLabelMode(next);
+    if (next && !labels && query) {
+      soqlColumnLabels({
+        query,
+        columns: data.columns,
+        childColumns: Object.fromEntries(lookup.childColumns),
+      })
+        .then(setLabels)
+        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`));
+    }
+  };
+
+  /** Display text for a column header: schema label in label mode, else the id. */
+  const displayCol = (id: string) =>
+    labelMode ? displayColumnLabel(id, labels) : id;
 
   const virtualItems = virtualizer.getVirtualItems();
   const visibleLeafCount = table.getVisibleLeafColumns().length;
@@ -327,8 +366,12 @@ export function ResultTable({
       ? virtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
       : 0;
   const renderItems = virtualize
-    ? virtualItems.map((vi) => ({ item: displayItems[vi.index], index: vi.index }))
-    : displayItems.map((item, index) => ({ item, index }));
+    ? virtualItems.map((vi) => ({
+        row: tableRows[vi.index],
+        ordinal: vi.index,
+        index: vi.index,
+      }))
+    : tableRows.map((row, index) => ({ row, ordinal: index, index }));
 
   const virtualCols = colVirtualizer.getVirtualItems();
   // Only window once the virtualizer has actually measured a viewport and
@@ -339,13 +382,13 @@ export function ResultTable({
   const colPadRight = windowCols
     ? colVirtualizer.getTotalSize() - virtualCols[virtualCols.length - 1].end
     : 0;
-  // Full-width spanning rows (detail panel + vertical spacers) must cover the
-  // gutter, the windowed cells, and any left/right spacer cells.
-  const detailColSpan = windowCols
+  // Full-width vertical spacer rows must cover the gutter, the windowed cells,
+  // and any left/right spacer cells.
+  const spacerColSpan = windowCols
     ? virtualCols.length + (colPadLeft > 0 ? 1 : 0) + (colPadRight > 0 ? 1 : 0) + 1
     : visibleLeafCount + 1;
 
-  const tableWidth = GUTTER_W + table.getCenterTotalSize();
+  const tableWidth = Math.max(containerW, GUTTER_W + totalColW * fillRatio);
   const hasXOverflow = containerW > 0 && tableWidth > containerW + 1;
 
   return (
@@ -359,7 +402,7 @@ export function ResultTable({
           setViewMode(m);
           setSorting([]);
           setColumnVisibility({});
-          setExpanded(new Set());
+          setSelectedIdx(null);
         }}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
@@ -367,6 +410,8 @@ export function ResultTable({
         lookup={lookup}
         showFilter={showFilter}
         onToggleFilter={() => setShowFilter((v) => !v)}
+        labelMode={labelMode}
+        onToggleLabelMode={query ? toggleLabelMode : undefined}
         advancedFilter={advancedFilter}
         copyAs={copyAs}
         exportAs={exportAs}
@@ -387,12 +432,14 @@ export function ResultTable({
           No rows
         </div>
       ) : (
-        <div
-          ref={parentRef}
-          onScroll={syncBarFromBody}
-          onWheel={onBodyWheel}
-          className="uf-scroll select-text min-h-0 flex-1 overflow-y-auto overflow-x-hidden border-t border-border"
-        >
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+          <ResizablePanel id="uf-result-table" minSize="200px">
+          <div
+            ref={parentRef}
+            onScroll={syncBarFromBody}
+            onWheel={onBodyWheel}
+            className="uf-scroll select-text h-full overflow-y-auto overflow-x-hidden border-t border-border"
+          >
           <Table
             style={{ width: tableWidth }}
             className="border-separate border-spacing-0 text-[13px]"
@@ -419,9 +466,20 @@ export function ResultTable({
                   ).map((header) => {
                     const sorted = header.column.getIsSorted();
                     return (
-                      <TableHead
+                      <HeaderContextMenu
                         key={header.id}
-                        style={{ width: header.getSize() }}
+                        column={header.column}
+                        isChildColumn={lookup.childColumns.has(header.column.id)}
+                        quickMode={getQuickMode(advancedFilter, header.column.id)}
+                        onQuickFilter={(m) =>
+                          setAdvancedFilter((f) =>
+                            setQuickFilter(f, header.column.id, m),
+                          )
+                        }
+                        onCopy={() => copyColumn(header.column.id)}
+                      >
+                      <TableHead
+                        style={{ width: header.getSize() * fillRatio }}
                         aria-sort={
                           sorted === "asc"
                             ? "ascending"
@@ -429,24 +487,15 @@ export function ResultTable({
                               ? "descending"
                               : "none"
                         }
-                        className={cn(
-                          "group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 align-middle font-semibold text-muted-foreground",
-                          numeric(header.column) ? "text-right" : "text-left"
-                        )}
+                        className="group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 text-left align-middle font-semibold text-muted-foreground"
                       >
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className={cn(
-                            "inline-flex max-w-full items-center gap-1 truncate hover:text-foreground cursor-pointer",
-                            numeric(header.column) && "flex-row-reverse"
-                          )}
+                          className="inline-flex max-w-full items-center gap-1 truncate hover:text-foreground cursor-pointer"
                         >
                           <span className="truncate">
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
+                            {displayCol(header.column.id)}
                           </span>
                           {sorted === "asc" ? (
                             <ArrowUp size={12} className="shrink-0 text-primary" />
@@ -463,17 +512,9 @@ export function ResultTable({
                         <button
                           type="button"
                           aria-label={`Copy ${header.column.id} column`}
-                          title={`Copy all ${header.column.id} values`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            const col = header.column.id;
-                            const vals = table
-                              .getRowModel()
-                              .rows.map((r) => String(r.getValue(col) ?? ""));
-                            void copyText(
-                              vals.join("\n"),
-                              `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
-                            );
+                            copyColumn(header.column.id);
                           }}
                           className="absolute right-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                         >
@@ -489,6 +530,7 @@ export function ResultTable({
                           )}
                         />
                       </TableHead>
+                      </HeaderContextMenu>
                     );
                   })}
                   {colPadRight > 0 && (
@@ -500,58 +542,37 @@ export function ResultTable({
                 </TableRow>
               ))}
             </TableHeader>
+            <CellContextMenu text={cellMenuText}>
             <TableBody>
               {padTop > 0 && (
-                <tr>
-                  <td colSpan={detailColSpan} style={{ height: padTop }} />
+                <tr onContextMenu={(e) => e.stopPropagation()}>
+                  <td colSpan={spacerColSpan} style={{ height: padTop }} />
                 </tr>
               )}
               {renderItems.map(
                 // fallow-ignore-next-line complexity
-                ({ item, index }) => {
-                const row = item.row;
-                if (item.kind === "detail") {
-                  return (
-                    <TableRow
-                      key={`${row.id}-detail`}
-                      data-index={index}
-                      ref={virtualize ? virtualizer.measureElement : undefined}
-                      className="border-0 hover:bg-transparent"
-                    >
-                      <TableCell
-                        colSpan={detailColSpan}
-                        className="border-b border-border bg-muted/30 px-0"
-                      >
-                        {/* sticky left-0 + width:containerW keeps the subgrid in
-                            view while the parent grid is horizontally scrolled. */}
-                        <div
-                          className="sticky left-0 flex max-w-full flex-col gap-3 px-14 py-3"
-                          style={{ width: containerW || undefined }}
-                        >
-                          {[...(lookup.byRow.get(row.original.idx)?.values() ?? [])].map(
-                            (t) => (
-                              <ChildGrid key={t.column} table={t} />
-                            )
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }
-                const ordinal = item.ordinal;
+                ({ row, ordinal, index }) => {
                 const childCols = lookup.byRow.get(row.original.idx);
+                const isSelected = row.original.idx === selectedIdx;
                 return (
                   <TableRow
                     key={row.id}
                     data-index={index}
-                    ref={virtualize ? virtualizer.measureElement : undefined}
+                    onClick={() =>
+                      setSelectedIdx((cur) =>
+                        cur === row.original.idx ? null : row.original.idx
+                      )
+                    }
                     style={{ height: rowHeight }}
                     className={cn(
-                      "group/row border-0 hover:bg-accent/60",
-                      ordinal % 2 === 1 && "bg-muted/50"
+                      "group/row cursor-pointer border-0 hover:bg-accent/60",
+                      ordinal % 2 === 1 && !isSelected && "bg-muted/50",
+                      isSelected && "bg-accent"
                     )}
                   >
                     <TableCell
+                      // No value to copy here — keep the cell menu closed.
+                      onContextMenu={(e) => e.stopPropagation()}
                       style={{ width: GUTTER_W }}
                       className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
                     >
@@ -570,49 +591,40 @@ export function ResultTable({
                       // fallow-ignore-next-line complexity
                       (cell) => {
                       const text = cell.getValue<string>() ?? "";
-                      const isExpandable =
+                      const isChildCol =
                         viewMode === "expand" &&
-                        lookup.childColumns.has(cell.column.id) &&
-                        !!childCols?.has(cell.column.id);
-                      if (isExpandable) {
-                        const isOpen = expanded.has(row.original.idx);
+                        lookup.childColumns.has(cell.column.id);
+                      if (isChildCol) {
+                        const hasChildren = !!childCols?.has(cell.column.id);
                         return (
                           <TableCell
                             key={cell.id}
-                            style={{ width: cell.column.getSize() }}
+                            onContextMenu={() => setCellMenuText(text)}
+                            style={{ width: cell.column.getSize() * fillRatio }}
                             className="border-b border-border px-3 align-middle"
                           >
-                            <button
-                              type="button"
-                              aria-label={`${isOpen ? "Collapse" : "Expand"} ${cell.column.id}`}
-                              onClick={() => toggleExpanded(row.original.idx)}
-                              className="inline-flex cursor-pointer items-center gap-1 text-primary hover:underline"
-                            >
-                              {isOpen ? (
-                                <ChevronDown size={12} />
-                              ) : (
-                                <ChevronRight size={12} />
-                              )}
-                              {text}
-                            </button>
+                            {hasChildren ? (
+                              <span className="inline-flex min-w-5 items-center justify-center rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-primary">
+                                {text}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
                           </TableCell>
                         );
                       }
-                      const isCopied = copied !== null && copied === text;
                       return (
                         <TableCell
                           key={cell.id}
-                          // Show the full value on hover (cells truncate); the cell
-                          // is still click-to-copy.
-                          title={text || undefined}
-                          onClick={() => copyCell(text)}
-                          style={{ width: cell.column.getSize() }}
+                          // Right-click copies via the shared cell menu;
+                          // left-click bubbles to the row (selection).
+                          onContextMenu={() => setCellMenuText(text)}
+                          style={{ width: cell.column.getSize() * fillRatio }}
                           className={cn(
-                            "max-w-0 cursor-pointer truncate border-b border-border px-3 align-middle",
+                            "max-w-0 truncate border-b border-border px-3 align-middle text-foreground",
                             numeric(cell.column)
                               ? "text-right tabular-nums"
-                              : "text-left",
-                            isCopied ? "text-primary" : "text-foreground"
+                              : "text-left"
                           )}
                         >
                           {text}
@@ -629,13 +641,40 @@ export function ResultTable({
                 );
               })}
               {padBottom > 0 && (
-                <tr>
-                  <td colSpan={detailColSpan} style={{ height: padBottom }} />
+                <tr onContextMenu={(e) => e.stopPropagation()}>
+                  <td colSpan={spacerColSpan} style={{ height: padBottom }} />
                 </tr>
               )}
             </TableBody>
+            </CellContextMenu>
           </Table>
-        </div>
+          </div>
+          </ResizablePanel>
+          {panelOpen && (
+            <>
+              <ResizableHandle />
+              <ResizablePanel
+                id="uf-result-detail"
+                defaultSize="40%"
+                minSize="240px"
+              >
+                <DetailPanel
+                  rowOrdinal={selectedOrdinal}
+                  parentId={
+                    data.columns.includes("Id")
+                      ? tableRows[selectedOrdinal].original.cells["Id"] ?? null
+                      : null
+                  }
+                  tables={[
+                    ...(lookup.byRow.get(selectedIdx as number)?.values() ?? []),
+                  ]}
+                  childLabels={labelMode ? labels?.children : undefined}
+                  onClose={() => setSelectedIdx(null)}
+                />
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
       )}
       {data.rows.length > 0 && hasXOverflow && (
         <div

@@ -100,7 +100,6 @@ function HistoryDetail({
         <span className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            title="Copy source"
             onClick={() => void copyText(entry.source, "Source copied")}
             className="focus-accent inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-foreground hover:border-primary cursor-pointer"
           >
@@ -108,7 +107,6 @@ function HistoryDetail({
           </button>
           <button
             type="button"
-            title="Load source into the editor"
             onClick={() => onLoad(entry.source)}
             className="focus-accent inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-foreground hover:border-primary cursor-pointer"
           >

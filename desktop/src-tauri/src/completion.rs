@@ -1,5 +1,6 @@
 //! Editor language services: Apex/SOQL completion over the cached per-org
-//! sObject-name list, plus SOQL and Apex diagnostics.
+//! sObject-name list, SOQL and Apex diagnostics, plus result-column label
+//! lookup for the API-name ↔ label display toggle.
 
 use std::time::Instant;
 
@@ -90,6 +91,27 @@ pub(crate) async fn soql_complete(
         "soql_complete complete"
     );
     Ok(cands.iter().map(dto::CompletionDto::from).collect())
+}
+
+/// Schema labels for a query's result columns (best-effort — unresolvable
+/// columns are omitted and the UI falls back to API names).
+pub(crate) async fn soql_column_labels(
+    query: String,
+    columns: Vec<String>,
+    child_columns: std::collections::HashMap<String, Vec<String>>,
+    state: &AppState,
+) -> Result<dto::ColumnLabelsDto, CommandError> {
+    let org = current_org(state).unwrap_or_else(|| "default".to_string());
+    let labels = features::soql_labels::column_labels(
+        &state.invoker,
+        sf_schema::SchemaStore::default_root(),
+        &org,
+        &query,
+        &columns,
+        &child_columns,
+    )
+    .await;
+    Ok(dto::map_column_labels(labels))
 }
 
 pub(crate) async fn soql_diagnostics(

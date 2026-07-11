@@ -14,12 +14,14 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { EXPORT_FORMATS, type ExportFormatDef } from "../export";
+
+/** Left-clicking the export button runs this format directly (no menu). */
+const CSV_FORMAT = EXPORT_FORMATS.find((f) => f.id === "csv") ?? EXPORT_FORMATS[0];
 import type { FlatTable } from "./flatten";
 import type { ChildLookup } from "./childData";
 import type { GridRow } from "../ResultTable";
@@ -36,6 +38,9 @@ interface ToolbarProps {
   lookup: ChildLookup;
   showFilter: boolean;
   onToggleFilter: () => void;
+  labelMode: boolean;
+  /** Absent → the label toggle is hidden (no query to resolve labels from). */
+  onToggleLabelMode?: () => void;
   advancedFilter: RuleGroupType;
   copyAs: (kind: "tsv" | "md" | "json") => void;
   exportAs: (fmt: ExportFormatDef) => void | Promise<void>;
@@ -56,6 +61,8 @@ export function Toolbar({
   lookup,
   showFilter,
   onToggleFilter,
+  labelMode,
+  onToggleLabelMode,
   advancedFilter,
   copyAs,
   exportAs,
@@ -126,9 +133,23 @@ export function Toolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {onToggleLabelMode && (
+        <button
+          type="button"
+          aria-label="Show field labels"
+          aria-pressed={labelMode}
+          onClick={onToggleLabelMode}
+          className={cn(
+            "focus-accent inline-flex h-7 cursor-pointer items-center rounded-md border border-input bg-card px-2.5 text-[12px]",
+            labelMode ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          Aa
+        </button>
+      )}
+
       <button
         type="button"
-        title="Advanced filter"
         aria-label="Advanced filter"
         onClick={onToggleFilter}
         className={cn(
@@ -171,7 +192,6 @@ export function Toolbar({
           <button
             type="button"
             aria-label="Copy result"
-            title="Copy all rows (tab-separated — right-click for Markdown / JSON)"
             onClick={() => copyAs("tsv")}
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
@@ -187,25 +207,25 @@ export function Toolbar({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
           <button
             type="button"
-            title="Export"
+            aria-label="Export"
+            onClick={() => void exportAs(CSV_FORMAT)}
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
             <Download size={14} />
           </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Export as</DropdownMenuLabel>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
           {EXPORT_FORMATS.map((fmt) => (
-            <DropdownMenuItem key={fmt.id} onSelect={() => void exportAs(fmt)}>
-              {fmt.label}
-            </DropdownMenuItem>
+            <ContextMenuItem key={fmt.id} onSelect={() => void exportAs(fmt)}>
+              Export as {fmt.label}
+            </ContextMenuItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </ContextMenuContent>
+      </ContextMenu>
       {/* Only shown when the visible set differs from the full result (filtered
           or partially loaded); the full count lives in the panel status line. */}
       {shownCount !== totalSize && (

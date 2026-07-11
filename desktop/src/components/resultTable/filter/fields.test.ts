@@ -12,6 +12,7 @@ describe("buildFilterFields", () => {
         done: true,
         columns: ["LastName", "Age__c"],
         rows: [["Yin", 9]],
+        children: [],
       },
     ]);
     const fields = buildFilterFields(["Id", "Name", "Contacts"], lookup);

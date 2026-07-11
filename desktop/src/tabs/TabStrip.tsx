@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuItem } from "@astryxdesign/core/DropdownMenu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import type { TabBase } from "./types";
 
 interface TabStripProps {
@@ -77,13 +84,13 @@ export function TabStrip({
       {tabs.map((t, idx) => {
         const active = t.id === activeId;
         return (
+          <ContextMenu key={t.id}>
+          <ContextMenuTrigger asChild>
           <div
-            key={t.id}
             role="tab"
             id={`tab-${t.id}`}
             aria-selected={active}
             tabIndex={active ? 0 : -1}
-            title={t.path || undefined}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => {
               // Middle-click closes the tab (unless it's the last one).
@@ -126,7 +133,7 @@ export function TabStrip({
                 {dirtyIds?.includes(t.id) && (
                   <span
                     data-testid="unsaved-dot"
-                    title="Unsaved changes"
+                    aria-label="Unsaved changes"
                     className="size-1.5 shrink-0 rounded-full bg-current"
                   />
                 )}
@@ -147,6 +154,29 @@ export function TabStrip({
               <X size={12} />
             </button>
           </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => onClose(t.id)}>Close</ContextMenuItem>
+            <ContextMenuItem
+              disabled={tabs.length === 1}
+              onSelect={() =>
+                tabs.filter((x) => x.id !== t.id).forEach((x) => onClose(x.id))
+              }
+            >
+              Close Others
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={idx === tabs.length - 1}
+              onSelect={() => tabs.slice(idx + 1).forEach((x) => onClose(x.id))}
+            >
+              Close Tabs to the Right
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+            <ContextMenuItem onSelect={() => tabs.forEach((x) => onClose(x.id))}>
+              Close All
+            </ContextMenuItem>
+          </ContextMenuContent>
+          </ContextMenu>
         );
       })}
       </div>

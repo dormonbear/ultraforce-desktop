@@ -212,7 +212,6 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                 <button
                   type="button"
                   aria-label="Debug levels"
-                  title="Debug levels"
                   aria-pressed={debugOpen}
                   onClick={() => setDebugOpen((v) => !v)}
                   className={`focus-accent inline-flex size-7 items-center justify-center rounded-md cursor-pointer ${
@@ -227,7 +226,6 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               <button
                 type="button"
                 aria-label="Execution history"
-                title="Execution history"
                 onClick={() => setHistoryOpen(true)}
                 className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-text-dim hover:bg-accent hover:text-foreground cursor-pointer"
               >
@@ -298,7 +296,6 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                   {outcome.line != null && (
                     <button
                       type="button"
-                      title="Jump to this location in the editor"
                       onClick={() => {
                         const ed = editorRef.current;
                         if (!ed || outcome.line == null) return;
@@ -327,7 +324,6 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                     <button
                       type="button"
                       aria-label="Copy exception"
-                      title="Copy the exception and stack trace"
                       onClick={() =>
                         void copyText(
                           [

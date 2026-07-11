@@ -9,6 +9,7 @@ const entry = (over: Partial<ChildTableDto>): ChildTableDto => ({
   done: true,
   columns: ["LastName"],
   rows: [["Yin"]],
+  children: [],
   ...over,
 });
 
