@@ -434,18 +434,12 @@ export function ResultTable({
                               ? "descending"
                               : "none"
                         }
-                        className={cn(
-                          "group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 align-middle font-semibold text-muted-foreground",
-                          numeric(header.column) ? "text-right" : "text-left"
-                        )}
+                        className="group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 text-left align-middle font-semibold text-muted-foreground"
                       >
                         <button
                           type="button"
                           onClick={header.column.getToggleSortingHandler()}
-                          className={cn(
-                            "inline-flex max-w-full items-center gap-1 truncate hover:text-foreground cursor-pointer",
-                            numeric(header.column) && "flex-row-reverse"
-                          )}
+                          className="inline-flex max-w-full items-center gap-1 truncate hover:text-foreground cursor-pointer"
                         >
                           <span className="truncate">
                             {flexRender(
