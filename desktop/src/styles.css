@@ -420,3 +420,14 @@ textarea,
 .uf-querybuilder button:hover {
   color: var(--foreground);
 }
+/* Remove-rule/group buttons render a text "⨯" — center it and size it up. */
+.uf-querybuilder .rule-remove,
+.uf-querybuilder .ruleGroup-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+}
