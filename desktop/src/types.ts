@@ -286,15 +286,15 @@ export interface CompletionItemDto {
 // ---- Schema browser DTOs (mirror of src-tauri/src/dto.rs) ------------------
 
 /** One object in the schema-browser list. */
-export interface SchemaObjectDto {
+export interface SchemaObject {
   name: string;
   label: string;
   custom: boolean;
-  keyPrefix?: string | null;
+  keyPrefix: string | null;
 }
 
 /** One picklist entry on a schema field. */
-export interface SchemaPicklistValueDto {
+export interface SchemaPicklistValue {
   label: string;
   value: string;
   active: boolean;
@@ -302,26 +302,26 @@ export interface SchemaPicklistValueDto {
 }
 
 /** A single field in an object's schema detail. */
-export interface SchemaFieldDto {
+export interface SchemaField {
   name: string;
   label: string;
   fieldType: string;
   custom: boolean;
   nillable: boolean;
   referenceTo: string[];
-  relationshipName?: string | null;
-  picklistValues: SchemaPicklistValueDto[];
+  relationshipName: string | null;
+  picklistValues: SchemaPicklistValue[];
   restrictedPicklist: boolean;
   dependentPicklist: boolean;
   calculated: boolean;
-  calculatedFormula?: string | null;
+  calculatedFormula: string | null;
   length: number;
   unique: boolean;
-  inlineHelpText?: string | null;
+  inlineHelpText: string | null;
 }
 
 /** A record type's identity in an object's schema detail. */
-export interface SchemaRecordTypeDto {
+export interface SchemaRecordType {
   name: string;
   developerName: string;
   active: boolean;
@@ -330,25 +330,25 @@ export interface SchemaRecordTypeDto {
 }
 
 /** A child relationship pointing back to the object. */
-export interface SchemaChildRelationshipDto {
+export interface SchemaChildRelationship {
   childSObject: string;
-  relationshipName?: string | null;
+  relationshipName: string | null;
   field: string;
 }
 
 /** Full schema detail for one object. */
-export interface SchemaObjectDetailDto {
+export interface SchemaObjectDetail {
   name: string;
   label: string;
-  keyPrefix?: string | null;
+  keyPrefix: string | null;
   custom: boolean;
-  fields: SchemaFieldDto[];
-  childRelationships: SchemaChildRelationshipDto[];
-  recordTypes: SchemaRecordTypeDto[];
+  fields: SchemaField[];
+  childRelationships: SchemaChildRelationship[];
+  recordTypes: SchemaRecordType[];
 }
 
 /** One hit from the schema search palette. */
-export interface SchemaSearchHitDto {
+export interface SchemaSearchHit {
   objectName: string;
   fieldName: string;
   fieldLabel: string;
