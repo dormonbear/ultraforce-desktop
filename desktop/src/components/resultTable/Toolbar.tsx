@@ -14,12 +14,14 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { EXPORT_FORMATS, type ExportFormatDef } from "../export";
+
+/** Left-clicking the export button runs this format directly (no menu). */
+const CSV_FORMAT = EXPORT_FORMATS.find((f) => f.id === "csv") ?? EXPORT_FORMATS[0];
 import type { FlatTable } from "./flatten";
 import type { ChildLookup } from "./childData";
 import type { GridRow } from "../ResultTable";
@@ -205,25 +207,25 @@ export function Toolbar({
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
           <button
             type="button"
             aria-label="Export"
+            onClick={() => void exportAs(CSV_FORMAT)}
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
             <Download size={14} />
           </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Export as</DropdownMenuLabel>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
           {EXPORT_FORMATS.map((fmt) => (
-            <DropdownMenuItem key={fmt.id} onSelect={() => void exportAs(fmt)}>
-              {fmt.label}
-            </DropdownMenuItem>
+            <ContextMenuItem key={fmt.id} onSelect={() => void exportAs(fmt)}>
+              Export as {fmt.label}
+            </ContextMenuItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </ContextMenuContent>
+      </ContextMenu>
       {/* Only shown when the visible set differs from the full result (filtered
           or partially loaded); the full count lives in the panel status line. */}
       {shownCount !== totalSize && (
