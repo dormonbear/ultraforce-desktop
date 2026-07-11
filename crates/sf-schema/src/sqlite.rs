@@ -3,7 +3,7 @@
 //! `open()` helper that apex-lang's `db` module reuses (both crates write the
 //! same file, in separate transactions over their own tables).
 
-use crate::model::{Field, SObjectSchema};
+use crate::model::{Field, PicklistValue, SObjectSchema};
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::{Path, PathBuf};
 
@@ -57,9 +57,22 @@ pub fn ensure_object_schema(conn: &Connection) -> rusqlite::Result<()> {
           controller_name TEXT, dependent_picklist INTEGER NOT NULL,
           calculated INTEGER NOT NULL, calculated_formula TEXT,
           default_value_formula TEXT, length INTEGER NOT NULL,
-          is_unique INTEGER NOT NULL, restricted_picklist INTEGER NOT NULL
+          is_unique INTEGER NOT NULL, restricted_picklist INTEGER NOT NULL,
+          inline_help_text TEXT
         );
-        CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(object_name, field_name, field_label);
+        CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(
+          object_name, field_name, field_label, picklist_values, help_text, formula
+        );
+        CREATE TABLE IF NOT EXISTS field_deps (
+          object_name TEXT NOT NULL, field_name TEXT NOT NULL,
+          component_type TEXT NOT NULL, component_name TEXT NOT NULL, component_id TEXT NOT NULL,
+          fetched_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_field_deps ON field_deps(object_name, field_name);
+        CREATE TABLE IF NOT EXISTS field_deps_meta (
+          object_name TEXT NOT NULL, field_name TEXT NOT NULL, fetched_at INTEGER NOT NULL,
+          PRIMARY KEY (object_name, field_name)
+        );
         ",
     )
 }
@@ -96,8 +109,8 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
         conn.execute(
             "INSERT INTO fields (object_id, name, label, type, custom, nillable, reference_to, relationship_name, picklist,
                                  controller_name, dependent_picklist, calculated, calculated_formula,
-                                 default_value_formula, length, is_unique, restricted_picklist)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                                 default_value_formula, length, is_unique, restricted_picklist, inline_help_text)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 object_id,
                 field.name,
@@ -116,11 +129,20 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
                 field.length,
                 field.unique as i64,
                 field.restricted_picklist as i64,
+                field.inline_help_text,
             ],
         )?;
         conn.execute(
-            "INSERT INTO fields_fts (object_name, field_name, field_label) VALUES (?1, ?2, ?3)",
-            params![s.name, field.name, field.label],
+            "INSERT INTO fields_fts (object_name, field_name, field_label, picklist_values, help_text, formula)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                s.name,
+                field.name,
+                field.label,
+                fts_picklist_text(&field.picklist_values),
+                field.inline_help_text.as_deref().unwrap_or(""),
+                field.calculated_formula.as_deref().unwrap_or(""),
+            ],
         )?;
     }
     Ok(())
@@ -151,7 +173,9 @@ pub fn replace_all_objects(
     tx.execute_batch(
         "DROP TABLE IF EXISTS fields;
          DROP TABLE IF EXISTS objects;
-         DROP TABLE IF EXISTS fields_fts;",
+         DROP TABLE IF EXISTS fields_fts;
+         DROP TABLE IF EXISTS field_deps;
+         DROP TABLE IF EXISTS field_deps_meta;",
     )?;
     ensure_object_schema(&tx)?;
     for schema in objects {
@@ -282,7 +306,7 @@ fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>
     let mut stmt = conn.prepare(
         "SELECT name, label, type, custom, nillable, reference_to, relationship_name, picklist,
                 controller_name, dependent_picklist, calculated, calculated_formula,
-                default_value_formula, length, is_unique, restricted_picklist
+                default_value_formula, length, is_unique, restricted_picklist, inline_help_text
          FROM fields WHERE object_id = ?1 ORDER BY rowid",
     )?;
     let rows = stmt.query_map(params![object_id], |row| {
@@ -303,7 +327,7 @@ fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>
             length: row.get(13)?,
             unique: row.get::<_, i64>(14)? != 0,
             restricted_picklist: row.get::<_, i64>(15)? != 0,
-            inline_help_text: None,
+            inline_help_text: row.get(16)?,
         })
     })?;
     rows.collect()
@@ -362,6 +386,98 @@ pub fn find_field(
 pub fn count_objects(conn: &Connection) -> rusqlite::Result<usize> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM objects", [], |row| row.get(0))?;
     Ok(count as usize)
+}
+
+/// Join every picklist entry's label + value into one FTS-searchable string,
+/// emitting the value only once when it equals the label.
+fn fts_picklist_text(values: &[PicklistValue]) -> String {
+    let mut parts = Vec::with_capacity(values.len() * 2);
+    for v in values {
+        parts.push(v.label.as_str());
+        if v.value != v.label {
+            parts.push(v.value.as_str());
+        }
+    }
+    parts.join(" ")
+}
+
+/// One component that references a given field (from the Tooling API
+/// MetadataComponentDependency), cached in `field_deps`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldDep {
+    pub component_type: String,
+    pub component_name: String,
+    pub component_id: String,
+}
+
+/// Replace the cached dependency set for `object.field` in one transaction:
+/// clear prior rows, insert `deps`, and upsert the meta row so a zero-length
+/// result is still recorded as "fetched at `fetched_at`".
+pub fn replace_field_deps(
+    conn: &Connection,
+    object: &str,
+    field: &str,
+    deps: &[FieldDep],
+    fetched_at: i64,
+) -> rusqlite::Result<()> {
+    conn.execute(
+        "DELETE FROM field_deps WHERE object_name = ?1 AND field_name = ?2",
+        params![object, field],
+    )?;
+    for dep in deps {
+        conn.execute(
+            "INSERT INTO field_deps (object_name, field_name, component_type, component_name, component_id, fetched_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                object,
+                field,
+                dep.component_type,
+                dep.component_name,
+                dep.component_id,
+                fetched_at,
+            ],
+        )?;
+    }
+    conn.execute(
+        "INSERT INTO field_deps_meta (object_name, field_name, fetched_at) VALUES (?1, ?2, ?3)
+         ON CONFLICT(object_name, field_name) DO UPDATE SET fetched_at = excluded.fetched_at",
+        params![object, field, fetched_at],
+    )?;
+    Ok(())
+}
+
+/// Read the cached dependencies for `object.field`. `None` if never fetched;
+/// `Some((deps, fetched_at))` otherwise — `deps` may be empty for a
+/// fetched-and-zero result (distinguished via `field_deps_meta`).
+pub fn get_field_deps(
+    conn: &Connection,
+    object: &str,
+    field: &str,
+) -> rusqlite::Result<Option<(Vec<FieldDep>, i64)>> {
+    let fetched_at: i64 = match conn.query_row(
+        "SELECT fetched_at FROM field_deps_meta WHERE object_name = ?1 AND field_name = ?2",
+        params![object, field],
+        |row| row.get(0),
+    ) {
+        Ok(ts) => ts,
+        Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(None),
+        Err(e) => return Err(e),
+    };
+
+    let mut stmt = conn.prepare(
+        "SELECT component_type, component_name, component_id FROM field_deps
+         WHERE object_name = ?1 AND field_name = ?2 ORDER BY rowid",
+    )?;
+    let deps = stmt
+        .query_map(params![object, field], |row| {
+            Ok(FieldDep {
+                component_type: row.get(0)?,
+                component_name: row.get(1)?,
+                component_id: row.get(2)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(Some((deps, fetched_at)))
 }
 
 #[cfg(test)]
@@ -460,6 +576,96 @@ mod tests {
         upsert_object(&conn, &schema).unwrap();
         assert_eq!(count_objects(&conn).unwrap(), 1);
         assert_eq!(read_all_objects(&conn).unwrap(), vec![schema]);
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// Match `fields_fts` and return the `field_name` of every matching row.
+    fn fts_match(conn: &Connection, query: &str) -> Vec<String> {
+        let mut stmt = conn
+            .prepare("SELECT field_name FROM fields_fts WHERE fields_fts MATCH ?1")
+            .unwrap();
+        stmt.query_map(params![query], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap()
+    }
+
+    /// Deep FTS: help text, picklist labels, and formula are each searchable.
+    #[test]
+    fn deep_fts_indexes_help_picklist_and_formula() {
+        let path = temp_db();
+        let conn = open(&path).unwrap();
+        let schema = SObjectSchema {
+            name: "Task".into(),
+            label: "Task".into(),
+            label_plural: "Tasks".into(),
+            key_prefix: Some("00T".into()),
+            custom: false,
+            fields: vec![Field {
+                name: "Status".into(),
+                label: "Status".into(),
+                field_type: "picklist".into(),
+                inline_help_text: Some("help me".into()),
+                calculated_formula: Some("Amount__c * 2".into()),
+                picklist_values: vec![PicklistValue {
+                    label: "In Progress".into(),
+                    value: "in_progress".into(),
+                    active: true,
+                    default_value: false,
+                    valid_for: None,
+                }],
+                ..Default::default()
+            }],
+            child_relationships: vec![],
+            record_type_infos: vec![],
+        };
+
+        upsert_object(&conn, &schema).unwrap();
+        assert_eq!(fts_match(&conn, "help"), vec!["Status".to_string()]);
+        assert_eq!(
+            fts_match(&conn, "\"In Progress\""),
+            vec!["Status".to_string()]
+        );
+        assert_eq!(fts_match(&conn, "Amount__c"), vec!["Status".to_string()]);
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// `field_deps` cache: roundtrips deps + timestamp, distinguishes
+    /// fetched-and-zero from never-fetched.
+    #[test]
+    fn field_deps_roundtrip() {
+        let path = temp_db();
+        let conn = open(&path).unwrap();
+
+        let deps = vec![
+            FieldDep {
+                component_type: "ApexClass".into(),
+                component_name: "AccountService".into(),
+                component_id: "01p000000000001".into(),
+            },
+            FieldDep {
+                component_type: "Flow".into(),
+                component_name: "Account_Flow".into(),
+                component_id: "301000000000001".into(),
+            },
+        ];
+        replace_field_deps(&conn, "Account", "Industry", &deps, 1234).unwrap();
+        assert_eq!(
+            get_field_deps(&conn, "Account", "Industry").unwrap(),
+            Some((deps.clone(), 1234))
+        );
+
+        // Replacing with an empty slice = fetched-and-zero: Some(empty, ts).
+        replace_field_deps(&conn, "Account", "Industry", &[], 5678).unwrap();
+        assert_eq!(
+            get_field_deps(&conn, "Account", "Industry").unwrap(),
+            Some((vec![], 5678))
+        );
+
+        // Never fetched = None.
+        assert_eq!(get_field_deps(&conn, "Account", "Nope").unwrap(), None);
 
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
