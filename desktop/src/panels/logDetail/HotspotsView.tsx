@@ -53,7 +53,6 @@ export function HotspotsView({
           <tr key={i} className="border-t border-border/50 text-text-dim">
             <td
               className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground"
-              title={h.signature}
             >
               <span
                 className="absolute inset-y-0 left-0 -z-10 rounded-sm bg-primary/10"
@@ -64,7 +63,6 @@ export function HotspotsView({
                 <button
                   type="button"
                   onClick={() => onSource(ref)}
-                  title="Jump to source"
                   className="cursor-pointer truncate text-left hover:text-primary hover:underline"
                 >
                   {h.signature}

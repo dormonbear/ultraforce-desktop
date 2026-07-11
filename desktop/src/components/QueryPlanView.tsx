@@ -19,7 +19,7 @@ export function QueryPlanView({
         <button
           type="button"
           onClick={onClose}
-          title="Close plan"
+          aria-label="Close plan"
           className="focus-accent inline-flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
         >
           <X size={13} />
@@ -52,11 +52,6 @@ export function QueryPlanView({
                       p.relativeCost > 1
                         ? "tnum px-2 py-1 text-right font-medium text-destructive"
                         : "tnum px-2 py-1 text-right"
-                    }
-                    title={
-                      p.relativeCost > 1
-                        ? "Non-selective (cost > 1.0)"
-                        : undefined
                     }
                   >
                     {p.relativeCost.toFixed(2)}

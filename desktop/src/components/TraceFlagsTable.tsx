@@ -161,7 +161,6 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                         key={h}
                         type="button"
                         aria-label={`Set expiration ${h} hour${h > 1 ? "s" : ""} after start time`}
-                        title={`Start time +${h}h`}
                         onClick={() =>
                           cfg.updateFlag(r._key, {
                             expirationDate: isoPlusHours(r.startDate, h),

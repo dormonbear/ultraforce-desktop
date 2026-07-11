@@ -134,7 +134,6 @@ export function Toolbar({
       {onToggleLabelMode && (
         <button
           type="button"
-          title="Show field labels"
           aria-label="Show field labels"
           aria-pressed={labelMode}
           onClick={onToggleLabelMode}
@@ -149,7 +148,6 @@ export function Toolbar({
 
       <button
         type="button"
-        title="Advanced filter"
         aria-label="Advanced filter"
         onClick={onToggleFilter}
         className={cn(
@@ -192,7 +190,6 @@ export function Toolbar({
           <button
             type="button"
             aria-label="Copy result"
-            title="Copy all rows (tab-separated — right-click for Markdown / JSON)"
             onClick={() => copyAs("tsv")}
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
@@ -212,7 +209,7 @@ export function Toolbar({
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            title="Export"
+            aria-label="Export"
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
             <Download size={14} />

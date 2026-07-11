@@ -206,7 +206,6 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 onClick={() => void explain()}
                 disabled={explaining}
                 aria-pressed={plan != null}
-                title="Show the query plan (cost, cardinality, leading operation)"
                 className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors disabled:opacity-60 ${
                   plan != null || explaining
                     ? "bg-primary/15 text-primary"
@@ -219,7 +218,6 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 type="button"
                 aria-pressed={useToolingApi}
                 onClick={() => onPatch({ useToolingApi: !useToolingApi })}
-                title="Query via the Tooling API"
                 className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
                   useToolingApi
                     ? "bg-primary/15 text-primary"
@@ -232,7 +230,6 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 type="button"
                 aria-pressed={allRows}
                 onClick={() => onPatch({ allRows: !allRows })}
-                title="Include deleted/archived rows (ALL ROWS)"
                 className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
                   allRows
                     ? "bg-primary/15 text-primary"

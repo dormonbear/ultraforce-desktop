@@ -68,13 +68,11 @@ function RecordCard({
             return (
               <tr key={c}>
                 <td
-                  title={name}
                   className="w-px whitespace-nowrap border-b border-border px-2 py-1 text-muted-foreground"
                 >
                   {name}
                 </td>
                 <td
-                  title={text || undefined}
                   className="border-b border-border px-2 py-1 text-foreground"
                 >
                   {text}

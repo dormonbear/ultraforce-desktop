@@ -29,7 +29,7 @@ export function TimeBreakdownBar({ units }: { units: UnitDto[] }) {
             key={s.category}
             className={`h-full ${CAT_COLOR[s.category]}`}
             style={{ width: `${s.pct}%` }}
-            title={`${CAT_LABEL[s.category]} · ${ms(s.ns)} · ${s.pct.toFixed(1)}%`}
+            aria-label={`${CAT_LABEL[s.category]} · ${ms(s.ns)} · ${s.pct.toFixed(1)}%`}
           />
         ))}
       </div>

@@ -147,7 +147,6 @@ export function DebugConfigRow({
                   <button
                     type="button"
                     aria-label="Refresh debug levels"
-                    title="Refresh from org"
                     disabled={loadingLevels}
                     onClick={() => void loadLevels(true)}
                     className="focus-accent inline-flex size-6 shrink-0 items-center justify-center rounded text-text-dim hover:text-foreground disabled:opacity-50 cursor-pointer"

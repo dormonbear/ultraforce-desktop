@@ -258,7 +258,6 @@ export function Explorer({
         <button
           type="button"
           aria-label="Toggle search mode"
-          title={mode === "name" ? "Filter file names" : "Search file contents"}
           onClick={() => {
             setMode((m) => (m === "name" ? "content" : "name"));
             setHits(null);
@@ -274,7 +273,6 @@ export function Explorer({
         <button
           type="button"
           aria-label="Match case"
-          title="Match case"
           onClick={() => setOpts((o) => ({ ...o, caseSensitive: !o.caseSensitive }))}
           className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             opts.caseSensitive
@@ -287,7 +285,6 @@ export function Explorer({
         <button
           type="button"
           aria-label="Use regular expression"
-          title="Use regular expression"
           onClick={() => setOpts((o) => ({ ...o, regex: !o.regex }))}
           className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             opts.regex

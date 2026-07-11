@@ -83,7 +83,6 @@ export function TabStrip({
             id={`tab-${t.id}`}
             aria-selected={active}
             tabIndex={active ? 0 : -1}
-            title={t.path || undefined}
             onClick={() => onSelect(t.id)}
             onAuxClick={(e) => {
               // Middle-click closes the tab (unless it's the last one).
@@ -126,7 +125,7 @@ export function TabStrip({
                 {dirtyIds?.includes(t.id) && (
                   <span
                     data-testid="unsaved-dot"
-                    title="Unsaved changes"
+                    aria-label="Unsaved changes"
                     className="size-1.5 shrink-0 rounded-full bg-current"
                   />
                 )}

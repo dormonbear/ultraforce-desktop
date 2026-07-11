@@ -267,7 +267,7 @@ export function TimelineView({
         ref={miniRef}
         className="relative mb-1.5 h-8 w-full cursor-ew-resize overflow-hidden rounded bg-border/40"
         onMouseDown={onMiniDown}
-        title="Scroll to zoom · drag to pan"
+        aria-label="Scroll to zoom · drag to pan"
       >
         <div className="flex h-full w-full items-end">
           {sky.map((d, i) => (

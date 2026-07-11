@@ -508,7 +508,6 @@ export function ResultTable({
                         <button
                           type="button"
                           aria-label={`Copy ${header.column.id} column`}
-                          title={`Copy all ${header.column.id} values`}
                           onClick={(e) => {
                             e.stopPropagation();
                             copyColumn(header.column.id);

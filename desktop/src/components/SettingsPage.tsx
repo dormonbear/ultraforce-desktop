@@ -213,7 +213,7 @@ export function SettingsPage({ onChanged }: Props) {
                 <Text type="supporting" display="block">
                   {tool} workspace
                 </Text>
-                <span className="truncate text-foreground" title={roots[tool]}>
+                <span className="truncate text-foreground">
                   {roots[tool] || "…"}
                 </span>
                 <div className="flex gap-2">
