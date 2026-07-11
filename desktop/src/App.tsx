@@ -9,6 +9,7 @@ import {
 import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
+import { SchemaPanel } from "./components/schema/SchemaPanel";
 import { OrgSelector } from "./components/OrgSelector";
 import { SetupPage } from "./components/SetupPage";
 import { LogoLoader } from "./components/LogoLoader";
@@ -23,13 +24,13 @@ import { useTheme } from "./theme";
 import { Toaster } from "@/components/ui/sonner";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 
-type ActivePanel = "soql" | "apex" | "logs" | "settings";
+type ActivePanel = "soql" | "apex" | "logs" | "schema" | "settings";
 
 const RAIL = [
   { id: "soql", icon: Database, label: "SOQL", enabled: true },
   { id: "apex", icon: Terminal, label: "Apex", enabled: true },
   { id: "logs", icon: ScrollText, label: "Logs", enabled: true },
-  { id: "schema", icon: TableIcon, label: "Schema", enabled: false },
+  { id: "schema", icon: TableIcon, label: "Schema", enabled: true },
 ] as const;
 
 export default function App() {
@@ -40,7 +41,7 @@ export default function App() {
   // Bumped when a workspace root changes, to remount the affected tool panel.
   const [wsVersion, setWsVersion] = useState(0);
   const { theme } = useTheme();
-  const { loading: orgLoading, orgs } = useOrgs();
+  const { loading: orgLoading, orgs, selected: selectedOrg } = useOrgs();
   // No usable org (CLI missing / not authed) → guide the user instead of panels.
   const needsSetup = !orgLoading && orgs.length === 0;
 
@@ -220,6 +221,11 @@ export default function App() {
               {visited.includes("logs") && (
                 <div className="h-full" hidden={active !== "logs"}>
                   <LogsPanel />
+                </div>
+              )}
+              {visited.includes("schema") && (
+                <div className="h-full" hidden={active !== "schema"}>
+                  <SchemaPanel org={selectedOrg} />
                 </div>
               )}
               {active === "settings" && (
