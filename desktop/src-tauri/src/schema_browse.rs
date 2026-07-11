@@ -2,6 +2,7 @@
 //! per-org schema index. `lib.rs` holds only the thin command shells that
 //! delegate here.
 
+use apex_lang::db;
 use sf_schema::model::{ChildRelationship, Field, PicklistValue, SObjectSchema};
 use sf_schema::{sqlite, SchemaStore};
 
@@ -84,7 +85,10 @@ pub fn object_detail_dto(s: &SObjectSchema) -> SchemaObjectDetailDto {
 /// Read the `objects` table for the browse list. Missing/stale index → `no-index`.
 pub fn list_objects(org: &str, _state: &AppState) -> Result<Vec<SchemaObjectDto>, CommandError> {
     let path = sqlite::db_path(&SchemaStore::default_root(), org);
-    if !path.exists() {
+    // Reject a missing OR schema-version-mismatched index before reading rows,
+    // so an upgrading user with a v2 index gets the "index this org" empty state
+    // rather than stale rows (or a cryptic missing-column error).
+    if !path.exists() || !db::index_matches_version(&path) {
         return Err(no_index_err(org));
     }
     let conn = sqlite::open_readonly(&path).map_err(|_| no_index_err(org))?;
@@ -106,8 +110,16 @@ pub async fn object_detail(
     object: String,
     state: &AppState,
 ) -> Result<SchemaObjectDetailDto, CommandError> {
+    // A stale-versioned index must never hand back v2-shaped disk rows: guard
+    // BEFORE `get_or_fetch`, whose `load_disk` would otherwise SELECT columns
+    // the old table lacks. A missing index falls through to a live describe.
+    let root = SchemaStore::default_root();
+    let path = sqlite::db_path(&root, &org);
+    if path.exists() && !db::index_matches_version(&path) {
+        return Err(no_index_err(&org));
+    }
     let api = features::api_version::api_version_for(&state.invoker, &org).await;
-    let mut store = SchemaStore::new(SchemaStore::default_root(), &org);
+    let mut store = SchemaStore::new(root, &org);
     let schema = store.get_or_fetch(&state.invoker, &api, &object).await?;
     Ok(object_detail_dto(&schema))
 }
@@ -120,7 +132,8 @@ pub fn search(
     _state: &AppState,
 ) -> Result<Vec<SchemaSearchHitDto>, CommandError> {
     let path = sqlite::db_path(&SchemaStore::default_root(), org);
-    if !path.exists() {
+    // Same stale/missing-index guard as `list_objects` before touching rows.
+    if !path.exists() || !db::index_matches_version(&path) {
         return Err(no_index_err(org));
     }
     let conn = sqlite::open_readonly(&path).map_err(|_| no_index_err(org))?;
