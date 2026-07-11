@@ -29,7 +29,7 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1 outline-none data-[highlighted]:bg-primary/15 data-[highlighted]:text-primary",
+        "relative flex cursor-pointer select-none items-center rounded-sm px-2 py-1 outline-none data-[highlighted]:bg-primary/15 data-[highlighted]:text-primary data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
         className,
       )}
       {...props}
