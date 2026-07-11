@@ -76,6 +76,39 @@ describe("SchemaPanel", () => {
     expect(getSchemaObjectDetail).toHaveBeenCalledWith("ultraforce", "Account");
   });
 
+  it("refetches detail after an org switch instead of serving the old org's cache", async () => {
+    vi.mocked(listSchemaObjects).mockResolvedValue(objects);
+    vi.mocked(getSchemaObjectDetail).mockResolvedValue(accountDetail);
+    const { rerender } = render(<SchemaPanel org="orgA" />);
+    fireEvent.click(await screen.findByText("Account"));
+    expect(await screen.findByText("Industry")).toBeTruthy();
+    expect(getSchemaObjectDetail).toHaveBeenCalledWith("orgA", "Account");
+
+    rerender(<SchemaPanel org="orgB" />);
+    fireEvent.click(await screen.findByText("Account"));
+    expect(await screen.findByText("Industry")).toBeTruthy();
+    expect(getSchemaObjectDetail).toHaveBeenCalledWith("orgB", "Account");
+    expect(getSchemaObjectDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries the detail fetch when the same object is re-clicked after a failure", async () => {
+    vi.mocked(listSchemaObjects).mockResolvedValue(objects);
+    vi.mocked(getSchemaObjectDetail)
+      .mockRejectedValueOnce({ code: "io", message: "disk error" })
+      .mockResolvedValueOnce(accountDetail);
+    render(<SchemaPanel org="ultraforce" />);
+    fireEvent.click(await screen.findByText("Account"));
+    await vi.waitFor(() =>
+      expect(getSchemaObjectDetail).toHaveBeenCalledTimes(1),
+    );
+    expect(screen.queryByText("Industry")).toBeNull();
+
+    // The detail pane header also reads "Account" now — click the list entry.
+    fireEvent.click(screen.getAllByText("Account")[0]);
+    expect(await screen.findByText("Industry")).toBeTruthy();
+    expect(getSchemaObjectDetail).toHaveBeenCalledTimes(2);
+  });
+
   it("shows the index hint when the org has no schema index", async () => {
     vi.mocked(listSchemaObjects).mockRejectedValue({
       code: "no-index",

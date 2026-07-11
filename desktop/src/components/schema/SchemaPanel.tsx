@@ -43,9 +43,14 @@ export function SchemaPanel({ org }: { org: string | null }) {
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [objectFilter, setObjectFilter] = useState("");
   const [fieldFilter, setFieldFilter] = useState("");
+  // Bumped on every object click so re-selecting an object whose detail fetch
+  // failed retries it (cache hits still early-return, so this is free).
+  const [fetchNonce, setFetchNonce] = useState(0);
 
-  // Load the object list whenever the active org changes.
+  // Load the object list whenever the active org changes. The detail cache is
+  // per-org (object names collide across orgs), so drop it too.
   useEffect(() => {
+    setDetailCache(new Map());
     if (!org) {
       setObjects([]);
       setNoIndex(false);
@@ -97,7 +102,7 @@ export function SchemaPanel({ org }: { org: string | null }) {
     return () => {
       cancelled = true;
     };
-  }, [org, selectedObject, detailCache]);
+  }, [org, selectedObject, detailCache, fetchNonce]);
 
   // External navigation (command palette, links) — jump to object/field and
   // clear filters so the target is visible.
@@ -113,6 +118,7 @@ export function SchemaPanel({ org }: { org: string | null }) {
   const onSelectObject = useCallback((name: string) => {
     setSelectedObject(name);
     setSelectedField(null);
+    setFetchNonce((n) => n + 1);
   }, []);
 
   const detail = selectedObject ? detailCache.get(selectedObject) : undefined;
