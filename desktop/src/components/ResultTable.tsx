@@ -350,9 +350,15 @@ export function ResultTable({
     }
   };
 
-  /** Display text for a column header: schema label in label mode, else the id. */
+  /**
+   * Display text for a column header: schema label in label mode, else the id.
+   * Relationship columns aren't in the parent map — their display name comes
+   * from the children map (child object's plural label).
+   */
   const displayCol = (id: string) =>
-    (labelMode ? labels?.parent[id] : undefined) ?? id;
+    (labelMode
+      ? labels?.parent[id] ?? labels?.children[id]?.label
+      : undefined) ?? id;
 
   const virtualItems = virtualizer.getVirtualItems();
   const visibleLeafCount = table.getVisibleLeafColumns().length;

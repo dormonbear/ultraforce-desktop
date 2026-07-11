@@ -5,8 +5,8 @@ import { ResultTable } from "../ResultTable";
 
 vi.mock("../../ipc/soql", () => ({
   soqlColumnLabels: vi.fn(async () => ({
-    // "Contacts" deliberately absent from parent → falls back to API name.
-    parent: { Id: "Account ID", Name: "Account Name" },
+    // "Id" deliberately absent from every map → falls back to the API name.
+    parent: { Name: "Account Name" },
     children: {
       Contacts: { label: "Contact People", columns: { LastName: "Last Name" } },
     },
@@ -56,12 +56,15 @@ describe("api name / label toggle", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show field labels" }));
     expect(await screen.findByText("Account Name")).toBeTruthy();
-    expect(screen.getByText("Account ID")).toBeTruthy();
-    // Not in the parent map → API name stays.
-    expect(screen.getByText("Contacts")).toBeTruthy();
+    // Relationship column header resolves via the children map.
+    expect(screen.getByText("Contact People")).toBeTruthy();
+    expect(screen.queryByText("Contacts")).toBeNull();
+    // In neither map → API name stays.
+    expect(screen.getByText("Id")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Show field labels" }));
     expect(screen.getByText("Name")).toBeTruthy();
+    expect(screen.getByText("Contacts")).toBeTruthy();
     expect(screen.queryByText("Account Name")).toBeNull();
   });
 
