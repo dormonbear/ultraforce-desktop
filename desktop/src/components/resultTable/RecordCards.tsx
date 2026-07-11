@@ -59,7 +59,7 @@ function RecordCard({
               <tr key={c}>
                 <td
                   title={c}
-                  className="w-36 max-w-36 truncate border-b border-border px-2 py-1 text-muted-foreground"
+                  className="w-px whitespace-nowrap border-b border-border px-2 py-1 text-muted-foreground"
                 >
                   {c}
                 </td>
