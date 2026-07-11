@@ -96,3 +96,19 @@ collapses into a bare count (`soql_children.rs` `typed_cell`, Children arm).
   both sides in the same commit.
 - Flatten mode and the advanced filter keep operating on level-1 children
   only; deeper levels are visible only in the panel.
+
+## v3 — Header context menu + quick child-presence filter (2026-07-11)
+
+Filtering "rows where relationship X has records" is already expressible in
+the advanced FilterBuilder (subquery match modes), but takes four steps.
+Add a right-click context menu on column headers:
+
+- All columns: Sort ascending / Sort descending / Clear sort, Copy column
+  (reuses the existing header copy logic).
+- Subquery columns additionally: "Only with child records" / "Only without
+  child records" — mutually exclusive, with a checkmark on the active one;
+  selecting the active item again clears it.
+- Implementation is sugar over the advanced filter: the menu injects (or
+  removes) a tagged rule into `advancedFilter` (single source of truth) so
+  it is visible, combinable, and clearable in the FilterBuilder panel.
+- Menu uses the app's existing menu primitive (Astryx); no new dependency.
