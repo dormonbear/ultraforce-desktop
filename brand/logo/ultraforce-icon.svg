@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
   <title id="title">Ultraforce velocity chevron icon</title>
   <desc id="desc">Two forward chevrons forming a fast-forward play mark.</desc>
-  <g fill="#E0532F">
+  <g fill="#0176D3">
     <path d="M16 30H31L89 64L31 98H16L74 64Z"/>
     <path d="M48 30H63L121 64L63 98H48L106 64Z"/>
   </g>

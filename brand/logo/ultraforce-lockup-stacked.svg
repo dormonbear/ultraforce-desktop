@@ -3,7 +3,7 @@
   <title id="title">Ultraforce stacked lockup</title>
   <desc id="desc">Ultraforce app tile above lowercase wordmark.</desc>
   <rect x="124" y="24" width="112" height="112" rx="25" fill="#1A1A1A"/>
-  <g fill="#E0532F" transform="translate(116 18) scale(0.86) translate(10 10)">
+  <g fill="#0176D3" transform="translate(116 18) scale(0.86) translate(10 10)">
     <path d="M16 30H31L89 64L31 98H16L74 64Z"/>
     <path d="M48 30H63L121 64L63 98H48L106 64Z"/>
   </g>
