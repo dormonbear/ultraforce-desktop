@@ -176,6 +176,7 @@ export function SchemaPanel({ org }: { org: string | null }) {
       <ResizableHandle className={HANDLE_CLASS} />
       <ResizablePanel id="schema-detail" defaultSize="320px" minSize="220px">
         <FieldDetail
+          org={org}
           objectName={selectedObject}
           field={activeField}
           recordTypes={detail?.recordTypes ?? []}

@@ -8,6 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ReferencesSection } from "./ReferencesSection";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -118,11 +119,13 @@ function RecordTypesView({ recordTypes }: { recordTypes: SchemaRecordType[] }) {
  * result-table DetailPanel (bordered, headered, scrollable body).
  */
 export function FieldDetail({
+  org,
   objectName,
   field,
   recordTypes,
   onClose,
 }: {
+  org: string | null;
   objectName: string | null;
   field: SchemaField | null;
   recordTypes: SchemaRecordType[];
@@ -147,7 +150,10 @@ export function FieldDetail({
       </div>
       <div className="uf-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
         {field ? (
-          <FieldView field={field} />
+          <>
+            <FieldView field={field} />
+            <ReferencesSection org={org} object={objectName} field={field} />
+          </>
         ) : (
           <RecordTypesView recordTypes={recordTypes} />
         )}
