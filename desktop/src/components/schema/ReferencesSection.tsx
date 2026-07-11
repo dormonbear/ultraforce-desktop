@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDependencies, FieldDependency, SchemaField } from "../../types";
@@ -107,16 +107,18 @@ function ReferencesBody({
     );
   }
   if (!data) return null;
-  if (!data.supported) {
-    return (
-      <div className="text-[12px] text-muted-foreground">
-        Standard fields aren’t tracked by the Dependency API.
-      </div>
-    );
-  }
+  // Every result state (groups, zero deps, or the unsupported note) carries the
+  // permanent beta-API disclaimer; `fetchedAt` is null for unsupported fields,
+  // so the "fetched …" line only shows on supported results.
   return (
     <>
-      <GroupList items={data.items} />
+      {data.supported ? (
+        <GroupList items={data.items} />
+      ) : (
+        <div className="text-[12px] text-muted-foreground">
+          Standard fields aren’t tracked by the Dependency API.
+        </div>
+      )}
       <Footer fetchedAt={data.fetchedAt} />
     </>
   );
@@ -142,9 +144,13 @@ export function ReferencesSection({
   const [data, setData] = useState<FieldDependencies | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  // Request generation: bumped whenever the target changes so an in-flight
+  // response for a previous field can't repopulate the fresh state.
+  const genRef = useRef(0);
 
   // Reset when the selected field (or org/object) changes.
   useEffect(() => {
+    genRef.current += 1;
     setExpanded(false);
     setData(null);
     setLoading(false);
@@ -154,15 +160,21 @@ export function ReferencesSection({
   const load = useCallback(
     (refresh: boolean) => {
       if (!org || !object) return;
+      const gen = genRef.current;
       setLoading(true);
       setError(false);
       getFieldDependencies(org, object, field.name, refresh)
-        .then((result) => setData(result))
-        .catch((e: unknown) => {
-          setError(true);
-          toast.error(`References: ${formatIpcError(e)}`);
+        .then((result) => {
+          if (genRef.current !== gen) return; // stale: field changed mid-flight
+          setData(result);
+          setLoading(false);
         })
-        .finally(() => setLoading(false));
+        .catch((e: unknown) => {
+          if (genRef.current !== gen) return;
+          setError(true);
+          setLoading(false);
+          toast.error(`References: ${formatIpcError(e)}`);
+        });
     },
     [org, object, field.name],
   );

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ReferencesSection } from "./ReferencesSection";
 import type { FieldDependencies, SchemaField } from "../../types";
 
@@ -86,6 +86,52 @@ describe("ReferencesSection", () => {
     await waitFor(() =>
       screen.getByText(/Standard fields aren.t tracked by the Dependency API\./),
     );
+    // The beta-API disclaimer is permanent across result states, including unsupported.
+    expect(screen.getByText(/Powered by the beta Dependency API/)).toBeTruthy();
+  });
+
+  it("drops a stale response when the field changes mid-flight", async () => {
+    let resolveA!: (v: FieldDependencies) => void;
+    vi.mocked(getFieldDependencies)
+      .mockImplementationOnce(
+        () => new Promise<FieldDependencies>((res) => (resolveA = res)),
+      )
+      .mockResolvedValueOnce({
+        supported: true,
+        fetchedAt: Date.now(),
+        items: [
+          { componentType: "Flow", componentName: "BFlow", componentId: "9" },
+        ],
+      });
+    const { rerender } = render(
+      <ReferencesSection org="ultraforce" object="Account" field={field("A__c")} />,
+    );
+
+    // Expand field A: request in flight.
+    fireEvent.click(screen.getByText("Where is this used?"));
+    expect(getFieldDependencies).toHaveBeenCalledWith("ultraforce", "Account", "A__c", false);
+
+    // Switch to field B while A's request is still pending, then let A resolve.
+    rerender(
+      <ReferencesSection org="ultraforce" object="Account" field={field("B__c")} />,
+    );
+    await act(async () => {
+      resolveA(supported);
+    });
+
+    // A's stale data must not leak into B's (reset, collapsed) view.
+    expect(screen.queryByText("Account Layout")).toBeNull();
+
+    // Expanding B triggers a fresh fetch with B's args and shows B's data.
+    fireEvent.click(screen.getByText("Where is this used?"));
+    expect(getFieldDependencies).toHaveBeenLastCalledWith(
+      "ultraforce",
+      "Account",
+      "B__c",
+      false,
+    );
+    await waitFor(() => screen.getByText("BFlow"));
+    expect(screen.queryByText("Account Layout")).toBeNull();
   });
 
   it("refresh button refetches with refresh:true", async () => {
