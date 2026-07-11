@@ -412,7 +412,8 @@ pub struct FieldDep {
 
 /// Replace the cached dependency set for `object.field` in one transaction:
 /// clear prior rows, insert `deps`, and upsert the meta row so a zero-length
-/// result is still recorded as "fetched at `fetched_at`".
+/// result is still recorded as "fetched at `fetched_at`". Atomic — on any
+/// error the transaction rolls back, leaving the old deps + meta untouched.
 pub fn replace_field_deps(
     conn: &Connection,
     object: &str,
@@ -420,12 +421,13 @@ pub fn replace_field_deps(
     deps: &[FieldDep],
     fetched_at: i64,
 ) -> rusqlite::Result<()> {
-    conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    tx.execute(
         "DELETE FROM field_deps WHERE object_name = ?1 AND field_name = ?2",
         params![object, field],
     )?;
     for dep in deps {
-        conn.execute(
+        tx.execute(
             "INSERT INTO field_deps (object_name, field_name, component_type, component_name, component_id, fetched_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
@@ -438,12 +440,12 @@ pub fn replace_field_deps(
             ],
         )?;
     }
-    conn.execute(
+    tx.execute(
         "INSERT INTO field_deps_meta (object_name, field_name, fetched_at) VALUES (?1, ?2, ?3)
          ON CONFLICT(object_name, field_name) DO UPDATE SET fetched_at = excluded.fetched_at",
         params![object, field, fetched_at],
     )?;
-    Ok(())
+    tx.commit()
 }
 
 /// Read the cached dependencies for `object.field`. `None` if never fetched;
