@@ -63,6 +63,8 @@ pub struct Field {
     pub unique: bool,
     #[serde(default, rename = "restrictedPicklist")]
     pub restricted_picklist: bool,
+    #[serde(rename = "inlineHelpText", default)]
+    pub inline_help_text: Option<String>,
 }
 
 /// One entry in a picklist field.
@@ -149,5 +151,12 @@ mod tests {
         assert!(!type_field.picklist_values.is_empty());
 
         assert_eq!(schema.child_relationships.len(), 2);
+    }
+
+    #[test]
+    fn deserializes_inline_help_text() {
+        let schema = load_account();
+        let name = schema.field("Name").expect("Name field present");
+        assert_eq!(name.inline_help_text, Some("Account name help".to_string()));
     }
 }

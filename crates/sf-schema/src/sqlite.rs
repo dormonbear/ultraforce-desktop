@@ -303,6 +303,7 @@ fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>
             length: row.get(13)?,
             unique: row.get::<_, i64>(14)? != 0,
             restricted_picklist: row.get::<_, i64>(15)? != 0,
+            inline_help_text: None,
         })
     })?;
     rows.collect()
