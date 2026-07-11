@@ -11,6 +11,7 @@ import { formatIpcError } from "../../errorFormat";
 import { ObjectList } from "./ObjectList";
 import { FieldTable } from "./FieldTable";
 import { FieldDetail } from "./FieldDetail";
+import { SchemaSearchBar } from "./SchemaSearchBar";
 import { subscribe, type SchemaNavTarget } from "./useSchemaNav";
 
 const HANDLE_CLASS =
@@ -144,45 +145,50 @@ export function SchemaPanel({ org }: { org: string | null }) {
   }
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="h-full">
-      <ResizablePanel id="schema-objects" defaultSize="240px" minSize="160px">
-        <ObjectList
-          objects={objects}
-          selected={selectedObject}
-          filter={objectFilter}
-          onFilterChange={setObjectFilter}
-          onSelect={onSelectObject}
-        />
-      </ResizablePanel>
-      <ResizableHandle className={HANDLE_CLASS} />
-      <ResizablePanel id="schema-fields" minSize="240px">
-        {selectedObject ? (
-          <FieldTable
-            fields={fields}
-            loading={detailPaneLoading}
-            selected={selectedField}
-            filter={fieldFilter}
-            onFilterChange={setFieldFilter}
-            onSelect={setSelectedField}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-muted-foreground">
-            {objectsLoading
-              ? "Loading objects…"
-              : "Select an object to browse its fields."}
-          </div>
-        )}
-      </ResizablePanel>
-      <ResizableHandle className={HANDLE_CLASS} />
-      <ResizablePanel id="schema-detail" defaultSize="320px" minSize="220px">
-        <FieldDetail
-          org={org}
-          objectName={selectedObject}
-          field={activeField}
-          recordTypes={detail?.recordTypes ?? []}
-          onClose={() => setSelectedField(null)}
-        />
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    <div className="flex h-full flex-col">
+      <SchemaSearchBar org={org} />
+      <div className="min-h-0 flex-1">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          <ResizablePanel id="schema-objects" defaultSize="240px" minSize="160px">
+            <ObjectList
+              objects={objects}
+              selected={selectedObject}
+              filter={objectFilter}
+              onFilterChange={setObjectFilter}
+              onSelect={onSelectObject}
+            />
+          </ResizablePanel>
+          <ResizableHandle className={HANDLE_CLASS} />
+          <ResizablePanel id="schema-fields" minSize="240px">
+            {selectedObject ? (
+              <FieldTable
+                fields={fields}
+                loading={detailPaneLoading}
+                selected={selectedField}
+                filter={fieldFilter}
+                onFilterChange={setFieldFilter}
+                onSelect={setSelectedField}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-muted-foreground">
+                {objectsLoading
+                  ? "Loading objects…"
+                  : "Select an object to browse its fields."}
+              </div>
+            )}
+          </ResizablePanel>
+          <ResizableHandle className={HANDLE_CLASS} />
+          <ResizablePanel id="schema-detail" defaultSize="320px" minSize="220px">
+            <FieldDetail
+              org={org}
+              objectName={selectedObject}
+              field={activeField}
+              recordTypes={detail?.recordTypes ?? []}
+              onClose={() => setSelectedField(null)}
+            />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </div>
   );
 }
