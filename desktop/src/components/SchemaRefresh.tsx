@@ -6,6 +6,7 @@ import { IconButton } from "@astryxdesign/core/IconButton";
 import { useOrgs } from "../org";
 import { getNamespacePolicy } from "../indexSettings";
 import { reindexOrg } from "../ipc/schema";
+import { useIndexProgress } from "./IndexProgress";
 
 /**
  * Rebuilds the cached offline sObject schema for the active org. The schema
@@ -15,6 +16,11 @@ import { reindexOrg } from "../ipc/schema";
 export function SchemaRefresh() {
   const { selected: org } = useOrgs();
   const [busy, setBusy] = useState(false);
+  // The top-bar progress pill already owns the indexing spinner. Suppress this
+  // button's own spinner and disable it whenever an index is running — whether
+  // this button kicked it off (`busy`) or it was triggered elsewhere (the
+  // `index-progress` stream) — so users see one spinner and can't double-fire.
+  const indexing = useIndexProgress() !== null;
 
   const refresh = async () => {
     if (!org) {
@@ -39,7 +45,7 @@ export function SchemaRefresh() {
       variant="ghost"
       size="sm"
       icon={<RefreshCw size={15} />}
-      isLoading={busy}
+      isDisabled={busy || indexing}
       onClick={() => void refresh()}
     />
   );

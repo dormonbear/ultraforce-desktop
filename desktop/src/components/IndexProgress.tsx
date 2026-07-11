@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { barState, phaseLabel, type Progress } from "./indexBar";
 
 /** Shared subscription to the backend `index-progress` stream (null = idle). */
-function useIndexProgress(): Progress | null {
+export function useIndexProgress(): Progress | null {
   const [p, setP] = useState<Progress | null>(null);
   useEffect(() => {
     const un = listen<Progress>("index-progress", (e) => {
