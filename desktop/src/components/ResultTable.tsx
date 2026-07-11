@@ -41,6 +41,7 @@ import { buildChildLookup } from "./resultTable/childData";
 import { computeFillRatio } from "./resultTable/fill";
 import { flattenTable } from "./resultTable/flatten";
 import { DetailPanel } from "./resultTable/DetailPanel";
+import { CellContextMenu } from "./resultTable/CellMenu";
 import { HeaderContextMenu } from "./resultTable/HeaderMenu";
 import { getQuickMode, setQuickFilter } from "./resultTable/quickFilter";
 import { Toolbar } from "./resultTable/Toolbar";
@@ -88,7 +89,8 @@ export function ResultTable({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
-  const [copied, setCopied] = useState<string | null>(null);
+  // Text of the last right-clicked cell — feeds the shared cell context menu.
+  const [cellMenuText, setCellMenuText] = useState("");
   // Original index (`row.original.idx`) of the row whose subquery detail panel
   // is open, or null when no row is selected.
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
@@ -311,12 +313,6 @@ export function ResultTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalColW, visibleColumns.length, fillRatio]);
 
-  function copyCell(text: string) {
-    void navigator.clipboard?.writeText(text);
-    setCopied(text);
-    window.setTimeout(() => setCopied(null), 1200);
-  }
-
   /** Copy one column's visible values (respects filter/sort). */
   const copyColumn = (col: string) => {
     const vals = table.getRowModel().rows.map((r) => String(r.getValue(col) ?? ""));
@@ -515,9 +511,10 @@ export function ResultTable({
                 </TableRow>
               ))}
             </TableHeader>
+            <CellContextMenu text={cellMenuText}>
             <TableBody>
               {padTop > 0 && (
-                <tr>
+                <tr onContextMenu={(e) => e.stopPropagation()}>
                   <td colSpan={spacerColSpan} style={{ height: padTop }} />
                 </tr>
               )}
@@ -543,6 +540,8 @@ export function ResultTable({
                     )}
                   >
                     <TableCell
+                      // No value to copy here — keep the cell menu closed.
+                      onContextMenu={(e) => e.stopPropagation()}
                       style={{ width: GUTTER_W }}
                       className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
                     >
@@ -569,6 +568,7 @@ export function ResultTable({
                         return (
                           <TableCell
                             key={cell.id}
+                            onContextMenu={() => setCellMenuText(text)}
                             style={{ width: cell.column.getSize() * fillRatio }}
                             className="border-b border-border px-3 align-middle"
                           >
@@ -582,21 +582,18 @@ export function ResultTable({
                           </TableCell>
                         );
                       }
-                      const isCopied = copied !== null && copied === text;
                       return (
                         <TableCell
                           key={cell.id}
-                          // Show the full value on hover (cells truncate); the cell
-                          // is still click-to-copy.
-                          title={text || undefined}
-                          onClick={() => copyCell(text)}
+                          // Right-click copies via the shared cell menu;
+                          // left-click bubbles to the row (selection).
+                          onContextMenu={() => setCellMenuText(text)}
                           style={{ width: cell.column.getSize() * fillRatio }}
                           className={cn(
-                            "max-w-0 cursor-pointer truncate border-b border-border px-3 align-middle",
+                            "max-w-0 truncate border-b border-border px-3 align-middle text-foreground",
                             numeric(cell.column)
                               ? "text-right tabular-nums"
-                              : "text-left",
-                            isCopied ? "text-primary" : "text-foreground"
+                              : "text-left"
                           )}
                         >
                           {text}
@@ -613,11 +610,12 @@ export function ResultTable({
                 );
               })}
               {padBottom > 0 && (
-                <tr>
+                <tr onContextMenu={(e) => e.stopPropagation()}>
                   <td colSpan={spacerColSpan} style={{ height: padBottom }} />
                 </tr>
               )}
             </TableBody>
+            </CellContextMenu>
           </Table>
           </div>
           </ResizablePanel>
