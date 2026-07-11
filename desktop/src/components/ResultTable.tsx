@@ -41,6 +41,8 @@ import { buildChildLookup } from "./resultTable/childData";
 import { computeFillRatio } from "./resultTable/fill";
 import { flattenTable } from "./resultTable/flatten";
 import { DetailPanel } from "./resultTable/DetailPanel";
+import { HeaderContextMenu } from "./resultTable/HeaderMenu";
+import { getQuickMode, setQuickFilter } from "./resultTable/quickFilter";
 import { Toolbar } from "./resultTable/Toolbar";
 import { FilterBuilder } from "./resultTable/filter/FilterBuilder";
 import { buildFilterFields } from "./resultTable/filter/fields";
@@ -315,6 +317,15 @@ export function ResultTable({
     window.setTimeout(() => setCopied(null), 1200);
   }
 
+  /** Copy one column's visible values (respects filter/sort). */
+  const copyColumn = (col: string) => {
+    const vals = table.getRowModel().rows.map((r) => String(r.getValue(col) ?? ""));
+    void copyText(
+      vals.join("\n"),
+      `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
+    );
+  };
+
   const numeric = (c: Column<GridRow>) =>
     (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
 
@@ -424,8 +435,19 @@ export function ResultTable({
                   ).map((header) => {
                     const sorted = header.column.getIsSorted();
                     return (
-                      <TableHead
+                      <HeaderContextMenu
                         key={header.id}
+                        column={header.column}
+                        isChildColumn={lookup.childColumns.has(header.column.id)}
+                        quickMode={getQuickMode(advancedFilter, header.column.id)}
+                        onQuickFilter={(m) =>
+                          setAdvancedFilter((f) =>
+                            setQuickFilter(f, header.column.id, m),
+                          )
+                        }
+                        onCopy={() => copyColumn(header.column.id)}
+                      >
+                      <TableHead
                         style={{ width: header.getSize() * fillRatio }}
                         aria-sort={
                           sorted === "asc"
@@ -465,14 +487,7 @@ export function ResultTable({
                           title={`Copy all ${header.column.id} values`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            const col = header.column.id;
-                            const vals = table
-                              .getRowModel()
-                              .rows.map((r) => String(r.getValue(col) ?? ""));
-                            void copyText(
-                              vals.join("\n"),
-                              `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
-                            );
+                            copyColumn(header.column.id);
                           }}
                           className="absolute right-2 top-1/2 z-10 -translate-y-1/2 cursor-pointer text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
                         >
@@ -488,6 +503,7 @@ export function ResultTable({
                           )}
                         />
                       </TableHead>
+                      </HeaderContextMenu>
                     );
                   })}
                   {colPadRight > 0 && (
