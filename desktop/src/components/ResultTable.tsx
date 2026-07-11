@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import type { ColumnLabelsDto, SoqlResultDto } from "../types";
 import { soqlColumnLabels } from "../ipc/soql";
 import { buildChildLookup } from "./resultTable/childData";
+import { displayColumnLabel } from "./resultTable/columnLabel";
 import { computeFillRatio } from "./resultTable/fill";
 import { flattenTable } from "./resultTable/flatten";
 import { DetailPanel } from "./resultTable/DetailPanel";
@@ -350,15 +351,9 @@ export function ResultTable({
     }
   };
 
-  /**
-   * Display text for a column header: schema label in label mode, else the id.
-   * Relationship columns aren't in the parent map — their display name comes
-   * from the children map (child object's plural label).
-   */
+  /** Display text for a column header: schema label in label mode, else the id. */
   const displayCol = (id: string) =>
-    (labelMode
-      ? labels?.parent[id] ?? labels?.children[id]?.label
-      : undefined) ?? id;
+    labelMode ? displayColumnLabel(id, labels) : id;
 
   const virtualItems = virtualizer.getVirtualItems();
   const visibleLeafCount = table.getVisibleLeafColumns().length;

@@ -89,6 +89,16 @@ describe("api name / label toggle", () => {
     expect(rows.join("|")).toMatch(/Alpha.*Beta/);
   });
 
+  it("resolves flattened child column headers in flat mode", async () => {
+    render(<ResultTable data={data} query={QUERY} />);
+    fireEvent.click(screen.getByRole("button", { name: "Flat" }));
+    expect(screen.getByText("Contacts[0].LastName")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show field labels" }));
+    expect(await screen.findByText("Contact People[0].Last Name")).toBeTruthy();
+    expect(screen.queryByText("Contacts[0].LastName")).toBeNull();
+  });
+
   it("hides the toggle when no query is provided", () => {
     render(<ResultTable data={data} />);
     expect(
