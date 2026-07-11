@@ -40,6 +40,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { SoqlResultDto } from "../types";
 import { buildChildLookup } from "./resultTable/childData";
+import { computeFillRatio } from "./resultTable/fill";
 import { flattenTable } from "./resultTable/flatten";
 import { ChildGrid } from "./resultTable/ChildGrid";
 import { Toolbar } from "./resultTable/Toolbar";
@@ -228,6 +229,13 @@ export function ResultTable({
   const [containerW, setContainerW] = useState(0);
   const hasRows = data.rows.length > 0;
 
+  // Natural column widths often undershoot the container, leaving the right
+  // half empty while narrow columns truncate. Stretch every rendered width by
+  // this ratio at render time (never shrinking below natural size) so the
+  // table fills the container; manual resize recomputes it from the new totals.
+  const totalColW = table.getCenterTotalSize();
+  const fillRatio = computeFillRatio(containerW, GUTTER_W, totalColW);
+
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
@@ -300,15 +308,15 @@ export function ResultTable({
     horizontal: true,
     count: visibleColumns.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: (i) => visibleColumns[i].getSize(),
+    estimateSize: (i) => visibleColumns[i].getSize() * fillRatio,
     overscan: 6,
     enabled: colVirtualize,
   });
-  // Column widths change on resize/visibility — remeasure.
+  // Column widths change on resize/visibility/fill — remeasure.
   useEffect(() => {
     colVirtualizer.measure();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getCenterTotalSize(), visibleColumns.length]);
+  }, [totalColW, visibleColumns.length, fillRatio]);
 
   function copyCell(text: string) {
     void navigator.clipboard?.writeText(text);
@@ -345,7 +353,7 @@ export function ResultTable({
     ? virtualCols.length + (colPadLeft > 0 ? 1 : 0) + (colPadRight > 0 ? 1 : 0) + 1
     : visibleLeafCount + 1;
 
-  const tableWidth = GUTTER_W + table.getCenterTotalSize();
+  const tableWidth = Math.max(containerW, GUTTER_W + totalColW * fillRatio);
   const hasXOverflow = containerW > 0 && tableWidth > containerW + 1;
 
   return (
@@ -421,7 +429,7 @@ export function ResultTable({
                     return (
                       <TableHead
                         key={header.id}
-                        style={{ width: header.getSize() }}
+                        style={{ width: header.getSize() * fillRatio }}
                         aria-sort={
                           sorted === "asc"
                             ? "ascending"
@@ -579,7 +587,7 @@ export function ResultTable({
                         return (
                           <TableCell
                             key={cell.id}
-                            style={{ width: cell.column.getSize() }}
+                            style={{ width: cell.column.getSize() * fillRatio }}
                             className="border-b border-border px-3 align-middle"
                           >
                             <button
@@ -606,7 +614,7 @@ export function ResultTable({
                           // is still click-to-copy.
                           title={text || undefined}
                           onClick={() => copyCell(text)}
-                          style={{ width: cell.column.getSize() }}
+                          style={{ width: cell.column.getSize() * fillRatio }}
                           className={cn(
                             "max-w-0 cursor-pointer truncate border-b border-border px-3 align-middle",
                             numeric(cell.column)
