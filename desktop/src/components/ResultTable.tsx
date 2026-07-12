@@ -443,7 +443,13 @@ export function ResultTable({
             ref={parentRef}
             onScroll={syncBarFromBody}
             onWheel={onBodyWheel}
-            className="uf-scroll select-text h-full overflow-y-auto overflow-x-hidden border-t border-border"
+            // No `select-text` here: the app-wide user-select:none must hold so
+            // dragging never native-selects headers/gutter/cells — the grid has
+            // its own copy UX (cell context menu, column copy, toolbar export).
+            // styles.css's unlayered `.select-text *` would otherwise defeat the
+            // headers' `select-none` utility (layered), so opting the container
+            // in cannot coexist with non-selectable chrome.
+            className="uf-scroll h-full overflow-y-auto overflow-x-hidden border-t border-border"
           >
           <Table
             style={{ width: tableWidth }}
