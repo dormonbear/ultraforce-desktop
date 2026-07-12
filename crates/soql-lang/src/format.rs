@@ -14,6 +14,12 @@
 //! anti-join subqueries in WHERE (`IN (SELECT …)`) always stay inline — only
 //! select-list subqueries break.
 //!
+//! Long select-list *field* lists FILL-wrap: when the fields would push the line
+//! past `MAX_WIDTH`, as many fields as fit are packed per line (comma-separated),
+//! and each continuation line is indented one `INDENT` level deeper than the
+//! query's clauses — the same indent broken subqueries use — so nested subquery
+//! field lists wrap with their deeper indentation taken into account.
+//!
 //! Intra-clause whitespace collapses to single spaces (so a clause split across
 //! lines rejoins), but text inside `'…'` literals is preserved exactly.
 //! Idempotent.
@@ -21,7 +27,12 @@
 use crate::lexer::{lex, Token, TokenKind};
 
 const INDENT: usize = 4;
+/// Inline width above which a select-list *subquery* breaks onto its own block.
 const BREAK_WIDTH: usize = 60;
+/// Max line width before a select-list *field* list FILL-wraps. Distinct from
+/// `BREAK_WIDTH` (a subquery-break threshold, not a line width); no line-width
+/// constant existed, so this uses the conventional 80.
+const MAX_WIDTH: usize = 80;
 
 /// Keywords that start a new clause (each goes on its own line).
 /// `BY` is excluded — it stays attached to `GROUP` / `ORDER`.
@@ -191,11 +202,57 @@ fn render_query(atoms: &[Atom], u: usize, parent_broken: bool) -> String {
     out
 }
 
+/// Column at which this query level's `SELECT` keyword sits: the root starts at
+/// column 0; a broken subquery's `SELECT` is preceded by its indent and a `(`.
+fn select_lead_col(u: usize) -> usize {
+    if u == 0 {
+        0
+    } else {
+        INDENT * u + 1
+    }
+}
+
+/// Char width of the last line of `s` (everything after the final newline).
+fn last_line_width(s: &str) -> usize {
+    match s.rfind('\n') {
+        Some(nl) => s[nl + 1..].chars().count(),
+        None => s.chars().count(),
+    }
+}
+
+/// Inline char width of the select-list field beginning at `items[start]`, up to
+/// (excluding) the next top-level comma or the end of the list.
+fn field_width(items: &[Atom], start: usize) -> usize {
+    let mut depth = 0i32;
+    let mut w = 0usize;
+    for (k, a) in items.iter().enumerate().skip(start) {
+        if depth == 0 && k > start && a.kind == AtomKind::Other && a.text == "," {
+            break;
+        }
+        if k > start && a.space_before {
+            w += 1;
+        }
+        w += a.text.chars().count();
+        match a.kind {
+            AtomKind::LParen => depth += 1,
+            AtomKind::RParen => depth -= 1,
+            _ => {}
+        }
+    }
+    w
+}
+
 /// Append the select list to `out` (which already ends with `SELECT`), breaking
 /// subqueries that must break (or all subqueries when `parent_broken`) onto their
-/// own indented lines.
+/// own indented lines, and FILL-wrapping the field list once a line would exceed
+/// `MAX_WIDTH`. Continuation lines use `child_indent` (one level deeper).
 fn append_select_list(out: &mut String, items: &[Atom], u: usize, parent_broken: bool) {
     let child_indent = " ".repeat(INDENT * (u + 1));
+    let cont_col = child_indent.chars().count();
+    // The first line's true column includes the `(` prefix a subquery gets later.
+    let mut col = select_lead_col(u) + last_line_width(out);
+    let mut depth = 0i32;
+    let mut after_top_comma = false;
     let mut i = 0;
     while i < items.len() {
         let a = &items[i];
@@ -211,18 +268,46 @@ fn append_select_list(out: &mut String, items: &[Atom], u: usize, parent_broken:
                 } else {
                     out.push_str(&inline_render(child));
                 }
+                col = last_line_width(out);
             } else {
-                if a.space_before {
+                let piece = inline_render(child);
+                let wrap = after_top_comma
+                    && a.space_before
+                    && col + 1 + field_width(items, i) > MAX_WIDTH;
+                if wrap {
+                    out.push('\n');
+                    out.push_str(&child_indent);
+                    col = cont_col;
+                } else if a.space_before {
                     out.push(' ');
+                    col += 1;
                 }
-                out.push_str(&inline_render(child));
+                out.push_str(&piece);
+                col += piece.chars().count();
             }
+            after_top_comma = false;
             i = j + 1;
         } else {
-            if a.space_before {
+            let wrap = after_top_comma
+                && depth == 0
+                && a.space_before
+                && col + 1 + field_width(items, i) > MAX_WIDTH;
+            if wrap {
+                out.push('\n');
+                out.push_str(&child_indent);
+                col = cont_col;
+            } else if a.space_before {
                 out.push(' ');
+                col += 1;
             }
             out.push_str(&a.text);
+            col += a.text.chars().count();
+            match a.kind {
+                AtomKind::LParen => depth += 1,
+                AtomKind::RParen => depth -= 1,
+                _ => {}
+            }
+            after_top_comma = depth == 0 && a.kind == AtomKind::Other && a.text == ",";
             i += 1;
         }
     }
@@ -384,5 +469,45 @@ mod tests {
     fn no_clauses_returns_trimmed_input() {
         assert_eq!(format_soql("  SELECT Id  "), "SELECT Id");
         assert_eq!(format_soql(""), "");
+    }
+
+    #[test]
+    fn short_field_list_stays_single_line() {
+        let q = "SELECT Id, Name, Email, Phone FROM Account";
+        assert_eq!(
+            format_soql(q),
+            "SELECT Id, Name, Email, Phone\nFROM Account"
+        );
+    }
+
+    #[test]
+    fn fill_wraps_long_root_field_list() {
+        let q = "SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId, OwnerId, CreatedDate, LastModifiedDate FROM Account";
+        let expected = "SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId, OwnerId,\n    \
+             CreatedDate, LastModifiedDate\n\
+             FROM Account";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn fill_wraps_long_subquery_field_list_with_nested_indent() {
+        let q = "SELECT Id, (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId, Department, Title, Birthdate FROM Contacts) FROM Account";
+        let expected = "SELECT Id,\n    \
+             (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId,\n        \
+             Department, Title, Birthdate\n    \
+             FROM Contacts)\n\
+             FROM Account";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn fill_wrapped_field_list_is_idempotent() {
+        let root = "SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId, OwnerId, CreatedDate, LastModifiedDate FROM Account";
+        let once = format_soql(root);
+        assert_eq!(format_soql(&once), once);
+
+        let sub = "SELECT Id, (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId, Department, Title, Birthdate FROM Contacts) FROM Account";
+        let once_sub = format_soql(sub);
+        assert_eq!(format_soql(&once_sub), once_sub);
     }
 }
