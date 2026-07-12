@@ -35,6 +35,7 @@ pub fn ensure_apex_schema(conn: &Connection) -> rusqlite::Result<()> {
           name TEXT NOT NULL, type_text TEXT NOT NULL,
           params TEXT NOT NULL, is_static INTEGER NOT NULL
         );
+        CREATE INDEX IF NOT EXISTS idx_apex_members_type ON apex_members(type_id);
         CREATE TABLE IF NOT EXISTS raw_cache (
           api_version TEXT NOT NULL, source TEXT NOT NULL, body TEXT NOT NULL,
           PRIMARY KEY (api_version, source)
