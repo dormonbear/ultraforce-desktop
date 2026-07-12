@@ -6,13 +6,17 @@
 //!
 //! Token-based (no AST) and paren-depth aware. A select-list subquery — a `(`
 //! whose next token is SELECT, sitting in the enclosing SELECT's select list —
-//! breaks onto its own indented block when its inline form exceeds 60 characters
-//! or it contains a nested subquery; otherwise it stays inline. When a subquery
-//! breaks, its clause keywords (FROM/WHERE/…) start new lines indented 4 spaces
-//! per nesting depth, its own select-list subqueries each start on their own line,
-//! and the closing paren stays attached to the last clause line. Semi-join /
-//! anti-join subqueries in WHERE (`IN (SELECT …)`) always stay inline — only
-//! select-list subqueries break.
+//! stays inline iff its complete single-line form `(SELECT …)`, trailing comma
+//! included, fits within `MAX_WIDTH` from its start column (moving to a fresh
+//! continuation line first when the current line is too full); otherwise it
+//! expands into a *block*. A block puts `(` alone on its own line at the
+//! field-list indent, the subquery's clauses (SELECT/FROM/WHERE/…) one `INDENT`
+//! deeper, and `)` alone on its own line aligned with the `(` — a following
+//! comma attaches as `),` — and the field after a block always starts on a
+//! fresh line. A block's own select-list subqueries each start on their own
+//! line, recursing with the same rule. Semi-join / anti-join subqueries in
+//! WHERE (`IN (SELECT …)`) always stay inline — only select-list subqueries
+//! break.
 //!
 //! Long select-list *field* lists FILL-wrap: when the fields would push the line
 //! past `MAX_WIDTH`, as many fields as fit are packed per line (comma-separated),
@@ -27,11 +31,9 @@
 use crate::lexer::{lex, Token, TokenKind};
 
 const INDENT: usize = 4;
-/// Inline width above which a select-list *subquery* breaks onto its own block.
-const BREAK_WIDTH: usize = 60;
-/// Max line width before a select-list *field* list FILL-wraps. Distinct from
-/// `BREAK_WIDTH` (a subquery-break threshold, not a line width); no line-width
-/// constant existed, so this uses the conventional 80.
+/// Max line width: select-list field lists FILL-wrap past it, and a select-list
+/// subquery that cannot fit inline within it block-expands. No width constant
+/// existed before this, so it uses the conventional 80.
 const MAX_WIDTH: usize = 80;
 
 /// Keywords that start a new clause (each goes on its own line).
@@ -158,18 +160,6 @@ fn inline_render(atoms: &[Atom]) -> String {
     s
 }
 
-/// Whether a select-list subquery (`child` includes its outer parens) should
-/// break onto its own indented block: it contains a nested subquery, or its
-/// inline form is wider than `BREAK_WIDTH`.
-fn should_break(child: &[Atom]) -> bool {
-    let inner = &child[1..child.len() - 1];
-    let has_nested = inner
-        .iter()
-        .enumerate()
-        .any(|(k, a)| a.kind == AtomKind::LParen && inner.get(k + 1).is_some_and(is_select_atom));
-    has_nested || inline_render(child).chars().count() > BREAK_WIDTH
-}
-
 /// Render a query (`atoms[0]` is `SELECT`) at nesting level `u`. `parent_broken`
 /// is true when this query is itself a broken subquery, in which case every one
 /// of its select-list subqueries starts on its own line.
@@ -202,16 +192,6 @@ fn render_query(atoms: &[Atom], u: usize, parent_broken: bool) -> String {
     out
 }
 
-/// Column at which this query level's `SELECT` keyword sits: the root starts at
-/// column 0; a broken subquery's `SELECT` is preceded by its indent and a `(`.
-fn select_lead_col(u: usize) -> usize {
-    if u == 0 {
-        0
-    } else {
-        INDENT * u + 1
-    }
-}
-
 /// Char width of the last line of `s` (everything after the final newline).
 fn last_line_width(s: &str) -> usize {
     match s.rfind('\n') {
@@ -242,60 +222,66 @@ fn field_width(items: &[Atom], start: usize) -> usize {
     w
 }
 
-/// Append the select list to `out` (which already ends with `SELECT`), breaking
-/// subqueries that must break (or all subqueries when `parent_broken`) onto their
-/// own indented lines, and FILL-wrapping the field list once a line would exceed
-/// `MAX_WIDTH`. Continuation lines use `child_indent` (one level deeper).
+/// Append the select list to `out` (which already ends with `SELECT`), keeping
+/// each subquery inline iff it fits within `MAX_WIDTH` from its start column
+/// (block-expanding it otherwise, and putting every subquery on its own line
+/// when `parent_broken`), and FILL-wrapping the field list once a line would
+/// exceed `MAX_WIDTH`. Continuation lines use `child_indent` (one level deeper).
 fn append_select_list(out: &mut String, items: &[Atom], u: usize, parent_broken: bool) {
     let child_indent = " ".repeat(INDENT * (u + 1));
     let cont_col = child_indent.chars().count();
-    // The first line's true column includes the `(` prefix a subquery gets later.
-    let mut col = select_lead_col(u) + last_line_width(out);
+    // This level's SELECT sits at column INDENT*u (0 at root).
+    let mut col = INDENT * u + last_line_width(out);
     let mut depth = 0i32;
     let mut after_top_comma = false;
+    // Set after a block subquery: the next field starts on a fresh line.
+    let mut force_break = false;
     let mut i = 0;
     while i < items.len() {
         let a = &items[i];
         if a.kind == AtomKind::LParen && items.get(i + 1).is_some_and(is_select_atom) {
             let j = matching_paren(items, i);
             let child = &items[i..=j];
-            let breaks = should_break(child);
-            if breaks || parent_broken {
-                out.push('\n');
-                out.push_str(&child_indent);
-                if breaks {
-                    out.push_str(&render_broken_subquery(child, u + 1));
-                } else {
-                    out.push_str(&inline_render(child));
-                }
-                col = last_line_width(out);
-            } else {
-                let piece = inline_render(child);
-                let wrap = after_top_comma
-                    && a.space_before
-                    && col + 1 + field_width(items, i) > MAX_WIDTH;
-                if wrap {
-                    out.push('\n');
-                    out.push_str(&child_indent);
-                    col = cont_col;
-                } else if a.space_before {
+            let piece = inline_render(child);
+            // Fit-based decision: the whole `(SELECT …)` plus its trailing
+            // comma must fit within MAX_WIDTH from its start column.
+            let has_comma = items
+                .get(j + 1)
+                .is_some_and(|t| t.kind == AtomKind::Other && t.text == ",");
+            let w = piece.chars().count() + usize::from(has_comma);
+            let fits_here = col + usize::from(a.space_before) + w <= MAX_WIDTH;
+            if !(parent_broken || force_break) && fits_here {
+                if a.space_before {
                     out.push(' ');
                     col += 1;
                 }
                 out.push_str(&piece);
                 col += piece.chars().count();
+                force_break = false;
+            } else {
+                out.push('\n');
+                out.push_str(&child_indent);
+                if cont_col + w <= MAX_WIDTH {
+                    out.push_str(&piece);
+                    force_break = false;
+                } else {
+                    out.push_str(&render_block_subquery(child, u + 1));
+                    force_break = true;
+                }
+                col = last_line_width(out);
             }
             after_top_comma = false;
             i = j + 1;
         } else {
             let wrap = after_top_comma
                 && depth == 0
-                && a.space_before
-                && col + 1 + field_width(items, i) > MAX_WIDTH;
+                && (force_break
+                    || (a.space_before && col + 1 + field_width(items, i) > MAX_WIDTH));
             if wrap {
                 out.push('\n');
                 out.push_str(&child_indent);
                 col = cont_col;
+                force_break = false;
             } else if a.space_before {
                 out.push(' ');
                 col += 1;
@@ -313,12 +299,16 @@ fn append_select_list(out: &mut String, items: &[Atom], u: usize, parent_broken:
     }
 }
 
-/// Render a breaking subquery: `(` + the inner query broken across lines + `)`
-/// attached to the last clause line.
-fn render_broken_subquery(child: &[Atom], u: usize) -> String {
+/// Render a breaking subquery as a block: `(` alone on its line (the caller has
+/// already emitted this line's indent), the inner query one `INDENT` deeper, and
+/// `)` alone on its own line aligned with the `(`.
+fn render_block_subquery(child: &[Atom], u: usize) -> String {
     let inner = &child[1..child.len() - 1];
-    let mut s = String::from("(");
-    s.push_str(&render_query(inner, u, true));
+    let mut s = String::from("(\n");
+    s.push_str(&" ".repeat(INDENT * (u + 1)));
+    s.push_str(&render_query(inner, u + 1, true));
+    s.push('\n');
+    s.push_str(&" ".repeat(INDENT * u));
     s.push(')');
     s
 }
@@ -408,29 +398,62 @@ mod tests {
 
     #[test]
     fn breaks_long_nested_select_list_subquery() {
-        // User-approved example: the child subquery contains a nested subquery, so
-        // it breaks; the nested subquery is short so it renders inline but on its
-        // own indented line because its parent broke.
+        // Block-expansion style: the child subquery is 106 chars inline — too
+        // wide to fit anywhere — so it becomes a block: `(` alone at the field
+        // indent, its clauses one INDENT deeper, `)` aligned with the `(`. The
+        // nested subquery fits at its indent so it renders inline, on its own
+        // line because its parent broke.
         let q = "SELECT Id, (SELECT FIELDS(All), (SELECT Id FROM ApprovalWorkItems) FROM License_Copy_Borrowing_Requests__r LIMIT 200) FROM Vendor_Contract__c LIMIT 1000";
         let expected = "SELECT Id,\n    \
-             (SELECT FIELDS(All),\n        \
-             (SELECT Id FROM ApprovalWorkItems)\n    \
-             FROM License_Copy_Borrowing_Requests__r\n    \
-             LIMIT 200)\n\
+             (\n        \
+             SELECT FIELDS(All),\n            \
+             (SELECT Id FROM ApprovalWorkItems)\n        \
+             FROM License_Copy_Borrowing_Requests__r\n        \
+             LIMIT 200\n    \
+             )\n\
              FROM Vendor_Contract__c\n\
              LIMIT 1000";
         assert_eq!(format_soql(q), expected);
     }
 
     #[test]
-    fn breaks_long_single_level_select_list_subquery() {
-        // Over 60 chars inline, no nesting: breaks its own clauses but keeps its
-        // (subquery-free) select list on the opening line.
+    fn wraps_fitting_subquery_onto_its_own_inline_line() {
+        // Fit-based decision: 72 chars — too wide to share the SELECT line, but
+        // it fits within MAX_WIDTH at the continuation indent, so it moves to
+        // its own line and stays inline (no block expansion).
         let q = "SELECT Id, (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone FROM Contacts) FROM Account";
         let expected = "SELECT Id,\n    \
-             (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone\n    \
-             FROM Contacts)\n\
+             (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone FROM Contacts)\n\
              FROM Account";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn subquery_over_old_sixty_threshold_stays_inline_when_it_fits() {
+        // 63-char subquery (over the removed 60-char threshold): fits within
+        // MAX_WIDTH from its start column, so it stays inline on the SELECT line.
+        let q = "SELECT Id, (SELECT ContentDocumentId, Title FROM AttachedContentDocuments) FROM Account";
+        assert_eq!(
+            format_soql(q),
+            "SELECT Id, (SELECT ContentDocumentId, Title FROM AttachedContentDocuments)\nFROM Account"
+        );
+    }
+
+    #[test]
+    fn block_subquery_comma_attaches_and_next_field_starts_fresh_line() {
+        // User's literal preview: the long subquery block-expands, its `)` takes
+        // the trailing comma (`),`), and the 63-char subquery after it starts on
+        // its own line where it fits — so it stays inline.
+        let q = "SELECT Id, Name, (SELECT StepStatus, Actor.Name, Comments, CreatedDate, ProcessInstance.CompletedDate FROM ProcessSteps ORDER BY ProcessInstance.CreatedDate DESC), (SELECT ContentDocumentId, Title FROM AttachedContentDocuments) FROM Vendor_Bank_Account__c";
+        let expected = "SELECT Id, Name,\n    \
+             (\n        \
+             SELECT StepStatus, Actor.Name, Comments, CreatedDate,\n            \
+             ProcessInstance.CompletedDate\n        \
+             FROM ProcessSteps\n        \
+             ORDER BY ProcessInstance.CreatedDate DESC\n    \
+             ),\n    \
+             (SELECT ContentDocumentId, Title FROM AttachedContentDocuments)\n\
+             FROM Vendor_Bank_Account__c";
         assert_eq!(format_soql(q), expected);
     }
 
@@ -457,6 +480,11 @@ mod tests {
         let q = "SELECT Id, (SELECT FIELDS(All), (SELECT Id FROM ApprovalWorkItems) FROM License_Copy_Borrowing_Requests__r LIMIT 200) FROM Vendor_Contract__c LIMIT 1000";
         let once = format_soql(q);
         assert_eq!(format_soql(&once), once);
+
+        // Block subquery followed by a fitting inline subquery stays stable too.
+        let mixed = "SELECT Id, Name, (SELECT StepStatus, Actor.Name, Comments, CreatedDate, ProcessInstance.CompletedDate FROM ProcessSteps ORDER BY ProcessInstance.CreatedDate DESC), (SELECT ContentDocumentId, Title FROM AttachedContentDocuments) FROM Vendor_Bank_Account__c";
+        let once_mixed = format_soql(mixed);
+        assert_eq!(format_soql(&once_mixed), once_mixed);
     }
 
     #[test]
@@ -491,11 +519,15 @@ mod tests {
 
     #[test]
     fn fill_wraps_long_subquery_field_list_with_nested_indent() {
+        // Block-expansion style: the subquery's SELECT sits at 8 and its
+        // fill-wrap continuation one INDENT deeper, at 12.
         let q = "SELECT Id, (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId, Department, Title, Birthdate FROM Contacts) FROM Account";
         let expected = "SELECT Id,\n    \
-             (SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId,\n        \
-             Department, Title, Birthdate\n    \
-             FROM Contacts)\n\
+             (\n        \
+             SELECT Id, Name, Email, Phone, Fax, Website, MobilePhone, AccountId,\n            \
+             Department, Title, Birthdate\n        \
+             FROM Contacts\n    \
+             )\n\
              FROM Account";
         assert_eq!(format_soql(q), expected);
     }
