@@ -10,6 +10,10 @@ import { useFileTabs } from "./useFileTabs";
 import { useSidebarSync } from "../panels/useSidebarSync";
 import { Explorer } from "../components/Explorer";
 import { getRoot, type Tool } from "../fs/workspace";
+import { renameNode } from "../fs/tree";
+import { flushFiles } from "../fs/save";
+import { formatIpcError } from "../errorFormat";
+import { renameIntent } from "./nameEdit";
 import type { Reveal } from "../editor/monaco-reveal";
 import type { TabBase } from "./types";
 
@@ -55,6 +59,9 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   useEffect(() => {
     void getRoot(tool).then(setRoot);
   }, [tool]);
+  // Bumped after a tab-strip rename so the Explorer tree re-reads from disk
+  // (it otherwise only refreshes on mount / window focus / its own edits).
+  const [treeRefresh, setTreeRefresh] = useState(0);
 
   const {
     tabs,
@@ -108,6 +115,40 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
     [patch, activeId],
   );
 
+  // Rename the backing file (reuses the Explorer rename IPC + validation).
+  const renameOnDisk = useCallback(
+    async (from: string, to: string): Promise<boolean> => {
+      try {
+        await flushFiles(); // persist pending autosaves to the old path first
+        const next = await renameNode(from, to);
+        retitle(from, next);
+        setTreeRefresh((n) => n + 1);
+        return true;
+      } catch (err) {
+        toast.error(formatIpcError(err));
+        return false;
+      }
+    },
+    [retitle],
+  );
+
+  // Commit a tab rename. Returns false to keep the inline editor open (empty or
+  // failed rename), true to close it.
+  const onRenameTab = useCallback(
+    async (id: string, name: string): Promise<boolean> => {
+      const t = tabs.find((x) => x.id === id);
+      if (!t) return true;
+      const intent = renameIntent(name, t.title, t.path);
+      if (intent.kind === "done") return intent.ok;
+      if (intent.kind === "title") {
+        patch(id, { title: intent.name, renamed: true } as Partial<T>);
+        return true;
+      }
+      return renameOnDisk(t.path, intent.name);
+    },
+    [tabs, patch, renameOnDisk],
+  );
+
   const layout = useSidebarSync();
 
   return (
@@ -134,6 +175,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
             onOpen={(p, line) => void openFile(p, line)}
             onRenamed={retitle}
             onRemoved={closeByPath}
+            refreshToken={treeRefresh}
           />
         )}
       </ResizablePanel>
@@ -148,6 +190,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
                 ariaLabel={ariaLabel}
                 onSelect={select}
                 onClose={handleClose}
+                onRename={onRenameTab}
                 onAdd={newUntitled}
                 dirtyIds={tabs.filter(isDirtyUntitled).map((t) => t.id)}
               />

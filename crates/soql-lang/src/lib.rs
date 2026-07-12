@@ -5,6 +5,7 @@ pub mod diagnostics;
 pub mod format;
 pub mod lexer;
 pub mod parse;
+pub mod spans;
 
 pub use complete::{
     clause_at, complete, relationship_chain_at, subquery_at, Candidate, CandidateKind, Clause,
@@ -16,3 +17,4 @@ pub use lexer::{lex, Token, TokenKind};
 pub use parse::{
     count_query, outline, subquery_groups, where_conditions, Condition, FieldRef, SoqlOutline,
 };
+pub use spans::subquery_spans;

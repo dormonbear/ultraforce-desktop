@@ -45,6 +45,7 @@ async fn seed_index(root: &std::path::Path, org: &str) {
         &inv,
         root.to_path_buf(),
         org,
+        "60.0",
         &features::index::NamespacePolicy::All,
         &mut |_| {},
     )

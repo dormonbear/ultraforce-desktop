@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { TabStrip } from "./TabStrip";
 import type { TabBase } from "./types";
 
@@ -99,5 +105,61 @@ describe("tab context menu", () => {
     fireEvent.contextMenu(tab("Beta"));
     fireEvent.click(screen.getByText("Close All"));
     expect(screen.queryAllByRole("tab", { hidden: true })).toHaveLength(0);
+  });
+
+  it("hides Rename when no onRename handler is given", () => {
+    render(<Harness initial={three} />);
+    fireEvent.contextMenu(tab("Beta"));
+    expect(screen.queryByText("Rename")).toBeNull();
+  });
+
+  it("Rename commits a new name via the inline editor", async () => {
+    const calls: [string, string][] = [];
+    render(
+      <TabStrip
+        tabs={three}
+        activeId="a"
+        ariaLabel="Test tabs"
+        onSelect={() => {}}
+        onClose={() => {}}
+        onAdd={() => {}}
+        onRename={(id, title) => {
+          calls.push([id, title]);
+          return true;
+        }}
+      />,
+    );
+    fireEvent.contextMenu(tab("Beta"));
+    fireEvent.click(screen.getByText("Rename"));
+    const input = screen.getByLabelText("Rename Beta") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Beta2" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(calls).toEqual([["b", "Beta2"]]));
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Rename Beta")).toBeNull(),
+    );
+  });
+
+  it("keeps the editor open when a rename is rejected", async () => {
+    render(
+      <TabStrip
+        tabs={three}
+        activeId="a"
+        ariaLabel="Test tabs"
+        onSelect={() => {}}
+        onClose={() => {}}
+        onAdd={() => {}}
+        onRename={() => false}
+      />,
+    );
+    fireEvent.contextMenu(tab("Beta"));
+    fireEvent.click(screen.getByText("Rename"));
+    const input = screen.getByLabelText("Rename Beta") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "bad" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    // Rejected rename leaves the inline editor mounted for a retry.
+    await waitFor(() =>
+      expect(screen.getByLabelText("Rename Beta")).toBeTruthy(),
+    );
   });
 });

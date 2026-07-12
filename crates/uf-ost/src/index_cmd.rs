@@ -5,6 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use features::api_version::resolve_index_api_version;
 use features::index::{index_org, sync_org, IndexProgress, NamespacePolicy};
 use sf_core::{ProcessRunner, SfInvoker};
 
@@ -17,9 +18,11 @@ pub async fn run(org: String, root: PathBuf, policy: String, sync: bool) -> Resu
     // own extended per-call timeouts in acquire.rs — no bin-level override.
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
     let policy = NamespacePolicy::parse(&policy);
+    // Fallback-aware: a failed detection reuses the snapshot's stored version.
+    let (api, _) = resolve_index_api_version(&invoker, &root, &org).await;
 
     if sync {
-        let (o, _) = sync_org(&invoker, root, &org, &policy)
+        let (o, _) = sync_org(&invoker, root, &org, &api, &policy)
             .await
             .map_err(|e| e.to_string())?;
         eprintln!("sync {org}: +{} ~{} -{}", o.added, o.updated, o.removed);
@@ -38,6 +41,7 @@ pub async fn run(org: String, root: PathBuf, policy: String, sync: bool) -> Resu
             &invoker,
             root.clone(),
             &org,
+            &api,
             &policy,
             &mut |p: IndexProgress| {
                 if p.phase != last {

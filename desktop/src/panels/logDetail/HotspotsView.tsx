@@ -36,12 +36,12 @@ export function HotspotsView({
   return (
     <table className="w-full text-[12px]">
       <thead>
-        <tr className="text-muted-foreground">
-          <th className="py-1 text-left font-normal">Method</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Self</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Total</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Heap</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Calls</th>
+        <tr className="fjord-th border-b border-border">
+          <th className="py-1 text-left">Method</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">Self</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">Total</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">Heap</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">Calls</th>
         </tr>
       </thead>
       <tbody>
@@ -50,7 +50,7 @@ export function HotspotsView({
           (h, i) => {
           const ref = parseSourceRef(h.signature);
           return (
-          <tr key={i} className="border-t border-border/50 text-text-dim">
+          <tr key={i} className="border-t border-line-2 text-text-dim">
             <td
               className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground"
             >
@@ -71,14 +71,14 @@ export function HotspotsView({
                 h.signature
               )}
             </td>
-            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right text-foreground">
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono text-foreground">
               {formatMs(h.selfNs)}
             </td>
-            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{formatMs(h.totalNs)}</td>
-            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">{formatMs(h.totalNs)}</td>
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">
               {h.selfBytes > 0 ? formatBytes(h.selfBytes) : "—"}
             </td>
-            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{h.count}</td>
+            <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">{h.count}</td>
           </tr>
           );
           },

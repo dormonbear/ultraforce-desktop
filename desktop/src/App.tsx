@@ -11,7 +11,7 @@ import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
 import { SchemaPanel } from "./components/schema/SchemaPanel";
 import { PanelHost, type PanelDef } from "./panels/host/PanelHost";
-import { OrgSelector } from "./components/OrgSelector";
+import { OrgBadge } from "./components/OrgBadge";
 import { SetupPage } from "./components/SetupPage";
 import { LogoLoader } from "./components/LogoLoader";
 import { useOrgs } from "./org";
@@ -121,7 +121,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <IndexProgress />
           <SchemaRefresh />
-          <OrgSelector />
+          <OrgBadge />
         </div>
       </header>
 

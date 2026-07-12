@@ -72,7 +72,7 @@ describe("subquery detail panel", () => {
   it("opens the panel with vertical record cards and highlights the row on click", () => {
     render(<ResultTable data={data} />);
     const row = screen.getByText("Acme").closest("tr")!;
-    expect(row.classList.contains("bg-accent")).toBe(false);
+    expect(row.classList.contains("fjord-row-selected")).toBe(false);
     expect(screen.queryByText("Yin")).toBeNull();
 
     fireEvent.click(screen.getByText("Acme"));
@@ -87,7 +87,7 @@ describe("subquery detail panel", () => {
     expect(labels[0].closest("tr")!.textContent).toContain("Yin");
     expect(labels[1].closest("tr")!.textContent).toContain("Zhao");
     expect(screen.getByText("Zhao")).toBeTruthy();
-    expect(row.classList.contains("bg-accent")).toBe(true);
+    expect(row.classList.contains("fjord-row-selected")).toBe(true);
   });
 
   it("shows record ordinal and Id in each card header", () => {

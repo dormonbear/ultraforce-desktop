@@ -69,6 +69,7 @@ dependencies = [
  "sf-core",
  "sf-schema",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1040,6 +1041,7 @@ dependencies = [
  "sf-schema",
  "soql-lang",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

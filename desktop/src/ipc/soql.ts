@@ -5,6 +5,7 @@ import type {
   QueryPlanDto,
   SoqlDiagnosticDto,
   SoqlResultDto,
+  SubquerySpanDto,
 } from "../types";
 
 /** Run a SOQL query (paginated; emits `soql-progress` events keyed by `queryId`). */
@@ -58,6 +59,11 @@ export function soqlComplete(
 /** Pretty-print a SOQL query. */
 export function formatSoql(query: string): Promise<string> {
   return invoke<string>("format_soql", { query });
+}
+
+/** Inner subquery `(SELECT … )` ranges (UTF-16 offsets) for editor highlighting. */
+export function soqlSubquerySpans(query: string): Promise<SubquerySpanDto[]> {
+  return invoke<SubquerySpanDto[]>("soql_subquery_spans", { query });
 }
 
 /**

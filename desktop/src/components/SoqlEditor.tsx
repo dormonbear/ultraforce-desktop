@@ -3,6 +3,7 @@ import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import { configureMonaco, registerSoqlFormatter } from "../editor/monaco-soql";
+import { applySubqueryDecorations } from "../editor/soqlSubqueryHighlight";
 import { soqlDiagnostics } from "../ipc/soql";
 import { retriggerSuggestOnEdit } from "../editor/monaco-retrigger";
 import { useMonacoReveal, type Reveal } from "../editor/monaco-reveal";
@@ -37,6 +38,9 @@ export function SoqlEditor({
   const onSaveRef = useRef(onSave);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const subqueryDecorations = useRef<editor.IEditorDecorationsCollection | null>(
+    null,
+  );
   // Flips once the editor has mounted so the diagnostics effect runs on first
   // open (editorRef is null on the initial render, before onMount).
   const [mounted, setMounted] = useState(false);
@@ -52,6 +56,7 @@ export function SoqlEditor({
   const onMount: OnMount = (editorInstance, monaco) => {
     editorRef.current = editorInstance;
     monacoRef.current = monaco;
+    subqueryDecorations.current = editorInstance.createDecorationsCollection();
     // addAction (not addCommand) scopes each keybinding to this editor instance
     // via an `editorId == this.getId()` precondition, so the SOQL shortcuts only
     // fire when this editor is focused — not in a focused Apex tab.
@@ -96,6 +101,19 @@ export function SoqlEditor({
     }, 350);
     return () => clearTimeout(handle);
   }, [value, mounted, org]);
+
+  // Faint background highlight on inner `(SELECT … )` subquery ranges. Debounced
+  // so it doesn't fire on every keystroke; also runs once on mount.
+  useEffect(() => {
+    const editorInstance = editorRef.current;
+    const monaco = monacoRef.current;
+    const collection = subqueryDecorations.current;
+    if (!editorInstance || !monaco || !collection) return;
+    const handle = setTimeout(() => {
+      void applySubqueryDecorations(monaco, editorInstance, value, collection);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [value, mounted]);
 
   return (
     <div className="flex h-full flex-col">

@@ -8,6 +8,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { stemSelectionEnd } from "./nameEdit";
 import type { TabBase } from "./types";
 
 interface TabStripProps {
@@ -17,8 +18,12 @@ interface TabStripProps {
   onSelect: (id: string) => void;
   onClose: (id: string) => void;
   onAdd: () => void;
-  /** Commit a new title for a tab (double-click to start editing). */
-  onRename?: (id: string, title: string) => void;
+  /**
+   * Commit a new name for a tab (double-click or context menu to start).
+   * Return `true` to close the editor, `false` to keep it open (e.g. the
+   * rename failed validation) so the user can correct the name.
+   */
+  onRename?: (id: string, title: string) => boolean | Promise<boolean>;
   /** Ids of tabs with unsaved content (shown with a dot). */
   dirtyIds?: string[];
 }
@@ -38,9 +43,20 @@ export function TabStrip({
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  // True while the editor is mounting/focusing. The context menu closing hands
+  // focus around, which fires a spurious blur; ignore it so the editor stays open.
+  const opening = useRef(false);
 
   useEffect(() => {
-    if (editing) inputRef.current?.select();
+    const el = inputRef.current;
+    if (!editing || !el) return;
+    el.focus();
+    // Preselect the name part, keeping the extension so overtyping preserves it.
+    el.setSelectionRange(0, stemSelectionEnd(el.value));
+    const raf = requestAnimationFrame(() => {
+      opening.current = false;
+    });
+    return () => cancelAnimationFrame(raf);
   }, [editing]);
 
   // Keep the active tab visible when the strip overflows horizontally.
@@ -52,12 +68,18 @@ export function TabStrip({
 
   const startEdit = (t: TabBase) => {
     if (!onRename) return;
+    opening.current = true;
     setDraft(t.title);
     setEditing(t.id);
   };
-  const commit = () => {
-    if (editing && onRename) onRename(editing, draft);
-    setEditing(null);
+  const commit = async () => {
+    if (!editing || !onRename) {
+      setEditing(null);
+      return;
+    }
+    const ok = await onRename(editing, draft);
+    if (ok) setEditing(null);
+    else inputRef.current?.select(); // keep editing; reselect for a retry
   };
 
   const onKeyDown = (e: React.KeyboardEvent, id: string, idx: number) => {
@@ -114,7 +136,9 @@ export function TabStrip({
                 aria-label={`Rename ${t.title}`}
                 onChange={(e) => setDraft(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                onBlur={commit}
+                onBlur={() => {
+                  if (!opening.current) void commit();
+                }}
                 onKeyDown={(e) => {
                   e.stopPropagation();
                   if (e.key === "Enter") commit();
@@ -155,7 +179,17 @@ export function TabStrip({
             </button>
           </div>
           </ContextMenuTrigger>
-          <ContextMenuContent>
+          {/* Don't restore focus to the tab on close: the freshly mounted
+              rename input must keep its autofocus. */}
+          <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
+            {onRename && (
+              <>
+                <ContextMenuItem onSelect={() => startEdit(t)}>
+                  Rename
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+              </>
+            )}
             <ContextMenuItem onSelect={() => onClose(t.id)}>Close</ContextMenuItem>
             <ContextMenuItem
               disabled={tabs.length === 1}

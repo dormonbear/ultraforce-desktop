@@ -101,9 +101,21 @@ fn org_dto_wire_shape_with_nulls() {
         alias: None,
         instance_url: None,
         is_default: false,
+        is_sandbox: false,
+        is_scratch: false,
     };
     let v = serde_json::to_value(&dto).unwrap();
-    assert_keys(&v, &["username", "alias", "instanceUrl", "isDefault"]);
+    assert_keys(
+        &v,
+        &[
+            "username",
+            "alias",
+            "instanceUrl",
+            "isDefault",
+            "isSandbox",
+            "isScratch",
+        ],
+    );
     // Nullable fields serialize as JSON null (not omitted).
     assert_eq!(v["alias"], Value::Null);
     assert_eq!(v["instanceUrl"], Value::Null);

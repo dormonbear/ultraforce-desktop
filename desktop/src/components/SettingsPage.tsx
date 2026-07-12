@@ -294,7 +294,12 @@ export function SettingsPage({ onChanged }: Props) {
 
         <Section title="About">
           <div className="flex items-center justify-between">
-            <Text>Ultraforce{version && ` v${version}`}</Text>
+            <Text>
+              Ultraforce
+              {version && (
+                <span className="font-mono tabular-nums"> v{version}</span>
+              )}
+            </Text>
             <div className="flex items-center gap-1">
               <Button
                 label="GitHub"

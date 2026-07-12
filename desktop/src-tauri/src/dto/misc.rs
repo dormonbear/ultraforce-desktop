@@ -11,6 +11,8 @@ pub struct OrgDto {
     pub alias: Option<String>,
     pub instance_url: Option<String>,
     pub is_default: bool,
+    pub is_sandbox: bool,
+    pub is_scratch: bool,
 }
 
 impl From<&OrgRef> for OrgDto {
@@ -20,6 +22,8 @@ impl From<&OrgRef> for OrgDto {
             alias: o.alias.clone(),
             instance_url: o.instance_url.clone(),
             is_default: o.is_default,
+            is_sandbox: o.is_sandbox,
+            is_scratch: o.is_scratch,
         }
     }
 }
@@ -110,6 +114,8 @@ mod tests {
             alias: Some("dev".into()),
             instance_url: Some("https://x.my".into()),
             is_default: true,
+            is_sandbox: false,
+            is_scratch: false,
         };
         let d = OrgDto::from(&r);
         assert_eq!(d.username, "me@x.com");

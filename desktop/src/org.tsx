@@ -11,9 +11,10 @@ import { toast } from "sonner";
 import { getJson, setJson } from "./store";
 import { getNamespacePolicy } from "./indexSettings";
 import { listOrgs, setTargetOrg } from "./ipc/org";
-import { ensureReady } from "./ipc/schema";
+import { ensureReady, reindexOrg } from "./ipc/schema";
+import { getOrgConfig, setOrgConfig } from "./orgConfig";
 import { setActiveOrg } from "./editor/activeOrg";
-import type { OrgDto } from "./types";
+import type { OrgConfig, OrgDto } from "./types";
 
 /** Fire-and-forget "make this org's index usable", scoped by the saved namespace
  * policy. The backend coordinator is single-flight per org and no-ops when fresh,
@@ -33,9 +34,14 @@ interface OrgState {
   selected: string | null;
   loading: boolean;
   error: string | null;
-  /** Set the target org for all subsequent `sf` calls. Resolves once the switch
-   * is committed; rejects/aborts (selection unchanged) if the backend fails. */
-  select: (username: string) => Promise<void>;
+  /** Per-org display + behavior config, keyed by username (alias/color/etc). */
+  configs: Record<string, OrgConfig>;
+  /** Set the target org for all subsequent `sf` calls. Resolves to `true` once the
+   * switch is committed; `false` (selection unchanged, toast shown) on failure. */
+  select: (username: string) => Promise<boolean>;
+  /** Persist one org's config, refresh the backend bounds, and (for the active
+   * org, when apiVersion changed) force a reindex. */
+  saveConfig: (username: string, config: OrgConfig) => Promise<void>;
   /** Re-fetch the org list (e.g. after the user logs in from the setup page). */
   reload: () => void;
 }
@@ -45,7 +51,9 @@ const OrgCtx = createContext<OrgState>({
   selected: null,
   loading: true,
   error: null,
-  select: () => Promise.resolve(),
+  configs: {},
+  select: () => Promise.resolve(false),
+  saveConfig: () => Promise.resolve(),
   reload: () => {},
 });
 
@@ -56,8 +64,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [configs, setConfigs] = useState<Record<string, OrgConfig>>({});
 
-  const select = useCallback(async (username: string) => {
+  const select = useCallback(async (username: string): Promise<boolean> => {
     // Commit the backend target org first; only reflect the switch in React (and
     // kick off indexing) once it succeeds, so a failed switch never leaves the UI
     // pointing at an org the backend didn't adopt.
@@ -65,12 +74,38 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       await setTargetOrg(username);
     } catch (e) {
       toast.error(`Failed to switch org: ${formatIpcError(e)}`);
-      return;
+      return false;
     }
     setSelected(username);
     void setJson(ORG_KEY, username);
     triggerIndex(username);
+    return true;
   }, []);
+
+  const saveConfig = useCallback(
+    async (username: string, next: OrgConfig) => {
+      const prev = configs[username] ?? {};
+      await setOrgConfig(username, next);
+      setConfigs((c) => ({ ...c, [username]: next }));
+      if (username !== selected) return;
+      // Re-apply the backend bounds (override + timeout) for every code path, not
+      // just indexing, by re-committing the target org (reads the fresh store).
+      try {
+        await setTargetOrg(username);
+      } catch (e) {
+        toast.error(`Failed to apply org config: ${formatIpcError(e)}`);
+        return;
+      }
+      // A changed apiVersion invalidates the cached index — force a rebuild
+      // (reindex bypasses the coordinator's freshness TTL, unlike ensureReady).
+      if ((prev.apiVersion ?? "") !== (next.apiVersion ?? "")) {
+        void getNamespacePolicy().then((namespaces) =>
+          reindexOrg(username, namespaces).catch(() => {}),
+        );
+      }
+    },
+    [configs, selected],
+  );
 
   const [reloadKey, setReloadKey] = useState(0);
   const reload = useCallback(() => setReloadKey((k) => k + 1), []);
@@ -92,6 +127,12 @@ export function OrgProvider({ children }: { children: ReactNode }) {
       .then(async ([list, savedOrg]) => {
         if (!alive) return;
         setOrgs(list);
+        // Load each org's persisted config (alias/color for the badge + switcher).
+        void Promise.all(
+          list.map(async (o) => [o.username, await getOrgConfig(o.username)] as const),
+        ).then((entries) => {
+          if (alive) setConfigs(Object.fromEntries(entries));
+        });
         // Prefer the last-selected org (if it still exists), else the CLI default.
         const saved = savedOrg ? list.find((o) => o.username === savedOrg) : undefined;
         const def = saved ?? list.find((o) => o.isDefault) ?? list[0];
@@ -138,7 +179,9 @@ export function OrgProvider({ children }: { children: ReactNode }) {
   }, [selected]);
 
   return (
-    <OrgCtx.Provider value={{ orgs, selected, loading, error, select, reload }}>
+    <OrgCtx.Provider
+      value={{ orgs, selected, loading, error, configs, select, saveConfig, reload }}
+    >
       {children}
     </OrgCtx.Provider>
   );

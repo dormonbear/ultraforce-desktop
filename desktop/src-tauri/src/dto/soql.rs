@@ -88,6 +88,32 @@ pub struct SoqlProgress {
     pub total: u64,
 }
 
+// ---- Subquery ranges (editor highlighting) ----
+
+/// One inner subquery `(SELECT … )` range as **UTF-16 code-unit offsets** into
+/// the query text. Monaco positions are UTF-16 based, so the frontend feeds
+/// these straight into `model.getPositionAt` to build a decoration range.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SubquerySpanDto {
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Detect subquery spans in `query` and convert the crate's byte offsets to the
+/// UTF-16 offsets Monaco expects.
+pub fn subquery_spans(query: &str) -> Vec<SubquerySpanDto> {
+    let byte_to_utf16 =
+        |byte: usize| query[..byte].chars().map(char::len_utf16).sum::<usize>();
+    soql_lang::subquery_spans(query)
+        .into_iter()
+        .map(|(start, end)| SubquerySpanDto {
+            start: byte_to_utf16(start),
+            end: byte_to_utf16(end),
+        })
+        .collect()
+}
+
 // ---- Query plan (EXPLAIN) ----
 
 /// An optimizer note (e.g. "not selective", "consider an index").
@@ -187,6 +213,20 @@ mod tests {
         assert_eq!(v["children"][0]["column"], "Cases");
         assert_eq!(v["children"][0]["rowIndex"], 0);
         assert_eq!(v["children"][0]["children"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn subquery_spans_convert_bytes_to_utf16_offsets() {
+        // The '数据' literal is 2 UTF-16 units but 6 bytes; offsets must be UTF-16.
+        let query = "SELECT Id FROM A WHERE N = '数据' AND Id IN (SELECT AccountId FROM Contact)";
+        let spans = subquery_spans(query);
+        assert_eq!(spans.len(), 1);
+        let utf16: Vec<u16> = query.encode_utf16().collect();
+        let slice = String::from_utf16(&utf16[spans[0].start..spans[0].end]).unwrap();
+        assert_eq!(slice, "(SELECT AccountId FROM Contact)");
+        // camelCase serialization.
+        let v = serde_json::to_value(&spans[0]).unwrap();
+        assert!(v.get("start").is_some() && v.get("end").is_some());
     }
 
     #[test]

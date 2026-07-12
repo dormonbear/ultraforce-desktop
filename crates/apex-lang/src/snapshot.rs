@@ -132,16 +132,39 @@ pub fn save_snapshot(root: &Path, ost: &Ost, manifest: &IndexManifest) -> std::i
     Ok(())
 }
 
+/// Read only the API version stored in an org's snapshot manifest, without
+/// loading the OST. `None` when no snapshot exists. Lets the coordinator keep a
+/// good snapshot loadable when live API-version detection fails: a failed
+/// detection must not invalidate an otherwise-valid snapshot.
+pub fn snapshot_api_version(root: &Path, org_id: &str) -> Option<String> {
+    let path = db_path(root, org_id);
+    if !path.exists() {
+        return None;
+    }
+    let conn = crate::db::open_apex(&path).ok()?;
+    conn.query_row("SELECT api_version FROM meta WHERE id = 1", [], |row| {
+        row.get(0)
+    })
+    .ok()
+}
+
 /// Load a persisted snapshot, or `None` when absent / built for another API version.
 pub fn load_snapshot(root: &Path, org_id: &str, api_version: &str) -> Option<(Ost, IndexManifest)> {
     let path = db_path(root, org_id);
     if !path.exists() {
+        tracing::info!(org = %org_id, "snapshot miss: no index.db file");
         return None;
     }
     let conn = crate::db::open_apex(&path).ok()?;
 
     let manifest = read_manifest(&conn)?;
     if manifest.api_version != api_version {
+        tracing::info!(
+            org = %org_id,
+            snapshot_api = %manifest.api_version,
+            requested_api = %api_version,
+            "snapshot rejected: api_version mismatch"
+        );
         return None;
     }
 
@@ -364,6 +387,17 @@ mod tests {
         let (got_ost, got_m) = load_snapshot(&root, "myorg", "60.0").unwrap();
         assert_eq!(got_ost, ost);
         assert_eq!(got_m, m);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn snapshot_api_version_reads_stored_version_without_ost() {
+        let root = std::env::temp_dir().join(format!("snap-ver-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(snapshot_api_version(&root, "myorg"), None); // absent
+        let (ost, m) = sample();
+        save_snapshot(&root, &ost, &m).unwrap();
+        assert_eq!(snapshot_api_version(&root, "myorg"), Some("60.0".to_string()));
         let _ = std::fs::remove_dir_all(&root);
     }
 

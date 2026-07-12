@@ -7,7 +7,12 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import type { SchemaObject, SchemaObjectDetail } from "../../types";
-import { getSchemaObjectDetail, listSchemaObjects } from "../../ipc/schema";
+import {
+  getSchemaObjectDetail,
+  listSchemaObjects,
+  reindexOrg,
+} from "../../ipc/schema";
+import { getNamespacePolicy } from "../../indexSettings";
 import { formatIpcError } from "../../errorFormat";
 import { ObjectList } from "./ObjectList";
 import { FieldTable } from "./FieldTable";
@@ -155,6 +160,18 @@ export const SchemaPanel = memo(function SchemaPanel({
     setFetchNonce((n) => n + 1);
   }, []);
 
+  // Kick off indexing for this org from the empty state, mirroring the toolbar
+  // SchemaRefresh; the index-progress listener above reloads the panel on done.
+  const onReindex = useCallback(async () => {
+    if (!org) return;
+    try {
+      await reindexOrg(org, await getNamespacePolicy());
+      toast.success("Reindexing org…");
+    } catch (e) {
+      toast.error(`Schema: ${formatIpcError(e)}`);
+    }
+  }, [org]);
+
   const detail = selectedObject ? detailCache.get(selectedObject) : undefined;
   // Memoize the derived arrays so their reference is stable across re-renders
   // that don't touch `detail` (filters, loading flags) — keeps the memoized
@@ -175,9 +192,16 @@ export const SchemaPanel = memo(function SchemaPanel({
           This org isn’t indexed yet
         </div>
         <div className="max-w-sm text-[12px] text-muted-foreground">
-          Use the “Reindex org” button in the top toolbar to build the schema
-          index, then reopen this tab.
+          Build the offline schema index for this org to browse its objects and
+          fields here.
         </div>
+        <button
+          type="button"
+          onClick={() => void onReindex()}
+          className="focus-accent mt-1 cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
+        >
+          Reindex org
+        </button>
       </div>
     );
   }

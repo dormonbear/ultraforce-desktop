@@ -66,11 +66,37 @@ export interface SoqlDiagnosticDto {
   severity: "error" | "warning";
 }
 
+/** One inner subquery `(SELECT … )` range as UTF-16 offsets into the query text
+ * (feed straight into Monaco `model.getPositionAt`). */
+export interface SubquerySpanDto {
+  start: number;
+  end: number;
+}
+
 export interface OrgDto {
   username: string;
   alias: string | null;
   instanceUrl: string | null;
   isDefault: boolean;
+  isSandbox: boolean;
+  isScratch: boolean;
+}
+
+/**
+ * Per-org, display + behavior config persisted in the tauri-plugin-store file
+ * under `orgConfig.<username>`. Rust reads `apiVersion`/`timeoutSecs` from the
+ * same store; `alias`/`color` are display-only (titlebar badge + switcher row).
+ * All fields optional — an unset field means "use the org's dynamic default".
+ */
+export interface OrgConfig {
+  /** Normalized Salesforce API version, e.g. "58.0". Overrides the detected one. */
+  apiVersion?: string;
+  /** Request timeout in whole seconds applied to this org's `sf` calls. */
+  timeoutSecs?: number;
+  /** Display alias shown on the badge / switcher row (does not rename the org). */
+  alias?: string;
+  /** Preset palette color id (see ORG_COLORS) for the badge / row swatch. */
+  color?: string;
 }
 
 /** Queryable index-lifecycle snapshot for one org (mirrors Rust `IndexStatusDto`). */

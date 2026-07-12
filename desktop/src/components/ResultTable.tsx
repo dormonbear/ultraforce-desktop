@@ -1,5 +1,5 @@
 import { formatIpcError } from "../errorFormat";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import type { ColumnLabelsDto, SoqlResultDto } from "../types";
 import { soqlColumnLabels } from "../ipc/soql";
 import { useOrgs } from "../org";
+import { autoFitWidths, createGridMeasurer, sizingKey } from "./resultTable/autoFit";
 import { buildChildLookup } from "./resultTable/childData";
 import { displayColumnLabel } from "./resultTable/columnLabel";
 import { computeFillRatio } from "./resultTable/fill";
@@ -111,6 +112,9 @@ export function ResultTable({
   // enable and cached per result (columns ids stay API names throughout).
   const [labelMode, setLabelMode] = useState(false);
   const [labels, setLabels] = useState<ColumnLabelsDto | null>(null);
+  // True while the first label lookup is in flight (spinner on the Aa button;
+  // clicks are ignored meanwhile so the fetch can't double-fire).
+  const [labelsLoading, setLabelsLoading] = useState(false);
   useEffect(() => {
     setLabelMode(false);
     setLabels(null);
@@ -228,6 +232,23 @@ export function ResultTable({
     getFilteredRowModel: getFilteredRowModel(),
   });
 
+  // Initial content-aware column widths. The table is `table-fixed` (widths
+  // authoritative — header-text changes like the label toggle can no longer
+  // redistribute columns), so seed sizing from measured content once per
+  // column-id set. Later runs with the same key are no-ops, preserving manual
+  // resizes; label toggling never remeasures (ids don't change).
+  const sizedKeyRef = useRef("");
+  useLayoutEffect(() => {
+    const key = sizingKey(activeColumns);
+    if (sizedKeyRef.current === key) return;
+    const m = createGridMeasurer();
+    if (!m) return; // no 2D canvas (jsdom) — keep default sizes
+    sizedKeyRef.current = key;
+    table.setColumnSizing(
+      autoFitWidths(activeColumns, rows.map((r) => r.cells), m),
+    );
+  }, [activeColumns, rows, table]);
+
   /** Flattened projection of the currently visible rows (filter + sort applied). */
   const exportTable = (): { columns: string[]; rows: string[][] } => ({
     columns: flat.columns,
@@ -343,9 +364,11 @@ export function ResultTable({
     (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
 
   const toggleLabelMode = () => {
+    if (labelsLoading) return; // lookup in flight — no double-fire, no mid-fetch flip
     const next = !labelMode;
     setLabelMode(next);
     if (next && !labels && query) {
+      setLabelsLoading(true);
       soqlColumnLabels(
         {
           query,
@@ -355,7 +378,8 @@ export function ResultTable({
         org,
       )
         .then(setLabels)
-        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`));
+        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`))
+        .finally(() => setLabelsLoading(false));
     }
   };
 
@@ -416,6 +440,7 @@ export function ResultTable({
         showFilter={showFilter}
         onToggleFilter={() => setShowFilter((v) => !v)}
         labelMode={labelMode}
+        labelsLoading={labelsLoading}
         onToggleLabelMode={query ? toggleLabelMode : undefined}
         advancedFilter={advancedFilter}
         copyAs={copyAs}
@@ -443,11 +468,17 @@ export function ResultTable({
             ref={parentRef}
             onScroll={syncBarFromBody}
             onWheel={onBodyWheel}
-            className="uf-scroll select-text h-full overflow-y-auto overflow-x-hidden border-t border-border"
+            // No `select-text` here: the app-wide user-select:none must hold so
+            // dragging never native-selects headers/gutter/cells — the grid has
+            // its own copy UX (cell context menu, column copy, toolbar export).
+            // styles.css's unlayered `.select-text *` would otherwise defeat the
+            // headers' `select-none` utility (layered), so opting the container
+            // in cannot coexist with non-selectable chrome.
+            className="uf-scroll h-full overflow-y-auto overflow-x-hidden border-t border-border"
           >
           <Table
             style={{ width: tableWidth }}
-            className="border-separate border-spacing-0 text-[13px]"
+            className="table-fixed border-separate border-spacing-0 text-[13px]"
           >
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
@@ -455,7 +486,7 @@ export function ResultTable({
                   {/* row-number gutter */}
                   <TableHead
                     style={{ width: GUTTER_W }}
-                    className="sticky left-0 top-0 z-30 h-8 border-b border-border bg-secondary px-0 text-center align-middle text-[10px] font-semibold text-muted-foreground"
+                    className="fjord-th sticky left-0 top-0 z-30 h-8 border-b border-border bg-secondary px-0 text-center align-middle"
                   >
                     #
                   </TableHead>
@@ -492,7 +523,7 @@ export function ResultTable({
                               ? "descending"
                               : "none"
                         }
-                        className="group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 text-left align-middle font-semibold text-muted-foreground"
+                        className="fjord-th group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 text-left align-middle"
                       >
                         <button
                           type="button"
@@ -570,23 +601,27 @@ export function ResultTable({
                     }
                     style={{ height: rowHeight }}
                     className={cn(
-                      "group/row cursor-pointer border-0 hover:bg-accent/60",
-                      ordinal % 2 === 1 && !isSelected && "bg-muted/50",
-                      isSelected && "bg-accent"
+                      "group/row cursor-pointer border-0 hover:bg-foreground/[0.03]",
+                      isSelected && "fjord-row-selected"
                     )}
                   >
                     <TableCell
                       // No value to copy here — keep the cell menu closed.
                       onContextMenu={(e) => e.stopPropagation()}
                       style={{ width: GUTTER_W }}
-                      className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
+                      className={cn(
+                        "sticky left-0 z-10 border-b border-line-2 bg-inherit px-0 text-center align-middle font-mono text-[10px] tabular-nums text-muted-foreground",
+                        isSelected
+                          ? "shadow-[inset_2px_0_0_0_var(--primary)]"
+                          : "group-hover/row:bg-foreground/[0.03]"
+                      )}
                     >
                       {ordinal + 1}
                     </TableCell>
                     {colPadLeft > 0 && (
                       <TableCell
                         style={{ width: colPadLeft, padding: 0 }}
-                        className="border-b border-border"
+                        className="border-b border-line-2"
                       />
                     )}
                     {(windowCols
@@ -606,7 +641,7 @@ export function ResultTable({
                             key={cell.id}
                             onContextMenu={() => setCellMenuText(text)}
                             style={{ width: cell.column.getSize() * fillRatio }}
-                            className="border-b border-border px-3 align-middle"
+                            className="border-b border-line-2 px-3 align-middle"
                           >
                             {hasChildren ? (
                               <span className="inline-flex min-w-5 items-center justify-center rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-primary">
@@ -626,7 +661,7 @@ export function ResultTable({
                           onContextMenu={() => setCellMenuText(text)}
                           style={{ width: cell.column.getSize() * fillRatio }}
                           className={cn(
-                            "max-w-0 truncate border-b border-border px-3 align-middle text-foreground",
+                            "max-w-0 truncate border-b border-line-2 px-3 align-middle font-mono text-foreground",
                             numeric(cell.column)
                               ? "text-right tabular-nums"
                               : "text-left"
@@ -639,7 +674,7 @@ export function ResultTable({
                     {colPadRight > 0 && (
                       <TableCell
                         style={{ width: colPadRight, padding: 0 }}
-                        className="border-b border-border"
+                        className="border-b border-line-2"
                       />
                     )}
                   </TableRow>

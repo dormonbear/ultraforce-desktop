@@ -12,7 +12,6 @@ use sf_core::{SfError, SfInvoker};
 use sf_schema::SchemaStore;
 
 use crate::apex_complete::schema_to_apex_type;
-use crate::api_version::api_version_for;
 use crate::soql::list_sobject_names;
 
 #[derive(Clone, Debug)]
@@ -110,16 +109,19 @@ impl NamespacePolicy {
 }
 
 /// Full index: stdlib + every org Apex class + every sObject. Persists a
-/// snapshot and returns the assembled OST. `on_progress` is called per phase
-/// and per sObject described.
+/// snapshot (keyed on `api`, resolve via
+/// [`crate::api_version::resolve_index_api_version`]) and returns the
+/// assembled OST. `on_progress` is called per phase and per sObject described.
 pub async fn index_org(
     invoker: &SfInvoker,
     root: PathBuf,
     org_id: &str,
+    api: &str,
     policy: &NamespacePolicy,
     on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
-    let api = api_version_for(invoker, org_id).await;
+    let started = std::time::Instant::now();
+    tracing::info!(org = %org_id, api = %api, "index_org start (full index)");
 
     on_progress(IndexProgress {
         phase: "stdlib",
@@ -128,7 +130,7 @@ pub async fn index_org(
     });
     let mut ost_store = OstStore::new(root.clone(), org_id);
     let stdlib = ost_store
-        .get_or_fetch(invoker, &api, OstSource::Stdlib)
+        .get_or_fetch(invoker, api, OstSource::Stdlib)
         .await?;
     let namespaces = parse_stdlib(&stdlib);
     let stdlib_error = if namespaces.is_empty() {
@@ -148,7 +150,7 @@ pub async fn index_org(
         total: 1,
     });
     let org_types_raw = ost_store
-        .get_or_fetch(invoker, &api, OstSource::OrgTypes)
+        .get_or_fetch(invoker, api, OstSource::OrgTypes)
         .await?;
     let class_count;
     let mut org_types = match &org_types_raw {
@@ -183,7 +185,7 @@ pub async fn index_org(
     // made a managed-package org's first index take ~15 min.
     let mut store = SchemaStore::new(root.clone(), org_id);
     let described = store
-        .get_or_fetch_many(invoker, &api, &names, &mut |done, _total| {
+        .get_or_fetch_many(invoker, api, &names, &mut |done, _total| {
             on_progress(IndexProgress {
                 phase: "sobjects",
                 done,
@@ -207,7 +209,7 @@ pub async fn index_org(
     };
     let manifest = IndexManifest {
         org_id: org_id.to_string(),
-        api_version: api,
+        api_version: api.to_string(),
         indexed_at: now_iso8601(),
         namespaces: ost.namespaces.len(),
         classes: class_count,
@@ -215,6 +217,14 @@ pub async fn index_org(
         stdlib_error,
     };
     save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
+    tracing::info!(
+        org = %org_id,
+        classes = class_count,
+        sobjects,
+        namespaces = ost.namespaces.len(),
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "index_org complete"
+    );
     on_progress(IndexProgress {
         phase: "done",
         done: total,
@@ -253,15 +263,17 @@ fn upsert(types: &mut Vec<ApexType>, ty: ApexType) -> bool {
 
 /// Delta sync: patch the snapshot's OST with only what changed since its
 /// watermark, persist, and return the patched OST + counts. No-op (zero
-/// counts, default OST) when no snapshot exists.
+/// counts, default OST) when no snapshot exists or `api` (resolve via
+/// [`crate::api_version::resolve_index_api_version`]) doesn't match the
+/// snapshot's.
 pub async fn sync_org(
     invoker: &SfInvoker,
     root: PathBuf,
     org_id: &str,
+    api: &str,
     policy: &NamespacePolicy,
 ) -> Result<(SyncOutcome, Ost), SfError> {
-    let api = api_version_for(invoker, org_id).await;
-    let Some((mut ost, manifest)) = apex_lang::load_snapshot(&root, org_id, &api) else {
+    let Some((mut ost, manifest)) = apex_lang::load_snapshot(&root, org_id, api) else {
         return Ok((SyncOutcome::default(), Ost::default()));
     };
     let since = manifest.indexed_at.clone();
@@ -291,10 +303,10 @@ pub async fn sync_org(
         .collect();
     let mut schema_store = SchemaStore::new(root.clone(), org_id);
     for name in &entities {
-        let _ = schema_store.invalidate(&api, name);
+        let _ = schema_store.invalidate(api, name);
     }
     let described = schema_store
-        .get_or_fetch_many(invoker, &api, &entities, &mut |_, _| {})
+        .get_or_fetch_many(invoker, api, &entities, &mut |_, _| {})
         .await;
     // Upsert only the re-described delta; the rest of the index is untouched.
     let delta: Vec<_> = described.iter().map(|(_, s)| s.clone()).collect();
@@ -316,7 +328,7 @@ pub async fn sync_org(
     // genuinely removed.
     let manifest = IndexManifest {
         org_id: org_id.to_string(),
-        api_version: api,
+        api_version: api.to_string(),
         indexed_at: started_at,
         namespaces: ost.namespaces.len(),
         classes: prev_classes,
@@ -466,7 +478,7 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_up", &NamespacePolicy::All)
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_up", "60.0", &NamespacePolicy::All)
             .await
             .unwrap();
 
@@ -520,7 +532,7 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_comp", &NamespacePolicy::All)
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_comp", "60.0", &NamespacePolicy::All)
             .await
             .unwrap();
 
@@ -580,7 +592,7 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_del", &NamespacePolicy::All)
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_del", "60.0", &NamespacePolicy::All)
             .await
             .unwrap();
         for name in ["Keeper", "InnerHelper", "Account"] {
@@ -623,7 +635,7 @@ mod tests {
             }
         });
         let inv = SfInvoker::new(Arc::new(runner));
-        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_guard", &NamespacePolicy::All)
+        let (outcome, ost) = sync_org(&inv, root.clone(), "uorg_guard", "60.0", &NamespacePolicy::All)
             .await
             .unwrap();
         assert!(
@@ -667,6 +679,7 @@ mod tests {
             &invoker,
             root.clone(),
             "myorg",
+            "60.0",
             &NamespacePolicy::All,
             &mut |p| phases.push(p.phase),
         )
@@ -717,6 +730,7 @@ mod tests {
             &invoker,
             root.clone(),
             "org_stdlib_err",
+            "60.0",
             &NamespacePolicy::All,
             &mut |_| {},
         )

@@ -54,7 +54,7 @@ export function InsightsView({
                 <button
                   type="button"
                   onClick={() => onGoto(goto)}
-                  className="ml-auto shrink-0 cursor-pointer text-[11px] text-text-dim/70 hover:text-primary"
+                  className="ml-auto shrink-0 cursor-pointer text-[11px] text-text-dim hover:text-primary"
                 >
                   View {goto} →
                 </button>
@@ -65,7 +65,7 @@ export function InsightsView({
             </div>
             {f.fix && (
               <div className="mt-1 pl-3.5 text-[11px] text-muted-foreground">
-                <span className="text-text-dim/70">Fix: </span>
+                <span className="text-text-dim">Fix: </span>
                 {f.fix}
               </div>
             )}

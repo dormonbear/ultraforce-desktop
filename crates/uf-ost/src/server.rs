@@ -460,10 +460,14 @@ impl OstServer {
             // Fail fast if the org was never indexed (sync is a no-op there).
             self.open(&a.org)?;
             let invoker = sf_core::SfInvoker::new(StdArc::new(sf_core::ProcessRunner));
+            // Fallback-aware: a failed detection reuses the snapshot's stored version.
+            let (api, _) =
+                features::api_version::resolve_index_api_version(&invoker, &self.root, &a.org).await;
             let (outcome, _) = features::index::sync_org(
                 &invoker,
                 self.root.clone(),
                 &a.org,
+                &api,
                 &features::index::NamespacePolicy::All,
             )
             .await

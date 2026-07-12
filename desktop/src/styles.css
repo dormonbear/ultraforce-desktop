@@ -38,6 +38,9 @@
   --border: #e6e5e0;
   --input: #e6e5e0;
   --ring: #0176d3;
+  /* Fjord line-2: hairline for data-row separators (theme-agnostic — mixes the
+   * current foreground, so it stays a faint 7% rule in both light and dark). */
+  --line-2: color-mix(in srgb, var(--foreground) 7%, transparent);
   --radius: 0.5rem;
   /* Cursor extras for un-migrated bespoke components. */
   --c-surface-strong: #e6e5e0;
@@ -49,33 +52,34 @@
 
 .dark {
   color-scheme: dark;
-  /* Salesforce-inspired cool near-black neutrals + Lightning blue accent. */
-  --background: #16181d;
-  --foreground: #e9eaee;
-  --card: #1e2127;
-  --card-foreground: #e9eaee;
-  --popover: #1e2127;
-  --popover-foreground: #e9eaee;
-  --primary: #1b96ff;
-  --primary-foreground: #03182e;
-  --secondary: #1b1e23;
-  --secondary-foreground: #e9eaee;
-  --muted: #1b1e23;
-  --muted-foreground: #8a909c;
-  --accent: #2b2f37;
-  --accent-foreground: #e9eaee;
-  --destructive: #fe5c4c;
-  --destructive-foreground: #0a0c10;
-  --success: #45c65a;
-  --success-foreground: #0a0c10;
-  --border: #2a2e36;
-  --input: #2a2e36;
-  --ring: #1b96ff;
-  --c-surface-strong: #2b2f37;
-  --c-line: #3a3f49;
-  --c-text-dim: #aeb4be;
-  --c-amber: #f6a821;
-  --c-blue: #aeb4be;
+  /* Fjord: Nord color temperature × GitHub-dark contrast/structure.
+   * Three surfaces (base/panel/elevated) + Frost accent #88C0D0. */
+  --background: #1b1f28; /* Fjord bg-base */
+  --foreground: #eceff4; /* Fjord text-1 */
+  --card: #232935; /* Fjord bg-panel */
+  --card-foreground: #eceff4;
+  --popover: #2b3242; /* Fjord bg-elevated */
+  --popover-foreground: #eceff4;
+  --primary: #88c0d0; /* Fjord accent (Frost) */
+  --primary-foreground: #16323a;
+  --secondary: #232935; /* raised fill → panel surface */
+  --secondary-foreground: #eceff4;
+  --muted: #232935;
+  --muted-foreground: #a9b4c6; /* Fjord text-2 */
+  --accent: #2b3242; /* shadcn hover-surface → elevated */
+  --accent-foreground: #eceff4;
+  --destructive: #bf616a; /* Fjord err (Aurora red) */
+  --destructive-foreground: #eceff4;
+  --success: #a3be8c; /* Fjord ok (Aurora green) */
+  --success-foreground: #1b1f28;
+  --border: #353e50; /* Fjord line-1 */
+  --input: #353e50;
+  --ring: #88c0d0;
+  --c-surface-strong: #2b3242;
+  --c-line: #353e50;
+  --c-text-dim: #a9b4c6;
+  --c-amber: #ebcb8b; /* Fjord warn (Aurora yellow) */
+  --c-blue: #a9b4c6; /* legacy name; value is a neutral dim → text-2 */
 }
 
 /*
@@ -119,6 +123,11 @@
   --radius-container: var(--radius); /* cards, dialogs */
   --radius-element: 0.375rem; /* buttons, inputs ≈ Tailwind rounded-md */
   --radius-inner: 0.25rem;
+
+  /* Motion: point Astryx's single easing token at Fjord's curve. Astryx's
+   * per-role durations (--duration-*) and its Dialog/menu keyframes (scale +
+   * enter/exit) are hardcoded in its dist and left untouched — see plan. */
+  --ease-standard: var(--ease);
 }
 
 @theme inline {
@@ -141,6 +150,7 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
+  --color-line-2: var(--line-2);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
@@ -230,6 +240,24 @@ textarea,
   font-variant-numeric: tabular-nums;
 }
 
+/* Fjord data-table column header: mono micro-caps, muted, on a structural rule.
+ * Cascades typography to child <th>; per-column alignment/padding stay inline. */
+.fjord-th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+}
+
+/* Fjord selected data row: accent-tinted fill (unlayered, so it wins over the
+ * hover overlay). The 2px left-edge bar is drawn on the row's leading cell. */
+.fjord-row-selected,
+.fjord-row-selected:hover {
+  background-color: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
 /* Hide the scrollbar but keep scrolling (used by the horizontal tab strip). */
 .no-scrollbar {
   scrollbar-width: none;
@@ -245,9 +273,37 @@ textarea,
     0 0 0 3px var(--ring);
 }
 
-/* Strong ease-out for entering/exiting UI — the built-in curve is too weak. */
+/* Motion tokens (Fjord / emil-design-eng). Only transform & opacity animate.
+ * --ease: enter/interaction; --ease-io: on-screen movement. High-frequency
+ * paths (tab/page/panel switches) stay animation-free — see PanelHost. */
 :root {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+  --t-press: 120ms;
+  --t-hover: 150ms;
+  --t-popover: 180ms;
+  --t-modal-in: 200ms;
+  --t-modal-out: 130ms;
+  /* Alias: tailwindcss-animate enter/exit curve (see .animate-in below). */
+  --ease-out: var(--ease);
+}
+
+/* Press feedback: every non-Astryx pressable dips to scale(.97) on press.
+ * Astryx's own Buttons keep their built-in press (higher specificity wins);
+ * Monaco internals are excluded so editor widgets/drag handles never scale.
+ * Per-property durations give transform the 120ms press timing while color/
+ * border keep the 150ms hover timing. */
+button:not(.monaco-editor *),
+[role="button"]:not(.monaco-editor *) {
+  transition-property: color, background-color, border-color, box-shadow,
+    opacity, transform;
+  transition-duration: var(--t-hover), var(--t-hover), var(--t-hover),
+    var(--t-hover), var(--t-hover), var(--t-press);
+  transition-timing-function: var(--ease);
+}
+button:not(:disabled):not(.monaco-editor *):active,
+[role="button"]:not(.monaco-editor *):active {
+  transform: scale(0.97);
 }
 
 /* tailwindcss-animate drives enter/exit via animation; give it the strong curve. */
@@ -274,6 +330,11 @@ textarea,
     transition-property: opacity, color, background-color, border-color,
       box-shadow, fill, stroke !important;
   }
+  /* No press-scale transform under reduced motion. */
+  button:active,
+  [role="button"]:active {
+    transform: none !important;
+  }
 }
 
 @keyframes spin {
@@ -283,6 +344,19 @@ textarea,
 }
 .spin {
   animation: spin 0.6s linear infinite;
+}
+
+/* Delayed reveal for busy indicators: invisible for the first 150ms so fast
+ * operations never flash a spinner (loading UI only when the wait is real).
+ * Wrap the spinner — `animation` would collide with `.spin` on one element. */
+@keyframes uf-appear {
+  to {
+    opacity: 1;
+  }
+}
+.uf-delay-in {
+  opacity: 0;
+  animation: uf-appear 0s linear 150ms forwards;
 }
 
 /* Indeterminate sweep for the top progress strip (phases without a total). */
@@ -357,6 +431,15 @@ textarea,
   box-shadow: inset 3px 0 0 0 var(--primary);
 }
 
+/* Inner SOQL subquery `(SELECT … )` ranges — a very faint ambient tint so nested
+ * blocks read as such. No border; slight rounding. Applied via Monaco
+ * decoration className (see soqlSubqueryHighlight.ts). Token-driven → both
+ * themes. Nested subqueries overlap, deepening the tint naturally. */
+.soql-subquery-range {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border-radius: 2px;
+}
+
 /* Native <select> skin: drop the OS arrow and paint a lucide-style
  * ChevronsUpDown (matching our custom picker triggers) so every dropdown's
  * closed state looks identical. Option lists stay native (perf + unstylable).
@@ -371,7 +454,7 @@ textarea,
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235a5852' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 15 5 5 5-5'/><path d='m7 9 5-5 5 5'/></svg>");
 }
 .dark .native-select {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23aeb4be' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 15 5 5 5-5'/><path d='m7 9 5-5 5 5'/></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a9b4c6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 15 5 5 5-5'/><path d='m7 9 5-5 5 5'/></svg>");
 }
 
 /* react-querybuilder — map RQB's classes onto the app's semantic tokens.

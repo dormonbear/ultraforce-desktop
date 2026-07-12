@@ -10,6 +10,7 @@ mod dto;
 mod error;
 mod index_coordinator;
 mod indexing;
+mod org_config;
 mod schema_browse;
 mod setup;
 mod sf_cli;
@@ -62,6 +63,13 @@ async fn fetch_apex_source(
 #[tauri::command]
 fn format_soql(query: String) -> String {
     soql_lang::format_soql(&query)
+}
+
+/// Inner subquery `(SELECT … )` ranges (UTF-16 offsets) for editor highlighting.
+/// Pure, no IO; infallible like `format_soql`.
+#[tauri::command]
+fn soql_subquery_spans(query: String) -> Vec<dto::SubquerySpanDto> {
+    dto::subquery_spans(&query)
 }
 
 /// Re-indent anonymous Apex by brace depth. Pure, no IO.
@@ -216,11 +224,33 @@ async fn login_org(
     sf_cli::login_org(instance_url, alias, set_default, &state).await
 }
 
-/// Set (or clear) the target org used by all subsequent `sf` calls.
+/// Set (or clear) the target org used by all subsequent `sf` calls. Also applies
+/// the org's per-org config (API-version override + request timeout) so every
+/// downstream call reflects it. Re-invoked by the frontend after a config save to
+/// refresh those bounds.
 #[tauri::command]
-fn set_target_org(username: Option<String>, state: State<'_, AppState>) -> Result<(), CommandError> {
-    *state.selected_org.lock().unwrap() = username;
+fn set_target_org(
+    username: Option<String>,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), CommandError> {
+    *state.selected_org.lock().unwrap() = username.clone();
+    match username {
+        Some(u) => org_config::apply_org_config(&app, &state, &u),
+        None => org_config::reset_to_default(&state),
+    }
     Ok(())
+}
+
+/// The org's *detected* (dynamic) API version via `sf org display`, ignoring any
+/// override — the baseline shown as the config edit-panel placeholder and the
+/// per-org fallback for the switcher list.
+#[tauri::command]
+async fn org_api_version(
+    org: String,
+    state: State<'_, AppState>,
+) -> Result<String, CommandError> {
+    Ok(features::api_version::detected_api_version_for(&state.invoker, &org).await)
 }
 
 #[tauri::command]
@@ -451,6 +481,7 @@ pub fn run() {
             get_log,
             list_orgs,
             set_target_org,
+            org_api_version,
             get_debug_config,
             set_debug_config,
             get_telemetry_config,
@@ -476,6 +507,7 @@ pub fn run() {
             apex_diagnostics,
             query_plan,
             format_soql,
+            soql_subquery_spans,
             format_apex,
             parse_log,
             source_at_line,
