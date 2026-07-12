@@ -243,11 +243,11 @@ pub fn search_schema(
     rows.collect()
 }
 
-/// Identity columns of every object for the browse list, ordered by name:
-/// `(name, label, custom, key_prefix)`.
-pub fn list_objects(
-    conn: &Connection,
-) -> rusqlite::Result<Vec<(String, String, bool, Option<String>)>> {
+/// Identity columns of one object in the browse list: `(name, label, custom, key_prefix)`.
+pub type ObjectIdentityRow = (String, String, bool, Option<String>);
+
+/// Identity columns of every object for the browse list, ordered by name.
+pub fn list_objects(conn: &Connection) -> rusqlite::Result<Vec<ObjectIdentityRow>> {
     let mut stmt =
         conn.prepare("SELECT name, label, custom, key_prefix FROM objects ORDER BY name")?;
     let rows = stmt.query_map([], |row| {
