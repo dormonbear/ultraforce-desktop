@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { Table } from "@tanstack/react-table";
 import type { VisibilityState } from "@tanstack/react-table";
-import { Copy, Download, Filter, Search, SlidersHorizontal } from "lucide-react";
+import { Copy, Download, Filter, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import type { RuleGroupType } from "react-querybuilder";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import {
@@ -39,6 +39,8 @@ interface ToolbarProps {
   showFilter: boolean;
   onToggleFilter: () => void;
   labelMode: boolean;
+  /** True while the first label lookup is in flight (spinner on the Aa button). */
+  labelsLoading?: boolean;
   /** Absent → the label toggle is hidden (no query to resolve labels from). */
   onToggleLabelMode?: () => void;
   advancedFilter: RuleGroupType;
@@ -62,6 +64,7 @@ export function Toolbar({
   showFilter,
   onToggleFilter,
   labelMode,
+  labelsLoading,
   onToggleLabelMode,
   advancedFilter,
   copyAs,
@@ -138,13 +141,20 @@ export function Toolbar({
           type="button"
           aria-label="Show field labels"
           aria-pressed={labelMode}
+          aria-busy={labelsLoading || undefined}
           onClick={onToggleLabelMode}
           className={cn(
-            "focus-accent inline-flex h-7 cursor-pointer items-center rounded-md border border-input bg-card px-2.5 text-[12px]",
+            "focus-accent inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-input bg-card px-2.5 text-[12px]",
             labelMode ? "text-foreground" : "text-muted-foreground hover:text-foreground"
           )}
         >
           Aa
+          {labelsLoading && (
+            // Delayed reveal: fast lookups never flash a spinner (150ms gate).
+            <span className="uf-delay-in inline-flex" aria-hidden>
+              <Loader2 size={12} className="spin" />
+            </span>
+          )}
         </button>
       )}
 

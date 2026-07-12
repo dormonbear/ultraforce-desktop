@@ -346,6 +346,19 @@ button:not(:disabled):not(.monaco-editor *):active,
   animation: spin 0.6s linear infinite;
 }
 
+/* Delayed reveal for busy indicators: invisible for the first 150ms so fast
+ * operations never flash a spinner (loading UI only when the wait is real).
+ * Wrap the spinner — `animation` would collide with `.spin` on one element. */
+@keyframes uf-appear {
+  to {
+    opacity: 1;
+  }
+}
+.uf-delay-in {
+  opacity: 0;
+  animation: uf-appear 0s linear 150ms forwards;
+}
+
 /* Indeterminate sweep for the top progress strip (phases without a total). */
 @keyframes uf-indeterminate {
   from {

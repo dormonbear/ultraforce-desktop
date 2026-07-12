@@ -112,6 +112,9 @@ export function ResultTable({
   // enable and cached per result (columns ids stay API names throughout).
   const [labelMode, setLabelMode] = useState(false);
   const [labels, setLabels] = useState<ColumnLabelsDto | null>(null);
+  // True while the first label lookup is in flight (spinner on the Aa button;
+  // clicks are ignored meanwhile so the fetch can't double-fire).
+  const [labelsLoading, setLabelsLoading] = useState(false);
   useEffect(() => {
     setLabelMode(false);
     setLabels(null);
@@ -361,9 +364,11 @@ export function ResultTable({
     (c.columnDef.meta as ColMeta | undefined)?.numeric ?? false;
 
   const toggleLabelMode = () => {
+    if (labelsLoading) return; // lookup in flight — no double-fire, no mid-fetch flip
     const next = !labelMode;
     setLabelMode(next);
     if (next && !labels && query) {
+      setLabelsLoading(true);
       soqlColumnLabels(
         {
           query,
@@ -373,7 +378,8 @@ export function ResultTable({
         org,
       )
         .then(setLabels)
-        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`));
+        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`))
+        .finally(() => setLabelsLoading(false));
     }
   };
 
@@ -434,6 +440,7 @@ export function ResultTable({
         showFilter={showFilter}
         onToggleFilter={() => setShowFilter((v) => !v)}
         labelMode={labelMode}
+        labelsLoading={labelsLoading}
         onToggleLabelMode={query ? toggleLabelMode : undefined}
         advancedFilter={advancedFilter}
         copyAs={copyAs}
