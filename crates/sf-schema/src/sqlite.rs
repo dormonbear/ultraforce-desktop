@@ -3,9 +3,13 @@
 //! `open()` helper that apex-lang's `db` module reuses (both crates write the
 //! same file, in separate transactions over their own tables).
 
-use crate::model::{Field, SObjectSchema};
+use crate::model::{Field, PicklistValue, SObjectSchema};
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::{Path, PathBuf};
+
+// Field where-used cache moved to `deps.rs`; re-exported so existing
+// `sqlite::FieldDep` / `sqlite::{get,replace}_field_deps` paths keep working.
+pub use crate::deps::{get_field_deps, replace_field_deps, FieldDep};
 
 /// Replace path separators so an org alias can't escape the cache root.
 pub fn sanitize(org: &str) -> String {
@@ -57,9 +61,22 @@ pub fn ensure_object_schema(conn: &Connection) -> rusqlite::Result<()> {
           controller_name TEXT, dependent_picklist INTEGER NOT NULL,
           calculated INTEGER NOT NULL, calculated_formula TEXT,
           default_value_formula TEXT, length INTEGER NOT NULL,
-          is_unique INTEGER NOT NULL, restricted_picklist INTEGER NOT NULL
+          is_unique INTEGER NOT NULL, restricted_picklist INTEGER NOT NULL,
+          inline_help_text TEXT
         );
-        CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(object_name, field_name, field_label);
+        CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(
+          object_name, field_name, field_label, picklist_values, help_text, formula
+        );
+        CREATE TABLE IF NOT EXISTS field_deps (
+          object_name TEXT NOT NULL, field_name TEXT NOT NULL,
+          component_type TEXT NOT NULL, component_name TEXT NOT NULL, component_id TEXT NOT NULL,
+          fetched_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_field_deps ON field_deps(object_name, field_name);
+        CREATE TABLE IF NOT EXISTS field_deps_meta (
+          object_name TEXT NOT NULL, field_name TEXT NOT NULL, fetched_at INTEGER NOT NULL,
+          PRIMARY KEY (object_name, field_name)
+        );
         ",
     )
 }
@@ -96,8 +113,8 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
         conn.execute(
             "INSERT INTO fields (object_id, name, label, type, custom, nillable, reference_to, relationship_name, picklist,
                                  controller_name, dependent_picklist, calculated, calculated_formula,
-                                 default_value_formula, length, is_unique, restricted_picklist)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                                 default_value_formula, length, is_unique, restricted_picklist, inline_help_text)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)",
             params![
                 object_id,
                 field.name,
@@ -116,11 +133,20 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
                 field.length,
                 field.unique as i64,
                 field.restricted_picklist as i64,
+                field.inline_help_text,
             ],
         )?;
         conn.execute(
-            "INSERT INTO fields_fts (object_name, field_name, field_label) VALUES (?1, ?2, ?3)",
-            params![s.name, field.name, field.label],
+            "INSERT INTO fields_fts (object_name, field_name, field_label, picklist_values, help_text, formula)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![
+                s.name,
+                field.name,
+                field.label,
+                fts_picklist_text(&field.picklist_values),
+                field.inline_help_text.as_deref().unwrap_or(""),
+                field.calculated_formula.as_deref().unwrap_or(""),
+            ],
         )?;
     }
     Ok(())
@@ -151,7 +177,9 @@ pub fn replace_all_objects(
     tx.execute_batch(
         "DROP TABLE IF EXISTS fields;
          DROP TABLE IF EXISTS objects;
-         DROP TABLE IF EXISTS fields_fts;",
+         DROP TABLE IF EXISTS fields_fts;
+         DROP TABLE IF EXISTS field_deps;
+         DROP TABLE IF EXISTS field_deps_meta;",
     )?;
     ensure_object_schema(&tx)?;
     for schema in objects {
@@ -174,6 +202,61 @@ pub fn search_fields(
     )?;
     let rows = stmt.query_map(params![query, limit as i64], |row| {
         Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+    })?;
+    rows.collect()
+}
+
+/// One FTS5 hit for the schema search palette: identity columns plus a
+/// `snippet()` of the matched row with `[`/`]` around matched tokens.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaSearchHit {
+    pub object_name: String,
+    pub field_name: String,
+    pub field_label: String,
+    /// FTS5 snippet() over the matched row, `[`/`]` markers, 10 tokens.
+    pub snippet: String,
+}
+
+/// FTS5 prefix search over `fields_fts`, ranked by relevance, with a `[`/`]`
+/// highlighted snippet per hit. `query` is raw user input: it is escaped into a
+/// single quoted FTS5 string with a prefix `*`, so operators (`OR`, quotes) are
+/// matched literally rather than injected.
+pub fn search_schema(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<SchemaSearchHit>> {
+    let match_expr = format!("\"{}\"*", query.replace('"', ""));
+    let mut stmt = conn.prepare(
+        "SELECT object_name, field_name, field_label,
+                snippet(fields_fts, -1, '[', ']', '…', 10)
+         FROM fields_fts WHERE fields_fts MATCH ?1 ORDER BY rank LIMIT ?2",
+    )?;
+    let rows = stmt.query_map(params![match_expr, limit as i64], |row| {
+        Ok(SchemaSearchHit {
+            object_name: row.get(0)?,
+            field_name: row.get(1)?,
+            field_label: row.get(2)?,
+            snippet: row.get(3)?,
+        })
+    })?;
+    rows.collect()
+}
+
+/// Identity columns of every object for the browse list, ordered by name:
+/// `(name, label, custom, key_prefix)`.
+pub fn list_objects(
+    conn: &Connection,
+) -> rusqlite::Result<Vec<(String, String, bool, Option<String>)>> {
+    let mut stmt =
+        conn.prepare("SELECT name, label, custom, key_prefix FROM objects ORDER BY name")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, i64>(2)? != 0,
+            row.get::<_, Option<String>>(3)?,
+        ))
     })?;
     rows.collect()
 }
@@ -282,7 +365,7 @@ fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>
     let mut stmt = conn.prepare(
         "SELECT name, label, type, custom, nillable, reference_to, relationship_name, picklist,
                 controller_name, dependent_picklist, calculated, calculated_formula,
-                default_value_formula, length, is_unique, restricted_picklist
+                default_value_formula, length, is_unique, restricted_picklist, inline_help_text
          FROM fields WHERE object_id = ?1 ORDER BY rowid",
     )?;
     let rows = stmt.query_map(params![object_id], |row| {
@@ -303,6 +386,7 @@ fn read_fields(conn: &Connection, object_id: i64) -> rusqlite::Result<Vec<Field>
             length: row.get(13)?,
             unique: row.get::<_, i64>(14)? != 0,
             restricted_picklist: row.get::<_, i64>(15)? != 0,
+            inline_help_text: row.get(16)?,
         })
     })?;
     rows.collect()
@@ -361,6 +445,19 @@ pub fn find_field(
 pub fn count_objects(conn: &Connection) -> rusqlite::Result<usize> {
     let count: i64 = conn.query_row("SELECT COUNT(*) FROM objects", [], |row| row.get(0))?;
     Ok(count as usize)
+}
+
+/// Join every picklist entry's label + value into one FTS-searchable string,
+/// emitting the value only once when it equals the label.
+fn fts_picklist_text(values: &[PicklistValue]) -> String {
+    let mut parts = Vec::with_capacity(values.len() * 2);
+    for v in values {
+        parts.push(v.label.as_str());
+        if v.value != v.label {
+            parts.push(v.value.as_str());
+        }
+    }
+    parts.join(" ")
 }
 
 #[cfg(test)]
@@ -459,6 +556,128 @@ mod tests {
         upsert_object(&conn, &schema).unwrap();
         assert_eq!(count_objects(&conn).unwrap(), 1);
         assert_eq!(read_all_objects(&conn).unwrap(), vec![schema]);
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// Match `fields_fts` and return the `field_name` of every matching row.
+    fn fts_match(conn: &Connection, query: &str) -> Vec<String> {
+        let mut stmt = conn
+            .prepare("SELECT field_name FROM fields_fts WHERE fields_fts MATCH ?1")
+            .unwrap();
+        stmt.query_map(params![query], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap()
+    }
+
+    /// Deep FTS: help text, picklist labels, and formula are each searchable.
+    #[test]
+    fn deep_fts_indexes_help_picklist_and_formula() {
+        let path = temp_db();
+        let conn = open(&path).unwrap();
+        let schema = SObjectSchema {
+            name: "Task".into(),
+            label: "Task".into(),
+            label_plural: "Tasks".into(),
+            key_prefix: Some("00T".into()),
+            custom: false,
+            fields: vec![Field {
+                name: "Status".into(),
+                label: "Status".into(),
+                field_type: "picklist".into(),
+                inline_help_text: Some("help me".into()),
+                calculated_formula: Some("Amount__c * 2".into()),
+                picklist_values: vec![PicklistValue {
+                    label: "In Progress".into(),
+                    value: "in_progress".into(),
+                    active: true,
+                    default_value: false,
+                    valid_for: None,
+                }],
+                ..Default::default()
+            }],
+            child_relationships: vec![],
+            record_type_infos: vec![],
+        };
+
+        upsert_object(&conn, &schema).unwrap();
+        assert_eq!(fts_match(&conn, "help"), vec!["Status".to_string()]);
+        assert_eq!(
+            fts_match(&conn, "\"In Progress\""),
+            vec!["Status".to_string()]
+        );
+        assert_eq!(fts_match(&conn, "Amount__c"), vec!["Status".to_string()]);
+
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// FTS search palette: a picklist-value match yields a `[`/`]` snippet,
+    /// a miss returns empty, and raw operator-ish input can't inject FTS syntax.
+    #[test]
+    fn search_schema_snippets_and_injection_safe() {
+        let path = temp_db();
+        let mut conn = open(&path).unwrap();
+
+        let picklist_obj = SObjectSchema {
+            name: "Case".into(),
+            label: "Case".into(),
+            label_plural: "Cases".into(),
+            key_prefix: Some("500".into()),
+            custom: false,
+            fields: vec![Field {
+                name: "Status".into(),
+                label: "Status".into(),
+                field_type: "picklist".into(),
+                picklist_values: vec![PicklistValue {
+                    label: "Pending Review".into(),
+                    value: "Pending Review".into(),
+                    active: true,
+                    default_value: false,
+                    valid_for: None,
+                }],
+                ..Default::default()
+            }],
+            child_relationships: vec![],
+            record_type_infos: vec![],
+        };
+        // Second object matches the same search on its field name instead.
+        let name_obj = SObjectSchema {
+            name: "Lead".into(),
+            label: "Lead".into(),
+            label_plural: "Leads".into(),
+            key_prefix: Some("00Q".into()),
+            custom: false,
+            fields: vec![Field {
+                name: "Pending_Owner__c".into(),
+                label: "Pending Owner".into(),
+                field_type: "text".into(),
+                ..Default::default()
+            }],
+            child_relationships: vec![],
+            record_type_infos: vec![],
+        };
+        write_objects(&mut conn, &[picklist_obj, name_obj]).unwrap();
+
+        // Picklist-value match: snippet marks the matched token with `[`/`]`.
+        let hits = search_schema(&conn, "pending", 10).unwrap();
+        let picklist_hit = hits
+            .iter()
+            .find(|h| h.object_name == "Case" && h.field_name == "Status")
+            .expect("picklist value match present");
+        assert!(
+            picklist_hit.snippet.contains("[Pending]"),
+            "snippet highlights matched token, got {:?}",
+            picklist_hit.snippet
+        );
+
+        // No match => empty.
+        assert!(search_schema(&conn, "nonexistentxyz", 10)
+            .unwrap()
+            .is_empty());
+
+        // Raw operator-ish input is escaped, not injected: must not error.
+        search_schema(&conn, "pen\"ding OR 1", 10).unwrap();
 
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }

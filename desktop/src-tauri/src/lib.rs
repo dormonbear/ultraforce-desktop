@@ -8,7 +8,9 @@ mod completion;
 mod debug_cfg;
 mod dto;
 mod error;
+mod index_coordinator;
 mod indexing;
+mod schema_browse;
 mod setup;
 mod sf_cli;
 mod soql_exec;
@@ -16,7 +18,7 @@ mod state;
 mod telemetry_cfg;
 
 use error::CommandError;
-use state::{cached_log_view, current_org, parsed_log, AppState};
+use state::{cached_log_view, parsed_log, AppState};
 
 #[tauri::command]
 async fn run_soql(
@@ -24,10 +26,11 @@ async fn run_soql(
     use_tooling_api: Option<bool>,
     all_rows: Option<bool>,
     query_id: String,
+    org: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<dto::SoqlResultDto, CommandError> {
-    soql_exec::run_soql(query, use_tooling_api, all_rows, query_id, app, &state).await
+    soql_exec::run_soql(query, use_tooling_api, all_rows, query_id, org, app, &state).await
 }
 
 #[tauri::command]
@@ -40,17 +43,19 @@ async fn count_soql(
     query: String,
     use_tooling_api: Option<bool>,
     query_id: String,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Option<u64>, CommandError> {
-    soql_exec::count_soql(query, use_tooling_api, query_id, &state).await
+    soql_exec::count_soql(query, use_tooling_api, query_id, org, &state).await
 }
 
 #[tauri::command]
 async fn fetch_apex_source(
     name: String,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::ApexSourceDto, CommandError> {
-    apex_exec::fetch_apex_source(name, &state).await
+    apex_exec::fetch_apex_source(name, org, &state).await
 }
 
 /// Pretty-print a SOQL query (one top-level clause per line). Pure, no IO.
@@ -69,25 +74,29 @@ fn format_apex(src: String) -> String {
 #[tauri::command]
 async fn query_plan(
     query: String,
+    org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<features::query_plan::QueryPlan, CommandError> {
-    let org = current_org(&state);
-    features::query_plan::query_plan(&state.invoker, &query, org.as_deref())
+) -> Result<dto::QueryPlanDto, CommandError> {
+    let plan = features::query_plan::query_plan(&state.invoker, &query, org.as_deref())
         .await
-        .map_err(CommandError::from)
+        .map_err(CommandError::from)?;
+    Ok(dto::QueryPlanDto::from(plan))
 }
 
 #[tauri::command]
 async fn run_apex(
     src: String,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::ApexOutcomeDto, CommandError> {
-    apex_exec::run_apex(src, &state).await
+    apex_exec::run_apex(src, org, &state).await
 }
 
 #[tauri::command]
-async fn list_logs(state: State<'_, AppState>) -> Result<Vec<dto::LogRefDto>, CommandError> {
-    let org = current_org(&state);
+async fn list_logs(
+    org: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<dto::LogRefDto>, CommandError> {
     let logs = features::debug_log::list_logs(&state.invoker, org.as_deref())
         .await
         .map_err(CommandError::from)?;
@@ -95,8 +104,11 @@ async fn list_logs(state: State<'_, AppState>) -> Result<Vec<dto::LogRefDto>, Co
 }
 
 #[tauri::command]
-async fn get_log(id: String, state: State<'_, AppState>) -> Result<dto::LogViewDto, CommandError> {
-    let org = current_org(&state);
+async fn get_log(
+    id: String,
+    org: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<dto::LogViewDto, CommandError> {
     let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
         .await
         .map_err(CommandError::from)?;
@@ -212,16 +224,20 @@ fn set_target_org(username: Option<String>, state: State<'_, AppState>) -> Resul
 }
 
 #[tauri::command]
-async fn get_debug_config(state: State<'_, AppState>) -> Result<dto::DebugConfigDto, CommandError> {
-    debug_cfg::get_debug_config(&state).await
+async fn get_debug_config(
+    org: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<dto::DebugConfigDto, CommandError> {
+    debug_cfg::get_debug_config(org, &state).await
 }
 
 #[tauri::command]
 async fn set_debug_config(
     levels: dto::CategoryLevelsDto,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::DebugConfigDto, CommandError> {
-    debug_cfg::set_debug_config(levels, &state).await
+    debug_cfg::set_debug_config(levels, org, &state).await
 }
 
 #[tauri::command]
@@ -237,40 +253,47 @@ async fn set_telemetry_config(config: dto::TelemetryConfigDto) -> Result<(), Com
 #[tauri::command]
 async fn quick_self_trace(
     minutes: Option<u32>,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::DebugConfigDto, CommandError> {
-    debug_cfg::quick_self_trace(minutes, &state).await
+    debug_cfg::quick_self_trace(minutes, org, &state).await
 }
 
 #[tauri::command]
-async fn load_logging_config(state: State<'_, AppState>) -> Result<dto::LoggingConfigDto, CommandError> {
-    debug_cfg::load_logging_config(&state).await
+async fn load_logging_config(
+    org: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<dto::LoggingConfigDto, CommandError> {
+    debug_cfg::load_logging_config(org, &state).await
 }
 
 #[tauri::command]
 async fn save_logging_config(
     diff: dto::LoggingDiffDto,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::SaveOutcomeDto, CommandError> {
-    debug_cfg::save_logging_config(diff, &state).await
+    debug_cfg::save_logging_config(diff, org, &state).await
 }
 
 #[tauri::command]
 async fn apex_complete(
     src: String,
     offset: usize,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<dto::CandidateDto>, CommandError> {
-    completion::apex_complete(src, offset, &state).await
+    completion::apex_complete(src, offset, org, &state).await
 }
 
 #[tauri::command]
 async fn apex_signature_help(
     src: String,
     offset: usize,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Option<dto::SignatureHelpDto>, CommandError> {
-    completion::apex_signature_help(src, offset, &state).await
+    completion::apex_signature_help(src, offset, org, &state).await
 }
 
 #[tauri::command]
@@ -282,14 +305,10 @@ async fn warm_apex(org: String, state: State<'_, AppState>) -> Result<(), Comman
 async fn soql_complete(
     query: String,
     offset: usize,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<Vec<dto::CompletionDto>, CommandError> {
-    completion::soql_complete(query, offset, &state).await
-}
-
-#[tauri::command]
-async fn warm_schema(org: String, state: State<'_, AppState>) -> Result<usize, CommandError> {
-    indexing::warm_schema(org, &state).await
+    completion::soql_complete(query, offset, org, &state).await
 }
 
 #[tauri::command]
@@ -297,16 +316,19 @@ async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result
     indexing::refresh_schema_cache(org, &state).await
 }
 
+/// Idempotently make `org`'s index usable (single-flight; no-op when fresh).
+/// Replaces the former parallel `warm_schema` + `index_org` calls.
 #[tauri::command]
-async fn index_org(
+async fn ensure_ready(
     org: String,
     namespaces: Option<String>,
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    indexing::index_org(org, namespaces, &app, &state).await
+    index_coordinator::ensure_ready(&app, &state, org, namespaces).await
 }
 
+/// Force a full rebuild of `org`'s cached schema index (queued behind any run).
 #[tauri::command]
 async fn reindex_org(
     org: String,
@@ -314,7 +336,51 @@ async fn reindex_org(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    indexing::reindex_org(org, namespaces, &app, &state).await
+    index_coordinator::reindex(&app, &state, org, namespaces).await
+}
+
+/// Queryable index-lifecycle snapshot for `org` (state / progress / last-indexed).
+#[tauri::command]
+fn index_status(org: String, state: State<'_, AppState>) -> dto::IndexStatusDto {
+    state.index.status(&org)
+}
+
+#[tauri::command]
+async fn schema_list_objects(
+    org: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<dto::SchemaObjectDto>, CommandError> {
+    schema_browse::list_objects(&org, &state)
+}
+
+#[tauri::command]
+async fn schema_object_detail(
+    org: String,
+    object: String,
+    state: State<'_, AppState>,
+) -> Result<dto::SchemaObjectDetailDto, CommandError> {
+    schema_browse::object_detail(org, object, &state).await
+}
+
+#[tauri::command]
+async fn schema_search(
+    org: String,
+    query: String,
+    limit: Option<u32>,
+    state: State<'_, AppState>,
+) -> Result<Vec<dto::SchemaSearchHitDto>, CommandError> {
+    schema_browse::search(&org, &query, limit, &state)
+}
+
+#[tauri::command]
+async fn schema_field_dependencies(
+    org: String,
+    object: String,
+    field: String,
+    refresh: bool,
+    state: State<'_, AppState>,
+) -> Result<dto::FieldDependenciesDto, CommandError> {
+    schema_browse::field_dependencies(org, object, field, refresh, &state).await
 }
 
 #[tauri::command]
@@ -322,33 +388,37 @@ async fn soql_column_labels(
     query: String,
     columns: Vec<String>,
     child_columns: std::collections::HashMap<String, Vec<String>>,
+    org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::ColumnLabelsDto, CommandError> {
-    completion::soql_column_labels(query, columns, child_columns, &state).await
+    completion::soql_column_labels(query, columns, child_columns, org, &state).await
 }
 
 #[tauri::command]
 async fn soql_diagnostics(
     query: String,
+    org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<Vec<features::soql::SoqlDiagnostic>, CommandError> {
-    Ok(completion::soql_diagnostics(query, &state).await)
+) -> Result<Vec<dto::SoqlDiagnosticDto>, CommandError> {
+    Ok(completion::soql_diagnostics(query, org, &state).await)
 }
 
 #[tauri::command]
 async fn apex_soql_diagnostics(
     src: String,
+    org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<Vec<features::soql::SoqlDiagnostic>, CommandError> {
-    Ok(completion::apex_soql_diagnostics(src, &state).await)
+) -> Result<Vec<dto::SoqlDiagnosticDto>, CommandError> {
+    Ok(completion::apex_soql_diagnostics(src, org, &state).await)
 }
 
 #[tauri::command]
 async fn apex_diagnostics(
     src: String,
+    org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<Vec<features::apex_complete::ApexDiagnostic>, CommandError> {
-    Ok(completion::apex_diagnostics(src, &state))
+) -> Result<Vec<dto::ApexDiagnosticDto>, CommandError> {
+    Ok(completion::apex_diagnostics(src, org, &state))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -361,6 +431,7 @@ pub fn run() {
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
+        index: index_coordinator::IndexCoordinator::new(),
         apex: features::apex_complete::ApexCompleter::with_default_root(),
         sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
         query_cancels: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -391,10 +462,14 @@ pub fn run() {
             apex_signature_help,
             soql_complete,
             warm_apex,
-            warm_schema,
             refresh_schema_cache,
-            index_org,
+            ensure_ready,
             reindex_org,
+            index_status,
+            schema_list_objects,
+            schema_object_detail,
+            schema_search,
+            schema_field_dependencies,
             soql_column_labels,
             soql_diagnostics,
             apex_soql_diagnostics,

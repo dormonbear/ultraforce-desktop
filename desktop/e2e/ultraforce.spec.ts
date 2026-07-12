@@ -278,12 +278,13 @@ test("selecting an org warms the sObject-name cache for FROM completion", async 
   page,
 }) => {
   await gotoApp(page);
-  // FROM completion reads the in-memory sObject-name cache, which warm_schema
-  // populates cheaply on org-select — independent of the heavy index_org.
+  // FROM completion reads the in-memory sObject-name cache, which the index
+  // coordinator's ensure_ready populates as its first step on org-select
+  // (folding the former separate warm_schema call).
   const calls = await page.evaluate(
     () => (window as unknown as { __ufCalls: { cmd: string }[] }).__ufCalls,
   );
-  expect(calls.some((c) => c.cmd === "warm_schema")).toBe(true);
+  expect(calls.some((c) => c.cmd === "ensure_ready")).toBe(true);
 });
 
 test("soql editor surfaces relationship-field completion after a dot", async ({

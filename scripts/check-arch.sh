@@ -32,7 +32,6 @@ fi
 baseline="
 crates/apex-lang/src/ast/parser.rs
 crates/features/src/soql.rs
-desktop/src-tauri/src/dto.rs
 crates/soql-lang/src/complete.rs
 "
 while read -r lines file; do

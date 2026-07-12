@@ -8,7 +8,13 @@ use sf_core::SfInvoker;
 /// Shared application state: one `SfInvoker` over the real `sf` CLI process runner.
 pub struct AppState {
     pub(crate) invoker: SfInvoker,
+    /// Backend default target org, set by `set_target_org`. The org-scoped exec
+    /// commands now receive an explicit `org`, so this is only a fallback (its
+    /// `current_org` readers have been migrated).
     pub(crate) selected_org: std::sync::Mutex<Option<String>>,
+    /// Owns the org index lifecycle (single-flight `ensure_ready` / `reindex` /
+    /// queryable `status`), consolidating the former parallel warm+index calls.
+    pub(crate) index: crate::index_coordinator::IndexCoordinator,
     pub(crate) apex: features::apex_complete::ApexCompleter,
     /// Cached sObject-name list per org, for FROM completion. Populated by
     /// `warm_schema`/`refresh_schema_cache` so keystroke completion never blocks
@@ -40,11 +46,6 @@ fn body_key(body: &str) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     body.hash(&mut hasher);
     hasher.finish()
-}
-
-/// Read the currently selected target org as an owned value (guard not held across `.await`).
-pub(crate) fn current_org(state: &AppState) -> Option<String> {
-    state.selected_org.lock().unwrap().clone()
 }
 
 /// The full `DebugLogView` for a body, derived from (and cached alongside) the

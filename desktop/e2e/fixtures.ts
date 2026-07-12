@@ -190,8 +190,9 @@ const RESP: Record<string, unknown> = {
     body: "public class MyClass {\n  void doWork() {\n    // ...\n  }\n}",
   },
   refresh_schema_cache: 42,
-  index_org: null,
+  ensure_ready: null,
   reindex_org: null,
+  index_status: { org: "dev@acme.com", state: "idle", phase: null, done: null, total: null, lastIndexed: null, error: null },
   soql_complete: [
     { label: "FROM", kind: "keyword", detail: null },
     { label: "WHERE", kind: "keyword", detail: null },
@@ -221,7 +222,6 @@ const RESP: Record<string, unknown> = {
     foundAt: null,
   },
   login_org: null,
-  warm_schema: 42,
 };
 
 /** Installs the mocked IPC before app scripts run. `overrides` patches RESP

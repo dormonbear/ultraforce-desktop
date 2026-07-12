@@ -6,6 +6,7 @@ pub mod api_version;
 pub mod debug_config;
 pub mod debug_log;
 pub mod debug_traces;
+pub mod field_deps;
 pub mod index;
 pub mod query_plan;
 pub mod rest_dml;

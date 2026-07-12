@@ -84,6 +84,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           useToolingApi,
           allRows,
           queryId,
+          org,
         });
         const ms = performance.now() - t0;
         onPatch({ result: dto, lastMs: ms });
@@ -121,6 +122,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         query,
         useToolingApi,
         queryId: countId,
+        org,
       });
     } catch {
       count = null;
@@ -134,7 +136,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       return;
     }
     await execute(query);
-  }, [query, useToolingApi, execute]);
+  }, [query, useToolingApi, org, execute]);
 
   const cancel = useCallback(() => {
     abortedRef.current = true;
@@ -145,7 +147,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
   const explain = useCallback(async () => {
     setExplaining(true);
     try {
-      const dto = await queryPlan(query);
+      const dto = await queryPlan(query, org);
       onPatch({ plan: dto });
     } catch (e) {
       const message = formatIpcError(e);

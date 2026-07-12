@@ -105,7 +105,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     onPatch({ error: null });
     const source = srcRef.current;
     try {
-      const dto = await runApex(source);
+      const dto = await runApex(source, org);
       onPatch({ outcome: dto });
       void recordApexRun({
         org,
@@ -173,7 +173,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
       // SOQL-in-Apex diagnostics + AST diagnostics (duplicate vars, unknown
       // fields) as separate marker owners so each refreshes independently.
       try {
-        const soql = await apexSoqlDiagnostics(src);
+        const soql = await apexSoqlDiagnostics(src, org);
         monaco.editor.setModelMarkers(
           model,
           "apex-soql",
@@ -183,7 +183,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         /* ignore */
       }
       try {
-        const ast = await apexDiagnostics(src);
+        const ast = await apexDiagnostics(src, org);
         monaco.editor.setModelMarkers(
           model,
           "apex-ast",

@@ -69,7 +69,7 @@ export function useLoggingConfig(org: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const cfg = await loadLoggingConfig();
+      const cfg = await loadLoggingConfig(org);
       const lv: LevelRow[] = cfg.debugLevels.map((d) => ({
         _key: d.id,
         id: d.id,
@@ -100,7 +100,7 @@ export function useLoggingConfig(org: string | null) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [org]);
 
   useEffect(() => {
     void load();
@@ -248,7 +248,7 @@ export function useLoggingConfig(org: string | null) {
     setError(null);
     try {
       const diff = buildDiff();
-      const out = await saveLoggingConfig(diff);
+      const out = await saveLoggingConfig(diff, org);
       const failures = out.results.filter((r) => !r.ok);
       if (failures.length > 0) {
         const msg = failures.map((f) => `${f.sobject} ${f.op}: ${f.error ?? "failed"}`).join("; ");
@@ -304,7 +304,7 @@ export function useLoggingConfig(org: string | null) {
     } finally {
       setSaving(false);
     }
-  }, [buildDiff, flags, levels, load]);
+  }, [buildDiff, flags, levels, load, org]);
 
   return {
     entities,

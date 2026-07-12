@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Database,
   Terminal,
@@ -9,6 +9,8 @@ import {
 import { SoqlTabs } from "./panels/SoqlTabs";
 import { ApexTabs } from "./panels/ApexTabs";
 import { LogsPanel } from "./panels/LogsPanel";
+import { SchemaPanel } from "./components/schema/SchemaPanel";
+import { PanelHost, type PanelDef } from "./panels/host/PanelHost";
 import { OrgSelector } from "./components/OrgSelector";
 import { SetupPage } from "./components/SetupPage";
 import { LogoLoader } from "./components/LogoLoader";
@@ -23,26 +25,40 @@ import { useTheme } from "./theme";
 import { Toaster } from "@/components/ui/sonner";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 
-type ActivePanel = "soql" | "apex" | "logs" | "settings";
+type ActivePanel = "soql" | "apex" | "logs" | "schema" | "settings";
 
 const RAIL = [
   { id: "soql", icon: Database, label: "SOQL", enabled: true },
   { id: "apex", icon: Terminal, label: "Apex", enabled: true },
   { id: "logs", icon: ScrollText, label: "Logs", enabled: true },
-  { id: "schema", icon: TableIcon, label: "Schema", enabled: false },
+  { id: "schema", icon: TableIcon, label: "Schema", enabled: true },
 ] as const;
 
 export default function App() {
   const [active, setActive] = useState<ActivePanel>("soql");
-  // Tools mount on first visit and stay mounted (hidden when inactive) so run
-  // results survive a tool switch. Logs is lazy too: no network call until opened.
-  const [visited, setVisited] = useState<ActivePanel[]>([active]);
   // Bumped when a workspace root changes, to remount the affected tool panel.
   const [wsVersion, setWsVersion] = useState(0);
   const { theme } = useTheme();
-  const { loading: orgLoading, orgs } = useOrgs();
+  const { loading: orgLoading, orgs, selected: selectedOrg } = useOrgs();
   // No usable org (CLI missing / not authed) → guide the user instead of panels.
   const needsSetup = !orgLoading && orgs.length === 0;
+
+  // Tool panels: mounted on first visit, kept alive (hidden) across switches by
+  // PanelHost. `wsVersion` in the key remounts a panel on a workspace-root change;
+  // Schema opts into idle preheat. Settings is not kept alive (rendered below).
+  const panels = useMemo<PanelDef[]>(
+    () => [
+      { id: "soql", render: () => <SoqlTabs key={`soql-${wsVersion}`} /> },
+      { id: "apex", render: () => <ApexTabs key={`apex-${wsVersion}`} /> },
+      { id: "logs", render: () => <LogsPanel /> },
+      {
+        id: "schema",
+        render: () => <SchemaPanel org={selectedOrg} />,
+        preload: true,
+      },
+    ],
+    [wsVersion, selectedOrg],
+  );
 
   useEffect(() => {
     // fallow-ignore-next-line complexity
@@ -56,10 +72,6 @@ export default function App() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
-
-  useEffect(() => {
-    setVisited((v) => (v.includes(active) ? v : [...v, active]));
-  }, [active]);
 
   // Cmd/Ctrl+1..3 switches tools (1=SOQL, 2=Apex, 3=Logs).
   useEffect(() => {
@@ -207,21 +219,12 @@ export default function App() {
             )
           ) : (
             <>
-              {visited.includes("soql") && (
-                <div className="h-full" hidden={active !== "soql"}>
-                  <SoqlTabs key={`soql-${wsVersion}`} />
-                </div>
-              )}
-              {visited.includes("apex") && (
-                <div className="h-full" hidden={active !== "apex"}>
-                  <ApexTabs key={`apex-${wsVersion}`} />
-                </div>
-              )}
-              {visited.includes("logs") && (
-                <div className="h-full" hidden={active !== "logs"}>
-                  <LogsPanel />
-                </div>
-              )}
+              <PanelHost
+                panels={panels}
+                active={active}
+                preheatOrg={selectedOrg}
+                preheatEnabled={!orgLoading && !needsSetup}
+              />
               {active === "settings" && (
                 <SettingsPage onChanged={() => setWsVersion((v) => v + 1)} />
               )}

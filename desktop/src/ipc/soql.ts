@@ -13,6 +13,7 @@ export function runSoql(args: {
   useToolingApi: boolean;
   allRows: boolean;
   queryId: string;
+  org: string | null;
 }): Promise<SoqlResultDto> {
   return invoke<SoqlResultDto>("run_soql", args);
 }
@@ -22,6 +23,7 @@ export function countSoql(args: {
   query: string;
   useToolingApi: boolean;
   queryId: string;
+  org: string | null;
 }): Promise<number | null> {
   return invoke<number | null>("count_soql", args);
 }
@@ -31,22 +33,26 @@ export function cancelSoql(queryId: string): Promise<void> {
   return invoke("cancel_soql", { queryId });
 }
 
-/** Fetch the query plan (explain) for a query. */
-export function queryPlan(query: string): Promise<QueryPlanDto> {
-  return invoke<QueryPlanDto>("query_plan", { query });
+/** Fetch the query plan (explain) for a query against `org` (null = CLI default). */
+export function queryPlan(query: string, org: string | null): Promise<QueryPlanDto> {
+  return invoke<QueryPlanDto>("query_plan", { query, org });
 }
 
-/** Diagnostics (unknown fields/objects, missing LIMIT, ...) for a query. */
-export function soqlDiagnostics(query: string): Promise<SoqlDiagnosticDto[]> {
-  return invoke<SoqlDiagnosticDto[]>("soql_diagnostics", { query });
+/** Diagnostics (unknown fields/objects, missing LIMIT, ...) for a query in `org`. */
+export function soqlDiagnostics(
+  query: string,
+  org: string | null,
+): Promise<SoqlDiagnosticDto[]> {
+  return invoke<SoqlDiagnosticDto[]>("soql_diagnostics", { query, org });
 }
 
-/** Completion candidates at `offset` in `query`. */
+/** Completion candidates at `offset` in `query`, scoped to `org`. */
 export function soqlComplete(
   query: string,
   offset: number,
+  org: string | null,
 ): Promise<CompletionItemDto[]> {
-  return invoke<CompletionItemDto[]>("soql_complete", { query, offset });
+  return invoke<CompletionItemDto[]>("soql_complete", { query, offset, org });
 }
 
 /** Pretty-print a SOQL query. */
@@ -58,10 +64,13 @@ export function formatSoql(query: string): Promise<string> {
  * Schema labels for a query's result columns (API name ↔ label toggle).
  * Best-effort: unresolvable columns are absent from the maps.
  */
-export function soqlColumnLabels(args: {
-  query: string;
-  columns: string[];
-  childColumns: Record<string, string[]>;
-}): Promise<ColumnLabelsDto> {
-  return invoke<ColumnLabelsDto>("soql_column_labels", args);
+export function soqlColumnLabels(
+  args: {
+    query: string;
+    columns: string[];
+    childColumns: Record<string, string[]>;
+  },
+  org: string | null,
+): Promise<ColumnLabelsDto> {
+  return invoke<ColumnLabelsDto>("soql_column_labels", { ...args, org });
 }

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileTabsPanel } from "../tabs/FileTabsPanel";
 import { basename } from "../fs/paths";
 import { ApexView } from "./ApexPanel";
@@ -13,7 +14,7 @@ const makeApexTab = (path: string, content: string): ApexTab => ({
   traceOpen: false,
 });
 
-export function ApexTabs() {
+export const ApexTabs = memo(function ApexTabs() {
   return (
     <FileTabsPanel<ApexTab>
       tool="apex"
@@ -26,4 +27,4 @@ export function ApexTabs() {
       renderView={(a) => <ApexView key={a.tab.id} {...a} />}
     />
   );
-}
+});

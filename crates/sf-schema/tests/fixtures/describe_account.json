@@ -24,6 +24,7 @@
         "custom": false,
         "nillable": false,
         "referenceTo": [],
+        "inlineHelpText": "Account name help",
         "picklistValues": []
       },
       {

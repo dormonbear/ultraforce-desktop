@@ -12,6 +12,7 @@ import { diagnosticsToMarkers } from "../editor/monaco-markers";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
 import { useTheme, monacoTheme } from "../theme";
+import { useOrgs } from "../org";
 
 interface Props {
   value: string;
@@ -31,6 +32,7 @@ export function SoqlEditor({
   reveal,
 }: Props) {
   const { theme, scheme } = useTheme();
+  const { selected: org } = useOrgs();
   const onRunRef = useRef(onRun);
   const onSaveRef = useRef(onSave);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
@@ -82,7 +84,7 @@ export function SoqlEditor({
     const handle = setTimeout(async () => {
       let diags: SoqlDiagnosticDto[];
       try {
-        diags = await soqlDiagnostics(value);
+        diags = await soqlDiagnostics(value, org);
       } catch {
         return;
       }
@@ -93,7 +95,7 @@ export function SoqlEditor({
       );
     }, 350);
     return () => clearTimeout(handle);
-  }, [value, mounted]);
+  }, [value, mounted, org]);
 
   return (
     <div className="flex h-full flex-col">

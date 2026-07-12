@@ -73,6 +73,18 @@ export interface OrgDto {
   isDefault: boolean;
 }
 
+/** Queryable index-lifecycle snapshot for one org (mirrors Rust `IndexStatusDto`). */
+export interface IndexStatus {
+  org: string;
+  state: "idle" | "indexing" | "ready" | "error";
+  phase: string | null;
+  done: number | null;
+  total: number | null;
+  /** Epoch millis of the last successful index. */
+  lastIndexed: number | null;
+  error: string | null;
+}
+
 export type SfCliState = "ok" | "outdated" | "not_found" | "path_issue";
 
 export interface SfStatus {
@@ -281,4 +293,92 @@ export interface CompletionItemDto {
   label: string;
   kind: string;
   detail?: string | null;
+}
+
+// ---- Schema browser DTOs (mirror of src-tauri/src/dto.rs) ------------------
+
+/** One object in the schema-browser list. */
+export interface SchemaObject {
+  name: string;
+  label: string;
+  custom: boolean;
+  keyPrefix: string | null;
+}
+
+/** One picklist entry on a schema field. */
+export interface SchemaPicklistValue {
+  label: string;
+  value: string;
+  active: boolean;
+  defaultValue: boolean;
+}
+
+/** A single field in an object's schema detail. */
+export interface SchemaField {
+  name: string;
+  label: string;
+  fieldType: string;
+  custom: boolean;
+  nillable: boolean;
+  referenceTo: string[];
+  relationshipName: string | null;
+  picklistValues: SchemaPicklistValue[];
+  restrictedPicklist: boolean;
+  dependentPicklist: boolean;
+  calculated: boolean;
+  calculatedFormula: string | null;
+  length: number;
+  unique: boolean;
+  inlineHelpText: string | null;
+}
+
+/** A record type's identity in an object's schema detail. */
+export interface SchemaRecordType {
+  name: string;
+  developerName: string;
+  active: boolean;
+  master: boolean;
+  available: boolean;
+}
+
+/** A child relationship pointing back to the object. */
+export interface SchemaChildRelationship {
+  childSObject: string;
+  relationshipName: string | null;
+  field: string;
+}
+
+/** Full schema detail for one object. */
+export interface SchemaObjectDetail {
+  name: string;
+  label: string;
+  keyPrefix: string | null;
+  custom: boolean;
+  fields: SchemaField[];
+  childRelationships: SchemaChildRelationship[];
+  recordTypes: SchemaRecordType[];
+}
+
+/** One hit from the schema search palette. */
+export interface SchemaSearchHit {
+  objectName: string;
+  fieldName: string;
+  fieldLabel: string;
+  snippet: string;
+}
+
+/** One metadata component that references a field ("where-used" row). */
+export interface FieldDependency {
+  componentType: string;
+  componentName: string;
+  componentId: string;
+}
+
+/** A field's where-used result plus when the cache was populated.
+ * `supported: false` (with `fetchedAt: null`) marks a standard field the
+ * Dependency API can't track. */
+export interface FieldDependencies {
+  supported: boolean;
+  items: FieldDependency[];
+  fetchedAt: number | null;
 }

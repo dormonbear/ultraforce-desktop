@@ -16,6 +16,7 @@ import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
+import { useOrgs } from "../org";
 import { revealLine, useApexSource } from "./useApexSource";
 import { debugFramesAt, debugSession } from "../ipc/logs";
 import {
@@ -93,7 +94,8 @@ export function LogDebugger({
   const topIdx = frames.length - 1;
   const frameIdx = frameSel ?? topIdx;
   const frame = frames[frameIdx] ?? null;
-  const { src, error } = useApexSource(frame?.className ?? null);
+  const { selected: org } = useOrgs();
+  const { src, error } = useApexSource(frame?.className ?? null, org);
   const hasVars = session?.hasVariables ?? false;
 
   // Reveal the active frame's line on step/frame/source change.

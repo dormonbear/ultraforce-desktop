@@ -10,7 +10,7 @@ use std::path::Path;
 /// — one `index.db`, one shared version. The read path rejects a mismatched
 /// index (forcing a reindex); a full reindex rebuilds every table fresh, so a
 /// derived cache is never ALTERed or data-migrated.
-pub const SCHEMA_VERSION: i64 = 2;
+pub const SCHEMA_VERSION: i64 = 3;
 
 /// Create apex-lang's tables if absent.
 pub fn ensure_apex_schema(conn: &Connection) -> rusqlite::Result<()> {
@@ -130,6 +130,19 @@ pub fn read_meta(conn: &Connection) -> rusqlite::Result<Option<Meta>> {
     })
 }
 
+/// Whether the index at `path` matches the shared [`SCHEMA_VERSION`]. `false`
+/// when the file or its `meta` row is absent/unreadable, or its stored version
+/// differs. Reusable stale-guard for readers that open the shared `index.db`
+/// directly (schema browse) instead of going through uf-ost's `Snapshot` — it
+/// must fire BEFORE any SELECT that could touch an older column set (e.g. a v2
+/// `fields` table without `inline_help_text`).
+pub fn index_matches_version(path: &Path) -> bool {
+    let Ok(conn) = sf_schema::sqlite::open_readonly(path) else {
+        return false;
+    };
+    matches!(read_meta(&conn), Ok(Some(meta)) if meta.schema_version == SCHEMA_VERSION)
+}
+
 /// FTS5 fuzzy match over Apex type names. `query` is a raw FTS5 MATCH
 /// expression (the caller tokenizes user input). Returns matching type names.
 pub fn search_apex(conn: &Connection, query: &str, limit: usize) -> rusqlite::Result<Vec<String>> {
@@ -137,4 +150,65 @@ pub fn search_apex(conn: &Connection, query: &str, limit: usize) -> rusqlite::Re
         conn.prepare("SELECT type_name FROM apex_fts WHERE apex_fts MATCH ?1 LIMIT ?2")?;
     let rows = stmt.query_map(params![query, limit as i64], |row| row.get(0))?;
     rows.collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_db() -> std::path::PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!("apex-db-guard-{}-{nanos}/index.db", std::process::id()))
+    }
+
+    /// Insert a `meta` row at an arbitrary `schema_version` (all NOT NULL cols).
+    fn seed_meta(conn: &Connection, version: i64) {
+        conn.execute(
+            "INSERT INTO meta (id, schema_version, alias, org_id, api_version,
+                indexed_at, generation, namespaces, classes, sobjects)
+             VALUES (1, ?1, 'MyOrg', '00Dorg', '60.0', '2020-01-01T00:00:00Z', 1, 0, 0, 0)",
+            params![version],
+        )
+        .unwrap();
+    }
+
+    /// Regression: an index left at `schema_version = 2` — the shape before the
+    /// `inline_help_text` column existed — must be rejected by the shared
+    /// version guard, so schema-browse readers surface the "no-index" empty
+    /// state instead of blowing up with `no such column: inline_help_text` the
+    /// moment `read_fields` runs against the stale table.
+    #[test]
+    fn stale_v2_index_fails_version_guard() {
+        let path = temp_db();
+
+        // Build an index.db whose meta says v2 (guard must reject before any
+        // reader SELECTs a v3-only column off the stale tables).
+        {
+            let conn = open_apex(&path).unwrap();
+            seed_meta(&conn, 2);
+        }
+        assert!(
+            !index_matches_version(&path),
+            "a v2 index must be rejected as stale, not read as if current"
+        );
+
+        // Same file bumped to the current version now passes the guard.
+        {
+            let conn = open_apex(&path).unwrap();
+            conn.execute("UPDATE meta SET schema_version = ?1", params![SCHEMA_VERSION])
+                .unwrap();
+        }
+        assert!(
+            index_matches_version(&path),
+            "a current-version index passes the guard"
+        );
+
+        // A missing file is rejected too (never panics).
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+        assert!(!index_matches_version(&path), "missing index → rejected");
+    }
 }

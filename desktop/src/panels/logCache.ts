@@ -41,11 +41,11 @@ export async function loadLogView(
 
 /** `loadLogView` bound to the real IPC + disk cache — the one production path
  * for resolving a log id to its parsed view. */
-export function fetchLogView(id: string): Promise<LogViewDto> {
+export function fetchLogView(id: string, org: string | null): Promise<LogViewDto> {
   return loadLogView(id, {
     readCache: readCachedBody,
     parse: parseLogView,
-    getLog,
+    getLog: (logId) => getLog(logId, org),
     writeCache: writeCachedBody,
   });
 }
