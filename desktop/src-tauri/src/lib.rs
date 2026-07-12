@@ -76,10 +76,11 @@ async fn query_plan(
     query: String,
     org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<features::query_plan::QueryPlan, CommandError> {
-    features::query_plan::query_plan(&state.invoker, &query, org.as_deref())
+) -> Result<dto::QueryPlanDto, CommandError> {
+    let plan = features::query_plan::query_plan(&state.invoker, &query, org.as_deref())
         .await
-        .map_err(CommandError::from)
+        .map_err(CommandError::from)?;
+    Ok(dto::QueryPlanDto::from(plan))
 }
 
 #[tauri::command]
@@ -398,7 +399,7 @@ async fn soql_diagnostics(
     query: String,
     org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<Vec<features::soql::SoqlDiagnostic>, CommandError> {
+) -> Result<Vec<dto::SoqlDiagnosticDto>, CommandError> {
     Ok(completion::soql_diagnostics(query, org, &state).await)
 }
 
@@ -407,7 +408,7 @@ async fn apex_soql_diagnostics(
     src: String,
     org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<Vec<features::soql::SoqlDiagnostic>, CommandError> {
+) -> Result<Vec<dto::SoqlDiagnosticDto>, CommandError> {
     Ok(completion::apex_soql_diagnostics(src, org, &state).await)
 }
 
@@ -416,7 +417,7 @@ async fn apex_diagnostics(
     src: String,
     org: Option<String>,
     state: State<'_, AppState>,
-) -> Result<Vec<features::apex_complete::ApexDiagnostic>, CommandError> {
+) -> Result<Vec<dto::ApexDiagnosticDto>, CommandError> {
     Ok(completion::apex_diagnostics(src, org, &state))
 }
 

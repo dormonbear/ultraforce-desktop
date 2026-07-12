@@ -128,7 +128,7 @@ pub(crate) async fn soql_diagnostics(
     query: String,
     org: Option<String>,
     state: &AppState,
-) -> Vec<features::soql::SoqlDiagnostic> {
+) -> Vec<dto::SoqlDiagnosticDto> {
     let org = org_key(org);
     // Intentional: diagnostic errors are swallowed inside `diagnose` (editor
     // hot path) — no diagnostics is an acceptable degraded result.
@@ -139,13 +139,16 @@ pub(crate) async fn soql_diagnostics(
         &query,
     )
     .await
+    .into_iter()
+    .map(dto::SoqlDiagnosticDto::from)
+    .collect()
 }
 
 pub(crate) async fn apex_soql_diagnostics(
     src: String,
     org: Option<String>,
     state: &AppState,
-) -> Vec<features::soql::SoqlDiagnostic> {
+) -> Vec<dto::SoqlDiagnosticDto> {
     let org = org_key(org);
     features::soql::diagnose_apex_soql(
         &state.invoker,
@@ -154,13 +157,21 @@ pub(crate) async fn apex_soql_diagnostics(
         &src,
     )
     .await
+    .into_iter()
+    .map(dto::SoqlDiagnosticDto::from)
+    .collect()
 }
 
 pub(crate) fn apex_diagnostics(
     src: String,
     org: Option<String>,
     state: &AppState,
-) -> Vec<features::apex_complete::ApexDiagnostic> {
+) -> Vec<dto::ApexDiagnosticDto> {
     let org = org_key(org);
-    state.apex.diagnostics(&org, &src)
+    state
+        .apex
+        .diagnostics(&org, &src)
+        .into_iter()
+        .map(dto::ApexDiagnosticDto::from)
+        .collect()
 }
