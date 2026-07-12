@@ -1,5 +1,55 @@
 # Changelog
 
+## [0.3.12](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.11...v0.3.12) (2026-07-12)
+
+
+### Features
+
+* **desktop:** faint background highlight for SOQL subquery ranges ([e7c3e8f](https://github.com/dormonbear/ultraforce-desktop/commit/e7c3e8f5af364167fc8dc6d6b55e3bde0a9090fe))
+* **desktop:** field where-used command with sqlite cache ([d581ba2](https://github.com/dormonbear/ultraforce-desktop/commit/d581ba2cbd9a5f405a9f1ad6f22e949d250dba63))
+* **desktop:** field where-used panel ([c602c49](https://github.com/dormonbear/ultraforce-desktop/commit/c602c49459dfaa21cca973bf4149adedcb4393d8))
+* **desktop:** fjord audit pass — empty states, selection bars, text tiers (phase 4) ([4783aae](https://github.com/dormonbear/ultraforce-desktop/commit/4783aae92ba0b28efaca3a3f49193d3c7d522358))
+* **desktop:** fjord dark theme tokens (phase 1) ([e6b34cc](https://github.com/dormonbear/ultraforce-desktop/commit/e6b34cc68e33000ccddad81623a0310e8947d910))
+* **desktop:** fjord data-layer table standards (phase 3) ([5f0954f](https://github.com/dormonbear/ultraforce-desktop/commit/5f0954f019664f0e2df4fa99201678c837483148))
+* **desktop:** fjord design system, SOQL formatting, indexing fixes ([cf0a0df](https://github.com/dormonbear/ultraforce-desktop/commit/cf0a0dfb252bce21cc36897f4e080d3c30fa2292))
+* **desktop:** fjord motion tokens + unified press feedback (phase 2) ([93544e2](https://github.com/dormonbear/ultraforce-desktop/commit/93544e2ef25dc40d3c04aa2579b59e45760edefc))
+* **desktop:** in-tab schema deep search ([cf44723](https://github.com/dormonbear/ultraforce-desktop/commit/cf44723f3e3beafe6cbc8f7c1c3d76a095cd2486))
+* **desktop:** loading indicator on first label-mode toggle ([598177e](https://github.com/dormonbear/ultraforce-desktop/commit/598177e423e737158fd143e51be1080b444f7318))
+* **desktop:** per-org config (api version/timeout/alias/color) + org switcher modal ([80f4d2d](https://github.com/dormonbear/ultraforce-desktop/commit/80f4d2db83f9afe2269a5c55e0dceb2815f7db51))
+* **desktop:** rename file from tab context menu ([986811c](https://github.com/dormonbear/ultraforce-desktop/commit/986811c9ccdb282bb4c5527a58d2927bbd1d3fcf))
+* **desktop:** schema browse and search commands ([6144c89](https://github.com/dormonbear/ultraforce-desktop/commit/6144c891d401cb1bd8dd64fedfd808e4e0ed22b3))
+* **desktop:** schema browser + field where-used ([8fd501b](https://github.com/dormonbear/ultraforce-desktop/commit/8fd501be273d71750786277c22d40d2e7c3d6886))
+* **desktop:** schema browser three-pane tab ([12fd2b1](https://github.com/dormonbear/ultraforce-desktop/commit/12fd2b19821cf5ef8c8913237943f7bae20d3e09))
+* **desktop:** schema ipc wrappers and types ([20bdb28](https://github.com/dormonbear/ultraforce-desktop/commit/20bdb280f29c6bc4cabb6fc10492238e00f0acc2))
+* **features:** field where-used via tooling dependency api ([478fbc4](https://github.com/dormonbear/ultraforce-desktop/commit/478fbc43d7c25152c763cb8681855cb4cdc1e3f5))
+* **schema:** add inlineHelpText to field model ([0fd0c1a](https://github.com/dormonbear/ultraforce-desktop/commit/0fd0c1af4e0c365b3a9bacb0851b2c9c5c99ca34))
+* **schema:** deep FTS (picklists/help/formula) + field-deps cache, schema v3 ([a88ceba](https://github.com/dormonbear/ultraforce-desktop/commit/a88ceba5e33555c0ae8bf10a1d3a65963e806954))
+* **schema:** fts search api with snippets ([0dcc174](https://github.com/dormonbear/ultraforce-desktop/commit/0dcc174f893b57219c71d3edc3d13891a5f37e52))
+* **soql:** align wrapped fields under first SELECT field ([d5d9590](https://github.com/dormonbear/ultraforce-desktop/commit/d5d9590e2f4669f63698277831d325ec3b4e3b71))
+* **soql:** block-expand long subqueries with fit-based inline threshold ([4b0b84f](https://github.com/dormonbear/ultraforce-desktop/commit/4b0b84f7ab5fca2096b97186a31c508bfe15c6a1))
+* **soql:** fill-wrap long SELECT field lists at 80 cols ([5a136c2](https://github.com/dormonbear/ultraforce-desktop/commit/5a136c23c0929a43ea285937542ef14b552e1bcd))
+* **soql:** wrap long WHERE/HAVING before top-level AND/OR ([3a404a5](https://github.com/dormonbear/ultraforce-desktop/commit/3a404a5890d11b8435723ed758575efd1a89beab))
+
+
+### Bug Fixes
+
+* **apex-lang:** index apex_members(type_id) to fix quadratic snapshot load ([b590c84](https://github.com/dormonbear/ultraforce-desktop/commit/b590c842be72c66951b26d86f9fed7560efed0ce))
+* **desktop:** gate stale where-used responses and widen disclaimer ([a449436](https://github.com/dormonbear/ultraforce-desktop/commit/a449436f0413d5582cab24cbd2adfb2342bd03eb))
+* **desktop:** guard schema browse reads behind shared schema version ([7cd85d5](https://github.com/dormonbear/ultraforce-desktop/commit/7cd85d571f35a3031cd953359f015534e3d5e35e))
+* **desktop:** hide reindex button while indexing ([a7c9e55](https://github.com/dormonbear/ultraforce-desktop/commit/a7c9e5598c84ba875338142390fb04e3cad07652))
+* **desktop:** scope schema detail cache per org ([218b58d](https://github.com/dormonbear/ultraforce-desktop/commit/218b58d631ce888189c4629cb90984db445eca58))
+* **desktop:** single spinner during org indexing ([3398ad7](https://github.com/dormonbear/ultraforce-desktop/commit/3398ad789b475b8bb5fd8fd11b0740ec3ef1258c))
+* **desktop:** stable result-grid column widths via table-fixed + one-time auto-fit ([9fee7b8](https://github.com/dormonbear/ultraforce-desktop/commit/9fee7b8538e3df0fee521f9a36025955e0c1a8f5))
+* **desktop:** stop native text selection leaking into result grid ([8f65070](https://github.com/dormonbear/ultraforce-desktop/commit/8f65070e488ffee6115b64dcb8ba8742e2085e65))
+* **desktop:** trim subquery highlight to text, skip indentation ([cc62d4e](https://github.com/dormonbear/ultraforce-desktop/commit/cc62d4e427f0a8e7b8d62cc8c44517941d98eed7))
+* **index:** keep snapshot on api-version detection fallback, trace indexing path ([3462740](https://github.com/dormonbear/ultraforce-desktop/commit/3462740d3dc370c56b85faac9da033b6b1a3e262))
+* **schema:** make replace_field_deps atomic ([d658c99](https://github.com/dormonbear/ultraforce-desktop/commit/d658c99844c82747e8a05e0534b177c523bca614))
+
+
+### Performance Improvements
+
+* **desktop:** eliminate page-switch jank ([0632871](https://github.com/dormonbear/ultraforce-desktop/commit/0632871110065250c102baaf62581bd4f00d9eee))
+
 ## [0.3.11](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.10...v0.3.11) (2026-07-11)
 
 
