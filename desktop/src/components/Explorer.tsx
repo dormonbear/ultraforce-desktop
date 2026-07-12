@@ -42,6 +42,8 @@ interface Props {
   onOpen: (path: string, line?: number) => void;
   onRenamed: (from: string, to: string) => void;
   onRemoved: (path: string) => void;
+  /** Bumped by the parent to force a tree re-read (e.g. a rename from the tab strip). */
+  refreshToken?: number;
 }
 
 /** Inline "name me" row for a pending new file / folder. */
@@ -58,6 +60,7 @@ export function Explorer({
   onOpen,
   onRenamed,
   onRemoved,
+  refreshToken,
 }: Props) {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [expanded, setExpanded] = useState<string[]>([]);
@@ -71,6 +74,10 @@ export function Explorer({
     void readTree(root).then(setNodes);
   }, [root]);
   useEffect(refresh, [refresh]);
+  // Re-read when the parent bumps the token (e.g. a rename from the tab strip).
+  useEffect(() => {
+    if (refreshToken) refresh();
+  }, [refreshToken, refresh]);
   // Re-read when the window regains focus (cheap external-change pickup).
   useEffect(() => {
     window.addEventListener("focus", refresh);
