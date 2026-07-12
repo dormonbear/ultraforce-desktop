@@ -491,6 +491,68 @@ button:not(:disabled):not(.monaco-editor *):active,
   }
 }
 
+/* ── Org switch: Aurora echo (titlebar-only signature) ─────────────────────
+ * Fires once per real active-org change (see useOrgSwitchCue). Small-area,
+ * low-frequency by design: a single sweep across the 2px top strip in the new
+ * org's color plus a light spring settle on the badge. Both elements are keyed
+ * by the switch nonce so each plays exactly once and never gates, awaits, or
+ * delays the actual switch. transform/opacity only; panel content is untouched. */
+@keyframes fjord-org-echo {
+  0% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+/* A colored band sweeping right→left (from the badge) across the strip; the
+ * transparent gradient edges read as an echo. Falls back to the accent color
+ * when the org has no preset color. */
+.fjord-org-echo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--org-echo, var(--primary)),
+    transparent
+  );
+  animation: fjord-org-echo var(--motion-6) var(--ease-fjord-out) both;
+}
+
+@keyframes fjord-org-settle {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+/* The badge lands on its new color/name with a light spring settle (0.98→1 is
+ * the sanctioned small-scale use of the overshoot easing). */
+.fjord-org-settle {
+  transform-origin: center;
+  animation: fjord-org-settle var(--motion-4) var(--ease-fjord-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No sweep, no scale. The echo is keyed (freshly mounted per switch), so hide
+   * it rather than leave a static band; the badge simply stays put. */
+  .fjord-org-echo {
+    display: none;
+  }
+  .fjord-org-settle {
+    animation: none;
+    transform: none;
+  }
+}
+
 /* ── Overlay motion: symmetric enter/exit ──────────────────────────────────
  * astryx Dialog hard-codes a 550ms directional enter and closes instantly
  * (dialog.close()). MotionDialog keeps it mounted through an exit phase; these
@@ -607,6 +669,38 @@ button:not(:disabled):not(.monaco-editor *):active,
   [data-motion-phase="exit"] .fjord-drawer-panel {
     animation: none !important;
   }
+}
+
+/* ── Sonner toast timing ────────────────────────────────────────────────────
+ * The library ships 400ms enter/stack + 200ms shadow (sonner/dist/styles.css);
+ * next to Fjord's 120–200ms that reads slow and "sticky". Converge to the token
+ * scale: ~160ms in (--motion-3), 120ms out (--motion-2, an exact 30% faster
+ * exit). We snap the report's "~180ms" to the existing --motion-3 rather than
+ * introduce an off-scale literal, keeping the motion contract single-source.
+ *
+ * Height decision: KEEP the `height` transition (shortened), do NOT remove it.
+ * Multi-toast stack reflow relies on it; the report flagged removal as a
+ * stacking-regression risk needing visual regression, so shortening is the safe
+ * convergence. Selectors are stable [data-sonner-*] attributes and are scoped
+ * with `:not([data-swiping])` so the library's drag `transition: none` and its
+ * higher-specificity collapsed-stack exit rules still win. Sonner's own
+ * `!important` reduced-motion reset also still wins (ours is unprefixed). */
+[data-sonner-toaster][data-x-position] {
+  transition: transform var(--motion-3) var(--ease-fjord-out);
+}
+[data-sonner-toaster] [data-sonner-toast]:not([data-swiping="true"]) {
+  transition:
+    transform var(--motion-3) var(--ease-fjord-out),
+    opacity var(--motion-3) var(--ease-fjord-out),
+    height var(--motion-3) var(--ease-fjord-out),
+    box-shadow var(--motion-2) var(--ease-fjord-out);
+}
+[data-sonner-toaster] [data-sonner-toast][data-removed="true"]:not([data-swiping="true"]) {
+  transition:
+    transform var(--motion-2) var(--ease-fjord-in),
+    opacity var(--motion-2) var(--ease-fjord-in),
+    height var(--motion-2) var(--ease-fjord-in),
+    box-shadow var(--motion-2) var(--ease-fjord-in);
 }
 
 /*
