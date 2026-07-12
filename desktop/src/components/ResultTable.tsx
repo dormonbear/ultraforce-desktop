@@ -1,5 +1,5 @@
 import { formatIpcError } from "../errorFormat";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import type { ColumnLabelsDto, SoqlResultDto } from "../types";
 import { soqlColumnLabels } from "../ipc/soql";
 import { useOrgs } from "../org";
+import { autoFitWidths, createGridMeasurer, sizingKey } from "./resultTable/autoFit";
 import { buildChildLookup } from "./resultTable/childData";
 import { displayColumnLabel } from "./resultTable/columnLabel";
 import { computeFillRatio } from "./resultTable/fill";
@@ -227,6 +228,23 @@ export function ResultTable({
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
   });
+
+  // Initial content-aware column widths. The table is `table-fixed` (widths
+  // authoritative — header-text changes like the label toggle can no longer
+  // redistribute columns), so seed sizing from measured content once per
+  // column-id set. Later runs with the same key are no-ops, preserving manual
+  // resizes; label toggling never remeasures (ids don't change).
+  const sizedKeyRef = useRef("");
+  useLayoutEffect(() => {
+    const key = sizingKey(activeColumns);
+    if (sizedKeyRef.current === key) return;
+    const m = createGridMeasurer();
+    if (!m) return; // no 2D canvas (jsdom) — keep default sizes
+    sizedKeyRef.current = key;
+    table.setColumnSizing(
+      autoFitWidths(activeColumns, rows.map((r) => r.cells), m),
+    );
+  }, [activeColumns, rows, table]);
 
   /** Flattened projection of the currently visible rows (filter + sort applied). */
   const exportTable = (): { columns: string[]; rows: string[][] } => ({
@@ -453,7 +471,7 @@ export function ResultTable({
           >
           <Table
             style={{ width: tableWidth }}
-            className="border-separate border-spacing-0 text-[13px]"
+            className="table-fixed border-separate border-spacing-0 text-[13px]"
           >
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
