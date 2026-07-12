@@ -120,6 +120,11 @@
   --radius-container: var(--radius); /* cards, dialogs */
   --radius-element: 0.375rem; /* buttons, inputs ≈ Tailwind rounded-md */
   --radius-inner: 0.25rem;
+
+  /* Motion: point Astryx's single easing token at Fjord's curve. Astryx's
+   * per-role durations (--duration-*) and its Dialog/menu keyframes (scale +
+   * enter/exit) are hardcoded in its dist and left untouched — see plan. */
+  --ease-standard: var(--ease);
 }
 
 @theme inline {
@@ -246,9 +251,37 @@ textarea,
     0 0 0 3px var(--ring);
 }
 
-/* Strong ease-out for entering/exiting UI — the built-in curve is too weak. */
+/* Motion tokens (Fjord / emil-design-eng). Only transform & opacity animate.
+ * --ease: enter/interaction; --ease-io: on-screen movement. High-frequency
+ * paths (tab/page/panel switches) stay animation-free — see PanelHost. */
 :root {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
+  --t-press: 120ms;
+  --t-hover: 150ms;
+  --t-popover: 180ms;
+  --t-modal-in: 200ms;
+  --t-modal-out: 130ms;
+  /* Alias: tailwindcss-animate enter/exit curve (see .animate-in below). */
+  --ease-out: var(--ease);
+}
+
+/* Press feedback: every non-Astryx pressable dips to scale(.97) on press.
+ * Astryx's own Buttons keep their built-in press (higher specificity wins);
+ * Monaco internals are excluded so editor widgets/drag handles never scale.
+ * Per-property durations give transform the 120ms press timing while color/
+ * border keep the 150ms hover timing. */
+button:not(.monaco-editor *),
+[role="button"]:not(.monaco-editor *) {
+  transition-property: color, background-color, border-color, box-shadow,
+    opacity, transform;
+  transition-duration: var(--t-hover), var(--t-hover), var(--t-hover),
+    var(--t-hover), var(--t-hover), var(--t-press);
+  transition-timing-function: var(--ease);
+}
+button:not(:disabled):not(.monaco-editor *):active,
+[role="button"]:not(.monaco-editor *):active {
+  transform: scale(0.97);
 }
 
 /* tailwindcss-animate drives enter/exit via animation; give it the strong curve. */
@@ -274,6 +307,11 @@ textarea,
   * {
     transition-property: opacity, color, background-color, border-color,
       box-shadow, fill, stroke !important;
+  }
+  /* No press-scale transform under reduced motion. */
+  button:active,
+  [role="button"]:active {
+    transform: none !important;
   }
 }
 
