@@ -25,6 +25,13 @@
 //! every nesting level, so a subquery's field list wraps aligned under its own
 //! SELECT's first field.
 //!
+//! WHERE / HAVING clauses that overflow `MAX_WIDTH` break before each
+//! top-level (paren-depth-0) AND/OR: the first condition stays on the clause
+//! line and each continuation line starts with the AND/OR keyword, one
+//! `INDENT` deeper than the clause keyword. Parenthesized condition groups
+//! stay intact on one line, and a single condition with no top-level AND/OR
+//! stays on one line however long.
+//!
 //! Intra-clause whitespace collapses to single spaces (so a clause split across
 //! lines rejoins), but text inside `'…'` literals is preserved exactly.
 //! Idempotent.
@@ -192,9 +199,47 @@ fn render_query(atoms: &[Atom], select_col: usize, parent_broken: bool) -> Strin
         let end = clause_starts.get(idx + 1).copied().unwrap_or(atoms.len());
         out.push('\n');
         out.push_str(&clause_indent);
-        out.push_str(&inline_render(&atoms[start..end]));
+        out.push_str(&render_clause(&atoms[start..end], select_col));
     }
     out
+}
+
+/// Render one clause starting at column `clause_col`. A WHERE/HAVING clause
+/// that overflows `MAX_WIDTH` breaks before each top-level (paren-depth-0)
+/// AND/OR, each continuation line starting with that keyword one `INDENT`
+/// deeper than the clause keyword. Parenthesized groups stay intact (no
+/// recursion into them), and a single overlong condition is left on one line.
+fn render_clause(clause: &[Atom], clause_col: usize) -> String {
+    let inline = inline_render(clause);
+    let conditional = matches!(clause[0].text.as_str(), "WHERE" | "HAVING");
+    if !conditional || clause_col + inline.chars().count() <= MAX_WIDTH {
+        return inline;
+    }
+    let mut depth = 0i32;
+    let mut break_points: Vec<usize> = Vec::new();
+    for (k, a) in clause.iter().enumerate() {
+        match a.kind {
+            AtomKind::LParen => depth += 1,
+            AtomKind::RParen => depth -= 1,
+            AtomKind::Keyword if depth == 0 && matches!(a.text.as_str(), "AND" | "OR") => {
+                break_points.push(k);
+            }
+            _ => {}
+        }
+    }
+    if break_points.is_empty() {
+        return inline;
+    }
+    let cont_prefix = format!("\n{}", " ".repeat(clause_col + INDENT));
+    let mut s = String::new();
+    let mut seg_start = 0;
+    for &b in &break_points {
+        s.push_str(&inline_render(&clause[seg_start..b]));
+        s.push_str(&cont_prefix);
+        seg_start = b;
+    }
+    s.push_str(&inline_render(&clause[seg_start..]));
+    s
 }
 
 /// Char width of the last line of `s` (everything after the final newline).
@@ -536,6 +581,83 @@ mod tests {
              )\n\
              FROM Account";
         assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn short_where_with_conditions_stays_single_line() {
+        let q = "SELECT Id FROM Account WHERE Name != null AND Industry = 'Tech' OR Rating = 'Hot'";
+        assert_eq!(
+            format_soql(q),
+            "SELECT Id\nFROM Account\nWHERE Name != null AND Industry = 'Tech' OR Rating = 'Hot'"
+        );
+    }
+
+    #[test]
+    fn wraps_long_where_before_each_top_level_and_keeps_paren_group_intact() {
+        // Overlong WHERE breaks before each depth-0 AND; the parenthesized OR
+        // group is a single condition and stays intact on its line.
+        let q = "SELECT Id FROM Vendor__c WHERE Vendor__r.Status__c != 'Created' AND Vendor__r.CreatedDate = LAST_N_DAYS:365 AND (Status__c = 'Active' OR Priority__c > 3) ORDER BY Name";
+        let expected = "SELECT Id\n\
+             FROM Vendor__c\n\
+             WHERE Vendor__r.Status__c != 'Created'\n    \
+             AND Vendor__r.CreatedDate = LAST_N_DAYS:365\n    \
+             AND (Status__c = 'Active' OR Priority__c > 3)\n\
+             ORDER BY Name";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn wraps_long_where_with_top_level_or() {
+        let q = "SELECT Id FROM Account WHERE Industry = 'Technology' OR Industry = 'Finance' OR AnnualRevenue > 1000000 AND NumberOfEmployees > 50";
+        let expected = "SELECT Id\n\
+             FROM Account\n\
+             WHERE Industry = 'Technology'\n    \
+             OR Industry = 'Finance'\n    \
+             OR AnnualRevenue > 1000000\n    \
+             AND NumberOfEmployees > 50";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn wraps_long_having_before_conditions() {
+        // Function-call parens don't hide the depth-0 ANDs.
+        let q = "SELECT AccountId FROM Contact GROUP BY AccountId HAVING COUNT(Id) > 10 AND MAX(CreatedDate) = TODAY AND MIN(CreatedDate) < LAST_N_DAYS:365";
+        let expected = "SELECT AccountId\n\
+             FROM Contact\n\
+             GROUP BY AccountId\n\
+             HAVING COUNT(Id) > 10\n    \
+             AND MAX(CreatedDate) = TODAY\n    \
+             AND MIN(CreatedDate) < LAST_N_DAYS:365";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn wraps_where_inside_block_subquery_with_relative_indent() {
+        // The subquery's WHERE sits at column 11, so its AND continuations sit
+        // one INDENT deeper, at 15.
+        let q = "SELECT Id, (SELECT Id, Name, Email, Phone, Fax FROM Contacts WHERE Email != null AND MailingCity = 'Shanghai' AND Department = 'Engineering' AND Title != null) FROM Account";
+        let expected = "SELECT Id,\n       \
+             (\n           \
+             SELECT Id, Name, Email, Phone, Fax\n           \
+             FROM Contacts\n           \
+             WHERE Email != null\n               \
+             AND MailingCity = 'Shanghai'\n               \
+             AND Department = 'Engineering'\n               \
+             AND Title != null\n       \
+             )\n\
+             FROM Account";
+        assert_eq!(format_soql(q), expected);
+    }
+
+    #[test]
+    fn wrapped_where_is_idempotent() {
+        let root = "SELECT Id FROM Vendor__c WHERE Vendor__r.Status__c != 'Created' AND Vendor__r.CreatedDate = LAST_N_DAYS:365 AND (Status__c = 'Active' OR Priority__c > 3) ORDER BY Name";
+        let once = format_soql(root);
+        assert_eq!(format_soql(&once), once);
+
+        let sub = "SELECT Id, (SELECT Id, Name, Email, Phone, Fax FROM Contacts WHERE Email != null AND MailingCity = 'Shanghai' AND Department = 'Engineering' AND Title != null) FROM Account";
+        let once_sub = format_soql(sub);
+        assert_eq!(format_soql(&once_sub), once_sub);
     }
 
     #[test]
