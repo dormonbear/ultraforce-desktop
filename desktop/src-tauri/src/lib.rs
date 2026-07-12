@@ -65,6 +65,13 @@ fn format_soql(query: String) -> String {
     soql_lang::format_soql(&query)
 }
 
+/// Inner subquery `(SELECT … )` ranges (UTF-16 offsets) for editor highlighting.
+/// Pure, no IO; infallible like `format_soql`.
+#[tauri::command]
+fn soql_subquery_spans(query: String) -> Vec<dto::SubquerySpanDto> {
+    dto::subquery_spans(&query)
+}
+
 /// Re-indent anonymous Apex by brace depth. Pure, no IO.
 #[tauri::command]
 fn format_apex(src: String) -> String {
@@ -500,6 +507,7 @@ pub fn run() {
             apex_diagnostics,
             query_plan,
             format_soql,
+            soql_subquery_spans,
             format_apex,
             parse_log,
             source_at_line,

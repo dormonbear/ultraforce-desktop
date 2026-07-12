@@ -431,6 +431,15 @@ button:not(:disabled):not(.monaco-editor *):active,
   box-shadow: inset 3px 0 0 0 var(--primary);
 }
 
+/* Inner SOQL subquery `(SELECT … )` ranges — a very faint ambient tint so nested
+ * blocks read as such. No border; slight rounding. Applied via Monaco
+ * decoration className (see soqlSubqueryHighlight.ts). Token-driven → both
+ * themes. Nested subqueries overlap, deepening the tint naturally. */
+.soql-subquery-range {
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+  border-radius: 2px;
+}
+
 /* Native <select> skin: drop the OS arrow and paint a lucide-style
  * ChevronsUpDown (matching our custom picker triggers) so every dropdown's
  * closed state looks identical. Option lists stay native (perf + unstylable).

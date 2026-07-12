@@ -66,6 +66,13 @@ export interface SoqlDiagnosticDto {
   severity: "error" | "warning";
 }
 
+/** One inner subquery `(SELECT … )` range as UTF-16 offsets into the query text
+ * (feed straight into Monaco `model.getPositionAt`). */
+export interface SubquerySpanDto {
+  start: number;
+  end: number;
+}
+
 export interface OrgDto {
   username: string;
   alias: string | null;
