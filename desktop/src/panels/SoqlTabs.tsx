@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FileTabsPanel } from "../tabs/FileTabsPanel";
 import { basename } from "../fs/paths";
 import { SoqlView } from "./SoqlPanel";
@@ -15,7 +16,7 @@ const makeSoqlTab = (path: string, content: string): SoqlTab => ({
   plan: null,
 });
 
-export function SoqlTabs() {
+export const SoqlTabs = memo(function SoqlTabs() {
   return (
     <FileTabsPanel<SoqlTab>
       tool="soql"
@@ -28,4 +29,4 @@ export function SoqlTabs() {
       renderView={(a) => <SoqlView key={a.tab.id} {...a} />}
     />
   );
-}
+});

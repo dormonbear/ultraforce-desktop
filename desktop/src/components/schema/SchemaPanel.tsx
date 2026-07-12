@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import {
   ResizableHandle,
@@ -32,7 +33,11 @@ function isNoIndex(e: unknown): boolean {
  * type detail (right). Reads the same index the SOQL/Apex tooling builds; it
  * never triggers indexing itself.
  */
-export function SchemaPanel({ org }: { org: string | null }) {
+export const SchemaPanel = memo(function SchemaPanel({
+  org,
+}: {
+  org: string | null;
+}) {
   const [objects, setObjects] = useState<SchemaObject[]>([]);
   const [objectsLoading, setObjectsLoading] = useState(false);
   const [noIndex, setNoIndex] = useState(false);
@@ -47,6 +52,13 @@ export function SchemaPanel({ org }: { org: string | null }) {
   // Bumped on every object click so re-selecting an object whose detail fetch
   // failed retries it (cache hits still early-return, so this is free).
   const [fetchNonce, setFetchNonce] = useState(0);
+  // Bumped when this org's index finishes *after* a load failed with no-index,
+  // so a reindex recovers the panel in place (see the listener below).
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const noIndexRef = useRef(false);
+  useEffect(() => {
+    noIndexRef.current = noIndex;
+  }, [noIndex]);
 
   // Load the object list whenever the active org changes. The detail cache is
   // per-org (object names collide across orgs), so drop it too.
@@ -81,6 +93,27 @@ export function SchemaPanel({ org }: { org: string | null }) {
       });
     return () => {
       cancelled = true;
+    };
+  }, [org, reloadNonce]);
+
+  // A no-index load leaves the panel on the "not indexed" screen and never
+  // retries (the load only re-runs on org change), so a later reindex would
+  // strand it. Re-run the object-list load when this org's index finishes, but
+  // only while stuck on no-index — so a background delta-sync never wipes an
+  // active browsing selection.
+  useEffect(() => {
+    if (!org) return;
+    const un = listen<{ org: string; phase: string }>("index-progress", (e) => {
+      if (
+        e.payload.org === org &&
+        e.payload.phase === "done" &&
+        noIndexRef.current
+      ) {
+        setReloadNonce((n) => n + 1);
+      }
+    });
+    return () => {
+      void un.then((f) => f());
     };
   }, [org]);
 
@@ -123,11 +156,16 @@ export function SchemaPanel({ org }: { org: string | null }) {
   }, []);
 
   const detail = selectedObject ? detailCache.get(selectedObject) : undefined;
-  const fields = detail?.fields ?? [];
+  // Memoize the derived arrays so their reference is stable across re-renders
+  // that don't touch `detail` (filters, loading flags) — keeps the memoized
+  // FieldTable/FieldDetail from re-rendering on unrelated within-panel state.
+  const fields = useMemo(() => detail?.fields ?? [], [detail]);
+  const recordTypes = useMemo(() => detail?.recordTypes ?? [], [detail]);
   const activeField = useMemo(
     () => fields.find((f) => f.name === selectedField) ?? null,
     [fields, selectedField],
   );
+  const onCloseField = useCallback(() => setSelectedField(null), []);
   const detailPaneLoading = Boolean(selectedObject) && !detail && detailLoading;
 
   if (org && noIndex) {
@@ -183,12 +221,12 @@ export function SchemaPanel({ org }: { org: string | null }) {
               org={org}
               objectName={selectedObject}
               field={activeField}
-              recordTypes={detail?.recordTypes ?? []}
-              onClose={() => setSelectedField(null)}
+              recordTypes={recordTypes}
+              onClose={onCloseField}
             />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
     </div>
   );
-}
+});

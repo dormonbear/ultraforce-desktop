@@ -38,6 +38,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ColumnLabelsDto, SoqlResultDto } from "../types";
 import { soqlColumnLabels } from "../ipc/soql";
+import { useOrgs } from "../org";
 import { buildChildLookup } from "./resultTable/childData";
 import { displayColumnLabel } from "./resultTable/columnLabel";
 import { computeFillRatio } from "./resultTable/fill";
@@ -91,6 +92,7 @@ export function ResultTable({
   query?: string;
   initialAdvancedFilter?: RuleGroupType;
 }) {
+  const { selected: org } = useOrgs();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -344,11 +346,14 @@ export function ResultTable({
     const next = !labelMode;
     setLabelMode(next);
     if (next && !labels && query) {
-      soqlColumnLabels({
-        query,
-        columns: data.columns,
-        childColumns: Object.fromEntries(lookup.childColumns),
-      })
+      soqlColumnLabels(
+        {
+          query,
+          columns: data.columns,
+          childColumns: Object.fromEntries(lookup.childColumns),
+        },
+        org,
+      )
         .then(setLabels)
         .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`));
     }

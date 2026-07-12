@@ -3,14 +3,14 @@ import type { LogRefDto, LogViewDto } from "../types";
 import type { SourceRef } from "../panels/sourceRef";
 import type { DebugFrame, DebugSession } from "../panels/stepDebug";
 
-/** Head metadata of the target org's debug logs, newest first. */
-export function listLogs(): Promise<LogRefDto[]> {
-  return invoke<LogRefDto[]>("list_logs");
+/** Head metadata of `org`'s debug logs, newest first (null = CLI default). */
+export function listLogs(org: string | null): Promise<LogRefDto[]> {
+  return invoke<LogRefDto[]>("list_logs", { org });
 }
 
-/** Download a log body from the org and parse it (raw included). */
-export function getLog(id: string): Promise<LogViewDto> {
-  return invoke<LogViewDto>("get_log", { id });
+/** Download a log body from `org` and parse it (raw included; null = CLI default). */
+export function getLog(id: string, org: string | null): Promise<LogViewDto> {
+  return invoke<LogViewDto>("get_log", { id, org });
 }
 
 /** Parse a log body already held in memory into a full `LogViewDto`.

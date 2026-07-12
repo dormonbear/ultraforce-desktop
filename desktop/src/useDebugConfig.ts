@@ -7,10 +7,9 @@ import type { CategoryLevels } from "./types";
 /**
  * Owns the running user's TraceFlag / DebugLevel config for a panel.
  *
- * Fetches `get_debug_config` on mount and whenever `org` changes (the backend
- * reads the current target org, set globally on org-select — `org` is only the
- * re-fetch trigger). `apply` writes via `set_debug_config`. Shared by the Apex
- * and Logs panels so the wiring lives in one place.
+ * Fetches `get_debug_config` on mount and whenever `org` changes, scoping both
+ * the read and the `set_debug_config` write to `org` explicitly. Shared by the
+ * Apex and Logs panels so the wiring lives in one place.
  */
 export function useDebugConfig(org: string | null): {
   levels: CategoryLevels | null;
@@ -23,7 +22,7 @@ export function useDebugConfig(org: string | null): {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    getDebugConfig()
+    getDebugConfig(org)
       .then((dto) => setLevels(dto.levels))
       .catch((e) => setError(formatIpcError(e)));
   }, [org]);
@@ -33,7 +32,7 @@ export function useDebugConfig(org: string | null): {
     setError(null);
     setLevels(next);
     try {
-      const dto = await setDebugConfig(next);
+      const dto = await setDebugConfig(next, org);
       setLevels(dto.levels);
     } catch (e) {
       const message = formatIpcError(e);
@@ -42,7 +41,7 @@ export function useDebugConfig(org: string | null): {
     } finally {
       setApplying(false);
     }
-  }, []);
+  }, [org]);
 
   return { levels, applying, error, apply };
 }

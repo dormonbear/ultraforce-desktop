@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::dto::{self, SoqlProgress, SoqlResultDto};
 use crate::error::CommandError;
-use crate::state::{current_org, AppState};
+use crate::state::AppState;
 
 /// REST credentials for `org`, cached so only the first query per org pays the
 /// `sf org display` cost. Subsequent queries (and cancellation) are instant.
@@ -84,12 +84,12 @@ pub(crate) async fn run_soql(
     use_tooling_api: Option<bool>,
     all_rows: Option<bool>,
     query_id: String,
+    org: Option<String>,
     app: AppHandle,
     state: &AppState,
 ) -> Result<SoqlResultDto, CommandError> {
     let start = Instant::now();
     tracing::info!("run_soql start");
-    let org = current_org(state);
 
     // Register a cancel flag the `cancel_soql` command can flip mid-flight.
     let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
@@ -168,12 +168,12 @@ pub(crate) async fn count_soql(
     query: String,
     use_tooling_api: Option<bool>,
     query_id: String,
+    org: Option<String>,
     state: &AppState,
 ) -> Result<Option<u64>, CommandError> {
     let Some(count_q) = soql_lang::count_query(&query) else {
         return Ok(None);
     };
-    let org = current_org(state);
 
     // Share the cancel registry so `cancel_soql` can abort the pre-flight count
     // (a COUNT() on a huge object is itself slow).

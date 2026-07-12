@@ -3,6 +3,7 @@ import type { IRange, languages } from "monaco-editor";
 import { configureEditorBase } from "./base";
 import { apexComplete, apexSignatureHelp, formatApex } from "../ipc/apex";
 import type { ApexCandidateDto, ApexSignatureHelpDto } from "../types";
+import { getActiveOrg } from "./activeOrg";
 import { buildInsertion, KEYWORD_SNIPPETS, type Insertion, type InsertionCtx } from "./apexSuggest";
 
 // Apex is case-insensitive; the tokenizer matches with `ignoreCase`.
@@ -131,7 +132,7 @@ function registerApexCompletion(monaco: Monaco): void {
       const src = model.getValue();
       let cands: ApexCandidateDto[];
       try {
-        cands = await apexComplete(src, offset);
+        cands = await apexComplete(src, offset, getActiveOrg());
       } catch {
         return { suggestions: [] };
       }
@@ -181,7 +182,11 @@ function registerApexSignatureHelp(monaco: Monaco): void {
     provideSignatureHelp: async (model, position) => {
       let help: ApexSignatureHelpDto | null;
       try {
-        help = await apexSignatureHelp(model.getValue(), model.getOffsetAt(position));
+        help = await apexSignatureHelp(
+          model.getValue(),
+          model.getOffsetAt(position),
+          getActiveOrg(),
+        );
       } catch {
         return null;
       }

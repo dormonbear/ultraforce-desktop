@@ -73,6 +73,18 @@ export interface OrgDto {
   isDefault: boolean;
 }
 
+/** Queryable index-lifecycle snapshot for one org (mirrors Rust `IndexStatusDto`). */
+export interface IndexStatus {
+  org: string;
+  state: "idle" | "indexing" | "ready" | "error";
+  phase: string | null;
+  done: number | null;
+  total: number | null;
+  /** Epoch millis of the last successful index. */
+  lastIndexed: number | null;
+  error: string | null;
+}
+
 export type SfCliState = "ok" | "outdated" | "not_found" | "path_issue";
 
 export interface SfStatus {

@@ -1,5 +1,11 @@
+import { memo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { X } from "lucide-react";
-import type { SchemaField, SchemaRecordType } from "../../types";
+import type {
+  SchemaField,
+  SchemaPicklistValue,
+  SchemaRecordType,
+} from "../../types";
 import {
   Table,
   TableBody,
@@ -8,7 +14,75 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReferencesSection } from "./ReferencesSection";
+
+// Shared 4-column grid template so the header row lines up with the virtualized
+// body rows (two separate grids, identical tracks → aligned columns).
+const PICKLIST_COLS =
+  "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_3.5rem_3.5rem]";
+const PICKLIST_ROW_H = 28; // px floor per row (single-line, non-wrapping)
+const PICKLIST_MAX_H = 288; // px cap on the bounded scroll region
+
+/**
+ * Picklist values as a virtualized, self-bounded region. The full field detail
+ * lives in a shared right-pane scroller; a 1000-row `<table>` there ballooned the
+ * live DOM (the Step-5 perf hotspot), so this carves out its own bounded-height
+ * viewport and renders only the visible rows via `@tanstack/react-virtual` (same
+ * pattern as FieldTable/ObjectList). Table markup fights the virtualizer's
+ * absolute row positioning, so rows are plain grid divs — the established
+ * LogListPane approach.
+ */
+function PicklistValues({ values }: { values: SchemaPicklistValue[] }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: values.length,
+    getScrollElement: () => viewportRef.current,
+    estimateSize: () => PICKLIST_ROW_H,
+    overscan: 12,
+  });
+  // Height tracks content up to a cap: small picklists render flush (no wasted
+  // scroll area), large ones bound at PICKLIST_MAX_H and scroll internally.
+  const height = Math.min(values.length * PICKLIST_ROW_H, PICKLIST_MAX_H);
+
+  return (
+    <div className="rounded border border-border">
+      <div
+        className={`grid ${PICKLIST_COLS} gap-2 border-b border-border bg-secondary px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}
+      >
+        <div>Label</div>
+        <div>Value</div>
+        <div>Active</div>
+        <div>Default</div>
+      </div>
+      <ScrollArea
+        className="uf-scroll"
+        style={{ height }}
+        viewportRef={viewportRef}
+      >
+        <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
+          {rowVirtualizer.getVirtualItems().map((vi) => {
+            const p = values[vi.index];
+            return (
+              <div
+                key={p.value}
+                data-index={vi.index}
+                ref={rowVirtualizer.measureElement}
+                className={`absolute left-0 top-0 grid w-full ${PICKLIST_COLS} items-center gap-2 whitespace-nowrap px-2 py-1 text-[12px] text-foreground`}
+                style={{ transform: `translateY(${vi.start}px)` }}
+              >
+                <div className="truncate">{p.label}</div>
+                <div className="truncate font-mono text-[11px]">{p.value}</div>
+                <div>{p.active ? "Yes" : "No"}</div>
+                <div>{p.defaultValue ? "Yes" : ""}</div>
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -50,26 +124,7 @@ function FieldView({ field }: { field: SchemaField }) {
       )}
       {field.picklistValues.length > 0 && (
         <Section title={`Picklist values (${field.picklistValues.length})`}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Label</TableHead>
-                <TableHead>Value</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead>Default</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {field.picklistValues.map((p) => (
-                <TableRow key={p.value}>
-                  <TableCell>{p.label}</TableCell>
-                  <TableCell className="font-mono text-[11px]">{p.value}</TableCell>
-                  <TableCell>{p.active ? "Yes" : "No"}</TableCell>
-                  <TableCell>{p.defaultValue ? "Yes" : ""}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          <PicklistValues values={field.picklistValues} />
         </Section>
       )}
     </>
@@ -118,7 +173,7 @@ function RecordTypesView({ recordTypes }: { recordTypes: SchemaRecordType[] }) {
  * falls back to the object-level record-types section. Visual shape mirrors the
  * result-table DetailPanel (bordered, headered, scrollable body).
  */
-export function FieldDetail({
+export const FieldDetail = memo(function FieldDetail({
   org,
   objectName,
   field,
@@ -160,4 +215,4 @@ export function FieldDetail({
       </div>
     </div>
   );
-}
+});

@@ -19,16 +19,22 @@ export function clearApexSourceCache(): void {
   sourceCache.clear();
 }
 
-/** Fetch an Apex class/trigger's source from the org, re-fetching whenever
- * `className` changes. Served from the per-log cache on a repeat lookup. Shared
- * by SourceDialog (jump-to-source) and LogDebugger (which re-fetches as the
- * playhead crosses classes). */
-export function useApexSource(className: string | null): {
+/** Cache key is org-scoped so the same class name in two orgs can't collide. */
+const cacheKey = (org: string | null, className: string) => `${org ?? ""}::${className}`;
+
+/** Fetch an Apex class/trigger's source from `org`, re-fetching whenever
+ * `className` (or `org`) changes. Served from the per-log cache on a repeat
+ * lookup. Shared by SourceDialog (jump-to-source) and LogDebugger (which
+ * re-fetches as the playhead crosses classes). */
+export function useApexSource(
+  className: string | null,
+  org: string | null,
+): {
   src: ApexSource | null;
   error: string | null;
 } {
   const [src, setSrc] = useState<ApexSource | null>(
-    () => (className && sourceCache.get(className)) || null,
+    () => (className && sourceCache.get(cacheKey(org, className))) || null,
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -38,23 +44,24 @@ export function useApexSource(className: string | null): {
       setSrc(null);
       return;
     }
-    const cached = sourceCache.get(className);
+    const key = cacheKey(org, className);
+    const cached = sourceCache.get(key);
     if (cached) {
       setSrc(cached);
       return;
     }
     setSrc(null);
     let alive = true;
-    fetchApexSource(className)
+    fetchApexSource(className, org)
       .then((s) => {
-        sourceCache.set(className, s);
+        sourceCache.set(key, s);
         if (alive) setSrc(s);
       })
       .catch((e) => alive && setError(formatIpcError(e)));
     return () => {
       alive = false;
     };
-  }, [className]);
+  }, [className, org]);
 
   return { src, error };
 }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDependencies, FieldDependency, SchemaField } from "../../types";
@@ -131,7 +131,7 @@ function ReferencesBody({
  * API can't track render a muted note instead. Resets to collapsed/unfetched
  * whenever the selected field changes.
  */
-export function ReferencesSection({
+export const ReferencesSection = memo(function ReferencesSection({
   org,
   object,
   field,
@@ -225,4 +225,4 @@ export function ReferencesSection({
       )}
     </div>
   );
-}
+});

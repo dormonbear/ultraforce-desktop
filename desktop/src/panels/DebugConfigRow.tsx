@@ -62,7 +62,7 @@ export function DebugConfigRow({
       setLoadingLevels(true);
       setLevelsError(null);
       try {
-        const cfg = await loadLoggingConfig();
+        const cfg = await loadLoggingConfig(org);
         levelsCache.set(cacheKey, cfg.debugLevels);
         setOrgLevels(cfg.debugLevels);
       } catch (e) {

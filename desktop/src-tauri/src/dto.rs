@@ -803,6 +803,25 @@ pub struct SyncResultDto {
     pub removed: usize,
 }
 
+/// Queryable index-lifecycle snapshot for one org, returned by `index_status` so
+/// a late-mounting progress indicator can seed its state instead of relying on
+/// having caught the `index-progress` event stream.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexStatusDto {
+    pub org: String,
+    /// One of `idle` | `indexing` | `ready` | `error`.
+    pub state: String,
+    /// Current phase while `indexing` (else `None`).
+    pub phase: Option<String>,
+    pub done: Option<usize>,
+    pub total: Option<usize>,
+    /// Epoch millis of the last successful index (else `None`).
+    pub last_indexed: Option<i64>,
+    /// Human-readable message while `error` (else `None`).
+    pub error: Option<String>,
+}
+
 /// One callable signature for the Monaco signature-help widget.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]

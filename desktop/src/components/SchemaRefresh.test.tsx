@@ -18,7 +18,18 @@ vi.mock("../org", () => ({ useOrgs: () => ({ selected: "me@example.com" }) }));
 vi.mock("../indexSettings", () => ({
   getNamespacePolicy: vi.fn(async () => "all"),
 }));
-vi.mock("../ipc/schema", () => ({ reindexOrg: vi.fn(async () => {}) }));
+vi.mock("../ipc/schema", () => ({
+  reindexOrg: vi.fn(async () => {}),
+  indexStatus: vi.fn(async () => ({
+    org: "me@example.com",
+    state: "idle",
+    phase: null,
+    done: null,
+    total: null,
+    lastIndexed: null,
+    error: null,
+  })),
+}));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { SchemaRefresh } from "./SchemaRefresh";

@@ -4,7 +4,7 @@ use std::time::Instant;
 
 use crate::dto::{ApexOutcomeDto, ApexSourceDto};
 use crate::error::CommandError;
-use crate::state::{current_org, AppState};
+use crate::state::AppState;
 
 #[derive(serde::Deserialize)]
 struct ApexBodyRow {
@@ -20,9 +20,9 @@ struct ApexBodyResult {
 /// a log finding can show the offending code. Tries ApexClass, then ApexTrigger.
 pub(crate) async fn fetch_apex_source(
     name: String,
+    org: Option<String>,
     state: &AppState,
 ) -> Result<ApexSourceDto, CommandError> {
-    let org = current_org(state);
     let escaped = name.replace('\'', "\\'");
     for (kind, sobject) in [("class", "ApexClass"), ("trigger", "ApexTrigger")] {
         let soql = format!("SELECT Body FROM {sobject} WHERE Name = '{escaped}' LIMIT 1");
@@ -47,10 +47,13 @@ pub(crate) async fn fetch_apex_source(
     ))
 }
 
-pub(crate) async fn run_apex(src: String, state: &AppState) -> Result<ApexOutcomeDto, CommandError> {
+pub(crate) async fn run_apex(
+    src: String,
+    org: Option<String>,
+    state: &AppState,
+) -> Result<ApexOutcomeDto, CommandError> {
     let start = Instant::now();
     tracing::info!("run_apex start");
-    let org = current_org(state);
     let outcome = features::anon_apex::run_anon(&state.invoker, &src, org.as_deref())
         .await
         .map_err(|e| {

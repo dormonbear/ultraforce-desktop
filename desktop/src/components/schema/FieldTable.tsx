@@ -1,8 +1,9 @@
-import { useMemo } from "react";
-import { Search } from "lucide-react";
+import { memo, useMemo } from "react";
 import type { SchemaField } from "../../types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { filterFields } from "./schemaFilter";
+import { SchemaListFilter } from "./SchemaListFilter";
+import { useVirtualRows } from "./useVirtualRows";
 
 /** Human-readable type label, e.g. `reference→Account` for lookups. */
 function typeLabel(f: SchemaField): string {
@@ -31,7 +32,7 @@ function attributeChips(f: SchemaField): string[] {
  * API name, label, a type badge (reference targets inlined), picklist size,
  * and attribute chips (required / unique / formula).
  */
-export function FieldTable({
+export const FieldTable = memo(function FieldTable({
   fields,
   loading,
   selected,
@@ -47,24 +48,16 @@ export function FieldTable({
   onSelect: (name: string) => void;
 }) {
   const shown = useMemo(() => filterFields(fields, filter), [fields, filter]);
+  const { viewportRef, rowVirtualizer } = useVirtualRows(shown, selected, 44);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative shrink-0 border-b border-border p-2">
-        <Search
-          size={13}
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"
-        />
-        <input
-          type="search"
-          value={filter}
-          onChange={(e) => onFilterChange(e.target.value)}
-          placeholder="Filter fields"
-          aria-label="Filter fields"
-          className="focus-accent w-full rounded-md border border-border bg-input py-1 pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground"
-        />
-      </div>
-      <ScrollArea className="min-h-0 flex-1">
+      <SchemaListFilter
+        value={filter}
+        onChange={onFilterChange}
+        placeholder="Filter fields"
+      />
+      <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
         {loading ? (
           <div className="flex flex-col gap-1 p-2">
             {Array.from({ length: 8 }, (_, i) => (
@@ -79,21 +72,28 @@ export function FieldTable({
             No matching fields
           </div>
         ) : (
-          <ul className="p-1">
-            {shown.map((f) => {
-              const active = f.name === selected;
-              const chips = attributeChips(f);
-              return (
-                <li key={f.name}>
+          <div className="p-1">
+            <div
+              style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}
+            >
+              {rowVirtualizer.getVirtualItems().map((vi) => {
+                const f = shown[vi.index];
+                const active = f.name === selected;
+                const chips = attributeChips(f);
+                return (
                   <button
+                    key={f.name}
+                    data-index={vi.index}
+                    ref={rowVirtualizer.measureElement}
                     type="button"
                     onClick={() => onSelect(f.name)}
                     aria-current={active ? "true" : undefined}
-                    className={`focus-accent flex w-full items-center gap-3 rounded px-2 py-1.5 text-left ${
+                    className={`focus-accent absolute left-0 top-0 flex w-full items-center gap-3 rounded px-2 py-1.5 text-left ${
                       active
                         ? "bg-accent text-foreground"
                         : "text-text-dim hover:bg-secondary hover:text-foreground"
                     }`}
+                    style={{ transform: `translateY(${vi.start}px)` }}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[12px] font-medium">
@@ -117,12 +117,12 @@ export function FieldTable({
                       </span>
                     </div>
                   </button>
-                </li>
-              );
-            })}
-          </ul>
+                );
+              })}
+            </div>
+          </div>
         )}
       </ScrollArea>
     </div>
   );
-}
+});

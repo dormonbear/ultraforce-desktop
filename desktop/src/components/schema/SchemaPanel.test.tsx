@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { SchemaPanel } from "./SchemaPanel";
 import type { SchemaObject, SchemaObjectDetail } from "../../types";
@@ -11,9 +11,28 @@ globalThis.ResizeObserver ??= class {
   disconnect() {}
 };
 
+// jsdom performs no layout, so offsetWidth/offsetHeight are 0 and the virtualized
+// ObjectList/FieldTable would render an empty range (@tanstack/react-virtual reads
+// offsetHeight for both viewport and row sizing). Stub non-zero sizes so the
+// leading rows render.
+const sizeSpies: ReturnType<typeof vi.spyOn>[] = [];
+beforeAll(() => {
+  sizeSpies.push(
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600),
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(240),
+  );
+});
+afterAll(() => sizeSpies.forEach((s) => s.mockRestore()));
+
 vi.mock("../../ipc/schema", () => ({
   listSchemaObjects: vi.fn(),
   getSchemaObjectDetail: vi.fn(),
+}));
+
+// SchemaPanel subscribes to `index-progress` for reindex recovery; stub the
+// Tauri event bridge (absent in jsdom) so it resolves to a no-op unsubscribe.
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
 }));
 
 import { getSchemaObjectDetail, listSchemaObjects } from "../../ipc/schema";

@@ -1,24 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   FieldDependencies,
+  IndexStatus,
   SchemaObject,
   SchemaObjectDetail,
   SchemaSearchHit,
 } from "../types";
 
-/** Cheap, immediate sObject-name cache warm-up for FROM completion. */
-export function warmSchema(org: string): Promise<void> {
-  return invoke("warm_schema", { org });
+/**
+ * Idempotently make `org`'s index usable: single-flight per org (concurrent
+ * calls join the in-flight run), a no-op when the index is fresh, otherwise a
+ * snapshot install + delta-sync or a full first index. Replaces the former
+ * parallel `warmSchema` + `indexOrg` calls.
+ */
+export function ensureReady(org: string, namespaces: string): Promise<void> {
+  return invoke("ensure_ready", { org, namespaces });
 }
 
-/** Full index / delta-sync of an org's schema + Apex, scoped by `namespaces`. */
-export function indexOrg(org: string, namespaces: string): Promise<void> {
-  return invoke("index_org", { org, namespaces });
-}
-
-/** Force a rebuild of an org's cached schema index. */
+/** Force a full rebuild of an org's cached schema index (queued behind any run). */
 export function reindexOrg(org: string, namespaces: string): Promise<void> {
   return invoke("reindex_org", { org, namespaces });
+}
+
+/** Queryable index-lifecycle snapshot for `org` (seeds late-mounting indicators). */
+export function indexStatus(org: string): Promise<IndexStatus> {
+  return invoke<IndexStatus>("index_status", { org });
 }
 
 /** List all queryable sObjects for the schema browser. */

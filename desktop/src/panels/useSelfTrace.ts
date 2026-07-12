@@ -7,8 +7,13 @@ import {
 } from "../ipc/config";
 
 /** Self-trace state: whether a TraceFlag on the running user is active, a live
- * minutes-left countdown, and the one-click "trace me for 30 min" action. */
-export function useSelfTrace(org: string | null) {
+ * minutes-left countdown, and the one-click "trace me for 30 min" action.
+ *
+ * `active` is whether the Logs panel is the visible tool. The countdown tick is
+ * paused while Logs is hidden so the memoized panel isn't re-rendered every 30s
+ * in the background; on re-activation `now` is refreshed so the minutes-left
+ * countdown can't show a stale value after being paused. */
+export function useSelfTrace(org: string | null, active = true) {
   const [tracingBusy, setTracingBusy] = useState(false);
   // Active self-trace ExpirationDate (from the running user's TraceFlag); drives
   // the live "Tracing · Nm" state on the button. `now` ticks to recompute it.
@@ -17,16 +22,20 @@ export function useSelfTrace(org: string | null) {
 
   // Show whether a self-trace is already active (and refresh its expiry).
   useEffect(() => {
-    getDebugConfig()
+    getDebugConfig(org)
       .then((dto) => setTraceExpiry(dto.expirationDate))
       .catch(() => {});
   }, [org]);
 
-  // Tick so the countdown re-renders; 30s is fine for minute granularity.
+  // Tick so the countdown re-renders; 30s is fine for minute granularity. Only
+  // ticks while Logs is visible; re-activation refreshes `now` immediately so a
+  // paused countdown never shows a stale minutes-left after the panel reshows.
   useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
-  }, []);
+  }, [active]);
 
   const traceMsLeft = traceExpiry ? new Date(traceExpiry).getTime() - now : 0;
   const tracing = traceMsLeft > 0;
@@ -36,7 +45,7 @@ export function useSelfTrace(org: string | null) {
     if (tracingBusy) return;
     setTracingBusy(true);
     try {
-      const dto = await requestSelfTrace(30);
+      const dto = await requestSelfTrace(30, org);
       setTraceExpiry(dto.expirationDate);
       setNow(Date.now());
       toast.success("Tracing you for 30 min");
@@ -45,7 +54,7 @@ export function useSelfTrace(org: string | null) {
     } finally {
       setTracingBusy(false);
     }
-  }, [tracingBusy]);
+  }, [tracingBusy, org]);
 
   return { tracing, tracingBusy, traceExpiry, traceMinsLeft, quickSelfTrace };
 }

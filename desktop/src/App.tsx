@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Database,
   Terminal,
@@ -14,6 +14,7 @@ import { OrgSelector } from "./components/OrgSelector";
 import { SetupPage } from "./components/SetupPage";
 import { LogoLoader } from "./components/LogoLoader";
 import { useOrgs } from "./org";
+import { useSchemaPreheat } from "./useSchemaPreheat";
 import { isMac } from "./platform";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
 import { SyncToast } from "./components/SyncToast";
@@ -61,6 +62,18 @@ export default function App() {
   useEffect(() => {
     setVisited((v) => (v.includes(active) ? v : [...v, active]));
   }, [active]);
+
+  // Idle preheat: once the selected org's index is ready, pre-mount the (hidden)
+  // Schema panel so the first entry pays only a hidden→visible toggle, not a cold
+  // mount + IPC. Gated inside the hook on IndexStatus; only Schema is preheated.
+  const preheatSchema = useCallback(() => {
+    setVisited((v) => (v.includes("schema") ? v : [...v, "schema"]));
+  }, []);
+  useSchemaPreheat(
+    selectedOrg,
+    !orgLoading && !needsSetup && !visited.includes("schema"),
+    preheatSchema,
+  );
 
   // Cmd/Ctrl+1..3 switches tools (1=SOQL, 2=Apex, 3=Logs).
   useEffect(() => {
@@ -220,7 +233,7 @@ export default function App() {
               )}
               {visited.includes("logs") && (
                 <div className="h-full" hidden={active !== "logs"}>
-                  <LogsPanel />
+                  <LogsPanel isActive={active === "logs"} />
                 </div>
               )}
               {visited.includes("schema") && (

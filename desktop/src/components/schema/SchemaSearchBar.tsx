@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Search, X } from "lucide-react";
 import { toast } from "sonner";
@@ -42,7 +42,11 @@ function renderSnippet(snippet: string): ReactNode[] {
  * help text, formula source); picking a hit navigates the three panes via the
  * shared `useSchemaNav` channel that SchemaPanel already subscribes to.
  */
-export function SchemaSearchBar({ org }: { org: string | null }) {
+export const SchemaSearchBar = memo(function SchemaSearchBar({
+  org,
+}: {
+  org: string | null;
+}) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SchemaSearchHit[]>([]);
   const [open, setOpen] = useState(false);
@@ -197,4 +201,4 @@ export function SchemaSearchBar({ org }: { org: string | null }) {
       )}
     </div>
   );
-}
+});

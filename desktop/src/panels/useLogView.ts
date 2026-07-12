@@ -10,7 +10,7 @@ import type { LogRefDto, LogViewDto } from "../types";
 /** Selected-log view state: cache-first body loading, parse, tab selection,
  * Apex-source line resolution, and the local (drag-dropped, orgless) path. */
 // fallow-ignore-next-line complexity
-export function useLogView() {
+export function useLogView(org: string | null) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<LogViewDto | null>(null);
   const [viewError, setViewError] = useState<string | null>(null);
@@ -85,7 +85,7 @@ export function useLogView() {
     try {
       // Cache-first (logs are immutable): parse a locally cached body, else
       // download from the org and write it to cache for next time.
-      const dto = await fetchLogView(id);
+      const dto = await fetchLogView(id, org);
       viewCache.current.set(id, dto);
       setView(dto);
       loadSourceLines(dto.raw);
@@ -96,7 +96,7 @@ export function useLogView() {
     } finally {
       setViewLoading(false);
     }
-  }, [loadSourceLines]);
+  }, [loadSourceLines, org]);
 
   /** Show a local log body (drag-dropped), parsed but never sent to an org.
    * Unlike `select`, this skips `loadSourceLines` — a dragged file has no
@@ -127,11 +127,11 @@ export function useLogView() {
   const getBody = useCallback(async (log: LogRefDto): Promise<string> => {
     const cached = viewCache.current.get(log.id);
     if (cached) return cached.raw;
-    const dto = await fetchLogView(log.id);
+    const dto = await fetchLogView(log.id, org);
     viewCache.current.set(log.id, dto);
     setCachedIds((prev) => (prev.has(log.id) ? prev : new Set(prev).add(log.id)));
     return dto.raw;
-  }, []);
+  }, [org]);
 
   return {
     selectedId,

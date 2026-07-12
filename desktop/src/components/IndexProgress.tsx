@@ -1,19 +1,45 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Loader2 } from "lucide-react";
+import { useOrgs } from "../org";
+import { indexStatus } from "../ipc/schema";
 import { barState, phaseLabel, type Progress } from "./indexBar";
 
-/** Shared subscription to the backend `index-progress` stream (null = idle). */
+/**
+ * Progress for the currently selected org's index. Scoped by org so a stale
+ * in-flight run for a previously selected org can't drive this indicator. Seeds
+ * from the queryable `index_status` on mount / org-change (fixing the old
+ * late-subscriber gap where an index already in flight emitted no more events),
+ * then tracks the `index-progress` stream. `null` = idle/ready.
+ */
 export function useIndexProgress(): Progress | null {
+  const { selected } = useOrgs();
   const [p, setP] = useState<Progress | null>(null);
   useEffect(() => {
+    setP(null);
+    if (!selected) return;
+    let alive = true;
+    // Seed from the queryable snapshot in case a run is already in flight.
+    void indexStatus(selected)
+      .then((s) => {
+        if (alive && s.state === "indexing")
+          setP({
+            org: s.org,
+            phase: s.phase ?? "",
+            done: s.done ?? 0,
+            total: s.total ?? 0,
+          });
+      })
+      .catch(() => {});
     const un = listen<Progress>("index-progress", (e) => {
+      if (e.payload.org !== selected) return; // ignore other orgs' runs
       setP(e.payload.phase === "done" ? null : e.payload);
     });
     return () => {
+      alive = false;
       void un.then((f) => f());
     };
-  }, []);
+  }, [selected]);
   return p;
 }
 

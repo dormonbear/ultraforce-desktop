@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
@@ -20,8 +20,10 @@ import { useSelfTrace } from "./useSelfTrace";
 import { useLogDragDrop } from "./useLogDragDrop";
 import type { LogRefDto } from "../types";
 
-/** Debug Logs: a refreshable list on the left, selected log's raw view right. */
-export function LogsPanel() {
+/** Debug Logs: a refreshable list on the left, selected log's raw view right.
+ * `isActive` is whether Logs is the visible tool; forwarded to `useSelfTrace`
+ * so its 30s countdown tick pauses while the panel is hidden. */
+export const LogsPanel = memo(function LogsPanel({ isActive }: { isActive: boolean }) {
   const { selected: org } = useOrgs();
   const [cfgOpen, setCfgOpen] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
@@ -43,12 +45,12 @@ export function LogsPanel() {
     getBody,
     resetForOrg,
     clearViewCache,
-  } = useLogView();
+  } = useLogView(org);
 
   const { logs, visibleLogs, listError, listLoading, filter, setFilter, refresh } =
     useLogList(org, resetForOrg, clearViewCache);
 
-  const trace = useSelfTrace(org);
+  const trace = useSelfTrace(org, isActive);
   const dragOver = useLogDragDrop(showLocalLog);
 
   const selectRow = useCallback(
@@ -135,4 +137,4 @@ export function LogsPanel() {
       )}
     </ResizablePanelGroup>
   );
-}
+});

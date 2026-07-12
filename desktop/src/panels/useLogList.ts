@@ -31,7 +31,7 @@ export function useLogList(
     setListError(null);
     onRefresh();
     try {
-      const rows = await listLogs();
+      const rows = await listLogs(org);
       setLogs(rows);
       void saveCachedList(org ?? "default", rows);
     } catch (e) {

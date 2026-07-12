@@ -3,6 +3,7 @@ import { formatSoql, soqlComplete } from "../ipc/soql";
 import type { CompletionItemDto } from "../types";
 import { limitInsertion } from "../components/soqlQuickfix";
 import { configureEditorBase } from "./base";
+import { getActiveOrg } from "./activeOrg";
 
 const SOQL_KEYWORDS = [
   "SELECT",
@@ -97,7 +98,7 @@ function registerSoqlCompletion(monaco: Monaco): void {
       const query = model.getValue();
       let items: CompletionItemDto[];
       try {
-        items = await soqlComplete(query, offset);
+        items = await soqlComplete(query, offset, getActiveOrg());
       } catch {
         return { suggestions: [] };
       }

@@ -7,6 +7,7 @@ import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
 import type { SourceRef } from "../panels/sourceRef";
+import { useOrgs } from "../org";
 import { revealLine, useApexSource } from "./useApexSource";
 
 /** Read-only viewer for an Apex class/trigger's source, fetched from the org on
@@ -20,7 +21,8 @@ export function SourceDialog({
   onClose: () => void;
 }) {
   const { theme, scheme } = useTheme();
-  const { src, error } = useApexSource(target?.className ?? null);
+  const { selected: org } = useOrgs();
+  const { src, error } = useApexSource(target?.className ?? null, org);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const decoRef = useRef<editor.IEditorDecorationsCollection | null>(null);
 
