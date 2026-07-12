@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Loader2 } from "lucide-react";
 import { useOrgs } from "../org";
@@ -57,8 +57,8 @@ export function TopProgressBar() {
     <div className="h-0.5 w-full overflow-hidden bg-primary/20">
       {determinate ? (
         <div
-          className="h-full w-full origin-left bg-primary transition-transform duration-300 ease-[var(--ease)]"
-          style={{ transform: `scaleX(${pct / 100})` }}
+          className="fjord-progress-fill h-full bg-primary"
+          style={{ "--progress": pct / 100 } as CSSProperties}
         />
       ) : (
         <div className="uf-indeterminate h-full w-1/3 bg-primary" />

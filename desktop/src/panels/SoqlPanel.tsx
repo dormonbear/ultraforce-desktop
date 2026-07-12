@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { useDefaultLayout } from "react-resizable-panels";
@@ -255,8 +255,10 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                     </span>
                     <span className="h-1 w-20 overflow-hidden rounded-full bg-border">
                       <span
-                        className="block h-full bg-primary transition-[width] duration-300"
-                        style={{ width: `${pct ?? 0}%` }}
+                        className="fjord-progress-fill block h-full bg-primary"
+                        style={
+                          { "--progress": (pct ?? 0) / 100 } as CSSProperties
+                        }
                       />
                     </span>
                   </>
