@@ -430,6 +430,67 @@ button:not(:disabled):not(.monaco-editor *):active,
   transition: transform var(--motion-4) var(--ease-fjord-out);
 }
 
+/* ── Async arrival: one-shot query-success cues ────────────────────────────
+ * Fired only when a NEW successful result arrives (see useArrivalCue). Both
+ * elements are keyed by the arrival nonce so the animation plays exactly once
+ * per arrival and never on scroll/sort/filter/progress ticks. transform/opacity
+ * only; the cue lives on the results chrome, never inside the virtualized rows. */
+@keyframes fjord-data-arrived {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.12);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+/* A 2px frost line sweeping left→right across the top edge of the results
+ * container. Absolutely-positioned overlay (not a row); pointer-events off. */
+.fjord-result-arrival {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  transform-origin: left;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  pointer-events: none;
+  z-index: 30;
+  animation: fjord-data-arrived var(--motion-6) var(--ease-fjord-out) both;
+}
+
+@keyframes fjord-status-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* The status line ("N rows returned · X ms") settles in as the result lands. */
+.fjord-status-bloom {
+  display: inline-block;
+  transform-origin: right;
+  animation: fjord-status-bloom var(--motion-5) var(--ease-fjord-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Cue reduces to nothing: no sweep, no scale. The scan element is always in
+   * the DOM (keyed), so hide it rather than leave a static line; the status
+   * text stays fully visible without the bloom. */
+  .fjord-result-arrival {
+    display: none;
+  }
+  .fjord-status-bloom {
+    animation: none;
+    transform: none;
+  }
+}
+
 /* ── Overlay motion: symmetric enter/exit ──────────────────────────────────
  * astryx Dialog hard-codes a 550ms directional enter and closes instantly
  * (dialog.close()). MotionDialog keeps it mounted through an exit phase; these

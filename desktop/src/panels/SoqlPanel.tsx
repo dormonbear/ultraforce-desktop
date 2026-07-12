@@ -15,6 +15,7 @@ import { ResultTable } from "../components/ResultTable";
 import { QueryPlanView } from "../components/QueryPlanView";
 import { LogoLoader } from "../components/LogoLoader";
 import { useOrgs } from "../org";
+import { useArrivalCue } from "../hooks/useArrivalCue";
 import { cancelSoql, countSoql, queryPlan, runSoql } from "../ipc/soql";
 import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
@@ -181,6 +182,12 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       ? Math.min(100, Math.round((progress.fetched / progress.total) * 100))
       : null;
 
+  // One-shot success cue: increments only when a NEW fully-fetched result lands
+  // (not on cancel/error, not on scroll/sort/filter, which never change `result`
+  // identity). Drives the results scan and the status-line bloom.
+  const succeeded = !error && result != null && result.done;
+  const arrivalNonce = useArrivalCue(succeeded ? result : null);
+
   return (
     <>
     <ResizablePanelGroup
@@ -274,7 +281,14 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 </button>
               </div>
             ) : (
-              <span className="tnum text-[11px] text-text-dim">{status}</span>
+              <span
+                key={arrivalNonce}
+                className={`tnum text-[11px] text-text-dim ${
+                  succeeded ? "fjord-status-bloom" : ""
+                }`}
+              >
+                {status}
+              </span>
             )}
           </div>
           <div className="min-h-0 flex-1">
@@ -293,7 +307,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 Run a query to see results
               </div>
             ) : (
-              <ResultTable data={result} query={query} />
+              <ResultTable data={result} query={query} arrivalNonce={arrivalNonce} />
             )}
           </div>
         </div>
