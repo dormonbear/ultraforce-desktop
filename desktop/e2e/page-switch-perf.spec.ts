@@ -331,8 +331,12 @@ test("preheat: hidden-mount → first show into Schema", async ({ page }) => {
       `boot long-task ms: ready=${readyBootLT} idle=${idleBootLT} ` +
       `delta(preheat)=${readyBootLT - idleBootLT}`,
   );
-  // The panel must end up populated (this asserts the virtualizer produces rows
-  // on show at all — the blank-frame count above is reported, not gated).
+  // Blank-frame fix (A3): the preheated hidden panel now re-measures on the
+  // hidden→visible transition, so the FIRST painted frame already contains rows.
+  // Gate it: zero blank-frame samples, and every sample paints ≥1 row on frame 1.
+  expect(blank).toBe(0);
+  expect(minFirst).toBeGreaterThan(0);
+  // The panel must also end up populated once settled.
   expect(minSettled).toBeGreaterThan(0);
 });
 

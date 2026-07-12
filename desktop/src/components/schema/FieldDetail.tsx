@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReferencesSection } from "./ReferencesSection";
+import { useRemeasureOnVisible } from "./useRemeasureOnVisible";
 
 // Shared 4-column grid template so the header row lines up with the virtualized
 // body rows (two separate grids, identical tracks → aligned columns).
@@ -41,6 +42,7 @@ function PicklistValues({ values }: { values: SchemaPicklistValue[] }) {
     estimateSize: () => PICKLIST_ROW_H,
     overscan: 12,
   });
+  useRemeasureOnVisible(viewportRef, rowVirtualizer);
   // Height tracks content up to a cap: small picklists render flush (no wasted
   // scroll area), large ones bound at PICKLIST_MAX_H and scroll internally.
   const height = Math.min(values.length * PICKLIST_ROW_H, PICKLIST_MAX_H);

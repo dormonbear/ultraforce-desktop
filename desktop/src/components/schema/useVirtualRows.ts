@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRemeasureOnVisible } from "./useRemeasureOnVisible";
 
 /**
  * Shared virtualization scaffolding for the schema browser's list panes
@@ -30,6 +31,10 @@ export function useVirtualRows<T extends { name: string }>(
     const idx = items.findIndex((it) => it.name === selected);
     if (idx >= 0) rowVirtualizer.scrollToIndex(idx, { align: "auto" });
   }, [selected, items, rowVirtualizer]);
+
+  // Re-measure on the hidden→visible transition so a preheated panel shows rows
+  // on the first frame (no blank frame — see useRemeasureOnVisible).
+  useRemeasureOnVisible(viewportRef, rowVirtualizer);
 
   return { viewportRef, rowVirtualizer };
 }
