@@ -1,7 +1,7 @@
 //! `IndexCoordinator` — the deep module that owns an org's index lifecycle.
 //!
-//! It consolidates what used to be three uncoordinated call sites (`warm_schema`
-//! + `index_org` fired in parallel on startup / org-switch / a 5-min poll, plus a
+//! It consolidates what used to be three uncoordinated call sites (`warm_schema` +
+//! `index_org` fired in parallel on startup / org-switch / a 5-min poll, plus a
 //! manual reindex) into a single entry point with:
 //!
 //! - **single-flight per org**: concurrent `ensure_ready` calls for the same org
