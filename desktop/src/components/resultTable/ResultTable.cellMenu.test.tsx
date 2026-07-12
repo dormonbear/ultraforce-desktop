@@ -67,7 +67,7 @@ describe("cell context menu", () => {
     const row = screen.getByText("Acme").closest("tr")!;
     fireEvent.click(screen.getByText("Acme"));
     expect(copied).toEqual([]);
-    expect(row.classList.contains("bg-accent")).toBe(true);
+    expect(row.classList.contains("fjord-row-selected")).toBe(true);
   });
 
   it("cells no longer carry a hover tooltip", () => {

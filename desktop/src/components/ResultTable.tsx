@@ -455,7 +455,7 @@ export function ResultTable({
                   {/* row-number gutter */}
                   <TableHead
                     style={{ width: GUTTER_W }}
-                    className="sticky left-0 top-0 z-30 h-8 border-b border-border bg-secondary px-0 text-center align-middle text-[10px] font-semibold text-muted-foreground"
+                    className="fjord-th sticky left-0 top-0 z-30 h-8 border-b border-border bg-secondary px-0 text-center align-middle"
                   >
                     #
                   </TableHead>
@@ -492,7 +492,7 @@ export function ResultTable({
                               ? "descending"
                               : "none"
                         }
-                        className="group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 text-left align-middle font-semibold text-muted-foreground"
+                        className="fjord-th group relative sticky top-0 z-20 h-8 select-none border-b border-border bg-secondary px-3 text-left align-middle"
                       >
                         <button
                           type="button"
@@ -570,23 +570,27 @@ export function ResultTable({
                     }
                     style={{ height: rowHeight }}
                     className={cn(
-                      "group/row cursor-pointer border-0 hover:bg-accent/60",
-                      ordinal % 2 === 1 && !isSelected && "bg-muted/50",
-                      isSelected && "bg-accent"
+                      "group/row cursor-pointer border-0 hover:bg-foreground/[0.03]",
+                      isSelected && "fjord-row-selected"
                     )}
                   >
                     <TableCell
                       // No value to copy here — keep the cell menu closed.
                       onContextMenu={(e) => e.stopPropagation()}
                       style={{ width: GUTTER_W }}
-                      className="sticky left-0 z-10 border-b border-border bg-inherit px-0 text-center align-middle text-[10px] tabular-nums text-muted-foreground group-hover/row:bg-accent/60"
+                      className={cn(
+                        "sticky left-0 z-10 border-b border-line-2 bg-inherit px-0 text-center align-middle font-mono text-[10px] tabular-nums text-muted-foreground",
+                        isSelected
+                          ? "shadow-[inset_2px_0_0_0_var(--primary)]"
+                          : "group-hover/row:bg-foreground/[0.03]"
+                      )}
                     >
                       {ordinal + 1}
                     </TableCell>
                     {colPadLeft > 0 && (
                       <TableCell
                         style={{ width: colPadLeft, padding: 0 }}
-                        className="border-b border-border"
+                        className="border-b border-line-2"
                       />
                     )}
                     {(windowCols
@@ -606,7 +610,7 @@ export function ResultTable({
                             key={cell.id}
                             onContextMenu={() => setCellMenuText(text)}
                             style={{ width: cell.column.getSize() * fillRatio }}
-                            className="border-b border-border px-3 align-middle"
+                            className="border-b border-line-2 px-3 align-middle"
                           >
                             {hasChildren ? (
                               <span className="inline-flex min-w-5 items-center justify-center rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-primary">
@@ -626,7 +630,7 @@ export function ResultTable({
                           onContextMenu={() => setCellMenuText(text)}
                           style={{ width: cell.column.getSize() * fillRatio }}
                           className={cn(
-                            "max-w-0 truncate border-b border-border px-3 align-middle text-foreground",
+                            "max-w-0 truncate border-b border-line-2 px-3 align-middle font-mono text-foreground",
                             numeric(cell.column)
                               ? "text-right tabular-nums"
                               : "text-left"
@@ -639,7 +643,7 @@ export function ResultTable({
                     {colPadRight > 0 && (
                       <TableCell
                         style={{ width: colPadRight, padding: 0 }}
-                        className="border-b border-border"
+                        className="border-b border-line-2"
                       />
                     )}
                   </TableRow>

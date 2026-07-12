@@ -96,7 +96,7 @@ export const FieldTable = memo(function FieldTable({
                     style={{ transform: `translateY(${vi.start}px)` }}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[12px] font-medium">
+                      <div className="truncate font-mono text-[12px] font-medium">
                         {f.name}
                       </div>
                       {f.label && f.label !== f.name && (

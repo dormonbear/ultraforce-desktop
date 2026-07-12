@@ -38,6 +38,9 @@
   --border: #e6e5e0;
   --input: #e6e5e0;
   --ring: #0176d3;
+  /* Fjord line-2: hairline for data-row separators (theme-agnostic — mixes the
+   * current foreground, so it stays a faint 7% rule in both light and dark). */
+  --line-2: color-mix(in srgb, var(--foreground) 7%, transparent);
   --radius: 0.5rem;
   /* Cursor extras for un-migrated bespoke components. */
   --c-surface-strong: #e6e5e0;
@@ -147,6 +150,7 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
+  --color-line-2: var(--line-2);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --radius-lg: var(--radius);
@@ -234,6 +238,24 @@ textarea,
 
 .tnum {
   font-variant-numeric: tabular-nums;
+}
+
+/* Fjord data-table column header: mono micro-caps, muted, on a structural rule.
+ * Cascades typography to child <th>; per-column alignment/padding stay inline. */
+.fjord-th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-foreground);
+}
+
+/* Fjord selected data row: accent-tinted fill (unlayered, so it wins over the
+ * hover overlay). The 2px left-edge bar is drawn on the row's leading cell. */
+.fjord-row-selected,
+.fjord-row-selected:hover {
+  background-color: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 /* Hide the scrollbar but keep scrolling (used by the horizontal tab strip). */

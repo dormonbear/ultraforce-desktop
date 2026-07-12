@@ -219,7 +219,7 @@ export function LogListPane({
                             />
                           </span>
                         </div>
-                        <div className="tnum flex w-full items-center gap-2 text-[10px] text-text-dim">
+                        <div className="tnum flex w-full items-center gap-2 font-mono text-[10px] text-text-dim">
                           {log.user && (
                             <span className="max-w-[45%] truncate">{log.user}</span>
                           )}

@@ -43,7 +43,7 @@ export function LimitsView({ units }: { units: UnitDto[] }) {
                 <div key={ei} className="text-[12px]">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="truncate text-foreground">{e.name}</span>
-                    <span className={`tnum shrink-0 ${SEVERITY_TEXT[sev]}`}>
+                    <span className={`tnum shrink-0 font-mono ${SEVERITY_TEXT[sev]}`}>
                       {e.used}/{e.max}
                       {e.max > 0 ? ` · ${pct}%` : ""}
                     </span>

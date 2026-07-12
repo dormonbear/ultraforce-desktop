@@ -34,11 +34,11 @@ export function QueriesView({ units }: { units: UnitDto[] }) {
       </div>
       <table className="w-full text-[12px]">
         <thead>
-          <tr className="text-muted-foreground">
-            <th className="py-1 text-left font-normal">Statement</th>
-            <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Time</th>
-            <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">×</th>
-            <th className="whitespace-nowrap px-1.5 py-1 text-right font-normal">Rows</th>
+          <tr className="fjord-th border-b border-border">
+            <th className="py-1 text-left">Statement</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right">Time</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right">×</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right">Rows</th>
           </tr>
         </thead>
         <tbody>
@@ -47,7 +47,7 @@ export function QueriesView({ units }: { units: UnitDto[] }) {
             (g, i) => (
             <tr
               key={i}
-              className={`border-t border-border/50 ${g.count > 1 ? "text-destructive" : "text-text-dim"}`}
+              className={`border-t border-line-2 ${g.count > 1 ? "text-destructive" : "text-text-dim"}`}
             >
               <td className="relative w-full max-w-0 truncate py-0.5 pr-2 text-foreground">
                 <span
@@ -58,9 +58,9 @@ export function QueriesView({ units }: { units: UnitDto[] }) {
                 <span className="text-text-dim/70">{g.kind === "dml" ? "DML " : "SOQL "}</span>
                 {g.sample}
               </td>
-              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>
-              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{g.count}</td>
-              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right">{g.rows}</td>
+              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>
+              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">{g.count}</td>
+              <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">{g.rows}</td>
             </tr>
             ),
           )}

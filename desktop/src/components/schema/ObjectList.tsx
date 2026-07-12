@@ -64,7 +64,7 @@ export const ObjectList = memo(function ObjectList({
                     }`}
                     style={{ transform: `translateY(${vi.start}px)` }}
                   >
-                    <span className="truncate text-[12px] font-medium">
+                    <span className="truncate font-mono text-[12px] font-medium">
                       {o.name}
                     </span>
                     {o.label && o.label !== o.name && (
