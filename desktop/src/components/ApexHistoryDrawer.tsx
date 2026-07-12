@@ -71,7 +71,7 @@ function HistoryList({
                 {relTime(e.at)}
               </span>
             </div>
-            <code className="line-clamp-2 break-all font-mono text-[11px] text-foreground/80">
+            <code className="line-clamp-2 break-all font-mono text-[11px] text-muted-foreground">
               {firstLine(e.source)}
             </code>
           </button>
@@ -123,7 +123,7 @@ function HistoryDetail({
 
       <div>
         <div className="micro-label pb-1">Source</div>
-        <pre className="max-h-48 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[11px] text-foreground/90">
+        <pre className="max-h-48 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[11px] text-foreground">
           {entry.source}
         </pre>
       </div>

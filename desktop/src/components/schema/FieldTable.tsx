@@ -90,7 +90,7 @@ export const FieldTable = memo(function FieldTable({
                     aria-current={active ? "true" : undefined}
                     className={`focus-accent absolute left-0 top-0 flex w-full items-center gap-3 rounded px-2 py-1.5 text-left ${
                       active
-                        ? "bg-accent text-foreground"
+                        ? "bg-primary/10 text-foreground shadow-[inset_2px_0_0_0_var(--primary)]"
                         : "text-text-dim hover:bg-secondary hover:text-foreground"
                     }`}
                     style={{ transform: `translateY(${vi.start}px)` }}

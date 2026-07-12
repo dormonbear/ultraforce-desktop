@@ -72,7 +72,7 @@ function Footer({ fetchedAt }: { fetchedAt: number | null }) {
           fetched {relativeTime(fetchedAt)}
         </div>
       )}
-      <div className="text-[10px] leading-snug text-muted-foreground/70">{DISCLAIMER}</div>
+      <div className="text-[10px] leading-snug text-muted-foreground">{DISCLAIMER}</div>
     </div>
   );
 }

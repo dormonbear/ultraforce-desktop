@@ -82,3 +82,47 @@ Status: approved 2026-07-12。规范（活体 spec）: https://claude.ai/code/ar
 ## 约束
 - astryx 是 node_modules 包：优先通过它暴露的 theme 定制口（CSS 变量/tailwind theme）覆盖，不 fork 包源码；若定制口不足，把差异记录进计划再议
 - 遵守 repo 架构规则（CLAUDE.md）；800 行上限；fallow 复杂度门禁
+
+## Phase 4 巡检记录 (2026-07-12)
+
+逐页对照五原则（1 层级/2 等宽/3 一个 accent/4 高频零动画/5 状态必有形）。
+
+### 修复清单
+
+| 页面/组件 | 原则 | 违规 | 修复 (file:line) |
+|---|---|---|---|
+| Schema · ObjectList | 5 | 选中态 `bg-accent`，无左缘条 | `ObjectList.tsx:62` → `bg-primary/10 + shadow-[inset_2px_0_0_0_var(--primary)]`（对齐 ResultTable/LogList 选中样式，Phase 3 遗留项） |
+| Schema · FieldTable | 5 | 同上（孪生列表） | `FieldTable.tsx:93` 同一改法 |
+| Logs · LogListPane | 5 | "No logs"/"No matches" 裸字，无引导无动作 | `LogListPane.tsx:156-179` 改为「一句引导 + 动作按钮」：空库→Refresh；筛无果→Clear filter |
+| Schema · SchemaPanel | 5 | "未索引"空态只指向工具栏按钮，无就地动作 | 加 `onReindex` useCallback + "Reindex org" 动作按钮 `SchemaPanel.tsx:158-171,236-247` |
+| Logs · QueriesView | 1 | `text-text-dim/70` 用 opacity 伪造第三级文字 | `QueriesView.tsx:58` → `text-text-dim` |
+| Logs · InsightsView | 1 | 同上 ×2 | `InsightsView.tsx:57,68` → `text-text-dim` |
+| Logs · LogDetailPane | 1 | 同上 | `LogDetailPane.tsx:51` → `text-text-dim` |
+| Schema · ReferencesSection | 1 | `text-muted-foreground/70` 伪造层级 | `ReferencesSection.tsx:75` → `text-muted-foreground` |
+| Apex · ApexHistoryDrawer | 1 | `text-foreground/80`、`/90` 伪造层级 | `:74` → `text-muted-foreground`；`:126` → `text-foreground`（去 opacity） |
+| Titlebar · IndexProgress | 2 | `Indexing objects 45/120` 计数非等宽，跳动 | `IndexProgress.tsx:75` 加 `tnum` |
+| Settings · About | 2 | 版本号 `v0.3.11` 非 mono | `SettingsPage.tsx:297` 版本号包进 `font-mono tabular-nums` span |
+
+### 逐页结论（无违规 / 已合规）
+
+| 页面 | 结论 |
+|---|---|
+| SOQL panel | 空态经 FileTabsPanel 已合规（引导句 + New query 按钮）；状态行已用 `.tnum`；无野生灰 |
+| Apex panel | 空态同上（FileTabsPanel）；错误/warn 块用 destructive/amber token；仅历史抽屉两处 opacity 已修 |
+| Logs · LogDetailView | SegmentedControl 切换无进场动画（原则 4 OK）；数据列已 mono/tnum |
+| Schema search bar / 中栏"选择对象"空态 | 引导句 + 相邻可操作列表即动作，合规 |
+| dialogs (SourceDialog/ConnectOrg) | SourceDialog 用 Monaco + `apex-target-line` 左缘条；无裸空态/野生灰 |
+| Titlebar (OrgBadge/SchemaRefresh) | token 化；页面/tab 切换仅 hover `transition-colors`，无高频动画（原则 4 OK） |
+
+### Flagged — 未修（原因）
+
+| 项 | 位置 | 原因 |
+|---|---|---|
+| 破坏性 solid 按钮 | — | 代码内**不存在**自绘 solid destructive 按钮；`variant="destructive"` 零使用。唯一破坏性确认 = astryx `AlertDialog`（`confirm.tsx`），astryx-internal，按任务约定可保持填充 → flag 不重做 |
+| 火焰图/时间线分类色 | `flameColor.ts`、`TimelineView.tsx`（`#eab308`/`#0b0f1a`/`bg-slate-500/60`）、`TimeBreakdownBar.tsx`（`bg-slate-500`） | data-viz 分类调色板（按事件类别着色），非 UI chrome 野生灰；改单色会破坏整套类别语义 → 需 dataviz/产品决策，超出外科式范围 |
+| 第三级文字 token 未接线 | `styles.css` | 规范定义 text-3 `#67718A`，但 token 层只接了 text-1/text-2（`--c-text-dim` ≈ text-2）。本次把 opacity 伪造的第三级统一收敛回 text-2；若确需真三级，属 Phase 1 token 层补接 |
+| OrgBadge 地球图标 `opacity:0.8` | `OrgBadge.tsx:58` | 图标弱化，非文字层级伪造，保留 |
+
+### 验收
+
+tsc 0 · oxlint 0 error（18 warning 全为既有，非本次引入）· vitest 256 passed · check-arch exit 0 · `FALLOW_AUDIT_BASE=HEAD fallow audit` exit 0（SchemaPanel HIGH 为既有 inherited finding，门禁排除；本次 11 改动文件 delta 干净）。未 commit。

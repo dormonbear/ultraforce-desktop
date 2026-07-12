@@ -154,12 +154,26 @@ export function LogListPane({
           {listError}
         </pre>
       ) : logs.length === 0 && !listLoading ? (
-        <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-          No logs
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted-foreground">
+          <span>No debug logs yet. Set a trace flag, then refresh to fetch them.</span>
+          <button
+            type="button"
+            onClick={onRefresh}
+            className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
+          >
+            Refresh
+          </button>
         </div>
       ) : visibleLogs.length === 0 ? (
-        <div className="flex h-full items-center justify-center text-muted-foreground text-[13px]">
-          No matches
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted-foreground">
+          <span>No logs match this filter.</span>
+          <button
+            type="button"
+            onClick={() => setFilter((f) => ({ ...f, query: "" }))}
+            className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
+          >
+            Clear filter
+          </button>
         </div>
       ) : (
         <div ref={listParentRef} className="uf-scroll min-h-0 flex-1 overflow-y-auto">

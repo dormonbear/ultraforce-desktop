@@ -72,7 +72,7 @@ export function IndexProgress() {
   const p = useIndexProgress();
   if (!p) return null;
   return (
-    <span className="flex items-center gap-1.5 text-[11px] text-text-dim">
+    <span className="tnum flex items-center gap-1.5 text-[11px] text-text-dim">
       <Loader2 size={12} className="spin" />
       {phaseLabel(p)}
     </span>

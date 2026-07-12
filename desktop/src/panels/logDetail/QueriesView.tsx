@@ -55,7 +55,7 @@ export function QueriesView({ units }: { units: UnitDto[] }) {
                   style={{ width: `${maxNs > 0 ? (g.totalNs / maxNs) * 100 : 0}%` }}
                   aria-hidden
                 />
-                <span className="text-text-dim/70">{g.kind === "dml" ? "DML " : "SOQL "}</span>
+                <span className="text-text-dim">{g.kind === "dml" ? "DML " : "SOQL "}</span>
                 {g.sample}
               </td>
               <td className="tnum whitespace-nowrap px-1.5 py-0.5 text-right font-mono">{g.totalNs > 0 ? formatMs(g.totalNs) : "—"}</td>

@@ -48,7 +48,7 @@ export function LogDetailPane({
       <div className="micro-label px-4 py-2">
         Log detail
         {orgless && (
-          <span className="text-[11px] font-normal text-text-dim/70">
+          <span className="text-[11px] font-normal text-text-dim">
             · local file (no org — source navigation off)
           </span>
         )}
