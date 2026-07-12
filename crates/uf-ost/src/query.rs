@@ -540,6 +540,7 @@ mod tests {
             &inv,
             root.clone(),
             "MyOrg",
+            "60.0",
             &features::index::NamespacePolicy::All,
             &mut |_| {},
         )

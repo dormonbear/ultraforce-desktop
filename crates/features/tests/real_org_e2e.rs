@@ -305,11 +305,13 @@ async fn e2e_index_org_offline() {
     let root = std::env::temp_dir().join(format!("uf-e2e-index-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
 
+    let (api, _) = features::api_version::resolve_index_api_version(&inv, &root, &o).await;
     let mut phases: Vec<&'static str> = vec![];
     let ost = features::index::index_org(
         &inv,
         root.clone(),
         &o,
+        &api,
         &features::index::NamespacePolicy::All,
         &mut |p| {
             if phases.last() != Some(&p.phase) {
@@ -340,7 +342,6 @@ async fn e2e_index_org_offline() {
     );
 
     // Snapshot persisted and reloads to exactly the same OST.
-    let api = features::api_version::api_version_for(&inv, &o).await;
     let (loaded, manifest) = apex_lang::load_snapshot(&root, &o, &api).expect("snapshot reload");
     assert_eq!(loaded, ost, "reloaded OST must equal the indexed one");
     assert!(
@@ -411,6 +412,7 @@ async fn e2e_sync_org_noop() {
         &inv,
         root.clone(),
         &o,
+        &api,
         &features::index::NamespacePolicy::All,
     )
     .await

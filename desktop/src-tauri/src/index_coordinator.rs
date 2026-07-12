@@ -285,6 +285,8 @@ async fn run_index(
     namespaces: Option<String>,
     force: bool,
 ) -> Result<(), CommandError> {
+    let started = Instant::now();
+    tracing::info!(org = %org, force, "run_index start");
     // 1. sObject names first (folded `warm_schema`): FROM completion is ready
     //    immediately, even if the heavier Apex index below stalls on a large org.
     let names = features::soql::list_sobject_names(&state.invoker, &org).await;
@@ -300,7 +302,14 @@ async fn run_index(
     // check (which rebuilds when api_version differs) would compare against a stale
     // override and skip the needed rebuild.
     crate::org_config::apply_org_config(app, state, &org);
-    let api = features::api_version::api_version_for(&state.invoker, &org).await;
+    // Resolve the effective API version ONCE and thread it through the whole run
+    // (snapshot load, delta sync, full index). When live detection fails, the
+    // resolver reuses the snapshot's stored version so a good snapshot still
+    // loads instead of being discarded by the fallback default; a genuine
+    // detected-version change still rebuilds.
+    let (api, detected) =
+        features::api_version::resolve_index_api_version(&state.invoker, &root, &org).await;
+    tracing::info!(org = %org, api = %api, detected, "run_index resolved api version");
     let policy = features::index::NamespacePolicy::parse(namespaces.as_deref().unwrap_or("all"));
 
     // Forced rebuild drops the cached schema so the next browse reflects current
@@ -313,9 +322,10 @@ async fn run_index(
     // Already indexed → install the snapshot instantly (completion ready), then
     // delta-sync in the same run and emit a result if anything changed.
     if let Some((ost, _)) = apex_lang::load_snapshot(&root, &org, &api) {
+        tracing::info!(org = %org, "run_index snapshot hit; installing + delta-syncing");
         state.apex.install_index(&org, ost);
         if let Ok((outcome, patched)) =
-            features::index::sync_org(&state.invoker, root, &org, &policy).await
+            features::index::sync_org(&state.invoker, root, &org, &api, &policy).await
         {
             state.apex.install_index(&org, patched);
             if outcome.changed() {
@@ -330,9 +340,15 @@ async fn run_index(
                 );
             }
         }
+        tracing::info!(
+            org = %org,
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "run_index complete (snapshot path)"
+        );
         return Ok(());
     }
 
+    tracing::info!(org = %org, "run_index snapshot miss; running full index");
     // Not indexed → full first index (Phase-1 path). Progress feeds both the
     // event stream and the queryable status snapshot.
     let mut on_progress = |p: features::index::IndexProgress| {
@@ -347,10 +363,16 @@ async fn run_index(
             },
         );
     };
-    let ost = features::index::index_org(&state.invoker, root, &org, &policy, &mut on_progress)
-        .await
-        .map_err(CommandError::from)?;
+    let ost =
+        features::index::index_org(&state.invoker, root, &org, &api, &policy, &mut on_progress)
+            .await
+            .map_err(CommandError::from)?;
     state.apex.install_index(&org, ost);
+    tracing::info!(
+        org = %org,
+        elapsed_ms = started.elapsed().as_millis() as u64,
+        "run_index complete (full index)"
+    );
     Ok(())
 }
 
