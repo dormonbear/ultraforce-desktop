@@ -12,6 +12,12 @@ pub struct OrgRef {
     pub instance_url: Option<String>,
     #[serde(rename = "isDefaultUsername", default)]
     pub is_default: bool,
+    /// Org-type flags carried for free by `sf org list --json` (no extra network
+    /// call). Absent → `false`, so a display can only ever assert a known type.
+    #[serde(rename = "isSandbox", default)]
+    pub is_sandbox: bool,
+    #[serde(rename = "isScratch", default)]
+    pub is_scratch: bool,
 }
 
 #[derive(Debug, Deserialize)]

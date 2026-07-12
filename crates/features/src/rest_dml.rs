@@ -51,7 +51,8 @@ async fn send(
     url: &str,
     body: Option<&serde_json::Value>,
 ) -> Result<(u16, String), SfError> {
-    let client = reqwest::Client::new();
+    // Honors the per-org configured timeout; unbounded when unconfigured.
+    let client = crate::http_timeout::client();
     let mut req = client
         .request(method, url)
         .bearer_auth(&auth.access_token)
@@ -62,12 +63,12 @@ async fn send(
     let resp = req
         .send()
         .await
-        .map_err(|e| SfError::Unexpected(format!("request failed: {e}")))?;
+        .map_err(|e| crate::http_timeout::map_reqwest_error(e, "request failed"))?;
     let status = resp.status().as_u16();
     let text = resp
         .text()
         .await
-        .map_err(|e| SfError::Unexpected(format!("read body failed: {e}")))?;
+        .map_err(|e| crate::http_timeout::map_reqwest_error(e, "read body failed"))?;
     Ok((status, text))
 }
 

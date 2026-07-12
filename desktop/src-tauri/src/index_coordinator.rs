@@ -295,6 +295,11 @@ async fn run_index(
         .insert(org.clone(), Arc::new(names));
 
     let root = features::apex_complete::default_index_root();
+    // Re-read the per-org config so a just-saved apiVersion override is in effect
+    // before we resolve the effective version — otherwise the snapshot staleness
+    // check (which rebuilds when api_version differs) would compare against a stale
+    // override and skip the needed rebuild.
+    crate::org_config::apply_org_config(app, state, &org);
     let api = features::api_version::api_version_for(&state.invoker, &org).await;
     let policy = features::index::NamespacePolicy::parse(namespaces.as_deref().unwrap_or("all"));
 

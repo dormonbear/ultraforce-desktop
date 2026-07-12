@@ -2,29 +2,46 @@ use crate::error::SfError;
 use crate::json::parse_envelope;
 use crate::runner::{CommandRunner, RawOutput};
 use serde::de::DeserializeOwned;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(120);
+/// The default per-call bound applied to every `sf` invocation that doesn't opt
+/// into an explicit longer timeout. Surfaced so callers (e.g. the desktop
+/// per-org-config edit panel) can show it as the "current default".
+pub const DEFAULT_TIMEOUT_SECS: u64 = 120;
 
 /// Runs `sf` subcommands through an injectable `CommandRunner`.
 #[derive(Clone)]
 pub struct SfInvoker {
     runner: Arc<dyn CommandRunner>,
-    timeout: Duration,
+    /// Default per-call timeout in seconds. Shared across clones and mutable at
+    /// runtime so the composition root can apply a per-org `timeoutSecs` override
+    /// to the single shared invoker on org switch.
+    timeout_secs: Arc<AtomicU64>,
 }
 
 impl SfInvoker {
     pub fn new(runner: Arc<dyn CommandRunner>) -> Self {
         Self {
             runner,
-            timeout: DEFAULT_TIMEOUT,
+            timeout_secs: Arc::new(AtomicU64::new(DEFAULT_TIMEOUT_SECS)),
         }
     }
 
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = timeout;
+    pub fn with_timeout(self, timeout: Duration) -> Self {
+        self.timeout_secs.store(timeout.as_secs(), Ordering::Relaxed);
         self
+    }
+
+    /// Set the default per-call timeout at runtime (per-org override injection).
+    /// Affects every clone that shares this invoker's counter.
+    pub fn set_default_timeout(&self, timeout: Duration) {
+        self.timeout_secs.store(timeout.as_secs(), Ordering::Relaxed);
+    }
+
+    fn default_timeout(&self) -> Duration {
+        Duration::from_secs(self.timeout_secs.load(Ordering::Relaxed))
     }
 
     /// Run `sf <args> --json` and parse the envelope into `T`.
@@ -33,7 +50,7 @@ impl SfInvoker {
         if !full.iter().any(|a| a == "--json") {
             full.push("--json".to_string());
         }
-        let out = self.runner.run("sf", &full, self.timeout).await?;
+        let out = self.runner.run("sf", &full, self.default_timeout()).await?;
         parse_envelope(&out.stdout)
     }
 
@@ -56,7 +73,7 @@ impl SfInvoker {
     /// Run `sf <args>` and return raw output (for non-JSON commands like `--version`).
     pub async fn run_raw(&self, args: &[&str]) -> Result<RawOutput, SfError> {
         let full: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-        self.runner.run("sf", &full, self.timeout).await
+        self.runner.run("sf", &full, self.default_timeout()).await
     }
 
     /// Like [`run_raw`], but with a per-call timeout — for the rare known-slow

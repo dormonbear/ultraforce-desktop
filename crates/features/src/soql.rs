@@ -375,12 +375,12 @@ async fn fetch_page(
         .bearer_auth(token)
         .send()
         .await
-        .map_err(|e| SfError::Unexpected(format!("HTTP request failed: {e}")))?;
+        .map_err(|e| crate::http_timeout::map_reqwest_error(e, "HTTP request failed"))?;
     let status = resp.status();
     let body = resp
         .text()
         .await
-        .map_err(|e| SfError::Unexpected(format!("reading response failed: {e}")))?;
+        .map_err(|e| crate::http_timeout::map_reqwest_error(e, "reading response failed"))?;
     if !status.is_success() {
         return Err(parse_rest_error(status.as_u16() as i32, &body));
     }
@@ -413,7 +413,8 @@ pub async fn run_query_rest(
         .map_err(|e| SfError::Unexpected(format!("bad instance URL: {e}")))?;
     first.query_pairs_mut().append_pair("q", soql);
 
-    let client = reqwest::Client::new();
+    // Honors the per-org configured timeout; unbounded when unconfigured.
+    let client = crate::http_timeout::client();
     let token = auth.access_token.clone();
     paginate(
         first.to_string(),
