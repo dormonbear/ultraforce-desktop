@@ -8,7 +8,8 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { HStack } from "@astryxdesign/core/HStack";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { FieldLabel } from "@astryxdesign/core/Field";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { MotionDialog } from "./motion/MotionDialog";
 import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { useOrgs } from "../org";
@@ -95,7 +96,7 @@ export function OrgSwitcherModal({
   };
 
   return (
-    <Dialog isOpen={open} onOpenChange={onOpenChange} width={460}>
+    <MotionDialog isOpen={open} onOpenChange={onOpenChange} width={460}>
       {editingOrg ? (
         <OrgEditView
           org={editingOrg}
@@ -120,7 +121,7 @@ export function OrgSwitcherModal({
           onOpenChange={onOpenChange}
         />
       )}
-    </Dialog>
+    </MotionDialog>
   );
 }
 

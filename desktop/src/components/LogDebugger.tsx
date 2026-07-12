@@ -12,7 +12,8 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { MotionDialog } from "./motion/MotionDialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
@@ -125,7 +126,7 @@ export function LogDebugger({
   ];
 
   return (
-    <Dialog
+    <MotionDialog
       isOpen={open}
       onOpenChange={(o) => !o && onClose()}
       width="85vw"
@@ -239,7 +240,7 @@ export function LogDebugger({
           </div>
         )}
       </div>
-    </Dialog>
+    </MotionDialog>
   );
 }
 

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef } from "react";
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { MotionDialog } from "./motion/MotionDialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { useTheme, monacoTheme } from "../theme";
@@ -68,7 +69,7 @@ export function SourceDialog({
     .join(" · ");
 
   return (
-    <Dialog
+    <MotionDialog
       isOpen={target != null}
       onOpenChange={(o) => !o && onClose()}
       width="85vw"
@@ -104,6 +105,6 @@ export function SourceDialog({
           </div>
         )}
       </div>
-    </Dialog>
+    </MotionDialog>
   );
 }

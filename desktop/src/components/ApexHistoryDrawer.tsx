@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trash2, X, ChevronLeft, Copy, FileInput } from "lucide-react";
 import { Badge } from "@astryxdesign/core/Badge";
+import { useOverlayExit } from "../hooks/useOverlayExit";
 import { copyText } from "../clipboard";
 import { LogView } from "./LogView";
 import {
@@ -160,6 +161,11 @@ export function ApexHistoryDrawer({
 }: ApexHistoryDrawerProps) {
   const [entries, setEntries] = useState<ApexHistoryEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Keep the drawer mounted through its slide-out so close is symmetric.
+  const { mounted, exiting, onAnimationEnd } = useOverlayExit(open, {
+    exitName: "fjord-drawer-out",
+    exitMs: 120,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -178,7 +184,7 @@ export function ApexHistoryDrawer({
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onOpenChange]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const selected = entries.find((e) => e.id === selectedId) ?? null;
 
@@ -187,12 +193,14 @@ export function ApexHistoryDrawer({
       className="fixed inset-0 z-50 flex justify-end"
       role="dialog"
       aria-label="Apex execution history"
+      data-motion-phase={exiting ? "exit" : undefined}
+      onAnimationEnd={onAnimationEnd}
     >
       <div
-        className="absolute inset-0 bg-black/20"
+        className="fjord-drawer-scrim absolute inset-0 bg-black/20"
         onClick={() => onOpenChange(false)}
       />
-      <aside className="relative flex h-full w-[520px] flex-col border-l border-border bg-card shadow-xl">
+      <aside className="fjord-drawer-panel relative flex h-full w-[520px] flex-col border-l border-border bg-card shadow-xl">
         <header className="flex h-11 shrink-0 items-center justify-between border-b border-border px-4">
           {selected ? (
             <button

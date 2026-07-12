@@ -430,6 +430,124 @@ button:not(:disabled):not(.monaco-editor *):active,
   transition: transform var(--motion-4) var(--ease-fjord-out);
 }
 
+/* ── Overlay motion: symmetric enter/exit ──────────────────────────────────
+ * astryx Dialog hard-codes a 550ms directional enter and closes instantly
+ * (dialog.close()). MotionDialog keeps it mounted through an exit phase; these
+ * rules replace the enter with a Fjord-timed one and add the missing exit.
+ * astryx's own animation classes carry :not(#\#) x3 specificity, so we win with
+ * a stable-class selector + narrowly-scoped !important (never a hashed class). */
+@keyframes fjord-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes fjord-dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+}
+.astryx-dialog.uf-motion-dialog[open] {
+  animation: fjord-dialog-in var(--t-modal-in) var(--ease-fjord-out) both !important;
+}
+.astryx-dialog.uf-motion-dialog[open][data-motion-phase="exit"] {
+  pointer-events: none;
+  animation: fjord-dialog-out var(--t-modal-out) var(--ease-fjord-in) both !important;
+}
+
+/* Custom right-side drawer (ApexHistoryDrawer): scrim fade + panel slide.
+ * The exit phase is set on the drawer root via data-motion-phase. */
+@keyframes fjord-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fjord-scrim-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes fjord-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fjord-drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.fjord-drawer-scrim {
+  animation: fjord-scrim-in var(--motion-3) var(--ease-fjord-out) both;
+}
+.fjord-drawer-panel {
+  animation: fjord-drawer-in var(--motion-4) var(--ease-fjord-out) both;
+}
+[data-motion-phase="exit"] .fjord-drawer-scrim {
+  animation: fjord-scrim-out var(--motion-2) var(--ease-fjord-in) both;
+}
+[data-motion-phase="exit"] .fjord-drawer-panel {
+  pointer-events: none;
+  animation: fjord-drawer-out var(--motion-2) var(--ease-fjord-in) both;
+}
+
+/* Radix dropdown/submenu: keep the tailwindcss-animate keyframes, converge the
+ * durations to the layer scale (160ms enter / 120ms exit). Attribute selectors
+ * out-specify tailwindcss-animate's `.animate-in` duration without !important. */
+[data-slot="dropdown-menu-content"][data-state="open"],
+[data-slot="dropdown-menu-sub-content"][data-state="open"] {
+  animation-duration: var(--motion-3);
+}
+[data-slot="dropdown-menu-content"][data-state="closed"],
+[data-slot="dropdown-menu-sub-content"][data-state="closed"] {
+  animation-duration: var(--motion-2);
+}
+
+/* astryx Tooltip is enter-only (its layer unmounts with no exit lifecycle).
+ * Converge just the enter duration (230ms → 160ms) on the stable class; exit
+ * stays instant. Overriding a hashed layer class for the exit isn't worth a
+ * design-system fork for the two surfaces (titlebar tooltip, "All tabs"). */
+.astryx-tooltip {
+  animation-duration: var(--motion-3) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Overlays appear/disappear instantly. Match the base selectors' specificity
+   * (and place this after them) so these !important resets win. The exit phase
+   * is already skipped in useOverlayExit, so only the enter needs neutralizing. */
+  .astryx-dialog.uf-motion-dialog[open],
+  .astryx-dialog.uf-motion-dialog[open][data-motion-phase="exit"] {
+    animation: none !important;
+  }
+  .fjord-drawer-scrim,
+  .fjord-drawer-panel,
+  [data-motion-phase="exit"] .fjord-drawer-scrim,
+  [data-motion-phase="exit"] .fjord-drawer-panel {
+    animation: none !important;
+  }
+}
+
 /*
  * Persistent (non-overlay) scrollbars. macOS hides overlay scrollbars until you
  * scroll, so a wide table's horizontal bar is undiscoverable. `-webkit-appearance:
