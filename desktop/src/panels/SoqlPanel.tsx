@@ -285,7 +285,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
               <span
                 key={arrivalNonce}
                 className={`tnum text-[11px] text-text-dim ${
-                  succeeded ? "fjord-status-bloom" : ""
+                  succeeded && arrivalNonce > 0 ? "fjord-status-bloom" : ""
                 }`}
               >
                 {status}

@@ -422,16 +422,15 @@ button:not(:disabled):not(.monaco-editor *):active,
   animation-duration: var(--motion-3) !important;
 }
 
-/* astryx DropdownMenu ("All tabs"): the enter/exit is a :popover-open
- * transition on the popover CONTAINER (via layerAnimations), duration
- * var(--duration-fast, 175ms in theme-neutral). That container carries only
- * hashed StyleX classes, but its direct child is the stable, themeProps-emitted
- * `.astryx-dropdown-menu` (role="menu") element, so `:has(> …)` reaches the
- * animated container without matching a hashed class. Converge to the layer
- * enter scale; reduced motion is handled by astryx's own media query (same as
- * the tooltip above). */
-[popover]:has(> .astryx-dropdown-menu) {
-  transition-duration: var(--motion-3) !important;
+/* astryx DropdownMenu ("All tabs"): the enter is an ANIMATION on the popover
+ * CONTAINER (layerAnimations.stylex.ts animationDuration, var(--duration-fast),
+ * 175ms in theme-neutral). The container carries only hashed StyleX classes and
+ * a usePopover wrapper sits between it and the stable, themeProps-emitted
+ * `.astryx-dropdown-menu` (role="menu"), so match by descendant `:has()` rather
+ * than direct child, and override animation-duration (not transition). Reduced
+ * motion is handled by astryx's own media query (same as the tooltip above). */
+[popover]:has(.astryx-dropdown-menu) {
+  animation-duration: var(--motion-3) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
