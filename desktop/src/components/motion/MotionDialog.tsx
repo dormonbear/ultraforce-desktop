@@ -1,6 +1,7 @@
 import { Dialog } from "@astryxdesign/core/Dialog";
 import { cn } from "@/lib/utils";
 import { useOverlayExit } from "../../hooks/useOverlayExit";
+import { DIALOG_EXIT } from "./presets";
 
 type DialogProps = React.ComponentProps<typeof Dialog>;
 
@@ -21,10 +22,10 @@ export function MotionDialog({
   onAnimationEnd,
   ...props
 }: DialogProps) {
-  const { mounted, exiting, onAnimationEnd: onExitEnd } = useOverlayExit(isOpen, {
-    exitName: "fjord-dialog-out",
-    exitMs: 120,
-  });
+  const { mounted, exiting, onAnimationEnd: onExitEnd } = useOverlayExit(
+    isOpen,
+    DIALOG_EXIT,
+  );
 
   return (
     <Dialog

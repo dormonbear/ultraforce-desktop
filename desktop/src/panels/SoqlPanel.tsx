@@ -8,7 +8,8 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { Button } from "@astryxdesign/core/Button";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { MotionDialog } from "../components/motion/MotionDialog";
 import { SoqlEditor } from "../components/SoqlEditor";
 import type { Reveal } from "../editor/monaco-reveal";
 import { ResultTable } from "../components/ResultTable";
@@ -314,7 +315,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       </ResizablePanel>
     </ResizablePanelGroup>
 
-    <Dialog
+    <MotionDialog
       isOpen={largeConfirm != null}
       onOpenChange={(o) => !o && setLargeConfirm(null)}
       width={480}
@@ -355,7 +356,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           />
         </div>
       </div>
-    </Dialog>
+    </MotionDialog>
     </>
   );
 }

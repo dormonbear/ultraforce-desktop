@@ -1,6 +1,7 @@
 import * as React from "react";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
 import { useOverlayExit } from "../hooks/useOverlayExit";
+import { DIALOG_EXIT } from "./motion/presets";
 
 interface ConfirmOptions {
   title?: string;
@@ -80,10 +81,10 @@ function ConfirmDialog({
   if (opts) shownRef.current = opts;
   const shown = shownRef.current;
 
-  const { mounted, exiting, onAnimationEnd } = useOverlayExit(opts !== null, {
-    exitName: "fjord-dialog-out",
-    exitMs: 120,
-  });
+  const { mounted, exiting, onAnimationEnd } = useOverlayExit(
+    opts !== null,
+    DIALOG_EXIT,
+  );
 
   React.useEffect(() => {
     const el = dialogRef.current;

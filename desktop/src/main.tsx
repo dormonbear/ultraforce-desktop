@@ -9,6 +9,9 @@ import { ConfirmProvider } from "./components/confirm";
 import { runMigrationOnce } from "./fs/migrate";
 import { flush } from "./store";
 import "./styles.css";
+// Loaded after styles.css so the motion layer keeps its original (bottom-of-
+// styles.css) cascade position — see motion.css header.
+import "./motion.css";
 
 // Persist any debounced writes before the window closes, otherwise the last
 // few edits (within DEBOUNCE_MS of quitting) are lost. onCloseRequested awaits
