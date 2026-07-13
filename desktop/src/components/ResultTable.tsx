@@ -87,11 +87,15 @@ export function ResultTable({
   data,
   query,
   initialAdvancedFilter,
+  arrivalNonce = 0,
 }: {
   data: Pick<SoqlResultDto, "columns" | "rows" | "totalSize" | "childTables">;
   /** The executed SOQL — enables the API-name ↔ label toggle when provided. */
   query?: string;
   initialAdvancedFilter?: RuleGroupType;
+  /** Increments once per successful query arrival; keys the one-shot scan cue.
+   * Never changes on internal scroll/sort/filter, so those don't replay it. */
+  arrivalNonce?: number;
 }) {
   const { selected: org } = useOrgs();
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -421,7 +425,13 @@ export function ResultTable({
   const hasXOverflow = containerW > 0 && tableWidth > containerW + 1;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
+      {/* One-shot "data arrived" scan on the results chrome. Keyed by the
+          arrival nonce so it plays once per query and is inert on scroll/sort/
+          filter. Lives outside the scroll/virtualizer — never per-row. */}
+      {arrivalNonce > 0 && (
+        <span key={arrivalNonce} aria-hidden className="fjord-result-arrival" />
+      )}
       <Toolbar
         globalFilter={globalFilter}
         onGlobalFilterChange={setGlobalFilter}

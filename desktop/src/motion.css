@@ -1,0 +1,482 @@
+/* Fjord motion layer. Split out of styles.css (800-line cap). Imported in
+ * main.tsx immediately AFTER styles.css so these rules keep the exact cascade
+ * position they had at the bottom of styles.css (unlayered, winning ties over
+ * earlier unlayered app rules). Only transform & opacity animate. */
+
+/* Motion tokens (Fjord / emil-design-eng). Only transform & opacity animate.
+ * A primitive duration scale plus semantic easings; the existing --t-* / --ease
+ * names are kept as compatibility aliases so call sites don't churn. Exits run
+ * ~30% faster than enters. High-frequency paths (tab/page/panel switches) stay
+ * animation-free — see PanelHost. */
+:root {
+  /* Duration: primitive scale */
+  --motion-0: 0ms;
+  --motion-1: 90ms; /* icon/color exit */
+  --motion-2: 120ms; /* press, layer exit */
+  --motion-3: 160ms; /* hover, layer enter */
+  --motion-4: 200ms; /* dialog enter, drawer, progress */
+  --motion-5: 320ms; /* one-shot data arrival */
+  --motion-6: 420ms; /* signature emphasis, never navigation */
+
+  /* Easing: semantic */
+  --ease-fjord-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-fjord-in: cubic-bezier(0.55, 0, 1, 0.45);
+  --ease-fjord-move: cubic-bezier(0.77, 0, 0.175, 1);
+  /* Fallback spring: slight overshoot, only for small scale/translate. */
+  --ease-fjord-spring: cubic-bezier(0.34, 1.35, 0.64, 1);
+
+  /* Compatibility aliases (existing call sites). --ease-out drives the
+   * tailwindcss-animate enter/exit curve (see .animate-in below). */
+  --ease: var(--ease-fjord-out);
+  --ease-io: var(--ease-fjord-move);
+  --ease-out: var(--ease-fjord-out);
+  --t-press: var(--motion-2);
+  --t-hover: var(--motion-3);
+  --t-popover: var(--motion-3);
+  --t-modal-in: var(--motion-4);
+  /* --t-modal-out: exit duration for MotionDialog / confirm(). The
+   * DIALOG_EXIT.exitMs preset (components/motion/presets.ts) must match this
+   * value and the fjord-dialog-out keyframe below. */
+  --t-modal-out: var(--motion-2);
+}
+
+/* Progressive spring: linear() expresses real overshoot but needs Safari 17.2+.
+ * cubic-bezier above stays the guaranteed fallback for older WKWebViews. */
+@supports (animation-timing-function: linear(0, 1)) {
+  :root {
+    --ease-fjord-spring: linear(
+      0, 0.009, 0.036, 0.084, 0.157, 0.255, 0.378, 0.522, 0.679, 0.832, 0.954,
+      1.029, 1.052, 1.038, 1.011, 0.99, 0.984, 0.991, 1.001, 1.005, 1
+    );
+  }
+}
+
+/* Press feedback: every non-Astryx pressable dips to scale(.98) on press.
+ * Astryx's own Buttons keep their built-in press (higher specificity wins);
+ * Monaco internals are excluded so editor widgets/drag handles never scale.
+ * Per-property durations give transform the 120ms press timing while color/
+ * border keep the 150ms hover timing. */
+button:not(.monaco-editor *),
+[role="button"]:not(.monaco-editor *) {
+  transition-property: color, background-color, border-color, box-shadow,
+    opacity, transform;
+  transition-duration: var(--t-hover), var(--t-hover), var(--t-hover),
+    var(--t-hover), var(--t-hover), var(--t-press);
+  transition-timing-function: var(--ease);
+}
+button:not(:disabled):not(.monaco-editor *):active,
+[role="button"]:not(.monaco-editor *):active {
+  transform: scale(0.98);
+}
+
+/* tailwindcss-animate drives enter/exit via animation; give it the strong curve. */
+.animate-in,
+.animate-out {
+  animation-timing-function: var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion = remove movement, keep fades/colors that aid comprehension. */
+  .animate-in,
+  .animate-out {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
+  }
+  /* Drop transform/size motion on transitions; keep opacity/color/shadow. */
+  * {
+    transition-property: opacity, color, background-color, border-color,
+      box-shadow, fill, stroke !important;
+  }
+  /* No press-scale transform under reduced motion. */
+  button:active,
+  [role="button"]:active {
+    transform: none !important;
+  }
+  /* Hard contract: stop app infinite/decorative animation. The global rule
+   * above only strips transitions — CSS animations (spinners, pulses, the
+   * indeterminate sweep) and JS Lottie keep running otherwise. */
+  .spin,
+  .animate-spin,
+  .animate-pulse,
+  .uf-indeterminate {
+    animation: none !important;
+  }
+  .uf-indeterminate {
+    transform: none;
+    width: 100%;
+    opacity: 0.55;
+  }
+  [data-motion="decorative"] {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.6s linear infinite;
+}
+
+/* Delayed reveal for busy indicators: invisible for the first 150ms so fast
+ * operations never flash a spinner (loading UI only when the wait is real).
+ * Wrap the spinner — `animation` would collide with `.spin` on one element. */
+@keyframes uf-appear {
+  to {
+    opacity: 1;
+  }
+}
+.uf-delay-in {
+  opacity: 0;
+  animation: uf-appear 0s linear 150ms forwards;
+}
+
+/* Indeterminate sweep for the top progress strip (phases without a total). */
+@keyframes uf-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}
+.uf-indeterminate {
+  animation: uf-indeterminate 1.1s ease-in-out infinite;
+}
+
+/* Determinate progress fill: compositor-safe scaleX (never `width`, which would
+ * tween layout on every high-frequency progress tick). React sets --progress to
+ * a 0–1 fraction. */
+.fjord-progress-fill {
+  width: 100%;
+  transform-origin: left;
+  transform: scaleX(var(--progress, 0));
+  transition: transform var(--motion-4) var(--ease-fjord-out);
+}
+
+/* Run-button icon crossfade: play ⇄ spinner as OUR own elements (see
+ * RunButton.tsx). astryx Button's isLoading hides ALL button content and shows
+ * its own centered spinner; we instead keep the label ("Running") and crossfade
+ * only the icon slot. The two icons are stacked and opacity/scale-crossfaded on
+ * a ~90ms token; the spinner's rotation lives on an inner element via `.spin`
+ * so it never collides with the slot's transform. */
+.run-icon-slot {
+  position: relative;
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+}
+.run-icon-face {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    opacity var(--motion-1) var(--ease-fjord-out),
+    transform var(--motion-1) var(--ease-fjord-out);
+}
+.run-icon-face[data-visible="false"] {
+  opacity: 0;
+  transform: scale(0.8);
+  pointer-events: none;
+}
+.run-icon-face[data-visible="true"] {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* ── Async arrival: one-shot query-success cues ────────────────────────────
+ * Fired only when a NEW successful result arrives (see useArrivalCue). Both
+ * elements are keyed by the arrival nonce so the animation plays exactly once
+ * per arrival and never on scroll/sort/filter/progress ticks. transform/opacity
+ * only; the cue lives on the results chrome, never inside the virtualized rows. */
+@keyframes fjord-data-arrived {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.12);
+  }
+  35% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1);
+  }
+}
+/* A 2px frost line sweeping left→right across the top edge of the results
+ * container. Absolutely-positioned overlay (not a row); pointer-events off. */
+.fjord-result-arrival {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  transform-origin: left;
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+  pointer-events: none;
+  z-index: 30;
+  animation: fjord-data-arrived var(--motion-6) var(--ease-fjord-out) both;
+}
+
+@keyframes fjord-status-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+/* The status line ("N rows returned · X ms") settles in as the result lands. */
+.fjord-status-bloom {
+  display: inline-block;
+  transform-origin: right;
+  animation: fjord-status-bloom var(--motion-5) var(--ease-fjord-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Cue reduces to nothing: no sweep, no scale. The scan element is always in
+   * the DOM (keyed), so hide it rather than leave a static line; the status
+   * text stays fully visible without the bloom. */
+  .fjord-result-arrival {
+    display: none;
+  }
+  .fjord-status-bloom {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* ── Org switch: Aurora echo (titlebar-only signature) ─────────────────────
+ * Fires once per real active-org change (see useOrgSwitchCue). Small-area,
+ * low-frequency by design: a single sweep across the 2px top strip in the new
+ * org's color plus a light spring settle on the badge. Both elements are keyed
+ * by the switch nonce so each plays exactly once and never gates, awaits, or
+ * delays the actual switch. transform/opacity only; panel content is untouched. */
+@keyframes fjord-org-echo {
+  0% {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+/* A colored band sweeping right→left (from the badge) across the strip; the
+ * transparent gradient edges read as an echo. Falls back to the accent color
+ * when the org has no preset color. */
+.fjord-org-echo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--org-echo, var(--primary)),
+    transparent
+  );
+  animation: fjord-org-echo var(--motion-6) var(--ease-fjord-out) both;
+}
+
+@keyframes fjord-org-settle {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+/* The badge lands on its new color/name with a light spring settle (0.98→1 is
+ * the sanctioned small-scale use of the overshoot easing). */
+.fjord-org-settle {
+  transform-origin: center;
+  animation: fjord-org-settle var(--motion-4) var(--ease-fjord-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* No sweep, no scale. The echo is keyed (freshly mounted per switch), so hide
+   * it rather than leave a static band; the badge simply stays put. */
+  .fjord-org-echo {
+    display: none;
+  }
+  .fjord-org-settle {
+    animation: none;
+    transform: none;
+  }
+}
+
+/* ── Overlay motion: symmetric enter/exit ──────────────────────────────────
+ * astryx Dialog hard-codes a 550ms directional enter and closes instantly
+ * (dialog.close()). MotionDialog keeps it mounted through an exit phase; these
+ * rules replace the enter with a Fjord-timed one and add the missing exit.
+ * astryx's own animation classes carry :not(#\#) x3 specificity, so we win with
+ * a stable-class selector + narrowly-scoped !important (never a hashed class). */
+@keyframes fjord-dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+/* fjord-dialog-out duration is --t-modal-out (--motion-2, 120ms); the
+ * DIALOG_EXIT preset in components/motion/presets.ts must stay in sync. */
+@keyframes fjord-dialog-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.985);
+  }
+}
+.astryx-dialog.uf-motion-dialog[open] {
+  animation: fjord-dialog-in var(--t-modal-in) var(--ease-fjord-out) both !important;
+}
+.astryx-dialog.uf-motion-dialog[open][data-motion-phase="exit"] {
+  pointer-events: none;
+  animation: fjord-dialog-out var(--t-modal-out) var(--ease-fjord-in) both !important;
+}
+
+/* Custom right-side drawer (ApexHistoryDrawer): scrim fade + panel slide.
+ * The exit phase is set on the drawer root via data-motion-phase. */
+@keyframes fjord-scrim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes fjord-scrim-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes fjord-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes fjord-drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+.fjord-drawer-scrim {
+  animation: fjord-scrim-in var(--motion-3) var(--ease-fjord-out) both;
+}
+.fjord-drawer-panel {
+  animation: fjord-drawer-in var(--motion-4) var(--ease-fjord-out) both;
+}
+[data-motion-phase="exit"] .fjord-drawer-scrim {
+  animation: fjord-scrim-out var(--motion-2) var(--ease-fjord-in) both;
+}
+[data-motion-phase="exit"] .fjord-drawer-panel {
+  pointer-events: none;
+  animation: fjord-drawer-out var(--motion-2) var(--ease-fjord-in) both;
+}
+
+/* Radix dropdown/submenu: keep the tailwindcss-animate keyframes, converge the
+ * durations to the layer scale (160ms enter / 120ms exit). Attribute selectors
+ * out-specify tailwindcss-animate's `.animate-in` duration without !important. */
+[data-slot="dropdown-menu-content"][data-state="open"],
+[data-slot="dropdown-menu-sub-content"][data-state="open"] {
+  animation-duration: var(--motion-3);
+}
+[data-slot="dropdown-menu-content"][data-state="closed"],
+[data-slot="dropdown-menu-sub-content"][data-state="closed"] {
+  animation-duration: var(--motion-2);
+}
+
+/* astryx Tooltip is enter-only (its layer unmounts with no exit lifecycle).
+ * Converge just the enter duration (230ms → 160ms) on the stable class; exit
+ * stays instant. Overriding a hashed layer class for the exit isn't worth a
+ * design-system fork for the two surfaces (titlebar tooltip, "All tabs"). */
+.astryx-tooltip {
+  animation-duration: var(--motion-3) !important;
+}
+
+/* astryx DropdownMenu ("All tabs"): the enter is an ANIMATION on the popover
+ * CONTAINER (layerAnimations.stylex.ts animationDuration, var(--duration-fast),
+ * 175ms in theme-neutral). The container carries only hashed StyleX classes and
+ * a usePopover wrapper sits between it and the stable, themeProps-emitted
+ * `.astryx-dropdown-menu` (role="menu"), so match by descendant `:has()` rather
+ * than direct child, and override animation-duration (not transition). Reduced
+ * motion is handled by astryx's own media query (same as the tooltip above). */
+[popover]:has(.astryx-dropdown-menu) {
+  animation-duration: var(--motion-3) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Overlays appear/disappear instantly. Match the base selectors' specificity
+   * (and place this after them) so these !important resets win. The exit phase
+   * is already skipped in useOverlayExit, so only the enter needs neutralizing. */
+  .astryx-dialog.uf-motion-dialog[open],
+  .astryx-dialog.uf-motion-dialog[open][data-motion-phase="exit"] {
+    animation: none !important;
+  }
+  .fjord-drawer-scrim,
+  .fjord-drawer-panel,
+  [data-motion-phase="exit"] .fjord-drawer-scrim,
+  [data-motion-phase="exit"] .fjord-drawer-panel {
+    animation: none !important;
+  }
+}
+
+/* ── Sonner toast timing ────────────────────────────────────────────────────
+ * The library ships 400ms enter/stack + 200ms shadow (sonner/dist/styles.css);
+ * next to Fjord's 120–200ms that reads slow and "sticky". Converge to the token
+ * scale: ~160ms in (--motion-3), 120ms out (--motion-2, an exact 30% faster
+ * exit). We snap the report's "~180ms" to the existing --motion-3 rather than
+ * introduce an off-scale literal, keeping the motion contract single-source.
+ *
+ * Height decision: KEEP the `height` transition (shortened), do NOT remove it.
+ * Multi-toast stack reflow relies on it; the report flagged removal as a
+ * stacking-regression risk needing visual regression, so shortening is the safe
+ * convergence. Selectors are stable [data-sonner-*] attributes and are scoped
+ * with `:not([data-swiping])` so the library's drag `transition: none` and its
+ * higher-specificity collapsed-stack exit rules still win. Sonner's own
+ * `!important` reduced-motion reset also still wins (ours is unprefixed). */
+[data-sonner-toaster][data-x-position] {
+  transition: transform var(--motion-3) var(--ease-fjord-out);
+}
+[data-sonner-toaster] [data-sonner-toast]:not([data-swiping="true"]) {
+  transition:
+    transform var(--motion-3) var(--ease-fjord-out),
+    opacity var(--motion-3) var(--ease-fjord-out),
+    height var(--motion-3) var(--ease-fjord-out),
+    box-shadow var(--motion-2) var(--ease-fjord-out);
+}
+[data-sonner-toaster] [data-sonner-toast][data-removed="true"]:not([data-swiping="true"]) {
+  transition:
+    transform var(--motion-2) var(--ease-fjord-in),
+    opacity var(--motion-2) var(--ease-fjord-in),
+    height var(--motion-2) var(--ease-fjord-in),
+    box-shadow var(--motion-2) var(--ease-fjord-in);
+}

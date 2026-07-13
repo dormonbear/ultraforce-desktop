@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Loader2 } from "lucide-react";
 import { useOrgs } from "../org";
+import { orgColor } from "../orgConfig";
+import { useOrgSwitchCue } from "../hooks/useOrgSwitchCue";
 import { indexStatus } from "../ipc/schema";
 import { barState, phaseLabel, type Progress } from "./indexBar";
 
@@ -46,22 +48,39 @@ export function useIndexProgress(): Progress | null {
 /**
  * The 2px strip at the very top of the window. Idle: a static accent bar.
  * While indexing: a progress bar — real percentage during the sObject phase,
- * an indeterminate sweep otherwise.
+ * an indeterminate sweep otherwise. On a real org switch it also plays a
+ * one-shot Aurora echo (a single sweep in the new org's color) layered over
+ * whichever state is showing; the echo never gates or delays the switch.
  */
 export function TopProgressBar() {
+  const { selected, configs } = useOrgs();
   const { active, determinate, pct } = barState(useIndexProgress());
-
-  if (!active) return <div className="h-0.5 w-full bg-primary" />;
+  const cueNonce = useOrgSwitchCue(selected);
+  const echoColor = selected ? orgColor(configs[selected]?.color)?.bg : undefined;
 
   return (
-    <div className="h-0.5 w-full overflow-hidden bg-primary/20">
-      {determinate ? (
-        <div
-          className="h-full w-full origin-left bg-primary transition-transform duration-300 ease-[var(--ease)]"
-          style={{ transform: `scaleX(${pct / 100})` }}
-        />
+    <div className="relative h-0.5 w-full overflow-hidden">
+      {active ? (
+        <div className="h-full w-full bg-primary/20">
+          {determinate ? (
+            <div
+              className="fjord-progress-fill h-full bg-primary"
+              style={{ "--progress": pct / 100 } as CSSProperties}
+            />
+          ) : (
+            <div className="uf-indeterminate h-full w-1/3 bg-primary" />
+          )}
+        </div>
       ) : (
-        <div className="uf-indeterminate h-full w-1/3 bg-primary" />
+        <div className="h-full w-full bg-primary" />
+      )}
+      {cueNonce > 0 && (
+        <span
+          key={cueNonce}
+          aria-hidden
+          className="fjord-org-echo"
+          style={{ "--org-echo": echoColor } as CSSProperties}
+        />
       )}
     </div>
   );

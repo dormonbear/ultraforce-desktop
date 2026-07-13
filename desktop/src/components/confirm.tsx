@@ -1,5 +1,7 @@
 import * as React from "react";
 import { AlertDialog } from "@astryxdesign/core/AlertDialog";
+import { useOverlayExit } from "../hooks/useOverlayExit";
+import { DIALOG_EXIT } from "./motion/presets";
 
 interface ConfirmOptions {
   title?: string;
@@ -59,7 +61,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
 /** The dialog surface for the current request. Settling on action runs before
  * the close-driven onOpenChange; the second settle is a no-op (resolver ref is
  * already cleared). Cyclomatic count is inflated by per-field option
- * fallbacks, not real branching. */
+ * fallbacks, not real branching.
+ *
+ * AlertDialog wraps astryx Dialog but only forwards `ref`/`className` (not
+ * data-* or onAnimationEnd), so the symmetric exit is wired imperatively: keep
+ * it mounted through the exit phase and drive `data-motion-phase`/`animationend`
+ * on the underlying <dialog> via its ref. The last non-null options are
+ * retained so the exit animation shows the same content, not the defaults. */
 // fallow-ignore-next-line complexity
 function ConfirmDialog({
   opts,
@@ -68,16 +76,43 @@ function ConfirmDialog({
   opts: ConfirmOptions | null;
   onSettle: (result: boolean) => void;
 }) {
+  const dialogRef = React.useRef<HTMLDialogElement>(null);
+  const shownRef = React.useRef<ConfirmOptions>({});
+  if (opts) shownRef.current = opts;
+  const shown = shownRef.current;
+
+  const { mounted, exiting, onAnimationEnd } = useOverlayExit(
+    opts !== null,
+    DIALOG_EXIT,
+  );
+
+  React.useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (exiting) el.setAttribute("data-motion-phase", "exit");
+    else el.removeAttribute("data-motion-phase");
+  }, [exiting]);
+
+  React.useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    const handler = (event: AnimationEvent) => onAnimationEnd(event);
+    el.addEventListener("animationend", handler);
+    return () => el.removeEventListener("animationend", handler);
+  }, [onAnimationEnd]);
+
   return (
     <AlertDialog
-      isOpen={opts !== null}
+      ref={dialogRef}
+      className="uf-motion-dialog"
+      isOpen={mounted}
       onOpenChange={(open) => {
         if (!open) onSettle(false);
       }}
-      title={opts?.title ?? "Are you sure?"}
-      description={opts?.description ?? ""}
-      cancelLabel={opts?.cancelText ?? "Cancel"}
-      actionLabel={opts?.confirmText ?? "Confirm"}
+      title={shown.title ?? "Are you sure?"}
+      description={shown.description ?? ""}
+      cancelLabel={shown.cancelText ?? "Cancel"}
+      actionLabel={shown.confirmText ?? "Confirm"}
       onAction={() => onSettle(true)}
     />
   );

@@ -200,8 +200,8 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   transition:
-    background 0.2s ease,
-    color 0.2s ease;
+    background var(--motion-4) var(--ease-fjord-out),
+    color var(--motion-4) var(--ease-fjord-out);
   /* Desktop-app feel: UI chrome (labels, tabs, buttons) is not text-selectable.
      Real content opts back in via `.select-text` (data, logs, errors, editor). */
   -webkit-user-select: none;
@@ -271,105 +271,6 @@ textarea,
   box-shadow:
     0 0 0 2px var(--background),
     0 0 0 3px var(--ring);
-}
-
-/* Motion tokens (Fjord / emil-design-eng). Only transform & opacity animate.
- * --ease: enter/interaction; --ease-io: on-screen movement. High-frequency
- * paths (tab/page/panel switches) stay animation-free — see PanelHost. */
-:root {
-  --ease: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-io: cubic-bezier(0.77, 0, 0.175, 1);
-  --t-press: 120ms;
-  --t-hover: 150ms;
-  --t-popover: 180ms;
-  --t-modal-in: 200ms;
-  --t-modal-out: 130ms;
-  /* Alias: tailwindcss-animate enter/exit curve (see .animate-in below). */
-  --ease-out: var(--ease);
-}
-
-/* Press feedback: every non-Astryx pressable dips to scale(.97) on press.
- * Astryx's own Buttons keep their built-in press (higher specificity wins);
- * Monaco internals are excluded so editor widgets/drag handles never scale.
- * Per-property durations give transform the 120ms press timing while color/
- * border keep the 150ms hover timing. */
-button:not(.monaco-editor *),
-[role="button"]:not(.monaco-editor *) {
-  transition-property: color, background-color, border-color, box-shadow,
-    opacity, transform;
-  transition-duration: var(--t-hover), var(--t-hover), var(--t-hover),
-    var(--t-hover), var(--t-hover), var(--t-press);
-  transition-timing-function: var(--ease);
-}
-button:not(:disabled):not(.monaco-editor *):active,
-[role="button"]:not(.monaco-editor *):active {
-  transform: scale(0.97);
-}
-
-/* tailwindcss-animate drives enter/exit via animation; give it the strong curve. */
-.animate-in,
-.animate-out {
-  animation-timing-function: var(--ease-out);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* Reduced motion = remove movement, keep fades/colors that aid comprehension. */
-  .animate-in,
-  .animate-out {
-    --tw-enter-translate-x: 0;
-    --tw-enter-translate-y: 0;
-    --tw-enter-scale: 1;
-    --tw-enter-rotate: 0;
-    --tw-exit-translate-x: 0;
-    --tw-exit-translate-y: 0;
-    --tw-exit-scale: 1;
-    --tw-exit-rotate: 0;
-  }
-  /* Drop transform/size motion on transitions; keep opacity/color/shadow. */
-  * {
-    transition-property: opacity, color, background-color, border-color,
-      box-shadow, fill, stroke !important;
-  }
-  /* No press-scale transform under reduced motion. */
-  button:active,
-  [role="button"]:active {
-    transform: none !important;
-  }
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-.spin {
-  animation: spin 0.6s linear infinite;
-}
-
-/* Delayed reveal for busy indicators: invisible for the first 150ms so fast
- * operations never flash a spinner (loading UI only when the wait is real).
- * Wrap the spinner — `animation` would collide with `.spin` on one element. */
-@keyframes uf-appear {
-  to {
-    opacity: 1;
-  }
-}
-.uf-delay-in {
-  opacity: 0;
-  animation: uf-appear 0s linear 150ms forwards;
-}
-
-/* Indeterminate sweep for the top progress strip (phases without a total). */
-@keyframes uf-indeterminate {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(400%);
-  }
-}
-.uf-indeterminate {
-  animation: uf-indeterminate 1.1s ease-in-out infinite;
 }
 
 /*

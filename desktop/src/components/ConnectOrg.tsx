@@ -3,7 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
-import { Dialog, DialogHeader } from "@astryxdesign/core/Dialog";
+import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { MotionDialog } from "./motion/MotionDialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -109,7 +110,7 @@ export function ConnectOrgDialog({
 }) {
   const { reload } = useOrgs();
   return (
-    <Dialog isOpen={open} onOpenChange={onOpenChange} width={480}>
+    <MotionDialog isOpen={open} onOpenChange={onOpenChange} width={480}>
       <DialogHeader
         title="Connect a Salesforce org"
         onOpenChange={onOpenChange}
@@ -125,6 +126,6 @@ export function ConnectOrgDialog({
           }}
         />
       </div>
-    </Dialog>
+    </MotionDialog>
   );
 }

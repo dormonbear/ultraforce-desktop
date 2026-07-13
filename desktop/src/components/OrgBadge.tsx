@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Globe, Loader2 } from "lucide-react";
 import { useOrgs } from "../org";
+import { useOrgSwitchCue } from "../hooks/useOrgSwitchCue";
 import { orgColor, orgDisplayName, type OrgColor } from "../orgConfig";
 import { OrgSwitcherModal } from "./OrgSwitcherModal";
 import { ConnectOrgDialog } from "./ConnectOrg";
@@ -66,6 +67,9 @@ export function OrgBadge() {
   const { orgs, selected, configs, loading, error } = useOrgs();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  // One-shot settle keyed to real org changes only (not initial mount, not
+  // reconnect of the same org). Keying the wrapper replays the CSS animation.
+  const cueNonce = useOrgSwitchCue(selected);
 
   const { cur, cfg, color } = currentOrg(orgs, selected, configs);
   const disabled = loading || orgs.length === 0;
@@ -75,18 +79,23 @@ export function OrgBadge() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setSwitcherOpen(true)}
-        disabled={disabled}
-        aria-label={aria}
-        aria-haspopup="dialog"
-        style={style}
-        className={className}
+      <span
+        key={cueNonce}
+        className={cueNonce > 0 ? "fjord-org-settle inline-flex" : "inline-flex"}
       >
-        <BadgeIcon loading={loading} colored={color != null} />
-        <span className="truncate">{label}</span>
-      </button>
+        <button
+          type="button"
+          onClick={() => setSwitcherOpen(true)}
+          disabled={disabled}
+          aria-label={aria}
+          aria-haspopup="dialog"
+          style={style}
+          className={className}
+        >
+          <BadgeIcon loading={loading} colored={color != null} />
+          <span className="truncate">{label}</span>
+        </button>
+      </span>
       <OrgSwitcherModal
         open={switcherOpen}
         onOpenChange={setSwitcherOpen}
