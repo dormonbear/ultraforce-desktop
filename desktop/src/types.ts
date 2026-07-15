@@ -231,7 +231,13 @@ export type TelemetryConfig = {
 
 export type TracedEntityKind = "User" | "ApexClass" | "ApexTrigger" | "Unknown";
 
-export type EntityDto = { id: string; name: string; kind: TracedEntityKind };
+export type EntityDto = {
+  id: string;
+  name: string;
+  kind: TracedEntityKind;
+  /** Searchable terms not shown in `name` (e.g. a user's Email). */
+  keywords: string[];
+};
 
 export type TraceFlagDto = {
   id: string;
