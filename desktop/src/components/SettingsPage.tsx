@@ -20,7 +20,7 @@ import { getNamespacePolicy, setNamespacePolicy } from "../indexSettings";
 import { getConfirmApexRun, setConfirmApexRun } from "../apexSettings";
 import { useOrgs } from "../org";
 import { reindexOrg } from "../ipc/schema";
-import { getTelemetryConfig, setTelemetryConfig } from "../ipc/config";
+import { getTelemetryConfig, setTelemetryConfig, telemetryDevSeeded } from "../ipc/config";
 import type { TelemetryConfig } from "../types";
 import { useTheme } from "../theme";
 import {
@@ -31,6 +31,14 @@ import {
 import { checkForUpdates } from "../updater";
 
 const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
+
+// Shown only when the backend actually seeded (dev builds do, at first run):
+// that contradicts the "OFF by default" line of the disclosure, so say so rather
+// than let the disclosure lie.
+const DEV_TELEMETRY_NOTE = `\n\nDEVELOPMENT BUILD: the "OFF by default" line above did not apply to this launch —
+this build switched anonymous usage statistics ON by itself on first run, and wrote
+that choice to the config it shares with the uf-ost binary. Released builds behave
+as stated above.`;
 
 // Verbatim privacy disclosure — the contract of exactly what telemetry sends.
 // Do not paraphrase, shorten, or reword; it was reviewed word-by-word.
@@ -119,6 +127,10 @@ export function SettingsPage({ onChanged }: Props) {
     localEnabled: false,
     remoteEnabled: false,
   });
+  const [devSeeded, setDevSeeded] = useState(false);
+  // Locks the switches while a save is in flight: an overlapping on/off pair can
+  // land out of order and leave them showing the opposite of what is being sent.
+  const [savingTelemetry, setSavingTelemetry] = useState(false);
 
   useEffect(() => {
     void Promise.all([getRoot("soql"), getRoot("apex")]).then(([soql, apex]) =>
@@ -128,12 +140,24 @@ export function SettingsPage({ onChanged }: Props) {
     void getVersion().then(setVersion);
     void getConfirmApexRun().then(setConfirmRun);
     void getTelemetryConfig().then(setTelemetry);
+    void telemetryDevSeeded().then(setDevSeeded);
   }, []);
 
-  // Persist the updated telemetry pair whenever a toggle flips.
-  const changeTelemetry = (next: TelemetryConfig) => {
+  // Persist the updated telemetry pair whenever a toggle flips. A failed save
+  // must roll the switch back: leaving it showing OFF while the backend kept
+  // reporting would make this panel lie about what is being sent.
+  const changeTelemetry = async (next: TelemetryConfig) => {
+    const prev = telemetry;
     setTelemetry(next);
-    void setTelemetryConfig(next);
+    setSavingTelemetry(true);
+    try {
+      await setTelemetryConfig(next);
+    } catch (e) {
+      setTelemetry(prev);
+      toast.error(`Telemetry setting not saved: ${formatIpcError(e)}`);
+    } finally {
+      setSavingTelemetry(false);
+    }
   };
 
   // Change the index namespace scope and reindex the active org so it takes effect.
@@ -257,8 +281,9 @@ export function SettingsPage({ onChanged }: Props) {
               labelPosition="start"
               labelSpacing="spread"
               value={telemetry.localEnabled}
+              isDisabled={savingTelemetry}
               onChange={(next) =>
-                changeTelemetry({ ...telemetry, localEnabled: next })
+                void changeTelemetry({ ...telemetry, localEnabled: next })
               }
             />
             <Switch
@@ -267,12 +292,13 @@ export function SettingsPage({ onChanged }: Props) {
               labelPosition="start"
               labelSpacing="spread"
               value={telemetry.remoteEnabled}
+              isDisabled={savingTelemetry}
               onChange={(next) =>
-                changeTelemetry({ ...telemetry, remoteEnabled: next })
+                void changeTelemetry({ ...telemetry, remoteEnabled: next })
               }
             />
             <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-text-dim">
-              {TELEMETRY_DISCLOSURE}
+              {devSeeded ? TELEMETRY_DISCLOSURE + DEV_TELEMETRY_NOTE : TELEMETRY_DISCLOSURE}
             </pre>
           </div>
         </Section>
