@@ -25,6 +25,7 @@ export function SchemaListFilter({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        data-uf-search=""
         aria-label={placeholder}
         className="focus-accent w-full rounded-md border border-border bg-input py-1 pl-7 pr-2 text-[12px] text-foreground placeholder:text-muted-foreground"
       />

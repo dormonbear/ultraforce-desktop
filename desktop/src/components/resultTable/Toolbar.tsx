@@ -81,6 +81,7 @@ export function Toolbar({
           value={globalFilter}
           onChange={(value) => onGlobalFilterChange(value)}
           placeholder="Filter rows…"
+          data-uf-search=""
           size="sm"
           startIcon={<Search className="size-3.5" />}
           width={224}

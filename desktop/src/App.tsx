@@ -22,6 +22,7 @@ import { SchemaRefresh } from "./components/SchemaRefresh";
 import { SettingsPage } from "./components/SettingsPage";
 import { checkForUpdates } from "./updater";
 import { useTheme } from "./theme";
+import { focusSearch, trackSearchOrigin } from "./focusSearch";
 import { Toaster } from "@/components/ui/sonner";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 
@@ -73,8 +74,23 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Cmd/Ctrl+F focuses the filter box of the pane you're in. Editors keep their
+  // own find widget, so this only fires outside Monaco.
+  useEffect(trackSearchOrigin, []);
+  useEffect(() => {
+    // fallow-ignore-next-line complexity
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (e.key !== "f" && e.key !== "F") return;
+      if (focusSearch()) e.preventDefault();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Cmd/Ctrl+1..3 switches tools (1=SOQL, 2=Apex, 3=Logs).
   useEffect(() => {
+    // fallow-ignore-next-line complexity
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
       const n = Number(e.key);
