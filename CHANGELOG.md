@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.13](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.12...v0.3.13) (2026-07-15)
+
+
+### Features
+
+* **desktop:** fjord motion system — phases 1-4 ([0149bb1](https://github.com/dormonbear/ultraforce-desktop/commit/0149bb1f09cbb562e449ec69927effd69f7ac86b))
+* **desktop:** focus the pane's filter box with Cmd/Ctrl+F ([e0fe629](https://github.com/dormonbear/ultraforce-desktop/commit/e0fe6291073281a994fd1eae7cba9ac369eef3f3))
+* **desktop:** motion phase 1 — token scale, reduced-motion contract, scaleX progress ([e44e3d3](https://github.com/dormonbear/ultraforce-desktop/commit/e44e3d3e1ccfadc76c4c877fbc1cc167756e9d97))
+* **desktop:** motion phase 2 — symmetric overlay enter-exit ([05a3d55](https://github.com/dormonbear/ultraforce-desktop/commit/05a3d5519269b5f50b6e735a3c56b72b087f12d2))
+* **desktop:** motion phase 3 — query success scan, async arrival cues ([a668e48](https://github.com/dormonbear/ultraforce-desktop/commit/a668e480544b404f01f18a04b5bf8e4703f45712))
+* **desktop:** motion phase 4 — org-switch aurora echo, toast tuning ([7669bd8](https://github.com/dormonbear/ultraforce-desktop/commit/7669bd8371d99e495449851af4e9ce05c0164700))
+* **desktop:** report scrubbed usage telemetry, on by default in dev builds ([e6700a0](https://github.com/dormonbear/ultraforce-desktop/commit/e6700a0ee300defbef661fc001b0da2bc43bc1dd))
+* **desktop:** RunButton play/spinner crossfade via own icon slot ([af40f77](https://github.com/dormonbear/ultraforce-desktop/commit/af40f77568564b72799a74397d345cb6f0be8243))
+
+
+### Bug Fixes
+
+* **ci:** resolve clippy lints failing CI on main ([dc951e7](https://github.com/dormonbear/ultraforce-desktop/commit/dc951e7d6c50eeb9d19fa8c1613c3ea015cd9549))
+* **ci:** resolve clippy lints failing CI on main ([ffe998d](https://github.com/dormonbear/ultraforce-desktop/commit/ffe998dcaadd11faa7e38fcb53cf9e42ec4280d2))
+* **desktop:** dropdown override targets animation-duration; bloom gated on nonce ([5d5d098](https://github.com/dormonbear/ultraforce-desktop/commit/5d5d0980a169e6205fccb525339cac03c3305523))
+* **desktop:** find traced users by email and stop capping the picker ([bbb2586](https://github.com/dormonbear/ultraforce-desktop/commit/bbb25865f21a193713e8b66f53262d1a7aad539e))
+* **desktop:** motion review follow-ups — cue edge semantics, css split, dialog presets ([0611e5d](https://github.com/dormonbear/ultraforce-desktop/commit/0611e5de89aca23e2d0d695eed8a33a6e82b9d13))
+
+
+### Performance Improvements
+
+* **desktop:** render bare log lines while the raw view is scrolling ([1f5deb3](https://github.com/dormonbear/ultraforce-desktop/commit/1f5deb360fff06fc2fd03331d9d903159ddeb7d0))
+
 ## [0.3.12](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.11...v0.3.12) (2026-07-12)
 
 
