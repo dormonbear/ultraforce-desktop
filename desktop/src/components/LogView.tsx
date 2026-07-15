@@ -124,7 +124,14 @@ export function LogView({
     getScrollElement: () => parentRef.current,
     estimateSize: () => LINE_H,
     overscan: 24,
+    isScrollingResetDelay: 100,
   });
+  // Decorating a row builds one node per `|` field, costing ~13ms per frame
+  // across the visible rows — enough to strand the viewport on stale (i.e.
+  // blank) content during a scrollbar drag. Text you can't read mid-drag isn't
+  // worth that, so render bare lines while scrolling and decorate on settle.
+  // Measured in e2e: p90 frame 30ms -> 18ms, worst 117ms -> 22ms.
+  const scrolling = virtualizer.isScrolling;
 
   return (
     <div className="select-text flex h-full flex-col">
@@ -136,6 +143,7 @@ export function LogView({
             value={q}
             onChange={(value) => setQ(value)}
             placeholder="filter log…"
+            data-uf-search=""
             size="sm"
             startIcon={<Search size={12} />}
             width="100%"
@@ -200,7 +208,7 @@ export function LogView({
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
-                  {highlight ? renderLine(l) : highlightAll(l, q)}
+                  {scrolling ? l : highlight ? renderLine(l) : highlightAll(l, q)}
                 </div>
               );
             })}

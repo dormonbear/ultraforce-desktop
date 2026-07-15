@@ -9,12 +9,14 @@ interface ComboOption {
   id: string;
   name: string;
   kind: string;
+  keywords?: string[];
 }
 
 type Item = SearchableItem<ComboOption>;
 
 const label = (o: ComboOption): string => `${o.name} · ${o.kind}`;
-/** Cap the dropdown so large entity sets (~2000 users) never render thousands of nodes. */
+/** Cap the dropdown so large entity sets (tens of thousands of users in big orgs)
+ * never render thousands of nodes. */
 const MAX = 50;
 
 interface Props {
@@ -27,7 +29,8 @@ interface Props {
 }
 
 /** Searchable entity picker built on Astryx Typeahead. Substring-filters a static
- * source by `name · kind` and caps rendered results via `maxMenuItems`. */
+ * source by `name · kind` plus each option's keywords, and caps rendered results
+ * via `maxMenuItems`. */
 export function EntityCombobox({
   options,
   valueLabel,
@@ -39,6 +42,7 @@ export function EntityCombobox({
     () =>
       createStaticSource(
         options.map<Item>((o) => ({ id: o.id, label: label(o), auxiliaryData: o })),
+        { keywords: (item) => item.auxiliaryData?.keywords ?? [] },
       ),
     [options],
   );

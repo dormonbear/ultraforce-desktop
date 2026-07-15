@@ -140,6 +140,7 @@ export const SchemaSearchBar = memo(function SchemaSearchBar({
           onKeyDown={onKeyDown}
           onBlur={() => setOpen(false)}
           placeholder="Search fields, picklist values, formulas…"
+          data-uf-search=""
           aria-label="Search schema"
           className="focus-accent w-full rounded-md border border-border bg-input py-1 pl-7 pr-7 text-[12px] text-foreground placeholder:text-muted-foreground"
         />

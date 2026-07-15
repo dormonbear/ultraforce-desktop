@@ -10,7 +10,7 @@ use features::telemetry_config::{self, TelemetryConfig};
 use rmcp::ErrorData;
 use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
 
-use crate::aptabase::{self, AptabaseClient};
+use features::aptabase::{self, AptabaseClient};
 use crate::telemetry::{LogEntry, Telemetry};
 
 pub mod apex;
@@ -43,7 +43,12 @@ impl LiveCtx {
             session_id: aptabase::gen_session_id(),
         };
         // Built from the stored session so `session_id` is the single source of truth.
-        ctx.aptabase = aptabase::new_if_enabled(&ctx.config, &ctx.session_id);
+        ctx.aptabase = aptabase::new_if_enabled(
+            &ctx.config,
+            &ctx.session_id,
+            env!("CARGO_PKG_VERSION"),
+            concat!("ultraforce-mcp@", env!("CARGO_PKG_VERSION")),
+        );
         ctx
     }
 

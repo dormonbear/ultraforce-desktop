@@ -5,7 +5,6 @@
 //!
 //! Snapshot root resolves `--root` > `UF_OST_ROOT` > the app's default cache.
 
-mod aptabase;
 mod detail;
 mod index_cmd;
 mod live;

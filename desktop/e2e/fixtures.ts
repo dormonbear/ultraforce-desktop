@@ -184,6 +184,8 @@ const RESP: Record<string, unknown> = {
       },
     ],
   },
+  // Dev builds seed telemetry on and disclose it; the mocked app is neither.
+  telemetry_dev_seeded: false,
   fetch_apex_source: {
     name: "MyClass",
     kind: "class",

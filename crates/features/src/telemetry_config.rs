@@ -16,13 +16,20 @@ pub fn config_path(root: &Path) -> PathBuf {
     root.join("telemetry.json")
 }
 
-/// Reads the config. A missing or unparseable file yields `Default` (both false).
-/// Never errors.
-pub fn load(root: &Path) -> TelemetryConfig {
+/// Reads the config, or `None` when the user has never made a choice (file
+/// absent or unreadable). Callers that want to apply their own default to the
+/// untouched case — e.g. the desktop app defaulting dev builds on — need to tell
+/// that apart from an explicit `{false, false}`. Never errors.
+pub fn load_opt(root: &Path) -> Option<TelemetryConfig> {
     std::fs::read_to_string(config_path(root))
         .ok()
         .and_then(|s| serde_json::from_str::<TelemetryConfig>(&s).ok())
-        .unwrap_or_default()
+}
+
+/// Reads the config. A missing or unparseable file yields `Default` (both false).
+/// Never errors.
+pub fn load(root: &Path) -> TelemetryConfig {
+    load_opt(root).unwrap_or_default()
 }
 
 /// Writes the config as pretty JSON, creating `root` if needed.

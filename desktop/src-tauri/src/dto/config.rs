@@ -113,6 +113,7 @@ pub struct EntityDto {
     pub id: String,
     pub name: String,
     pub kind: String,
+    pub keywords: Vec<String>,
 }
 impl From<&EntityOption> for EntityDto {
     fn from(e: &EntityOption) -> Self {
@@ -120,6 +121,7 @@ impl From<&EntityOption> for EntityDto {
             id: e.id.clone(),
             name: e.name.clone(),
             kind: e.kind.as_str().into(),
+            keywords: e.keywords.clone(),
         }
     }
 }

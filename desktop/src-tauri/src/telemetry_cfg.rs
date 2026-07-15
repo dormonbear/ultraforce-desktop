@@ -17,5 +17,9 @@ pub(crate) fn set_telemetry_config(config: TelemetryConfigDto) -> Result<(), Com
     let cfg = TelemetryConfig::from(&config);
     telemetry_config::save(&root, &cfg).map_err(|e| {
         CommandError::new("io", format!("Failed to save telemetry config: {e}"))
-    })
+    })?;
+    // Only after the write lands: an opt-out must take effect on the next event,
+    // not the next launch.
+    crate::telemetry::set_remote_enabled(cfg.remote_enabled);
+    Ok(())
 }

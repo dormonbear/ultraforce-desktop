@@ -88,6 +88,9 @@ pub struct EntityOption {
     pub id: String,
     pub name: String,
     pub kind: EntityKind,
+    /// Extra searchable terms not shown in `name` (e.g. a user's Email, which
+    /// often differs from their Username).
+    pub keywords: Vec<String>,
 }
 
 /// Everything the dialog needs on open.
@@ -259,6 +262,8 @@ struct RawUser {
     name: Option<String>,
     #[serde(rename = "Username")]
     username: Option<String>,
+    #[serde(rename = "Email")]
+    email: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -316,7 +321,9 @@ pub async fn load_logging_config(
 
     let users: Vec<RawUser> = query_t(
         invoker,
-        "SELECT Id, Name, Username FROM User WHERE IsActive = true ORDER BY Name LIMIT 2000",
+        // No LIMIT: a cap silently hides users past the alphabetical cutoff in
+        // large orgs, which reads as "user doesn't exist" in the picker.
+        "SELECT Id, Name, Username, Email FROM User WHERE IsActive = true ORDER BY Name",
         false,
         org,
     )
@@ -351,6 +358,7 @@ pub async fn load_logging_config(
             id: u.id.clone(),
             name: display,
             kind: EntityKind::User,
+            keywords: u.email.iter().cloned().collect(),
         });
     }
     for c in &classes {
@@ -360,6 +368,7 @@ pub async fn load_logging_config(
             id: c.id.clone(),
             name: n,
             kind: EntityKind::ApexClass,
+            keywords: Vec::new(),
         });
     }
     for t in &triggers {
@@ -369,6 +378,7 @@ pub async fn load_logging_config(
             id: t.id.clone(),
             name: n,
             kind: EntityKind::ApexTrigger,
+            keywords: Vec::new(),
         });
     }
 
@@ -653,7 +663,8 @@ mod tests {
             // TraceFlag (traced 005USER, level 7dl1, creator Admin)
             Box::leak(q(r#"{"Id":"7tf1","LogType":"USER_DEBUG","StartDate":null,"ExpirationDate":"2026-06-23T00:00:00.000+0000","TracedEntityId":"005USER","DebugLevelId":"7dl1","CreatedBy":{"Name":"Admin User"}}"#).into_boxed_str()),
             // Users
-            Box::leak(q(r#"{"Id":"005USER","Name":"Alice","Username":"alice@x.com"}"#).into_boxed_str()),
+            // Email deliberately differs from Username — the picker must still find her by it.
+            Box::leak(q(r#"{"Id":"005USER","Name":"Alice","Username":"alice@x.com","Email":"alice.a@corp.com"}"#).into_boxed_str()),
             // ApexClass
             Box::leak(q("").into_boxed_str()),
             // ApexTrigger
@@ -673,6 +684,16 @@ mod tests {
         assert_eq!(tf.debug_level_name, "FINE_LOGS");
         assert_eq!(tf.creator_name, "Admin User");
         assert_eq!(cfg.entities.len(), 1);
+        assert_eq!(cfg.entities[0].keywords, vec!["alice.a@corp.com"]);
+        // The user query must not cap results — a LIMIT hides users in large orgs.
+        let calls = seen.lock().unwrap();
+        let user_soql = calls
+            .iter()
+            .flatten()
+            .find(|a| a.contains("FROM User"))
+            .expect("user query");
+        assert!(user_soql.contains("Email"), "{user_soql}");
+        assert!(!user_soql.contains("LIMIT"), "{user_soql}");
     }
 
     #[tokio::test]

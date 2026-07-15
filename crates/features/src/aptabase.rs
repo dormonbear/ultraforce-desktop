@@ -6,16 +6,23 @@
 //! The POST is fire-and-forget (`tokio::spawn`): never awaited on the hot path,
 //! never able to fail or alter a tool's result.
 
-use features::telemetry_config::TelemetryConfig;
+use crate::telemetry_config::TelemetryConfig;
 use serde::Serialize;
 
-/// Default public app key. Overridable via `UF_OST_APTABASE_KEY`.
+/// Default public app key, shared by every Ultraforce binary that reports.
+/// Overridable via `UF_OST_APTABASE_KEY` (name kept for compatibility with
+/// existing uf-ost setups; the desktop app honours the same override).
 const DEFAULT_APP_KEY: &str = "A-US-0354270195";
 
 pub struct AptabaseClient {
     app_key: String,
     endpoint: String,
     session_id: String,
+    /// Reporting app's own version + SDK label. Passed in: this crate is shared
+    /// by the desktop app and the uf-ost binary, so `CARGO_PKG_VERSION` here
+    /// would report the `features` crate's version for both.
+    app_version: String,
+    sdk_version: String,
     http: reqwest::Client,
 }
 
@@ -73,10 +80,22 @@ pub fn gen_session_id() -> String {
 /// `UF_OST_APTABASE_KEY`) and its region endpoint. A bad key region ⇒ `None`
 /// (remote telemetry silently disabled, never a startup failure). Takes the
 /// per-process `session_id` so it stays the single source of truth in `LiveCtx`.
-pub fn new_if_enabled(cfg: &TelemetryConfig, session_id: &str) -> Option<AptabaseClient> {
+pub fn new_if_enabled(
+    cfg: &TelemetryConfig,
+    session_id: &str,
+    app_version: &str,
+    sdk_version: &str,
+) -> Option<AptabaseClient> {
     if !cfg.remote_enabled {
         return None;
     }
+    new(session_id, app_version, sdk_version)
+}
+
+/// The client itself, independent of consent. Callers that re-check consent per
+/// event (rather than at construction) build this once and gate each `track`.
+/// `None` only when the app key's region is unrecognized.
+pub fn new(session_id: &str, app_version: &str, sdk_version: &str) -> Option<AptabaseClient> {
     let app_key =
         std::env::var("UF_OST_APTABASE_KEY").unwrap_or_else(|_| DEFAULT_APP_KEY.to_string());
     let endpoint = endpoint_for_key(&app_key).ok()?;
@@ -84,6 +103,8 @@ pub fn new_if_enabled(cfg: &TelemetryConfig, session_id: &str) -> Option<Aptabas
         app_key,
         endpoint,
         session_id: session_id.to_string(),
+        app_version: app_version.to_string(),
+        sdk_version: sdk_version.to_string(),
         http: reqwest::Client::new(),
     })
 }
@@ -93,10 +114,10 @@ pub fn new_if_enabled(cfg: &TelemetryConfig, session_id: &str) -> Option<Aptabas
 struct SystemProps {
     os_name: &'static str,
     os_version: &'static str,
-    app_version: &'static str,
+    app_version: String,
     locale: &'static str,
     is_debug: bool,
-    sdk_version: &'static str,
+    sdk_version: String,
 }
 
 /// The scrubbed payload. Structurally limited to the four allowed keys — the
@@ -141,10 +162,10 @@ impl AptabaseClient {
             system_props: SystemProps {
                 os_name: std::env::consts::OS,
                 os_version: "",
-                app_version: env!("CARGO_PKG_VERSION"),
+                app_version: self.app_version.clone(),
                 locale: "",
                 is_debug: cfg!(debug_assertions),
-                sdk_version: concat!("ultraforce-mcp@", env!("CARGO_PKG_VERSION")),
+                sdk_version: self.sdk_version.clone(),
             },
             props: Props {
                 outcome: outcome.to_string(),

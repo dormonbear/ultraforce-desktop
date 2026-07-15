@@ -140,6 +140,7 @@ export function LogListPane({
                 setFilter((f) => ({ ...f, query: value }))
               }
               placeholder="Filter operation / user"
+              data-uf-search=""
               size="sm"
               startIcon={<Search size={12} />}
               width="100%"

@@ -239,6 +239,7 @@ export function Explorer({
         <input
           value={query}
           placeholder={mode === "name" ? "Filter by name" : "Search in files"}
+          data-uf-search=""
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (mode === "content" && e.key === "Enter") runContentSearch();
