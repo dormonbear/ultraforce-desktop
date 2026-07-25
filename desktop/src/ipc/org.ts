@@ -8,8 +8,9 @@ export function listOrgs(): Promise<OrgDto[]> {
 
 /** Set the target org for all subsequent backend calls. Also refreshes the org's
  * per-org config (API-version override + request timeout) on the backend, so
- * re-calling it after a config save re-applies those bounds. */
-export function setTargetOrg(username: string): Promise<void> {
+ * re-calling it after a config save re-applies those bounds. `null` clears the
+ * target and resets those bounds to the defaults. */
+export function setTargetOrg(username: string | null): Promise<void> {
   return invoke("set_target_org", { username });
 }
 
