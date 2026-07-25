@@ -7,19 +7,56 @@ use tracing_subscriber::EnvFilter;
 /// not the shell PATH — so `sf` installed via mise/nvm/brew is invisible and
 /// every `sf` call fails with `NotFound`. Pull the login shell's PATH once at
 /// startup and adopt it. macOS-only; other platforms inherit a usable PATH.
+///
+/// Probing spawns an *interactive login* shell (rc files, mise/nvm init), which
+/// costs 200ms-2s and used to block window creation. So: adopt the cached PATH
+/// immediately and re-probe on a background thread, which lands on next launch.
 #[cfg(target_os = "macos")]
 pub(crate) fn inherit_login_path() {
+    let cache = path_cache_file();
+    if let Some(cached) = cache.as_deref().and_then(read_cached_path) {
+        std::env::set_var("PATH", cached);
+        std::thread::spawn(move || {
+            if let (Some(file), Some(path)) = (cache, probe_login_path()) {
+                write_cached_path(&file, &path);
+            }
+        });
+        return;
+    }
+    let Some(path) = probe_login_path() else { return };
+    std::env::set_var("PATH", &path);
+    if let Some(file) = cache {
+        write_cached_path(&file, &path);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn probe_login_path() -> Option<String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
-    if let Ok(out) = std::process::Command::new(&shell)
+    let out = std::process::Command::new(&shell)
         .args(["-ilc", "echo $PATH"])
         .output()
-    {
-        let path = String::from_utf8_lossy(&out.stdout);
-        let path = path.trim();
-        if !path.is_empty() {
-            std::env::set_var("PATH", path);
-        }
+        .ok()?;
+    let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (!path.is_empty()).then_some(path)
+}
+
+#[cfg(target_os = "macos")]
+fn path_cache_file() -> Option<std::path::PathBuf> {
+    Some(dirs::data_dir()?.join("ultraforce").join("path-cache"))
+}
+
+fn read_cached_path(file: &std::path::Path) -> Option<String> {
+    let path = std::fs::read_to_string(file).ok()?;
+    let path = path.trim().to_string();
+    (!path.is_empty()).then_some(path)
+}
+
+fn write_cached_path(file: &std::path::Path, path: &str) {
+    if let Some(dir) = file.parent() {
+        let _ = std::fs::create_dir_all(dir);
     }
+    let _ = std::fs::write(file, path);
 }
 
 /// The `~/.sfdx/key.json` body `sf` reads when `SF_USE_GENERIC_UNIX_KEYCHAIN` is
@@ -86,7 +123,20 @@ pub(crate) fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
 
 #[cfg(test)]
 mod tests {
-    use super::key_json;
+    use super::{key_json, read_cached_path, write_cached_path};
+
+    #[test]
+    fn path_cache_round_trips_and_rejects_blanks() {
+        let file = std::env::temp_dir()
+            .join("ultraforce-test")
+            .join("path-cache");
+        write_cached_path(&file, "/usr/local/bin:/usr/bin");
+        assert_eq!(read_cached_path(&file).as_deref(), Some("/usr/local/bin:/usr/bin"));
+        write_cached_path(&file, "  \n ");
+        assert_eq!(read_cached_path(&file), None);
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(read_cached_path(&file), None);
+    }
 
     #[test]
     fn key_json_matches_sf_generic_keystore_shape() {

@@ -18,6 +18,7 @@ mod soql_exec;
 mod state;
 mod telemetry;
 mod telemetry_cfg;
+mod tray;
 
 use error::CommandError;
 use state::{cached_log_view, parsed_log, AppState};
@@ -463,8 +464,17 @@ async fn apex_diagnostics(
     Ok(completion::apex_diagnostics(src, org, &state))
 }
 
+/// Hide the window into the menu bar instead of quitting. The frontend flushes
+/// pending writes first (see main.tsx), so this is the mechanical half only.
+/// Returns whether the app actually went menu-bar-only.
+#[tauri::command]
+fn hide_to_tray(app: AppHandle) -> bool {
+    tray::hide_to_tray(&app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let started = std::time::Instant::now();
     let _guard = setup::init_tracing();
     #[cfg(target_os = "macos")]
     setup::inherit_login_path();
@@ -533,8 +543,21 @@ pub fn run() {
             debug_frames_at,
             sf_status,
             login_org,
-            read_log_file
+            read_log_file,
+            hide_to_tray
         ])
+        .setup(move |app| {
+            tracing::info!(
+                "startup: window ready in {}ms",
+                started.elapsed().as_millis()
+            );
+            if let Err(e) = tray::build(app.handle()) {
+                // Not fatal, but say so: without a tray the app must keep its
+                // dock icon, which `hide_to_tray` handles at close time.
+                tracing::error!("failed to create tray icon: {e}");
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())

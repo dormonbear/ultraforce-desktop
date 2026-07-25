@@ -4,15 +4,17 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { getJson, setJson } from "./store";
+import { setJson } from "./store";
 import { getNamespacePolicy } from "./indexSettings";
-import { listOrgs, setTargetOrg } from "./ipc/org";
+import { setTargetOrg } from "./ipc/org";
 import { ensureReady, reindexOrg } from "./ipc/schema";
-import { getOrgConfig, setOrgConfig } from "./orgConfig";
+import { ORG_KEY, useOrgList } from "./orgList";
+import { setOrgConfig } from "./orgConfig";
 import { setActiveOrg } from "./editor/activeOrg";
 import type { OrgConfig, OrgDto } from "./types";
 
@@ -25,9 +27,6 @@ function triggerIndex(org: string) {
     ensureReady(org, namespaces).catch(() => {}),
   );
 }
-
-/** Store key for the last selected org username. */
-const ORG_KEY = "settings.org";
 
 interface OrgState {
   orgs: OrgDto[];
@@ -58,29 +57,76 @@ const OrgCtx = createContext<OrgState>({
 });
 
 /** Single source of truth for the org list + active org (shared by the top-bar
- * picker and the ⌘K palette, so they never double-fetch or drift out of sync). */
+ * picker and the ⌘K palette, so they never double-fetch or drift out of sync).
+ * The list itself lives in `useOrgList`; this owns the selection. */
 export function OrgProvider({ children }: { children: ReactNode }) {
-  const [orgs, setOrgs] = useState<OrgDto[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [configs, setConfigs] = useState<Record<string, OrgConfig>>({});
 
-  const select = useCallback(async (username: string): Promise<boolean> => {
-    // Commit the backend target org first; only reflect the switch in React (and
-    // kick off indexing) once it succeeds, so a failed switch never leaves the UI
-    // pointing at an org the backend didn't adopt.
-    try {
-      await setTargetOrg(username);
-    } catch (e) {
-      toast.error(`Failed to switch org: ${formatIpcError(e)}`);
-      return false;
-    }
+  // Mirror the active org for Monaco language providers, which live outside the
+  // React tree and can't read this context (see editor/activeOrg.ts), and for
+  // the refresh path, which must not close over a stale `selected`.
+  const selectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedRef.current = selected;
+    setActiveOrg(selected);
+  }, [selected]);
+
+  /** Commit-then-reflect: adopt the org in the backend before marking it
+   * selected, so a failed switch never leaves the UI pointing at an org the
+   * backend didn't adopt. The ref is set here rather than left to the effect
+   * above, since `refresh` reads it as soon as this resolves and a state update
+   * that hasn't rendered yet would look like "nothing selected". */
+  const commit = useCallback(async (username: string) => {
+    await setTargetOrg(username);
+    selectedRef.current = username;
     setSelected(username);
-    void setJson(ORG_KEY, username);
     triggerIndex(username);
-    return true;
   }, []);
+
+  const adopt = useCallback(
+    async (username: string) => {
+      try {
+        await commit(username);
+      } catch (e) {
+        toast.error(formatIpcError(e));
+      }
+    },
+    [commit],
+  );
+
+  const select = useCallback(
+    async (username: string): Promise<boolean> => {
+      try {
+        await commit(username);
+      } catch (e) {
+        toast.error(`Failed to switch org: ${formatIpcError(e)}`);
+        return false;
+      }
+      void setJson(ORG_KEY, username);
+      return true;
+    },
+    [commit],
+  );
+
+  /** Authorization expired, or the org was logged out from the CLI. Never
+   * auto-pick a replacement: silently moving the selection could run the next
+   * SOQL / anonymous Apex against an org you didn't intend (prod). Clear the
+   * persisted pick and the backend target too — leaving them would just move the
+   * silent switch to the next launch, where the dead org no longer matches and
+   * the fallback lands on some other org. */
+  const onOrgGone = useCallback((username: string) => {
+    selectedRef.current = null;
+    setSelected(null);
+    void setJson(ORG_KEY, null);
+    void setTargetOrg(null).catch(() => {});
+    toast.error(`Org ${username} is no longer available — pick another one.`);
+  }, []);
+
+  const { orgs, loading, error, configs, setConfigs, reload } = useOrgList({
+    selectedRef,
+    adopt,
+    onOrgGone,
+  });
 
   const saveConfig = useCallback(
     async (username: string, next: OrgConfig) => {
@@ -104,68 +150,8 @@ export function OrgProvider({ children }: { children: ReactNode }) {
         );
       }
     },
-    [configs, selected],
+    [configs, selected, setConfigs],
   );
-
-  const [reloadKey, setReloadKey] = useState(0);
-  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
-
-  // Mirror the active org for Monaco language providers, which live outside the
-  // React tree and can't read this context (see editor/activeOrg.ts).
-  useEffect(() => {
-    setActiveOrg(selected);
-  }, [selected]);
-
-  useEffect(() => {
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    Promise.all([
-      listOrgs(),
-      getJson<string | null>(ORG_KEY, null),
-    ])
-      .then(async ([list, savedOrg]) => {
-        if (!alive) return;
-        setOrgs(list);
-        // Load each org's persisted config (alias/color for the badge + switcher).
-        void Promise.all(
-          list.map(async (o) => [o.username, await getOrgConfig(o.username)] as const),
-        ).then((entries) => {
-          if (alive) setConfigs(Object.fromEntries(entries));
-        });
-        // Prefer the last-selected org (if it still exists), else the CLI default.
-        const saved = savedOrg ? list.find((o) => o.username === savedOrg) : undefined;
-        const def = saved ?? list.find((o) => o.isDefault) ?? list[0];
-        if (!def) return;
-        // Same commit-then-reflect ordering as `select`: adopt the target org in
-        // the backend before marking it selected / triggering the index.
-        try {
-          await setTargetOrg(def.username);
-        } catch (e) {
-          if (alive) {
-            const message = formatIpcError(e);
-            setError(message);
-            toast.error(message);
-          }
-          return;
-        }
-        if (!alive) return;
-        setSelected(def.username);
-        triggerIndex(def.username);
-      })
-      .catch((e) => {
-        if (!alive) return;
-        const message = formatIpcError(e);
-        setError(message);
-        toast.error(message);
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [reloadKey]);
 
   // Background delta-sync: while an org is selected, poll for schema/class
   // changes. `index_org` on an existing snapshot only delta-syncs and emits a

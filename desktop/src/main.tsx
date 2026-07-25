@@ -6,21 +6,30 @@ import { ThemeProvider } from "./theme";
 import { AstryxThemeProvider } from "./AstryxThemeProvider";
 import { OrgProvider } from "./org";
 import { ConfirmProvider } from "./components/confirm";
+import { hideToTray } from "./ipc/window";
 import { runMigrationOnce } from "./fs/migrate";
+import { markStartup } from "./startup";
 import { flush } from "./store";
 import "./styles.css";
 // Loaded after styles.css so the motion layer keeps its original (bottom-of-
 // styles.css) cascade position — see motion.css header.
 import "./motion.css";
 
-// Persist any debounced writes before the window closes, otherwise the last
-// few edits (within DEBOUNCE_MS of quitting) are lost. onCloseRequested awaits
-// the handler and then closes the window itself — no preventDefault needed.
+// Closing parks the app in the menu bar rather than quitting, so the next open
+// is warm (Quit lives in the tray menu). Either way, flush first: debounced
+// writes from the last DEBOUNCE_MS would otherwise be lost.
+// ponytail: ⌘Q goes straight to macOS terminate without a close-requested event,
+// so it can still drop the last ~400ms of edits. Add a Rust-side ExitRequested
+// handshake if that ever bites.
 // getCurrentWindow() throws synchronously outside Tauri (plain-browser dev),
 // hence try/catch rather than .catch().
 try {
-  void getCurrentWindow().onCloseRequested(async () => {
+  const win = getCurrentWindow();
+  void win.onCloseRequested(async (e) => {
+    e.preventDefault();
     await flush();
+    // No tray to come back through → close for real instead of stranding the app.
+    if (!(await hideToTray())) await win.destroy();
   });
 } catch {
   // Not running under Tauri — no window to flush on close.
@@ -37,6 +46,7 @@ window.addEventListener("contextmenu", (e) => {
 
 // Migrate any pre-explorer persisted tabs into script files before first paint.
 void runMigrationOnce().finally(() => {
+  markStartup("render");
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <ThemeProvider>
