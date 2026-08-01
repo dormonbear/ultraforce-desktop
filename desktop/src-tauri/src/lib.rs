@@ -9,7 +9,6 @@ mod debug_cfg;
 mod dto;
 mod error;
 mod index_coordinator;
-mod indexing;
 mod org_config;
 mod schema_browse;
 mod setup;
@@ -340,11 +339,6 @@ async fn apex_signature_help(
 }
 
 #[tauri::command]
-async fn warm_apex(org: String, state: State<'_, AppState>) -> Result<(), CommandError> {
-    indexing::warm_apex(org, &state).await
-}
-
-#[tauri::command]
 async fn soql_complete(
     query: String,
     offset: usize,
@@ -352,11 +346,6 @@ async fn soql_complete(
     state: State<'_, AppState>,
 ) -> Result<Vec<dto::CompletionDto>, CommandError> {
     completion::soql_complete(query, offset, org, &state).await
-}
-
-#[tauri::command]
-async fn refresh_schema_cache(org: String, state: State<'_, AppState>) -> Result<usize, CommandError> {
-    telemetry::track("refresh_schema_cache", async { indexing::refresh_schema_cache(org, &state).await }).await
 }
 
 /// Idempotently make `org`'s index usable (single-flight; no-op when fresh).
@@ -519,8 +508,6 @@ pub fn run() {
             apex_complete,
             apex_signature_help,
             soql_complete,
-            warm_apex,
-            refresh_schema_cache,
             ensure_ready,
             reindex_org,
             index_status,
