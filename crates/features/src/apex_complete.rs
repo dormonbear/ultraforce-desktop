@@ -200,13 +200,6 @@ impl ApexCompleter {
             .collect())
     }
 
-    /// Pre-build the base OST (stdlib) for `org_id` so the first interactive
-    /// completion does not block on the one-time multi-megabyte stdlib fetch.
-    /// Safe to call fire-and-forget when an org is selected.
-    pub async fn warm(&self, invoker: &SfInvoker, org_id: &str) -> Result<(), SfError> {
-        self.ensure_base(invoker, org_id).await.map(|_| ())
-    }
-
     async fn ensure_base(&self, invoker: &SfInvoker, org_id: &str) -> Result<Arc<Ost>, SfError> {
         if let Some(ost) = self.cached(org_id) {
             return Ok(ost);
