@@ -1,5 +1,6 @@
 use crate::acquire::{fetch_apex_symbols, fetch_completions};
 use crate::db;
+use crate::shared_stdlib;
 use serde_json::Value;
 use sf_core::{SfError, SfInvoker};
 use std::collections::HashMap;
@@ -96,15 +97,39 @@ impl OstStore {
         }
 
         let value = match source {
-            OstSource::Stdlib => fetch_completions(invoker, &self.org_id, api_version).await?,
+            OstSource::Stdlib => self.stdlib(invoker, api_version).await?,
             OstSource::OrgTypes => Value::Array(fetch_apex_symbols(invoker, &self.org_id).await?),
         };
+        // Also writes a shared hit into this org's `raw_cache`, so a per-org
+        // snapshot stays self-contained (offline completion, MCP status).
         self.persist(api_version, source, &value)?;
         self.mem
             .insert(Self::key(api_version, source), value.clone());
         Ok(value)
     }
 
+    /// The stdlib acquisition path: shared cache before the network, since the
+    /// payload is identical for every org on this API version.
+    ///
+    /// A live fetch is shared only when it parses — see
+    /// [`shared_stdlib::is_usable`]. The write is best-effort: failing it costs
+    /// the next org a re-download, which is exactly today's behaviour.
+    async fn stdlib(&self, invoker: &SfInvoker, api_version: &str) -> Result<Value, SfError> {
+        if let Some(value) = shared_stdlib::read(&self.root, api_version) {
+            return Ok(value);
+        }
+        let value = fetch_completions(invoker, &self.org_id, api_version).await?;
+        if shared_stdlib::is_usable(&value) {
+            if let Err(e) = shared_stdlib::write(&self.root, api_version, &value) {
+                tracing::warn!(api = %api_version, error = %e, "shared stdlib cache write failed");
+            }
+        }
+        Ok(value)
+    }
+
+    /// Drops this org's copy only. The shared stdlib survives on purpose: it is
+    /// keyed by API version, not by org, so nothing about one org going stale
+    /// makes it wrong. Clearing it means removing `<root>/_shared/stdlib/`.
     pub fn invalidate(&mut self, api_version: &str, source: OstSource) -> Result<(), SfError> {
         self.mem.remove(&Self::key(api_version, source));
         let path = self.db_path();
@@ -247,7 +272,87 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        // Still 1: invalidating an org drops its copy, but the shared payload
+        // is keyed by API version and stays valid. Re-downloading 18 MB because
+        // one org was invalidated is the waste this cache exists to remove.
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_second_org_reuses_the_shared_stdlib_and_keeps_its_own_copy() {
+        let root = unique_root();
+        let (invoker, calls) = counting_invoker();
+
+        let mut first = OstStore::new(&root, "00Dfirst");
+        first
+            .get_or_fetch(&invoker, API, OstSource::Stdlib)
+            .await
+            .unwrap();
+
+        let mut second = OstStore::new(&root, "00Dsecond");
+        let value = second
+            .get_or_fetch(&invoker, API, OstSource::Stdlib)
+            .await
+            .unwrap();
+
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "no second download");
+        assert!(value.get("publicDeclarations").is_some());
+        // The shared hit is copied into the org's own db, so its snapshot stays
+        // self-contained rather than depending on the shared file surviving.
+        let mut cold = OstStore::new(&root, "00Dsecond");
+        assert!(cold.load_disk(API, OstSource::Stdlib).unwrap().is_some());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_unusable_payload_is_never_shared() {
+        let root = unique_root();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let calls_runner = calls.clone();
+        // What a managed-package org's failing Tooling endpoint returns: shaped
+        // like a response, carrying no declarations.
+        let runner = MockRunner::new(move |_, _| {
+            calls_runner.fetch_add(1, Ordering::SeqCst);
+            Ok(RawOutput {
+                status: 0,
+                stdout: r#"[{"message":"INVALID_SESSION_ID"}]"#.to_string(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = SfInvoker::new(Arc::new(runner));
+
+        let mut store = OstStore::new(&root, "00Dbroken");
+        store
+            .get_or_fetch(&invoker, API, OstSource::Stdlib)
+            .await
+            .unwrap();
+
+        assert!(
+            crate::shared_stdlib::read(&root, API).is_none(),
+            "a broken org must not poison every other org's cache"
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn a_corrupt_shared_file_falls_through_to_a_live_fetch() {
+        let root = unique_root();
+        let (invoker, calls) = counting_invoker();
+        let dest = crate::shared_stdlib::path(&root, API);
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, "{ truncated").unwrap();
+
+        let mut store = OstStore::new(&root, "00Dorg");
+        let value = store
+            .get_or_fetch(&invoker, API, OstSource::Stdlib)
+            .await
+            .unwrap();
+
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "fetched rather than failed");
+        assert!(value.get("publicDeclarations").is_some());
+        // And the good payload replaced the corrupt file.
+        assert!(crate::shared_stdlib::read(&root, API).is_some());
         std::fs::remove_dir_all(&root).unwrap();
     }
 }
