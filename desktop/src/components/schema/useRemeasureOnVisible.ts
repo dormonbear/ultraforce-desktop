@@ -36,10 +36,24 @@ export function useRemeasureOnVisible(
     if (!becameVisible) return;
     const el = viewportRef.current;
     if (!el) return;
-    rowVirtualizer.scrollRect = {
-      width: el.clientWidth,
-      height: el.clientHeight,
-    };
+    const rect = { width: el.clientWidth, height: el.clientHeight };
+    // Hot-switch fast path: a kept-alive hidden panel keeps its virtualizer
+    // instance and last-measured rect. If the pane dimensions are unchanged
+    // since the previous reveal, the committed range is already correct — the
+    // rows are in the DOM, just hidden — so force a synchronous re-measure
+    // would only re-render the visible rows in the same frame as the click,
+    // adding to the reveal cost for zero change. Skip it. The blank-frame
+    // guarantee is unaffected: first mount (or a real resize) has a stale/null
+    // rect and still goes through the measure path.
+    const prev = rowVirtualizer.scrollRect;
+    if (
+      prev &&
+      Math.abs(prev.width - rect.width) < 1 &&
+      Math.abs(prev.height - rect.height) < 1
+    ) {
+      return;
+    }
+    rowVirtualizer.scrollRect = rect;
     rowVirtualizer.measure();
   }, [active, rowVirtualizer, viewportRef]);
 }
