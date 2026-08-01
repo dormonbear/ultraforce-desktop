@@ -9,6 +9,10 @@
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Distinguishes concurrent writers inside one process — see [`write`].
+static TMP_SEQ: AtomicUsize = AtomicUsize::new(0);
 
 /// `<root>/_shared/stdlib/<api_version>/completions.json`. `_shared` cannot
 /// collide with an org directory: those are named after an org id.
@@ -52,9 +56,15 @@ pub fn write(root: &Path, api_version: &str, raw: &Value) -> std::io::Result<()>
         .ok_or_else(|| std::io::Error::other("shared stdlib path has no parent"))?;
     std::fs::create_dir_all(dir)?;
 
-    // Unique per process so two concurrent writers cannot truncate each other's
-    // temp file; both then rename, and the last one wins with intact content.
-    let tmp = dir.join(format!("completions.json.{}.tmp", std::process::id()));
+    // Unique per writer, not merely per process: indexing one org and building
+    // completions for another run concurrently in the desktop app, and a shared
+    // temp name would let those two 18 MB writes interleave into a corrupt file.
+    // Both then rename, and the last one wins with intact content.
+    let tmp = dir.join(format!(
+        "completions.json.{}.{}.tmp",
+        std::process::id(),
+        TMP_SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
     let body = serde_json::to_string(raw)?;
     std::fs::write(&tmp, body)?;
     match std::fs::rename(&tmp, &dest) {
@@ -131,6 +141,31 @@ mod tests {
             .filter(|n| n.ends_with(".tmp"))
             .collect();
         assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn concurrent_writers_leave_one_intact_payload() {
+        let root = unique_root();
+        // Bodies of different lengths: interleaving a shared temp file would
+        // leave a truncated or spliced payload, which fails to parse.
+        let writers: Vec<_> = (0..4)
+            .map(|n| {
+                let root = root.clone();
+                std::thread::spawn(move || {
+                    let types: serde_json::Map<_, _> = (0..n * 50)
+                        .map(|i| (format!("Type{i}"), json!({})))
+                        .collect();
+                    write(&root, "60.0", &json!({"publicDeclarations": {"System": types}}))
+                })
+            })
+            .collect();
+        for w in writers {
+            w.join().unwrap().unwrap();
+        }
+
+        let value = read(&root, "60.0").expect("a whole payload, not a spliced one");
+        assert!(value.get("publicDeclarations").is_some());
         std::fs::remove_dir_all(&root).unwrap();
     }
 
