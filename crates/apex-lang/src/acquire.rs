@@ -1,4 +1,5 @@
 use crate::symbols::{ApexType, Method, Namespace, Property, TypeKind};
+use crate::stdlib_hierarchy::stdlib_parent;
 use serde::Deserialize;
 use serde_json::Value;
 use sf_core::{SfError, SfInvoker};
@@ -219,8 +220,10 @@ pub fn parse_stdlib(raw: &serde_json::Value) -> Vec<Namespace> {
                         .map(|(type_name, raw_type)| ApexType {
                             name: type_name.clone(),
                             kind: TypeKind::Class,
-                            // The completions payload carries no inheritance info.
-                            parent_class: None,
+                            // The completions payload carries no inheritance info
+                            // (verified), so the links come from the curated
+                            // stdlib_hierarchy map — see its module docs.
+                            parent_class: stdlib_parent(namespace_name, type_name).map(str::to_string),
                             interfaces: Vec::new(),
                             methods: parse_stdlib_methods(raw_type),
                             properties: parse_stdlib_properties(raw_type),
