@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.14](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.13...v0.3.14) (2026-08-01)
+
+
+### Features
+
+* **apex-lang:** cache the Apex stdlib across orgs by API version ([#60](https://github.com/dormonbear/ultraforce-desktop/issues/60)) ([e7ad237](https://github.com/dormonbear/ultraforce-desktop/commit/e7ad2379a6a0b96442df5bd15774fc9d328f9e2e))
+* **apex-lang:** surface inherited members for platform exceptions in completion ([#65](https://github.com/dormonbear/ultraforce-desktop/issues/65)) ([ebc67ed](https://github.com/dormonbear/ultraforce-desktop/commit/ebc67edbe28591b2423b3baf3f47ced66b32b0f1))
+
+
+### Bug Fixes
+
+* **apex-lang:** make shared-stdlib temp names unique per writer ([#62](https://github.com/dormonbear/ultraforce-desktop/issues/62)) ([183e867](https://github.com/dormonbear/ultraforce-desktop/commit/183e86792b2ebeb80f4b59c54e28a5088821d35c))
+
+
+### Performance Improvements
+
+* **schema:** skip the sync virtualizer re-measure when the pane didn't resize ([#63](https://github.com/dormonbear/ultraforce-desktop/issues/63)) ([3fe9352](https://github.com/dormonbear/ultraforce-desktop/commit/3fe9352e35cf1b2960bd4f2a9195a83f36cae491))
+
 ## [0.3.13](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.12...v0.3.13) (2026-07-25)
 
 
