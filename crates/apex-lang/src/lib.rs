@@ -6,6 +6,7 @@ pub mod format;
 pub mod shared_stdlib;
 pub mod snapshot;
 pub mod soql_region;
+pub mod stdlib_hierarchy;
 pub mod store;
 pub mod symbols;
 
