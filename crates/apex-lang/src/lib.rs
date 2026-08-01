@@ -3,6 +3,7 @@ pub mod ast;
 pub mod candidate;
 pub mod db;
 pub mod format;
+pub mod shared_stdlib;
 pub mod snapshot;
 pub mod soql_region;
 pub mod store;

@@ -31,6 +31,14 @@ The OST is an offline, on-disk + in-memory symbol table, versioned per
 sources feed it; each is acquired once and cached, then completion reads the
 cache with zero `sf` calls.
 
+> **Since 2026-08-01:** the stdlib half is additionally cached *across* orgs at
+> `<cache root>/_shared/stdlib/<apiVersion>/completions.json`, because the
+> completions payload is platform standard library — identical for every org on
+> an API version. Lookup order is memory → org `raw_cache` → shared → live
+> fetch; a shared hit is still copied into the org's `raw_cache` so per-org
+> snapshots stay self-contained. Org `SymbolTable` and sObject describes remain
+> strictly per-org. See `doc/ultraforce-desktop/stdlib-shared-cache.md`.
+
 | OST part | First-party source | Invocation (verification status) |
 |---|---|---|
 | Apex `System` stdlib (types, methods, properties, enums, interfaces) | Tooling API `completions` resource, `type=apex` | `sf api request rest '/services/data/vXX.0/tooling/completions?type=apex' --target-org <org> --json` — **VERIFIED** the `sf api request rest [URL]` subcommand exists in sf 2.x (GET default, `--json` supported). The **response shape** of the completions payload is **NOT yet verified** — see Risks + a verification TODO before asserting the parser. |
