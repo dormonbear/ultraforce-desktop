@@ -34,7 +34,7 @@ describe("isCliUnavailable", () => {
   it("is false for ordinary query errors", () => {
     expect(
       isCliUnavailable(
-        "`sf` command failed (status 1): INVALID_TYPE: sObject type not supported",
+        "Salesforce error (status 1): INVALID_TYPE: sObject type not supported",
       ),
     ).toBe(false);
   });
@@ -44,14 +44,14 @@ describe("isApexLogAccessDenied", () => {
   it("detects the ApexLog missing-permission error", () => {
     expect(
       isApexLogAccessDenied(
-        "`sf` command failed (status 1): INVALID_TYPE: sObject type 'ApexLog' is not supported.",
+        "Salesforce error (status 1): INVALID_TYPE: sObject type 'ApexLog' is not supported.",
       ),
     ).toBe(true);
   });
   it("is false for INVALID_TYPE on other objects", () => {
     expect(
       isApexLogAccessDenied(
-        "`sf` command failed (status 1): INVALID_TYPE: sObject type 'Maycur_Form__c' is not supported.",
+        "Salesforce error (status 1): INVALID_TYPE: sObject type 'Maycur_Form__c' is not supported.",
       ),
     ).toBe(false);
   });
@@ -62,7 +62,7 @@ describe("parseSfError", () => {
     // What the backend forwards for an `sf` Command failure: `SfError`'s
     // Display text, with the message's real newlines intact.
     const raw =
-      "`sf` command failed (status 1): INVALID_TYPE: \nFROM Maycur_Form__c\n     ^\nERROR at Row:2:Column:6\nsObject type 'Maycur_Form__c' is not supported.";
+      "Salesforce error (status 1): INVALID_TYPE: \nFROM Maycur_Form__c\n     ^\nERROR at Row:2:Column:6\nsObject type 'Maycur_Form__c' is not supported.";
     const e = parseSfError(raw);
     expect(e.title).toBe("Invalid type");
     expect(e.detail).toBe(
@@ -73,7 +73,7 @@ describe("parseSfError", () => {
 
   it("keeps colons inside the message", () => {
     const raw =
-      '`sf` command failed (status 1): MALFORMED_QUERY: unexpected token: "SE"';
+      'Salesforce error (status 1): MALFORMED_QUERY: unexpected token: "SE"';
     expect(parseSfError(raw).detail).toBe('unexpected token: "SE"');
   });
 

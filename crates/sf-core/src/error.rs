@@ -10,7 +10,7 @@ pub enum SfError {
     Spawn(#[source] std::io::Error),
     #[error("`sf` timed out after {0:?}")]
     Timeout(Duration),
-    #[error("`sf` command failed (status {status}): {name}: {message}")]
+    #[error("Salesforce error (status {status}): {name}: {message}")]
     Command {
         status: i32,
         name: String,

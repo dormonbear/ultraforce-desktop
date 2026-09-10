@@ -57,7 +57,7 @@ mod tests {
         assert_eq!(e.code, "command");
         assert_eq!(
             e.message,
-            "`sf` command failed (status 1): MALFORMED_QUERY: unexpected token: 'SE'"
+            "Salesforce error (status 1): MALFORMED_QUERY: unexpected token: 'SE'"
         );
     }
 
