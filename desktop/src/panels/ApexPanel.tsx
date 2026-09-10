@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/resizable";
 import { configureMonacoApex, registerApexFormatter } from "../editor/monaco-apex";
 import { RunButton } from "../components/RunButton";
+import { TargetOrg } from "../components/TargetOrg";
 import { LogView } from "../components/LogView";
 import { ApexHistoryDrawer } from "../components/ApexHistoryDrawer";
 import { recordApexRun } from "../apexHistory";
@@ -205,9 +206,12 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     >
       <ResizablePanel id="editor" defaultSize={45} minSize={20}>
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between px-4 py-2">
-            <div className="micro-label flex-1">Anonymous Apex</div>
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-3 px-4 py-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+              <span className="micro-label">Anonymous Apex</span>
+              <TargetOrg />
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
               {levels && (
                 <button
                   type="button"
