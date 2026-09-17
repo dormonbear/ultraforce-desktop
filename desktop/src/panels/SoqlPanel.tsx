@@ -204,12 +204,18 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           onSave={onSave}
           running={running || counting}
           reveal={reveal}
+          useToolingApi={useToolingApi}
+          onToggleToolingApi={() => onPatch({ useToolingApi: !useToolingApi })}
+          allRows={allRows}
+          onToggleAllRows={() => onPatch({ allRows: !allRows })}
         />
       </ResizablePanel>
       <ResizableHandle className="h-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary" />
       <ResizablePanel id="results" minSize="160px">
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between border-b border-border px-4 py-1.5">
+            {/* Result views only. Run options (Tooling API / All rows) live on the
+                editor toolbar beside Run — they change the next run, not this view. */}
             <div className="flex items-center gap-4">
               <button
                 type="button"
@@ -223,30 +229,6 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                 }`}
               >
                 Explain
-              </button>
-              <button
-                type="button"
-                aria-pressed={useToolingApi}
-                onClick={() => onPatch({ useToolingApi: !useToolingApi })}
-                className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
-                  useToolingApi
-                    ? "bg-primary/15 text-primary"
-                    : "text-text-dim hover:text-foreground"
-                }`}
-              >
-                Tooling API
-              </button>
-              <button
-                type="button"
-                aria-pressed={allRows}
-                onClick={() => onPatch({ allRows: !allRows })}
-                className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
-                  allRows
-                    ? "bg-primary/15 text-primary"
-                    : "text-text-dim hover:text-foreground"
-                }`}
-              >
-                All rows
               </button>
             </div>
             {running || counting ? (

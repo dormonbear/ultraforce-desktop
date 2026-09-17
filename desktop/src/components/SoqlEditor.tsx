@@ -12,6 +12,7 @@ import { trimContextMenu } from "../editor/monaco-contextmenu";
 import { diagnosticsToMarkers } from "../editor/monaco-markers";
 import type { SoqlDiagnosticDto } from "../types";
 import { RunButton } from "./RunButton";
+import { TargetOrg } from "./TargetOrg";
 import { useTheme, monacoTheme } from "../theme";
 import { useOrgs } from "../org";
 
@@ -22,8 +23,82 @@ interface Props {
   onSave?: () => void;
   running: boolean;
   reveal?: Reveal;
+  /** Route this query through the Tooling API instead of the Data API. */
+  useToolingApi: boolean;
+  onToggleToolingApi: () => void;
+  /** Include deleted/archived rows (queryAll). */
+  allRows: boolean;
+  onToggleAllRows: () => void;
 }
 
+/**
+ * A run-option toggle. These live beside Run (not in the results header) because
+ * they change how the NEXT run executes — unlike Explain, which switches what
+ * the finished result shows.
+ */
+function RunOption({
+  label,
+  on,
+  onClick,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={on}
+      onClick={onClick}
+      className={`focus-accent h-auto cursor-pointer rounded-md px-2 py-0.5 text-[12px] transition-colors ${
+        on ? "bg-primary/15 text-primary" : "text-text-dim hover:text-foreground"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
+/** Header strip: what this query runs against, how it will run, and Run itself. */
+function QueryToolbar({
+  useToolingApi,
+  onToggleToolingApi,
+  allRows,
+  onToggleAllRows,
+  onRun,
+  running,
+}: Pick<
+  Props,
+  | "useToolingApi"
+  | "onToggleToolingApi"
+  | "allRows"
+  | "onToggleAllRows"
+  | "onRun"
+  | "running"
+>) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-2">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="micro-label">Query</span>
+        <TargetOrg />
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <RunOption
+          label="Tooling API"
+          on={useToolingApi}
+          onClick={onToggleToolingApi}
+        />
+        <RunOption label="All rows" on={allRows} onClick={onToggleAllRows} />
+        <RunButton onRun={onRun} running={running} />
+      </div>
+    </div>
+  );
+}
+
+// Size is the Monaco wiring below (mount actions, diagnostics, decorations),
+// which predates the toolbar split above and wants its own hook — a refactor
+// with real HMR/disposable risk, not something to bundle into a release.
+// fallow-ignore-next-line complexity
 export function SoqlEditor({
   value,
   onChange,
@@ -31,6 +106,10 @@ export function SoqlEditor({
   onSave,
   running,
   reveal,
+  useToolingApi,
+  onToggleToolingApi,
+  allRows,
+  onToggleAllRows,
 }: Props) {
   const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
@@ -117,10 +196,14 @@ export function SoqlEditor({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="micro-label flex-1">Query</div>
-        <RunButton onRun={onRun} running={running} />
-      </div>
+      <QueryToolbar
+        useToolingApi={useToolingApi}
+        onToggleToolingApi={onToggleToolingApi}
+        allRows={allRows}
+        onToggleAllRows={onToggleAllRows}
+        onRun={onRun}
+        running={running}
+      />
       <div className="min-h-0 flex-1">
         <Editor
           height="100%"

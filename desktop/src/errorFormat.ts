@@ -49,13 +49,18 @@ function humanize(name: string): string {
 
 /**
  * Parse a backend error message. The Tauri commands forward `SfError`'s
- * `Display` text, so an `sf` command failure arrives as
- * `` `sf` command failed (status 1): MALFORMED_QUERY: unexpected token: 'SE' ``.
+ * `Display` text, so an org-reported failure arrives as
+ * `` Salesforce error (status 1): MALFORMED_QUERY: unexpected token: 'SE' ``.
  * Extract a friendly title + message from that shape; fall back to the raw
  * string for any other error. The raw is always preserved.
+ *
+ * The wording deliberately does not name `sf`: the same shape carries both CLI
+ * failures (status is the CLI's JSON `status`) and direct REST failures (status
+ * is the HTTP code). Claiming "`sf` command failed" on an HTTP 401 sent one
+ * investigation chasing the CLI when the bug was a redacted bearer token.
  */
 export function parseSfError(raw: string): ParsedError {
-  const m = raw.match(/^`sf` command failed \(status -?\d+\): ([^:]+): ([\s\S]*)$/);
+  const m = raw.match(/^Salesforce error \(status -?\d+\): ([^:]+): ([\s\S]*)$/);
   if (m) {
     return { title: humanize(m[1]), detail: m[2].trim(), raw };
   }
