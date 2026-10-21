@@ -1,6 +1,7 @@
 """Native Tauri, real IPC and SQLite acceptance. / 原生 Tauri、真实 IPC 及 SQLite 验收。"""
 import argparse
 from contextlib import closing, contextmanager
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,7 @@ from webdriver_client import WebDriver
 from webview_runtime import matching_runtime
 from startup_diagnostics import capture_desktop
 from native_process import stop_process_tree, wait_for_debugging
+from webview_policy import webview_policy
 
 
 def fixture(root, runtime=None):
@@ -27,11 +29,16 @@ def fixture(root, runtime=None):
     bin_dir.mkdir()
     script = bin_dir / "sf_fixture.py"
     shutil.copyfile(Path(__file__).with_name("sf_fixture.py"), script)
-    (bin_dir / "sf.cmd").write_text(f'@echo off\r\n"{sys.executable}" "{script}" %*\r\n', encoding="utf-8")
+    subprocess.run([
+        "rustc", str(Path(__file__).with_name("sf_shim.rs")), "-o",
+        str(bin_dir / ("sf.exe" if os.name == "nt" else "sf")),
+    ], check=True)
+    inherited = {key.upper() if os.name == "nt" else key: value for key, value in os.environ.items()}
     environment = {
-        **os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
+        **inherited, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
         "APPDATA": str(root / "roaming"), "LOCALAPPDATA": str(root / "local"),
         "UF_NATIVE_FIXTURE": str(root),
+        "UF_NATIVE_PYTHON": sys.executable,
         # Prove the app overrides inherited opt-ins for every CLI process. / 验证应用为每个 CLI 进程覆盖继承的收集启用值。
         **{flag: "false" for flag in [
             "SF_DISABLE_TELEMETRY", "SFDX_DISABLE_TELEMETRY", "SF_DISABLE_LOG_FILE", "SFDX_DISABLE_LOG_FILE",
@@ -58,7 +65,12 @@ def application(application_path, environment, artifacts, name):
     }
     with (artifacts / f"{name}-driver.log").open("wb") as log, \
             (artifacts / f"{name}-stdout.log").open("wb") as stdout, \
-            (artifacts / f"{name}-stderr.log").open("wb") as stderr:
+            (artifacts / f"{name}-stderr.log").open("wb") as stderr, \
+            webview_policy(application_path.name, {
+                "AdditionalBrowserArguments": app_environment["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"],
+                "UserDataFolder": app_environment["WEBVIEW2_USER_DATA_FOLDER"],
+                "BrowserExecutableFolder": app_environment["WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"],
+            }):
         try:
             # Launch the real app, then attach to its loopback WebView2 endpoint. / 启动真实应用，再连接其回环 WebView2 端点。
             app = subprocess.Popen([str(application_path)], env=app_environment, stdout=stdout, stderr=stderr)
@@ -154,6 +166,9 @@ def run(application_path, artifacts):
     if os.name != "nt" or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
         raise RuntimeError("Run native acceptance on hosted Windows CI / 请在托管 Windows CI 运行原生验收")
     artifacts.mkdir(parents=True, exist_ok=True)
+    elevated = bool(ctypes.windll.shell32.IsUserAnAdmin())
+    (artifacts / "host-context.json").write_text(json.dumps({"elevated": elevated}), encoding="utf-8")
+    print(f"Elevated Windows host / Windows 提权宿主: {elevated}")
     runtime = matching_runtime()
     (artifacts / "runtime-location.txt").write_text(str(runtime), encoding="utf-8")
     print(f"Native WebView2 runtime / 原生 WebView2 运行时: {runtime}")
