@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Monaco, OnMount } from "@monaco-editor/react";
 import Editor from "../editor/LocalEditor";
@@ -8,7 +8,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
 import { retriggerSuggestOnEdit } from "../editor/monaco-retrigger";
 import { trimContextMenu } from "../editor/monaco-contextmenu";
-import { diagnosticsToMarkers } from "../editor/monaco-markers";
+import { useApexDiagnostics } from "../editor/useApexDiagnostics";
 import { copyText } from "../clipboard";
 import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
@@ -31,7 +31,7 @@ import { useConfirm } from "../components/confirm";
 import { DebugConfigRow } from "./DebugConfigRow";
 import { useDebugConfig } from "../useDebugConfig";
 import { useOrgs } from "../org";
-import { apexDiagnostics, apexSoqlDiagnostics, runApex } from "../ipc/apex";
+import { runApex } from "../ipc/apex";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
 
@@ -165,38 +165,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     instance.focus();
   };
 
-  useEffect(() => {
-    const instance = editorRef.current;
-    const monaco = monacoRef.current;
-    if (!instance || !monaco) return;
-    const model = instance.getModel();
-    if (!model) return;
-    const handle = setTimeout(async () => {
-      // SOQL-in-Apex diagnostics + AST diagnostics (duplicate vars, unknown
-      // fields) as separate marker owners so each refreshes independently.
-      try {
-        const soql = await apexSoqlDiagnostics(src, org);
-        monaco.editor.setModelMarkers(
-          model,
-          "apex-soql",
-          diagnosticsToMarkers(monaco, model, soql),
-        );
-      } catch {
-        /* ignore */
-      }
-      try {
-        const ast = await apexDiagnostics(src, org);
-        monaco.editor.setModelMarkers(
-          model,
-          "apex-ast",
-          diagnosticsToMarkers(monaco, model, ast),
-        );
-      } catch {
-        /* ignore */
-      }
-    }, 350);
-    return () => clearTimeout(handle);
-  }, [src, mounted]);
+  useApexDiagnostics({ src, org, mounted, editorRef, monacoRef });
 
   return (
     <>
