@@ -14,6 +14,20 @@ use crate::lock::ReindexLock;
 /// Run a full index (or `--sync` delta) for `org` into `root`. Progress and the
 /// outcome print to stderr so stdout stays clean for any caller capturing it.
 pub async fn run(org: String, root: PathBuf, policy: String, sync: bool) -> Result<(), String> {
+    // Own the root-wide lease before slow CLI work; sync uses generation CAS. / 慢速 CLI 工作前持有根级租约；增量同步使用代次 CAS。
+    let _lock = if sync {
+        None
+    } else if let Ok(token) = std::env::var(crate::lock::RESERVATION_ENV) {
+        Some(ReindexLock::adopt(&root, &org, &token).map_err(|e| e.to_string())?)
+    } else {
+        match ReindexLock::acquire(&root, &org).map_err(|e| e.to_string())? {
+            Some(lock) => Some(lock),
+            None => {
+                eprintln!("index {org}: another reindex is already running; skipping / 另一个重建正在运行；跳过");
+                return Ok(());
+            }
+        }
+    };
     // The slow calls (completions, full ApexClass SymbolTable query) carry their
     // own extended per-call timeouts in acquire.rs — no bin-level override.
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
@@ -27,15 +41,6 @@ pub async fn run(org: String, root: PathBuf, policy: String, sync: bool) -> Resu
             .map_err(|e| e.to_string())?;
         eprintln!("sync {org}: +{} ~{} -{}", o.added, o.updated, o.removed);
     } else {
-        // Full reindex is the global singleton: hold the lock for its duration
-        // (spec §5), so a second indexer or `ost_status` sees it in progress.
-        let _lock = match ReindexLock::acquire(&root, &org).map_err(|e| e.to_string())? {
-            Some(lock) => lock,
-            None => {
-                eprintln!("index {org}: another reindex is already running; skipping");
-                return Ok(());
-            }
-        };
         let mut last = String::new();
         index_org(
             &invoker,
