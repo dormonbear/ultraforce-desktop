@@ -62,3 +62,17 @@ class WebDriver:
         encoded = self.request("GET", self.endpoint("screenshot"))
         Path(path).write_bytes(base64.b64decode(encoded, validate=True))
 
+    def click(self, using, value):
+        element = self.request("POST", self.endpoint("element"), {"using": using, "value": value})
+        identifier = element["element-6066-11e4-a52e-4f735466cecf"]
+        self.request("POST", self.endpoint(f"element/{identifier}/click"), {})
+
+    def editor_keys(self, text):
+        script = """return [...document.querySelectorAll('.monaco-editor textarea.inputarea')].find(
+            e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden'
+        )"""
+        self.wait_script(script)
+        element = self.execute(script)
+        identifier = element["element-6066-11e4-a52e-4f735466cecf"]
+        self.request("POST", self.endpoint(f"element/{identifier}/value"), {"text": text})
+

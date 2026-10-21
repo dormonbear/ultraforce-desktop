@@ -103,10 +103,22 @@ def verify_database(root, stdlib_error):
 
 
 def verify_schema_ui(driver):
-    driver.execute("document.querySelector('nav button[aria-label=Schema]').click()")
+    driver.click("css selector", 'nav button[aria-label="Schema"]')
     driver.wait_script("return document.body.innerText.includes('Synthetic Object')")
-    driver.execute("const row = [...document.querySelectorAll('[role=row],button')].find(e => e.textContent.includes('Synthetic Object')); if (row) row.click()")
+    driver.click("xpath", "//button[.//span[normalize-space()='Synthetic__c']]")
     driver.wait_script("return document.body.innerText.includes('Native Fixture Name')")
+
+
+def verify_editor_ui(driver):
+    # WebDriver sends native keys through Monaco's actual completion providers. / WebDriver 向 Monaco 的真实补全提供器发送原生按键。
+    driver.click("css selector", 'nav button[aria-label="SOQL"]')
+    driver.editor_keys("\ue009a\ue000SELECT  FROM Synthetic__c\ue009\ue011\ue000" + "\ue014" * 7 + "\ue009\ue00d\ue000")
+    driver.wait_script("return [...document.querySelectorAll('.suggest-widget.visible .monaco-list-row')].some(e => e.getClientRects().length && e.innerText.includes('Name'))")
+    driver.editor_keys("\ue00c")
+    driver.click("css selector", 'nav button[aria-label="Apex"]')
+    driver.editor_keys("\ue009a\ue000NativeService.\ue009\ue00d\ue000")
+    driver.wait_script("return [...document.querySelectorAll('.suggest-widget.visible .monaco-list-row')].some(e => e.getClientRects().length && e.innerText.includes('run'))")
+    driver.editor_keys("\ue00c")
 
 
 def run(application_path, artifacts):
@@ -123,6 +135,7 @@ def run(application_path, artifacts):
             generation = verify_database(root, False)
             verify_schema_ui(driver)
             driver.screenshot(artifacts / "native-schema.png")
+            verify_editor_ui(driver)
         # Reopen with acquisition unavailable: completion must reload SQLite. / 禁用采集后重新启动，补全必须从 SQLite 重载。
         (root / "mode").write_text("offline", encoding="utf-8")
         with application(application_path, environment, artifacts, "offline") as driver:
@@ -130,6 +143,7 @@ def run(application_path, artifacts):
             verify_completions(driver)
             assert verify_database(root, False) == generation
             verify_schema_ui(driver)
+            verify_editor_ui(driver)
         failed_root = Path(directory) / "stdlib-error"
         failed_environment = fixture(failed_root)
         (failed_root / "mode").write_text("stdlib-error", encoding="utf-8")
