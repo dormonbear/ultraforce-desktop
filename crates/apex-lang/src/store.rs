@@ -156,7 +156,8 @@ impl OstStore {
 }
 
 /// Auxiliary source caching must not initialize generation-owned schema tables.
-fn open_raw_cache(path: &std::path::Path) -> rusqlite::Result<rusqlite::Connection> {
+/// 辅助源缓存不得初始化由代际发布事务管理的表。
+pub(crate) fn open_raw_cache(path: &std::path::Path) -> rusqlite::Result<rusqlite::Connection> {
     let conn = sf_schema::sqlite::open_without_schema(path)?;
     conn.execute_batch("CREATE TABLE IF NOT EXISTS raw_cache (api_version TEXT NOT NULL, source TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (api_version, source));")?;
     Ok(conn)
@@ -347,12 +348,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_corrupt_shared_file_falls_through_to_a_live_fetch() {
+    async fn a_corrupt_shared_row_falls_through_to_a_live_fetch() {
         let root = unique_root();
         let (invoker, calls) = counting_invoker();
         let dest = crate::shared_stdlib::path(&root, API);
-        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        std::fs::write(&dest, "{ truncated").unwrap();
+        let conn = open_raw_cache(&dest).unwrap();
+        db::write_raw(&conn, API, "stdlib", "{ truncated").unwrap();
+        drop(conn);
 
         let mut store = OstStore::new(&root, "00Dorg");
         let value = store
@@ -360,10 +362,44 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(calls.load(Ordering::SeqCst), 1, "fetched rather than failed");
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            1,
+            "fetched rather than failed"
+        );
         assert!(value.get("publicDeclarations").is_some());
-        // And the good payload replaced the corrupt file.
+        // The good payload repairs the corrupt row. / 有效响应修复损坏的缓存行。
         assert!(crate::shared_stdlib::read(&root, API).is_some());
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn an_unreadable_shared_database_does_not_block_org_caching() {
+        let root = unique_root();
+        let (invoker, calls) = counting_invoker();
+        let dest = crate::shared_stdlib::path(&root, API);
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        std::fs::write(&dest, "synthetic corrupt database").unwrap();
+        let mut store = OstStore::new(&root, "00Dsynthetic");
+        let value = store
+            .get_or_fetch(&invoker, API, OstSource::Stdlib)
+            .await
+            .unwrap();
+        assert!(value.get("publicDeclarations").is_some());
+        drop(store);
+        let mut reopened = OstStore::new(&root, "00Dsynthetic");
+        assert_eq!(
+            reopened
+                .get_or_fetch(&invoker, API, OstSource::Stdlib)
+                .await
+                .unwrap(),
+            value
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            std::fs::read_to_string(dest).unwrap(),
+            "synthetic corrupt database"
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

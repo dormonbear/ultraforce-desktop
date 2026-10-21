@@ -79,6 +79,9 @@ version, so one org going stale says nothing about it. Escape hatch is removing
 
 ### Original design notes
 
+Current persistence uses `<root>/_shared/stdlib/<api_version>/completions.db` in WAL mode, with the payload in `raw_cache`. Reads are read-only and never create a cache on a miss. Legacy `completions.json` is ignored without import or deletion; a live fetch repopulates SQLite. Invalid rows are misses and can be replaced by a successful fetch; an unreadable database remains a miss and cache writes stay best-effort. Per-org copies and API-version isolation remain intact. No CDN or telemetry is added.
+当前持久化使用 `<root>/_shared/stdlib/<api_version>/completions.db`，启用 WAL，响应存于 `raw_cache`。读取采用只读连接，未命中时不创建缓存。旧 `completions.json` 不导入、不删除；实时获取后重新填充 SQLite。无效行视为未命中，可由成功获取的响应替换；不可读数据库仍视为未命中，缓存写入保持尽力而为。组织独立副本与 API 版本隔离保持不变；不新增 CDN 或遥测。
+
 **Interface (deep module):** one seam for “give me stdlib raw for this `api_version`”, hiding mem / org / shared / network.
 
 Suggested placement:
