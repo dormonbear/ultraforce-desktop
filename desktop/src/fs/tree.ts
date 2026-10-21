@@ -6,7 +6,7 @@ import {
   writeTextFile,
   type DirEntry,
 } from "@tauri-apps/plugin-fs";
-import { joinPath, dirname, movedPath } from "./paths";
+import { joinPath, dirname, movedPath, normalizePath } from "./paths";
 import { mutateFiles } from "./save";
 
 export type TreeNode = {
@@ -41,7 +41,7 @@ async function readInto(dir: string): Promise<TreeNode[]> {
 }
 
 export function readTree(root: string): Promise<TreeNode[]> {
-  return readInto(root);
+  return readInto(normalizePath(root));
 }
 
 export async function createFile(dir: string, name: string): Promise<string> {
@@ -61,6 +61,7 @@ export async function renameNode(
   newName: string,
   changed?: (from: string, to: string) => void,
 ): Promise<string> {
+  path = normalizePath(path);
   const next = joinPath(dirname(path), newName);
   await mutateFiles(
     path,
@@ -76,6 +77,7 @@ export async function removeNode(
   isDir: boolean,
   changed?: (path: string) => void,
 ): Promise<void> {
+  path = normalizePath(path);
   await mutateFiles(
     path,
     null,
@@ -89,6 +91,7 @@ export async function moveNode(
   intoDir: string,
   changed?: (from: string, to: string) => void,
 ): Promise<string> {
+  path = normalizePath(path);
   const next = movedPath(path, intoDir);
   await mutateFiles(
     path,

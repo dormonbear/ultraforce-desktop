@@ -1,4 +1,5 @@
 import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { isWithin, normalizePath, rebasePath } from "./paths";
 
 const DEBOUNCE_MS = 400;
 type Writer = (path: string, content: string) => Promise<void>;
@@ -39,6 +40,7 @@ function enqueue(path: string, content: string): Promise<void> {
 
 /** Queue a write for `path`, coalescing rapid edits per path. */
 export function saveFile(path: string, content: string): void {
+  path = normalizePath(path);
   pending.set(path, content);
   const prev = timers.get(path);
   if (prev) clearTimeout(prev);
@@ -76,7 +78,9 @@ async function flushNow(
 export async function flushFiles(
   path?: string,
 ): Promise<string | null | undefined> {
-  const request: { path: string | null | undefined } = { path };
+  const request: { path: string | null | undefined } = {
+    path: path === undefined ? undefined : normalizePath(path),
+  };
   flushes.add(request);
   const wait = async (): Promise<void> => {
     const barrier = mutationTail;
@@ -116,20 +120,20 @@ function redirectPending(from: string, to: string | null): void {
   // Snapshot before inserting redirected paths into the same map.
   const buffered = [...pending];
   for (const [path, content] of buffered) {
-    if (path !== from && !path.startsWith(`${from}/`)) continue;
+    if (!isWithin(path, from)) continue;
     pending.delete(path);
     const timer = timers.get(path);
     if (timer) clearTimeout(timer);
     timers.delete(path);
-    if (to !== null) pending.set(to + path.slice(from.length), content);
+    if (to !== null) pending.set(rebasePath(path, from, to), content);
   }
 }
 
 function redirectFlushes(from: string, to: string | null): void {
   for (const request of flushes) {
     const path = request.path;
-    if (path && (path === from || path.startsWith(`${from}/`))) {
-      request.path = to === null ? null : to + path.slice(from.length);
+    if (path && isWithin(path, from)) {
+      request.path = to === null ? null : rebasePath(path, from, to);
     }
   }
 }
@@ -143,14 +147,13 @@ export function mutateFiles(
   operation: () => Promise<void>,
   changed: () => void = () => {},
 ): Promise<void> {
+  from = normalizePath(from);
+  to = to === null ? null : normalizePath(to);
   mutations += 1;
   const result = mutationTail
     .then(async () => {
       await flushNow(
-        (path) =>
-          path === from ||
-          path.startsWith(`${from}/`) ||
-          (to !== null && (path === to || path.startsWith(`${to}/`))),
+        (path) => isWithin(path, from) || (to !== null && isWithin(path, to)),
       );
       await operation();
       redirectPending(from, to);
