@@ -10,6 +10,8 @@ import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { useOrgs } from "../org";
 import { loginOrg } from "../ipc/org";
+import { useI18n } from "../i18n";
+import { X } from "lucide-react";
 
 type Env = "production" | "sandbox" | "custom";
 
@@ -25,6 +27,7 @@ const INSTANCE_URL: Record<Env, string | undefined> = {
  * org" dialog. `onConnected` fires after a successful login.
  */
 export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
+  const { t } = useI18n();
   const [env, setEnv] = useState<Env>("production");
   const [customUrl, setCustomUrl] = useState("");
   const [alias, setAlias] = useState("");
@@ -33,7 +36,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
   const login = async () => {
     const instanceUrl = env === "custom" ? customUrl.trim() : INSTANCE_URL[env];
     if (env === "custom" && !instanceUrl) {
-      toast.error("Enter a custom instance URL");
+      toast.error(t("Enter a custom instance URL"));
       return;
     }
     setBusy(true);
@@ -43,7 +46,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
         alias: alias.trim() || null,
         setDefault: true,
       });
-      toast.success("Org connected");
+      toast.success(t("Org connected"));
       onConnected?.();
     } catch (e) {
       toast.error(formatIpcError(e));
@@ -56,23 +59,23 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
     <Card padding={3} className="w-full max-w-md">
       <div className="flex flex-col gap-3">
         <Selector
-          label="Environment"
+          label={t("Environment")}
           value={env}
           onChange={(v) => setEnv(v as Env)}
           isDisabled={busy}
           options={[
             {
               value: "production",
-              label: "Production / Developer (login.salesforce.com)",
+              label: t("Production / Developer (login.salesforce.com)"),
             },
-            { value: "sandbox", label: "Sandbox (test.salesforce.com)" },
-            { value: "custom", label: "Custom domain / My Domain…" },
+            { value: "sandbox", label: t("Sandbox (test.salesforce.com)") },
+            { value: "custom", label: t("Custom domain / My Domain…") },
           ]}
         />
 
         {env === "custom" && (
           <TextInput
-            label="Instance URL"
+            label={t("Instance URL")}
             value={customUrl}
             onChange={(v) => setCustomUrl(v)}
             placeholder="https://mydomain.my.salesforce.com"
@@ -81,8 +84,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
         )}
 
         <TextInput
-          label="Alias"
-          isOptional
+          label={t("Alias (optional)")}
           value={alias}
           onChange={(v) => setAlias(v)}
           placeholder="my-org"
@@ -90,7 +92,7 @@ export function ConnectOrgForm({ onConnected }: { onConnected?: () => void }) {
         />
 
         <Button
-          label={busy ? "Waiting for browser…" : "Log in"}
+          label={busy ? t("Waiting for browser…") : t("Log in")}
           isLoading={busy}
           clickAction={login}
         />
@@ -108,16 +110,25 @@ export function ConnectOrgDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useI18n();
   const { reload } = useOrgs();
   return (
     <MotionDialog isOpen={open} onOpenChange={onOpenChange} width={480}>
       <DialogHeader
-        title="Connect a Salesforce org"
-        onOpenChange={onOpenChange}
+        title={t("Connect a Salesforce org")}
+        endContent={
+          <Button
+            isIconOnly
+            variant="ghost"
+            label={t("Close")}
+            icon={<X size={16} />}
+            clickAction={() => onOpenChange(false)}
+          />
+        }
       />
       <div className="flex flex-col gap-4">
         <Text type="supporting" display="block">
-          Log in via your browser. Pick the environment, optionally set an alias.
+          {t("Log in via your browser. Pick the environment, optionally set an alias.")}
         </Text>
         <ConnectOrgForm
           onConnected={() => {

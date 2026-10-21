@@ -8,17 +8,18 @@ import { IconButton } from "@astryxdesign/core/IconButton";
 import { Text } from "@astryxdesign/core/Text";
 import { sfStatus } from "../ipc/org";
 import type { SfStatus } from "../types";
+import { translate, useI18n, type Locale } from "../i18n";
 
 const INSTALL_CMD = "npm install -g @salesforce/cli";
 const UPGRADE_CMD = "npm update -g @salesforce/cli";
 const DOCS = "https://developer.salesforce.com/tools/salesforcecli";
 
-async function copy(text: string): Promise<void> {
+async function copy(text: string, locale: Locale): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
-    toast.success("Copied to clipboard");
+    toast.success(translate(locale, "Copied to clipboard"));
   } catch {
-    toast.error("Copy failed");
+    toast.error(translate(locale, "Copy failed"));
   }
 }
 
@@ -53,15 +54,16 @@ export function useSfStatus(): { status: SfStatus | null; refresh: () => void } 
 }
 
 function CopyRow({ cmd }: { cmd: string }) {
+  const { locale, t } = useI18n();
   return (
     <div className="flex w-full max-w-md items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2">
       <Code>{cmd}</Code>
       <IconButton
-        label="Copy command"
+        label={t("Copy command")}
         variant="ghost"
         size="sm"
         icon={<Copy size={14} />}
-        clickAction={() => copy(cmd)}
+        clickAction={() => copy(cmd, locale)}
       />
     </div>
   );
@@ -92,11 +94,12 @@ export function CliGuidance({
   status: SfStatus;
   onRetry: () => void;
 }) {
+  const { t } = useI18n();
   if (status.state === "ok") return null;
 
   const retry = (
     <Button
-      label="Retry"
+      label={t("Retry")}
       variant="secondary"
       icon={<RefreshCw size={14} />}
       clickAction={() => onRetry()}
@@ -109,15 +112,19 @@ export function CliGuidance({
       <Centered>
         <EmptyState
           icon={icon}
-          title="Salesforce CLI is too old"
-          description={`Ultraforce needs sf ${status.minVersion} or newer.${
-            status.version ? ` Detected: ${status.version}.` : ""
-          } Upgrade, then retry.`}
+          title={t("Salesforce CLI is too old")}
+          description={status.version
+            ? t("Ultraforce needs sf {minimum} or newer. Detected: {version}. Upgrade, then retry.", {
+                minimum: status.minVersion, version: status.version,
+              })
+            : t("Ultraforce needs sf {minimum} or newer. Upgrade, then retry.", {
+                minimum: status.minVersion,
+              })}
           actions={
             <GuidanceExtras>
               <CopyRow cmd={UPGRADE_CMD} />
               <Text type="supporting" display="block">
-                Docs: <span className="select-all">{DOCS}</span>
+                {t("Docs:")} <span className="select-all">{DOCS}</span>
               </Text>
               {retry}
             </GuidanceExtras>
@@ -132,15 +139,16 @@ export function CliGuidance({
       <Centered>
         <EmptyState
           icon={icon}
-          title="Salesforce CLI not on this app’s PATH"
-          description={`sf is installed${
-            status.foundAt ? ` at ${status.foundAt}` : ""
-          }, but Ultraforce can’t see it. This happens when the app is launched from the Dock, or with shells like fish.`}
+          title={t("Salesforce CLI not on this app’s PATH")}
+          description={status.foundAt
+            ? t("sf is installed at {path}, but Ultraforce can’t see it. This happens when the app is launched from the Dock, or with shells like fish.", {
+                path: status.foundAt,
+              })
+            : t("sf is installed, but Ultraforce can’t see it. This happens when the app is launched from the Dock, or with shells like fish.")}
           actions={
             <GuidanceExtras>
               <Text type="supporting" display="block" className="max-w-sm text-center">
-                Fix: relaunch Ultraforce from a terminal, or add sf’s directory
-                to your login shell’s PATH, then retry.
+                {t("Fix: relaunch Ultraforce from a terminal, or add sf’s directory to your login shell’s PATH, then retry.")}
               </Text>
               {retry}
             </GuidanceExtras>
@@ -155,13 +163,13 @@ export function CliGuidance({
     <Centered>
       <EmptyState
         icon={icon}
-        title="Salesforce CLI not found"
-        description="Ultraforce drives the sf CLI. Install it, then retry."
+        title={t("Salesforce CLI not found")}
+        description={t("Ultraforce drives the sf CLI. Install it, then retry.")}
         actions={
           <GuidanceExtras>
             <CopyRow cmd={INSTALL_CMD} />
             <Text type="supporting" display="block">
-              Or use the installer — docs:{" "}
+              {t("Or use the installer — docs:")}{" "}
               <span className="select-all">{DOCS}</span>
             </Text>
             {retry}
@@ -175,6 +183,7 @@ export function CliGuidance({
 /** Self-fetching wrapper for runtime use: a tool command failed because the CLI
  * is unavailable, so fetch the status and render the matching guidance. */
 export function CliGuidanceForError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useI18n();
   const { status, refresh } = useSfStatus();
   if (!status) {
     return (
@@ -182,7 +191,7 @@ export function CliGuidanceForError({ onRetry }: { onRetry: () => void }) {
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="spin text-muted-foreground" size={20} />
           <Text type="supporting" display="block">
-            Checking Salesforce CLI…
+            {t("Checking Salesforce CLI…")}
           </Text>
         </div>
       </Centered>

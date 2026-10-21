@@ -70,13 +70,13 @@ jobs:
         working-directory: desktop
         run: pnpm exec playwright install --with-deps --only-shell chromium
 
-      - name: Editor input regressions / 编辑器输入回归
+      - name: Editor and setup regressions / 编辑器与设置回归
         working-directory: desktop
         env:
           PERF_PROD: '1'
-        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts --reporter=line
+        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts --reporter=line
 
-      - name: Editor failure evidence / 编辑器失败证据
+      - name: Browser failure evidence / 浏览器失败证据
         if: failure()
         uses: actions/upload-artifact@v4
         with:
