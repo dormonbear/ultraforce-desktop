@@ -9,6 +9,19 @@
 * localize organization controls / 本地化组织操作控件 ([#92](https://github.com/dormonbear/ultraforce-desktop/issues/92)) ([6c0ea14](https://github.com/dormonbear/ultraforce-desktop/commit/6c0ea1480b3f7bdd29a52d4177b7a63ac2edb624))
 * persist shared stdlib in SQLite / 将共享标准库持久化至 SQLite ([#89](https://github.com/dormonbear/ultraforce-desktop/issues/89)) ([6091b60](https://github.com/dormonbear/ultraforce-desktop/commit/6091b60f491a48c3a62e8044438728e8512fa16e))
 
+### Upgrade notes / 升级说明
+
+Shared standard-library responses now use `_shared/stdlib/<api>/completions.db` in WAL mode. Existing per-org schema-v5 snapshots remain compatible. Legacy shared `completions.json` files are ignored and left untouched, with no importer; a live standard-library fetch populates the SQLite cache when needed. Concurrent first-open WAL initialization retries lock contention within a five-second budget.
+共享标准库响应现在使用 WAL 模式的 `_shared/stdlib/<api>/completions.db`。现有组织级 schema-v5 快照保持兼容。旧共享 `completions.json` 文件被忽略且保留原样，不提供导入器；需要实时获取标准库时填充 SQLite 缓存。并发首次启用 WAL 的锁竞争会在五秒预算内重试。
+
+CLI setup, organization connection, organization switching/configuration and target-org indicators now follow English or Simplified Chinese system/browser language preferences. User-entered aliases, usernames and command arguments remain literal. Editor, Schema, Logs and backend-error localization remain follow-up work. Alias/username cache-identity unification remains tracked in [#93](https://github.com/dormonbear/ultraforce-desktop/issues/93).
+CLI 设置、组织连接、组织切换/配置及目标组织提示现在遵循系统/浏览器的英文或简体中文语言偏好。用户输入的别名、用户名和命令参数保留原文。编辑器、对象结构、日志和后端错误本地化仍待后续完成。别名/用户名缓存身份统一继续在 [#93](https://github.com/dormonbear/ultraforce-desktop/issues/93) 跟踪。
+
+### Verification / 验证
+
+Windows/macOS CI covers production editor input and bilingual setup/organization flows. Native Windows acceptance verifies actual IPC, SQLite/WAL indexing, offline reopening and standard-library failure recovery. Browser traces are retained on the first failure for synthetic CI fixtures, then discarded on successful runs; product analytics, telemetry and automatic diagnostic collection remain disabled.
+Windows/macOS CI 覆盖生产构建编辑器输入与双语设置/组织流程。Windows 原生验收验证真实 IPC、SQLite/WAL 索引、离线重开与标准库失败恢复。浏览器追踪仅针对合成 CI 夹具保留首次失败证据，通过的运行不保留追踪；产品分析、遥测和自动诊断收集继续禁用。
+
 ## [0.3.18](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.17...v0.3.18) (2026-10-21)
 
 
