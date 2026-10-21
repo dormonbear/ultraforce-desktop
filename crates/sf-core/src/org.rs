@@ -76,7 +76,7 @@ fn deserialize_username<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<String, D::Error> {
     let username = String::deserialize(deserializer)?;
-    if username.trim().is_empty() {
+    if username.trim().is_empty() || username.chars().any(char::is_control) {
         return Err(serde::de::Error::custom(
             "Org identity has no usable username / 组织身份缺少可用用户名",
         ));
@@ -417,6 +417,8 @@ mod tests {
             serde_json::json!({"username":"synthetic@example.invalid"}),
             serde_json::json!({"id":"00D000000000001"}),
             serde_json::json!({"id":"00D000000000001", "username":" \t"}),
+            serde_json::json!({"id":"00D000000000001", "username":"synthetic\0@example.invalid"}),
+            serde_json::json!({"id":"00D000000000001", "username":"synthetic\n@example.invalid"}),
             serde_json::json!({"id":"../../outside", "username":"synthetic@example.invalid"}),
             serde_json::json!({"id":"001000000000001", "username":"synthetic@example.invalid"}),
             serde_json::json!({"id":"00D00000000000/", "username":"synthetic@example.invalid"}),
