@@ -3,11 +3,22 @@
 ## [0.3.17](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.16...v0.3.17) (2026-10-21)
 
 
-### Bug Fixes
+### Bug Fixes / 缺陷修复
 
 * reconcile index deletions from source provenance / 按来源归属协调索引删除 ([2b167dc](https://github.com/dormonbear/ultraforce-desktop/commit/2b167dc2b081bd9978f45ffcb0b645d9aa934cc2))
 * **release:** align desktop lock versions automatically / 自动对齐桌面发布锁版本 ([182bdb7](https://github.com/dormonbear/ultraforce-desktop/commit/182bdb79caba1cf98c995825e64a844c468c258d))
 * terminate owned CLI children on timeout or cancellation / 超时或取消时终止直接 CLI 子进程 ([3f1e44d](https://github.com/dormonbear/ultraforce-desktop/commit/3f1e44deee8c297444b47d8da4e068258e0f454d))
+
+### Upgrade notes / 升级说明
+
+Offline indexes advance to schema v5. Run a full `ost_reindex` for each existing v3/v4 organization cache before using read tools or delta sync. Missing or corrupt source provenance also requires a full rebuild. Class counts now refer to Apex source records; expanded inner types remain available without being counted as separate sources.
+离线索引升级至 v5 模式。已有 v3／v4 组织缓存须执行完整 `ost_reindex` 后再使用读取工具或增量同步；来源信息缺失或损坏时也须完整重建。类数量现按 Apex 来源记录统计；展开的内部类型仍可使用，但不再作为独立来源计数。
+
+Delta sync rebuilds inner types and inherited members from retained source records. Deletions require non-empty authoritative class and object lists; empty lists permit updates but suppress deletions. Failed or incomplete Tooling results retain the previous generation and watermark. A legitimate `SymbolTable: null` retains a name-only source without stale members; existing MCP responses report known unavailable tables conservatively.
+增量同步按保留的来源记录重建内部类型及继承成员。仅在权威类列表与对象列表均非空时执行删除；空列表允许更新，但禁止删除。Tooling 结果失败或不完整时保留旧代际及水位。合法的 `SymbolTable: null` 会保留仅含名称的来源，不沿用旧成员；现有 MCP 响应会保守报告已知不可用的符号表。
+
+Timed-out or cancelled CLI requests terminate their owned direct child process. Operations already accepted by Salesforce can still continue remotely.
+CLI 请求超时或取消时会终止其直接子进程；Salesforce 已接受的操作仍可能在远端继续执行。
 
 ## [0.3.16](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.15...v0.3.16) (2026-10-21)
 
