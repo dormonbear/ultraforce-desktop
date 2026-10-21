@@ -87,6 +87,7 @@ jobs:
           projectPath: desktop
           tagName: ${{ needs.release-please.outputs.tag_name }}
           releaseDraft: false   # 必须与 release-please 建的已发布 release 状态一致
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
 
       # 额外产出 `uf-ost` MCP 服务器二进制，按 target triple 命名上传到同一 release，
@@ -112,11 +113,31 @@ jobs:
             gh release upload "${{ needs.release-please.outputs.tag_name }}" "uf-ost-$triple" --clobber
           fi
 
+  # Platform jobs upload distinct assets; only this job writes latest.json. / 平台任务上传各自产物，仅此任务写入 latest.json。
+  publish-updater:
+    needs: [release-please, build]
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Publish Complete Updater Manifest / 发布完整更新清单
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" > "$RUNNER_TEMP/updater-release.json"
+          gh release download "$RELEASE_TAG" --pattern '*.sig' --dir "$RUNNER_TEMP/updater-signatures"
+          python scripts/build_updater_manifest.py --metadata "$RUNNER_TEMP/updater-release.json" --signatures "$RUNNER_TEMP/updater-signatures" --output "$RUNNER_TEMP/latest.json"
+          gh release upload "$RELEASE_TAG" "$RUNNER_TEMP/latest.json" --clobber
+
   # 把 `@dormon/ultraforce-mcp` wrapper 发到 npm。它 postinstall 时按平台从本次
   # release 下载 uf-ost 二进制，所以 needs: build 确保 binary 已上传后再发包。
   # 用 npm Trusted Publishing (OIDC) —— 无需 NPM_TOKEN，publish 自带 provenance。
   publish-npm:
-    needs: [release-please, build]
+    needs: [release-please, build, publish-updater]
     if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     permissions:
