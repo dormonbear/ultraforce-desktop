@@ -41,6 +41,12 @@ impl CommandRunner for ProcessRunner {
             .env("FORCE_COLOR", "0")
             .env("SF_AUTOUPDATE_DISABLE", "true")
             .env("SFDX_AUTOUPDATE_DISABLE", "true")
+            // Never let a user-wide CLI setting opt app-launched commands into
+            // usage collection or disk logs containing Salesforce data.
+            .env("SF_DISABLE_TELEMETRY", "true")
+            .env("SFDX_DISABLE_TELEMETRY", "true")
+            .env("SF_DISABLE_LOG_FILE", "true")
+            .env("SFDX_DISABLE_LOG_FILE", "true")
             .output();
         let out = match tokio::time::timeout(timeout, fut).await {
             Err(_) => return Err(SfError::Timeout(timeout)),
@@ -114,6 +120,25 @@ mod tests {
             .expect("echo should run");
         assert_eq!(out.status, 0);
         assert!(out.stdout.contains("hello"), "got: {:?}", out.stdout);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn child_process_disables_cli_collection_and_file_logging() {
+        // Print only the four policy flags, never the full environment.
+        for flag in [
+            "SF_DISABLE_TELEMETRY",
+            "SFDX_DISABLE_TELEMETRY",
+            "SF_DISABLE_LOG_FILE",
+            "SFDX_DISABLE_LOG_FILE",
+        ] {
+            let out = ProcessRunner
+                .run("printenv", &[flag.into()], Duration::from_secs(5))
+                .await
+                .unwrap();
+            assert_eq!(out.status, 0);
+            assert_eq!(out.stdout.trim(), "true", "{flag}");
+        }
     }
 
     #[tokio::test]

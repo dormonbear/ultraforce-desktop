@@ -1,3 +1,5 @@
+> Historical design: telemetry, usage metrics and persistent diagnostic logging are superseded by the no-collection policy in [PRIVACY.md](../../../PRIVACY.md). Do not reintroduce those capabilities.
+
 # Telemetry Opt-In + Aptabase Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax.

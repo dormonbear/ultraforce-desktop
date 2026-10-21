@@ -4,6 +4,12 @@ This is a SOQL / Anonymous-Apex / debug-log desktop tool with an Apex language e
 (`crates/apex-lang`), schema/SOQL tooling (`crates/sf-schema`, `crates/soql-lang`), and a
 Tauri/React desktop UI (`desktop/`).
 
+## Privacy
+
+Before changing networking, logging, storage, dependencies, or error handling,
+read [PRIVACY.md](PRIVACY.md) and verify the change preserves its policy in all
+builds, including development and debug builds.
+
 ## Apex symbol model
 
 For language-tooling work here — Apex completion, type/symbol resolution, inheritance,

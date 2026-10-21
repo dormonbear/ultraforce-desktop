@@ -15,8 +15,6 @@ mod setup;
 mod sf_cli;
 mod soql_exec;
 mod state;
-mod telemetry;
-mod telemetry_cfg;
 mod tray;
 
 use error::CommandError;
@@ -32,7 +30,7 @@ async fn run_soql(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<dto::SoqlResultDto, CommandError> {
-    telemetry::track("run_soql", async { soql_exec::run_soql(query, use_tooling_api, all_rows, query_id, org, app, &state).await }).await
+    soql_exec::run_soql(query, use_tooling_api, all_rows, query_id, org, app, &state).await
 }
 
 #[tauri::command]
@@ -98,7 +96,7 @@ async fn run_apex(
     org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::ApexOutcomeDto, CommandError> {
-    telemetry::track("run_apex", async { apex_exec::run_apex(src, org, &state).await }).await
+    apex_exec::run_apex(src, org, &state).await
 }
 
 #[tauri::command]
@@ -118,21 +116,18 @@ async fn get_log(
     org: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<dto::LogViewDto, CommandError> {
-    telemetry::track("get_log", async {
-        let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
-            .await
-            .map_err(CommandError::from)?;
-        let view = cached_log_view(&state, &body);
-        let parsed = dto::parsed_dto(&view);
-        // The org fetch is the only path where the frontend doesn't already have the
-        // body, so this is the one place that returns `raw`.
-        Ok(dto::LogViewDto {
-            raw: body,
-            api_version: parsed.api_version,
-            units: parsed.units,
-        })
+    let body = features::debug_log::get_log_body(&state.invoker, &id, org.as_deref())
+        .await
+        .map_err(CommandError::from)?;
+    let view = cached_log_view(&state, &body);
+    let parsed = dto::parsed_dto(&view);
+    // The org fetch is the only path where the frontend doesn't already have the
+    // body, so this is the one place that returns `raw`.
+    Ok(dto::LogViewDto {
+        raw: body,
+        api_version: parsed.api_version,
+        units: parsed.units,
     })
-    .await
 }
 
 /// Parse a raw debug-log body supplied by the caller (a reopened cached log or an
@@ -225,7 +220,7 @@ async fn login_org(
     set_default: Option<bool>,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    telemetry::track("login_org", async { sf_cli::login_org(instance_url, alias, set_default, &state).await }).await
+    sf_cli::login_org(instance_url, alias, set_default, &state).await
 }
 
 /// Set (or clear) the target org used by all subsequent `sf` calls. Also applies
@@ -250,10 +245,7 @@ fn set_target_org(
 /// override — the baseline shown as the config edit-panel placeholder and the
 /// per-org fallback for the switcher list.
 #[tauri::command]
-async fn org_api_version(
-    org: String,
-    state: State<'_, AppState>,
-) -> Result<String, CommandError> {
+async fn org_api_version(org: String, state: State<'_, AppState>) -> Result<String, CommandError> {
     Ok(features::api_version::detected_api_version_for(&state.invoker, &org).await)
 }
 
@@ -272,24 +264,6 @@ async fn set_debug_config(
     state: State<'_, AppState>,
 ) -> Result<dto::DebugConfigDto, CommandError> {
     debug_cfg::set_debug_config(levels, org, &state).await
-}
-
-#[tauri::command]
-async fn get_telemetry_config() -> Result<dto::TelemetryConfigDto, CommandError> {
-    telemetry_cfg::get_telemetry_config()
-}
-
-/// Whether this launch switched telemetry on by itself (dev builds seed it).
-/// The settings panel discloses it; the frontend can't infer it, since Vite's
-/// DEV flag and Rust's `debug_assertions` disagree under `tauri build --debug`.
-#[tauri::command]
-fn telemetry_dev_seeded() -> bool {
-    telemetry::dev_seeded()
-}
-
-#[tauri::command]
-async fn set_telemetry_config(config: dto::TelemetryConfigDto) -> Result<(), CommandError> {
-    telemetry_cfg::set_telemetry_config(config)
 }
 
 #[tauri::command]
@@ -368,7 +342,7 @@ async fn reindex_org(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
-    telemetry::track("reindex_org", async { index_coordinator::reindex(&app, &state, org, namespaces).await }).await
+    index_coordinator::reindex(&app, &state, org, namespaces).await
 }
 
 /// Queryable index-lifecycle snapshot for `org` (state / progress / last-indexed).
@@ -464,15 +438,10 @@ fn hide_to_tray(app: AppHandle) -> bool {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let started = std::time::Instant::now();
-    let _guard = setup::init_tracing();
     #[cfg(target_os = "macos")]
     setup::inherit_login_path();
     #[cfg(target_os = "macos")]
     setup::use_file_keystore();
-    telemetry::seed_dev_default(
-        &features::apex_complete::default_index_root(),
-        cfg!(debug_assertions),
-    );
     let state = AppState {
         invoker: SfInvoker::new(Arc::new(ProcessRunner)),
         selected_org: std::sync::Mutex::new(None),
@@ -499,9 +468,6 @@ pub fn run() {
             org_api_version,
             get_debug_config,
             set_debug_config,
-            get_telemetry_config,
-            telemetry_dev_seeded,
-            set_telemetry_config,
             quick_self_trace,
             load_logging_config,
             save_logging_config,

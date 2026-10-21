@@ -8,7 +8,6 @@ import { OrgProvider } from "./org";
 import { ConfirmProvider } from "./components/confirm";
 import { hideToTray } from "./ipc/window";
 import { runMigrationOnce } from "./fs/migrate";
-import { markStartup } from "./startup";
 import { flush } from "./store";
 import "./styles.css";
 // Loaded after styles.css so the motion layer keeps its original (bottom-of-
@@ -46,7 +45,6 @@ window.addEventListener("contextmenu", (e) => {
 
 // Migrate any pre-explorer persisted tabs into script files before first paint.
 void runMigrationOnce().finally(() => {
-  markStartup("render");
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <ThemeProvider>

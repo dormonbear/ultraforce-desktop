@@ -10,7 +10,7 @@ license = "MIT"
 tokio = { version = "1", features = ["process", "rt-multi-thread", "macros", "time"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-async-trait = "0.1"
+async-trait = "0.1.92"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 thiserror = "2"
 semver = "1"

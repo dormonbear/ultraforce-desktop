@@ -108,8 +108,14 @@ async fn mcp_stdio_contract() {
         serde_json::json!({"org":"TestOrg","object":"Account","filter":"indus"}),
     )
     .await;
-    assert!(filtered.contains("shown=1"), "filter counts shown: {filtered}");
-    assert!(filtered.contains("Industry"), "filter keeps match: {filtered}");
+    assert!(
+        filtered.contains("shown=1"),
+        "filter counts shown: {filtered}"
+    );
+    assert!(
+        filtered.contains("Industry"),
+        "filter keeps match: {filtered}"
+    );
 
     // 2c. ost_soql validates offline and suggests the nearest field name.
     let soql = call_text(
@@ -173,36 +179,42 @@ async fn mcp_stdio_contract() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// End-to-end telemetry gate through the REAL spawned `serve` binary: proves
-/// `<root>/telemetry.json` is honored at process startup. Off (default/absent)
-/// ⇒ no `tool_log` row after an `ost_status` call; `localEnabled:true` ⇒ one row.
-/// The two phases restart the binary because config loads once at startup.
+/// Legacy opt-in files must never reactivate collection in the real binary.
 #[tokio::test]
-async fn telemetry_local_gate_end_to_end() {
+async fn legacy_collection_config_is_ignored_end_to_end() {
     let root = std::env::temp_dir().join(format!("uf-ost-tel-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).unwrap();
 
-    // Phase 1: no telemetry.json ⇒ telemetry OFF by default ⇒ no row.
     drive_ost_status(&root).await;
-    assert_eq!(
-        tool_log_rows(&root),
-        0,
-        "default-off: no tool_log row expected"
-    );
+    assert!(!root.join("telemetry.db").exists());
 
-    // Phase 2: opt in locally, restart, drive again ⇒ exactly one row.
     std::fs::write(
         root.join("telemetry.json"),
         r#"{"localEnabled":true,"remoteEnabled":false}"#,
     )
     .unwrap();
     drive_ost_status(&root).await;
-    assert_eq!(
-        tool_log_rows(&root),
-        1,
-        "opt-in: exactly one tool_log row expected"
+    assert!(
+        !root.join("telemetry.db").exists(),
+        "legacy opt-in must not create a usage database"
     );
+
+    // Both flags enabled and an existing legacy DB must also be ignored. These
+    // are synthetic files under our temporary root, never real user data.
+    let config = br#"{"localEnabled":true,"remoteEnabled":true}"#;
+    let legacy = b"synthetic legacy database must remain untouched";
+    std::fs::write(root.join("telemetry.json"), config).unwrap();
+    std::fs::write(root.join("telemetry.db"), legacy).unwrap();
+    drive_ost_status(&root).await;
+    assert_eq!(std::fs::read(root.join("telemetry.json")).unwrap(), config);
+    assert_eq!(std::fs::read(root.join("telemetry.db")).unwrap(), legacy);
+    let mut names: Vec<_> = std::fs::read_dir(&root)
+        .unwrap()
+        .map(|e| e.unwrap().file_name())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["telemetry.db", "telemetry.json"]);
 
     let _ = std::fs::remove_dir_all(&root);
 }
@@ -212,19 +224,23 @@ async fn telemetry_local_gate_end_to_end() {
 async fn drive_ost_status(root: &std::path::Path) {
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_uf-ost"));
     cmd.arg("serve").arg("--root").arg(root);
-    let client = ()
-        .serve(TokioChildProcess::new(cmd).expect("spawn uf-ost serve"))
-        .await
-        .expect("client handshake");
+    let client =
+        ().serve(TokioChildProcess::new(cmd).expect("spawn uf-ost serve"))
+            .await
+            .expect("client handshake");
     let _ = call(&client, "ost_status", serde_json::json!({})).await;
+    // Error paths can contain private text too. Invalid offline queries must
+    // return the error to the caller without keeping a copy on disk.
+    let result = client
+        .call_tool(mk_param(
+            "ost_soql",
+            serde_json::json!({
+                "org": "synthetic-unknown", "query": "SELECT Private__c FROM Synthetic__c"
+            }),
+        ))
+        .await;
+    assert!(result.is_err() || result.unwrap().is_error == Some(true));
     client.cancel().await.ok();
-}
-
-/// Row count in `<root>/telemetry.db`; 0 when the db/table never got created.
-fn tool_log_rows(root: &std::path::Path) -> i64 {
-    let conn = rusqlite::Connection::open(root.join("telemetry.db")).unwrap();
-    conn.query_row("SELECT count(*) FROM tool_log", [], |r| r.get(0))
-        .unwrap_or(0)
 }
 
 /// `CallToolRequestParams` is `#[non_exhaustive]`; build it via serde.

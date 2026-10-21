@@ -2,17 +2,11 @@
 //! (fail-safe: unknown ⇒ prod), and the write-confirm gate.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::time::{Duration, Instant};
 
-use features::telemetry_config::{self, TelemetryConfig};
 use rmcp::ErrorData;
 use sf_core::{AuthInfo, OrgRegistry, ProcessRunner, SfInvoker};
-
-use features::aptabase::{self, AptabaseClient};
-use crate::telemetry::{LogEntry, Telemetry};
-
 pub mod apex;
 pub mod dml;
 pub mod query;
@@ -22,34 +16,16 @@ const AUTH_TTL: Duration = Duration::from_secs(15 * 60);
 
 pub struct LiveCtx {
     auth: tokio::sync::Mutex<HashMap<String, (AuthInfo, Instant)>>,
-    pub telemetry: Telemetry,
-    /// Loaded once at startup. Gates local `tool_log` writes only — NOT the
-    /// `org_meta` prod-detection cache, which is functional and always on.
-    pub config: TelemetryConfig,
-    /// Opt-in scrubbed remote sink; `None` unless `remote_enabled`.
-    pub aptabase: Option<AptabaseClient>,
-    /// Per-process session id shared with `aptabase`.
-    pub session_id: String,
+    // Safety metadata only: expiring process memory, never persisted or emitted.
+    org_types: tokio::sync::Mutex<HashMap<String, (bool, Instant)>>,
 }
 
 impl LiveCtx {
-    pub fn new(root: PathBuf) -> Self {
-        let config = telemetry_config::load(&root);
-        let mut ctx = Self {
+    pub fn new() -> Self {
+        Self {
             auth: tokio::sync::Mutex::new(HashMap::new()),
-            telemetry: Telemetry::new(root),
-            config,
-            aptabase: None,
-            session_id: aptabase::gen_session_id(),
-        };
-        // Built from the stored session so `session_id` is the single source of truth.
-        ctx.aptabase = aptabase::new_if_enabled(
-            &ctx.config,
-            &ctx.session_id,
-            env!("CARGO_PKG_VERSION"),
-            concat!("ultraforce-mcp@", env!("CARGO_PKG_VERSION")),
-        );
-        ctx
+            org_types: tokio::sync::Mutex::new(HashMap::new()),
+        }
     }
 
     /// Cached `sf org display` auth. TTL 15 min — `sf org display` refreshes
@@ -66,9 +42,7 @@ impl LiveCtx {
             .await
             .map_err(|e| {
                 ErrorData::invalid_params(
-                    format!(
-                        "cannot get auth for org '{org}': {e}. Is it authenticated in sf CLI?"
-                    ),
+                    format!("cannot get auth for org '{org}': {e}. Is it authenticated in sf CLI?"),
                     None,
                 )
             })?;
@@ -79,44 +53,14 @@ impl LiveCtx {
     /// Called by tools on `INVALID_SESSION_ID` so the next call re-fetches.
     pub async fn drop_auth(&self, org: &str) {
         self.auth.lock().await.remove(org);
-    }
-
-    /// Emit one tool call to both sinks. Local `tool_log` is opt-in
-    /// (`local_enabled`); the remote Aptabase sink is opt-in and scrubbed —
-    /// `errorCategory` is a CLASSIFIED label (never the raw message) and
-    /// `isProd` reads the org_meta CACHE ONLY (never triggers a live query).
-    pub fn record_telemetry(
-        &self,
-        tool: &'static str,
-        org: Option<&str>,
-        params: &str,
-        outcome: &str,
-        error: Option<&str>,
-        duration_ms: u64,
-    ) {
-        if self.config.local_enabled {
-            self.telemetry.log(LogEntry {
-                tool,
-                org,
-                params,
-                outcome,
-                error,
-                duration_ms,
-            });
-        }
-        if let Some(ap) = &self.aptabase {
-            let is_prod = org
-                .and_then(|o| self.telemetry.get_org_meta(o))
-                .map(|is_sandbox| !is_sandbox);
-            let err_category = error.map(aptabase::classify_error);
-            ap.track(tool, outcome, duration_ms, err_category, is_prod);
-        }
+        self.org_types.lock().await.remove(org);
     }
 
     /// Fail-safe prod detection: cached `Organization.IsSandbox`, one live
     /// query on miss; any failure ⇒ treat as production, do NOT cache.
     pub async fn is_prod(&self, org: &str) -> bool {
-        if let Some(is_sandbox) = self.telemetry.get_org_meta(org) {
+        let mut cache = self.org_types.lock().await;
+        if let Some(is_sandbox) = cached_is_sandbox(&mut cache, org) {
             return !is_sandbox;
         }
         let Ok(auth) = self.auth(org).await else {
@@ -133,12 +77,23 @@ impl LiveCtx {
         .await;
         match res.ok().as_ref().and_then(parse_is_sandbox) {
             Some(is_sandbox) => {
-                self.telemetry.set_org_meta(org, is_sandbox);
+                cache.insert(org.to_string(), (is_sandbox, Instant::now()));
                 !is_sandbox
             }
             None => true, // fail-safe: unknown ⇒ prod
         }
     }
+}
+
+/// Expired or missing safety metadata must trigger verification, never assume sandbox.
+fn cached_is_sandbox(cache: &mut HashMap<String, (bool, Instant)>, org: &str) -> Option<bool> {
+    if let Some((is_sandbox, at)) = cache.get(org) {
+        if at.elapsed() < AUTH_TTL {
+            return Some(*is_sandbox);
+        }
+    }
+    cache.remove(org);
+    None
 }
 
 pub fn parse_is_sandbox(qr: &features::soql::QueryResult) -> Option<bool> {
@@ -206,5 +161,46 @@ mod tests {
         let err = gate_write(true, false).unwrap_err();
         assert!(err.message.contains("PRODUCTION"), "{}", err.message);
         assert!(err.message.contains("confirm"), "{}", err.message);
+    }
+
+    #[tokio::test]
+    async fn organization_safety_cache_is_scoped_to_process_and_org() {
+        let ctx = LiveCtx::new();
+        ctx.org_types
+            .lock()
+            .await
+            .insert("sandbox".into(), (true, Instant::now()));
+        ctx.org_types
+            .lock()
+            .await
+            .insert("production".into(), (false, Instant::now()));
+        assert!(!ctx.is_prod("sandbox").await);
+        assert!(ctx.is_prod("production").await);
+        assert!(gate_write(ctx.is_prod("production").await, false).is_err());
+        assert!(LiveCtx::new().org_types.lock().await.is_empty());
+        ctx.drop_auth("sandbox").await;
+        assert!(!ctx.org_types.lock().await.contains_key("sandbox"));
+        assert!(ctx.org_types.lock().await.contains_key("production"));
+    }
+
+    #[test]
+    fn expired_sandbox_classification_must_be_reverified() {
+        let mut cache = HashMap::from([
+            ("expired".into(), (true, Instant::now() - AUTH_TTL)),
+            ("fresh".into(), (false, Instant::now())),
+        ]);
+        assert_eq!(cached_is_sandbox(&mut cache, "expired"), None);
+        assert!(!cache.contains_key("expired"));
+        assert_eq!(cached_is_sandbox(&mut cache, "unknown"), None);
+        assert_eq!(cached_is_sandbox(&mut cache, "fresh"), Some(false));
+    }
+
+    #[test]
+    fn malformed_organization_type_is_unknown() {
+        let mut result = qr(true);
+        result.records[0].fields[0].1 =
+            FieldValue::Scalar(serde_json::Value::String("true".into()));
+        assert_eq!(parse_is_sandbox(&result), None);
+        assert!(gate_write(parse_is_sandbox(&result) != Some(true), false).is_err());
     }
 }

@@ -1,3 +1,5 @@
+> Historical design: telemetry, usage metrics and persistent diagnostic logging are superseded by the no-collection policy in [PRIVACY.md](../../../PRIVACY.md). Do not reintroduce those capabilities.
+
 # UltraForce Core Capabilities — Design Spec
 
 **Date:** 2026-06-20

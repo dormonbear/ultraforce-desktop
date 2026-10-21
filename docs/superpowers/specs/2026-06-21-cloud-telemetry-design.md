@@ -1,3 +1,5 @@
+> Historical design: telemetry, usage metrics and persistent diagnostic logging are superseded by the no-collection policy in [PRIVACY.md](../../../PRIVACY.md). Do not reintroduce those capabilities.
+
 # Cloud telemetry — Design (heavy tier, spec only — needs product/privacy sign-off)
 
 > Date: 2026-06-21 · Status: Spec (implementation deferred — requires explicit opt-in decision)

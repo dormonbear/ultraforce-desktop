@@ -17,7 +17,6 @@ import { LogoLoader } from "./components/LogoLoader";
 import { useOrgs } from "./org";
 import { isMac } from "./platform";
 import { IndexProgress, TopProgressBar } from "./components/IndexProgress";
-import { SyncToast } from "./components/SyncToast";
 import { SchemaRefresh } from "./components/SchemaRefresh";
 import { SettingsPage } from "./components/SettingsPage";
 import { checkForUpdates } from "./updater";
@@ -248,7 +247,6 @@ export default function App() {
           )}
         </main>
       </div>
-      <SyncToast />
       <Toaster theme={theme} />
     </div>
   );

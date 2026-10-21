@@ -5,7 +5,6 @@ import { getJson, setJson } from "./store";
 import { listOrgs } from "./ipc/org";
 import { onWindowShown } from "./ipc/window";
 import { getOrgConfig } from "./orgConfig";
-import { markStartup } from "./startup";
 import type { OrgConfig, OrgDto } from "./types";
 
 /** Store key for the last selected org username. */
@@ -64,7 +63,6 @@ export function useOrgList({ selectedRef, adopt, onOrgGone }: Options) {
     setLoading(false);
     void setJson(ORGS_CACHE_KEY, list);
     loadConfigs(list);
-    markStartup("orgs-fresh");
     const current = selectedRef.current;
     if (current && !list.some((o) => o.username === current)) {
       onOrgGone(current);
@@ -91,7 +89,6 @@ export function useOrgList({ selectedRef, adopt, onOrgGone }: Options) {
         await adopt(def.username);
         if (!alive) return;
         setLoading(false);
-        markStartup("orgs-cached");
       }
       await refresh();
     })();

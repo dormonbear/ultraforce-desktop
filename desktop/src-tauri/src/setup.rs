@@ -1,7 +1,5 @@
-//! Process-level startup: tracing/log-file initialization plus the macOS
+//! Process-level startup: the macOS
 //! GUI-launch workarounds (login-shell PATH, file-based `sf` keystore).
-
-use tracing_subscriber::EnvFilter;
 
 /// ponytail: GUI apps launched from Finder/Dock inherit launchd's minimal PATH,
 /// not the shell PATH — so `sf` installed via mise/nvm/brew is invisible and
@@ -23,7 +21,9 @@ pub(crate) fn inherit_login_path() {
         });
         return;
     }
-    let Some(path) = probe_login_path() else { return };
+    let Some(path) = probe_login_path() else {
+        return;
+    };
     std::env::set_var("PATH", &path);
     if let Some(file) = cache {
         write_cached_path(&file, &path);
@@ -102,25 +102,6 @@ pub(crate) fn use_file_keystore() {
     }
 }
 
-pub(crate) fn init_tracing() -> tracing_appender::non_blocking::WorkerGuard {
-    let log_dir = dirs::data_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("ultraforce")
-        .join("logs");
-    let _ = std::fs::create_dir_all(&log_dir);
-    let file_appender = tracing_appender::rolling::daily(log_dir, "ultraforce.log");
-    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
-    let filter = std::env::var("ULTRAFORCE_LOG")
-        .ok()
-        .and_then(|value| EnvFilter::try_new(value).ok())
-        .unwrap_or_else(|| EnvFilter::new("info"));
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .with_writer(non_blocking)
-        .init();
-    guard
-}
-
 #[cfg(test)]
 mod tests {
     use super::{key_json, read_cached_path, write_cached_path};
@@ -131,7 +112,10 @@ mod tests {
             .join("ultraforce-test")
             .join("path-cache");
         write_cached_path(&file, "/usr/local/bin:/usr/bin");
-        assert_eq!(read_cached_path(&file).as_deref(), Some("/usr/local/bin:/usr/bin"));
+        assert_eq!(
+            read_cached_path(&file).as_deref(),
+            Some("/usr/local/bin:/usr/bin")
+        );
         write_cached_path(&file, "  \n ");
         assert_eq!(read_cached_path(&file), None);
         let _ = std::fs::remove_file(&file);
