@@ -3,6 +3,23 @@
   "include-component-in-tag": false,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
+  "pull-request-title-pattern": "chore${scope}: release${component} ${version} / 发布",
+  "pull-request-header": "A release update is ready for review.\n\n发布更新已准备好，等待审查。",
+  "pull-request-footer": "This PR was generated with [Release Please](https://github.com/googleapis/release-please).\n\n此 PR 由 [Release Please](https://github.com/googleapis/release-please) 生成。",
+  "changelog-sections": [
+    { "type": "feat", "section": "Features / 新功能" },
+    { "type": "feature", "section": "Features / 新功能" },
+    { "type": "fix", "section": "Bug Fixes / 缺陷修复" },
+    { "type": "perf", "section": "Performance Improvements / 性能改进" },
+    { "type": "revert", "section": "Reverts / 回退" },
+    { "type": "docs", "section": "Documentation / 文档", "hidden": true },
+    { "type": "style", "section": "Styles / 代码风格", "hidden": true },
+    { "type": "chore", "section": "Miscellaneous Chores / 日常维护", "hidden": true },
+    { "type": "refactor", "section": "Code Refactoring / 代码重构", "hidden": true },
+    { "type": "test", "section": "Tests / 测试", "hidden": true },
+    { "type": "build", "section": "Build System / 构建系统", "hidden": true },
+    { "type": "ci", "section": "Continuous Integration / 持续集成", "hidden": true }
+  ],
   "packages": {
     ".": {
       "release-type": "simple",
