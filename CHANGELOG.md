@@ -1,5 +1,21 @@
 # Changelog / 更新日志
 
+## [0.3.20](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.19...v0.3.20) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* unify metadata cache identity / 统一元数据缓存身份 ([8e384f8](https://github.com/dormonbear/ultraforce-desktop/commit/8e384f8937a473a4a0300ec915c3faefef26e730))
+  Equivalent aliases and usernames share a metadata snapshot only for the same Salesforce org ID and authenticated username; different users retain separate contexts. Fetches and sync responses stay with the captured context during alias reassignment.
+  等价别名与用户名仅在 Salesforce 组织 ID 和认证用户名均相同时共享元数据快照；不同用户保持独立上下文。别名重绑定期间，取数和同步响应仍固定于开始时捕获的上下文。
+* Preserve published generations during on-demand describes and failed forced rebuilds; retry unusable stdlib caches without deleting the previous snapshot.
+  按需 describe 和强制重建失败时保留已发布代次；重试不可用的标准库缓存，无需删除之前的快照。
+
+### Upgrade note / 升级说明
+
+Existing alias/username-named index directories are preserved but cannot be adopted without a verified org/user binding. Run a full reindex with `ost_reindex` or `uf-ost index --org '<target>'` to create the new context. Previously verified new-format bindings support offline reads; explicit indexing/sync discovers alias changes. Routing bindings remain local and contain no credentials or usage history.
+既有按别名／用户名命名的索引目录保留不变，但没有已验证的组织／用户绑定时不会直接采用。请通过 `ost_reindex` 或 `uf-ost index --org '<target>'` 完整重建，创建新上下文。先前验证的新格式绑定支持离线读取；显式索引／同步可发现别名变化。路由绑定仅保存在本地，不包含凭据或使用历史。
+
 ## [0.3.19](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.18...v0.3.19) (2026-10-21)
 
 
