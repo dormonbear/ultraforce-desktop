@@ -3,16 +3,16 @@
 use std::path::PathBuf;
 
 use apex_lang::acquire::{
-    fetch_changed_apex_classes, fetch_changed_entities, parse_org_types, parse_stdlib,
+    fetch_apex_symbols, fetch_changed_apex_classes, fetch_changed_entities, parse_org_types,
+    parse_stdlib,
 };
 use apex_lang::store::{OstSource, OstStore};
 use apex_lang::symbols::ApexType;
-use apex_lang::{save_snapshot, IndexManifest, Ost};
+use apex_lang::{IndexManifest, Ost};
 use sf_core::{SfError, SfInvoker};
 use sf_schema::SchemaStore;
 
 use crate::apex_complete::schema_to_apex_type;
-use crate::soql::list_sobject_names;
 
 #[derive(Clone, Debug)]
 pub struct IndexProgress {
@@ -120,6 +120,9 @@ pub async fn index_org(
     policy: &NamespacePolicy,
     on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
+    let expected = apex_lang::snapshot::generation_token(&root, org_id).map_err(SfError::Spawn)?;
+    // Keep changes made during acquisition eligible for the next delta sync.
+    let indexed_at = now_iso8601();
     let started = std::time::Instant::now();
     tracing::info!(org = %org_id, api = %api, "index_org start (full index)");
 
@@ -149,21 +152,11 @@ pub async fn index_org(
         done: 0,
         total: 1,
     });
-    let org_types_raw = ost_store
-        .get_or_fetch(invoker, api, OstSource::OrgTypes)
-        .await?;
-    let class_count;
-    let mut org_types = match &org_types_raw {
-        serde_json::Value::Array(records) => {
-            let parsed = parse_org_types(records);
-            class_count = parsed.len();
-            parsed
-        }
-        _ => {
-            class_count = 0;
-            Vec::new()
-        }
-    };
+    // A full rebuild must fetch current org symbols, rather than relabel an old
+    // raw cache with a fresh generation watermark.
+    let org_types_raw = fetch_apex_symbols(invoker, org_id).await?;
+    let mut org_types = parse_org_types(&org_types_raw);
+    let class_count = org_types.len();
     on_progress(IndexProgress {
         phase: "classes",
         done: class_count,
@@ -174,8 +167,13 @@ pub async fn index_org(
     // ponytail: sObjects only — Apex class names lack the namespace prefix
     // (ApexClass.NamespacePrefix isn't queried), so managed classes can't be
     // filtered here without an extra query.
-    let names: Vec<String> = list_sobject_names(invoker, org_id)
-        .await
+    let mut list_args = vec!["sobject", "list", "--sobject", "all"];
+    if org_id != "default" {
+        list_args.extend(["--target-org", org_id]);
+    }
+    let names: Vec<String> = invoker
+        .run_json::<Vec<String>>(&list_args)
+        .await?
         .into_iter()
         .filter(|n| policy.permits(n))
         .collect();
@@ -185,7 +183,7 @@ pub async fn index_org(
     // made a managed-package org's first index take ~15 min.
     let mut store = SchemaStore::new(root.clone(), org_id);
     let described = store
-        .get_or_fetch_many(invoker, api, &names, &mut |done, _total| {
+        .fetch_many(invoker, api, &names, &mut |done, _total| {
             on_progress(IndexProgress {
                 phase: "sobjects",
                 done,
@@ -196,7 +194,7 @@ pub async fn index_org(
     // Persist all described objects in ONE transaction so a concurrent reader
     // (e.g. the MCP server during an `ost_reindex`) never sees a partial index.
     let schemas: Vec<_> = described.iter().map(|(_, s)| s.clone()).collect();
-    store.persist_full(&schemas)?;
+    ensure_complete_describes(&names, &schemas)?;
     let mut sobjects = 0;
     for (_name, schema) in &described {
         org_types.push(schema_to_apex_type(schema));
@@ -210,13 +208,22 @@ pub async fn index_org(
     let manifest = IndexManifest {
         org_id: org_id.to_string(),
         api_version: api.to_string(),
-        indexed_at: now_iso8601(),
+        indexed_at,
         namespaces: ost.namespaces.len(),
         classes: class_count,
         sobjects,
         stdlib_error,
     };
-    save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
+    apex_lang::snapshot::save_generation(
+        &root,
+        &ost,
+        &manifest,
+        &schemas,
+        true,
+        Some(&org_types_raw),
+        &expected,
+    )
+    .map_err(SfError::Spawn)?;
     tracing::info!(
         org = %org_id,
         classes = class_count,
@@ -273,7 +280,9 @@ pub async fn sync_org(
     api: &str,
     policy: &NamespacePolicy,
 ) -> Result<(SyncOutcome, Ost), SfError> {
-    let Some((mut ost, manifest)) = apex_lang::load_snapshot(&root, org_id, api) else {
+    let Some((mut ost, manifest, expected)) =
+        apex_lang::snapshot::load_snapshot_with_token(&root, org_id, api)
+    else {
         return Ok((SyncOutcome::default(), Ost::default()));
     };
     let since = manifest.indexed_at.clone();
@@ -302,15 +311,12 @@ pub async fn sync_org(
         .filter(|n| policy.permits(n))
         .collect();
     let mut schema_store = SchemaStore::new(root.clone(), org_id);
-    for name in &entities {
-        let _ = schema_store.invalidate(api, name);
-    }
     let described = schema_store
-        .get_or_fetch_many(invoker, api, &entities, &mut |_, _| {})
+        .fetch_many(invoker, api, &entities, &mut |_, _| {})
         .await;
     // Upsert only the re-described delta; the rest of the index is untouched.
     let delta: Vec<_> = described.iter().map(|(_, s)| s.clone()).collect();
-    schema_store.persist_delta(&delta)?;
+    ensure_complete_describes(&entities, &delta)?;
     for (_name, schema) in &described {
         if upsert(&mut ost.org_types, schema_to_apex_type(schema)) {
             outcome.updated += 1;
@@ -335,8 +341,25 @@ pub async fn sync_org(
         sobjects: prev_sobjects,
         stdlib_error,
     };
-    save_snapshot(&root, &ost, &manifest).map_err(SfError::Spawn)?;
+    apex_lang::snapshot::save_generation(&root, &ost, &manifest, &delta, false, None, &expected)
+        .map_err(SfError::Spawn)?;
     Ok((outcome, ost))
+}
+
+fn ensure_complete_describes(
+    names: &[String],
+    schemas: &[sf_schema::SObjectSchema],
+) -> Result<(), SfError> {
+    if names.iter().all(|name| {
+        schemas
+            .iter()
+            .any(|schema| schema.name.eq_ignore_ascii_case(name))
+    }) {
+        return Ok(());
+    }
+    Err(SfError::Spawn(std::io::Error::other(
+        "schema describe incomplete; previous snapshot retained — retry indexing",
+    )))
 }
 
 fn now_iso8601() -> String {
@@ -746,3 +769,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 }
+
+#[cfg(test)]
+#[path = "index_watermark_tests.rs"]
+mod watermark_tests;

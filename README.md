@@ -162,10 +162,21 @@ Add it to your agent's `.mcp.json`:
 { "mcpServers": { "ultraforce": { "command": "npx", "args": ["-y", "@dormon/ultraforce-mcp", "serve"], "type": "stdio" } } }
 ```
 
-Eight `ost_*` tools: `ost_object`, `ost_field` (cross-org drift), `ost_picklist`,
-`ost_apex`, `ost_search` (FTS), `ost_status`, `ost_sync` (synchronous delta), and
-`ost_reindex` (async full rebuild). Every response is stamped with the org alias
-and the snapshot's age. The bundled [`skills/ost`](skills/ost/SKILL.md) teaches
+Offline tools include `ost_object`, `ost_field` (cross-org drift), `ost_picklist`,
+`ost_apex`, `ost_search`, and `ost_status`; `ost_sync` refreshes a delta and
+`ost_reindex` starts a full rebuild. `ost_search` matches object API names and
+singular/plural labels, field names/labels, and Apex type names. Pass `org` to
+preserve the scoped `stamp`/`fields`/`apex` response (plus `objects`), or omit it
+for `orgs`, grouped by snapshot. `ost_field.snapshots` identifies consulted
+snapshots even when `hits` is empty. Cross-org answers explicitly list unusable
+indexes in `skipped`; an empty result with skipped indexes is incomplete.
+Existing v3 caches require a full `ost_reindex` to build the new object index;
+read tools and delta sync reject incompatible snapshots instead of migrating them.
+Rebuilds publish schema, Apex symbols and freshness together. A refresh prepared
+against an older generation refuses to overwrite a newer publication; retry the
+refresh when it reports that the index changed during fetching.
+Successful offline results carry the org alias and snapshot age; negative
+object/field/type lookups include that provenance in their error. The bundled [`skills/ost`](skills/ost/SKILL.md) teaches
 the retrieval discipline (verify freshness → sync → reindex + fall back to live
 `sf`). Install it in your agent by referencing this repo from your skills config
 (e.g. agentskills `skills-lock.json`):

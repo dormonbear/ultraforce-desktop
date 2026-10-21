@@ -30,13 +30,20 @@ pub fn open_readonly(path: &Path) -> rusqlite::Result<Connection> {
 /// Open (creating parent dirs as needed) the org's unified `index.db`, enable
 /// WAL mode, and ensure sf-schema's tables exist. Shared opener for apex-lang.
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
+    let conn = open_without_schema(path)?;
+    ensure_object_schema(&conn)?;
+    Ok(conn)
+}
+
+/// Open a writer without initializing any tables. Generation publishers must
+/// initialize their tables INSIDE their transaction, including failed rebuilds.
+pub fn open_without_schema(path: &Path) -> rusqlite::Result<Connection> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
     }
     let conn = Connection::open(path)?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
-    ensure_object_schema(&conn)?;
     Ok(conn)
 }
 
@@ -67,6 +74,7 @@ pub fn ensure_object_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(
           object_name, field_name, field_label, picklist_values, help_text, formula
         );
+        CREATE VIRTUAL TABLE IF NOT EXISTS objects_fts USING fts5(object_name, object_label, object_label_plural);
         CREATE TABLE IF NOT EXISTS field_deps (
           object_name TEXT NOT NULL, field_name TEXT NOT NULL,
           component_type TEXT NOT NULL, component_name TEXT NOT NULL, component_id TEXT NOT NULL,
@@ -104,6 +112,10 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
         ],
     )?;
     let object_id = conn.last_insert_rowid();
+    conn.execute(
+        "INSERT INTO objects_fts VALUES (?1, ?2, ?3)",
+        params![s.name, s.label, s.label_plural],
+    )?;
 
     for field in &s.fields {
         let reference_to = serde_json::to_string(&field.reference_to)
@@ -170,22 +182,32 @@ pub fn replace_all_objects(
     objects: &[SObjectSchema],
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
+    replace_objects_in_transaction(&tx, objects)?;
+    tx.commit()
+}
+
+/// Replace schema tables inside a caller-owned generation transaction.
+pub fn replace_objects_in_transaction(
+    conn: &Connection,
+    objects: &[SObjectSchema],
+) -> rusqlite::Result<()> {
     // DROP + recreate (not DELETE) so a reindex after a SCHEMA_VERSION bump
     // rebuilds these tables with the current column set — the index is a
     // derived cache, never migrated. DDL here is transactional in SQLite, so a
     // concurrent WAL reader still sees the whole old generation until commit.
-    tx.execute_batch(
+    conn.execute_batch(
         "DROP TABLE IF EXISTS fields;
          DROP TABLE IF EXISTS objects;
          DROP TABLE IF EXISTS fields_fts;
+         DROP TABLE IF EXISTS objects_fts;
          DROP TABLE IF EXISTS field_deps;
          DROP TABLE IF EXISTS field_deps_meta;",
     )?;
-    ensure_object_schema(&tx)?;
+    ensure_object_schema(conn)?;
     for schema in objects {
-        upsert_object(&tx, schema)?;
+        upsert_object(conn, schema)?;
     }
-    tx.commit()
+    Ok(())
 }
 
 /// FTS5 fuzzy match over object/field names + labels. `query` is a raw FTS5
@@ -203,6 +225,17 @@ pub fn search_fields(
     let rows = stmt.query_map(params![query, limit as i64], |row| {
         Ok((row.get(0)?, row.get(1)?, row.get(2)?))
     })?;
+    rows.collect()
+}
+
+/// Search object API names and singular/plural labels, including fieldless objects.
+pub fn search_objects(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT object_name FROM objects_fts WHERE objects_fts MATCH ?1 ORDER BY rank, object_name LIMIT ?2")?;
+    let rows = stmt.query_map(params![query, limit as i64], |row| row.get(0))?;
     rows.collect()
 }
 
@@ -410,11 +443,18 @@ pub fn delete_object(conn: &Connection, name: &str) -> rusqlite::Result<()> {
         Err(e) => return Err(e),
     };
     if let Some(object_id) = object_id {
-        conn.execute("DELETE FROM fields WHERE object_id = ?1", params![object_id])?;
+        conn.execute(
+            "DELETE FROM fields WHERE object_id = ?1",
+            params![object_id],
+        )?;
         conn.execute("DELETE FROM objects WHERE id = ?1", params![object_id])?;
     }
     conn.execute(
         "DELETE FROM fields_fts WHERE object_name = ?1 COLLATE NOCASE",
+        params![name],
+    )?;
+    conn.execute(
+        "DELETE FROM objects_fts WHERE object_name = ?1 COLLATE NOCASE",
         params![name],
     )?;
     Ok(())

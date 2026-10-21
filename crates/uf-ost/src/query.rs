@@ -22,6 +22,7 @@ pub enum QueryError {
     NotIndexed(String),
     /// Index exists but was built by an incompatible schema version.
     StaleIndex(String),
+    IdentityMismatch(String),
     /// Index exists but the requested object/field/type isn't in it.
     NotFound(String),
     /// Underlying SQLite error.
@@ -39,6 +40,7 @@ impl std::fmt::Display for QueryError {
                 f,
                 "org '{org}' index was built by an older uf-ost — run `ost_reindex {org}` to rebuild it"
             ),
+            QueryError::IdentityMismatch(org) => write!(f, "org '{org}' index identity mismatch — inspect or clear the conflicting local index, then run ost_reindex"),
             QueryError::NotFound(what) => write!(f, "{what}"),
             QueryError::Db(e) => write!(f, "index read error: {e}"),
         }
@@ -98,13 +100,35 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
         return Err(QueryError::NotIndexed(org.to_string()));
     }
     let conn = sqlite::open_readonly(&path)?;
+    conn.execute_batch("BEGIN")?;
+    let has_meta: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_meta {
+        return Err(QueryError::NotIndexed(org.to_string()));
+    }
     let meta = db::read_meta(&conn)?.ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
+    if meta.alias != org {
+        return Err(QueryError::IdentityMismatch(org.to_string()));
+    }
     // Reject an index built by an older schema before any tool SELECTs a column
     // it may not have — fail loud with "reindex", never crash mid-query.
     if meta.schema_version != db::SCHEMA_VERSION {
         return Err(QueryError::StaleIndex(org.to_string()));
     }
+    conn.prepare("SELECT o.name, f.name, t.name FROM objects o, fields f, apex_types t LIMIT 0")?;
+    conn.prepare("SELECT object_name FROM objects_fts LIMIT 0")?;
     Ok(Snapshot { conn, meta })
+}
+
+fn missing(snap: &Snapshot, what: String) -> QueryError {
+    let stamp = snap.stamp();
+    QueryError::NotFound(format!(
+        "{what}; org={} age={} indexedAt={} generation={}",
+        stamp.org, stamp.age, stamp.indexed_at, stamp.generation
+    ))
 }
 
 /// Compact text table of `object`'s fields — one line each: name, type, and
@@ -116,7 +140,7 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
 /// (case-insensitive).
 pub fn object(snap: &Snapshot, object: &str, filter: Option<&str>) -> Result<String, QueryError> {
     let schema = sqlite::read_object(&snap.conn, object)?
-        .ok_or_else(|| QueryError::NotFound(format!("object '{object}' not in index")))?;
+        .ok_or_else(|| missing(snap, format!("object '{object}' not in index")))?;
     let stamp = Stamp::from_meta(&snap.meta);
     let needle = filter.map(str::to_ascii_lowercase);
 
@@ -192,12 +216,12 @@ pub struct PicklistDto {
 /// Active picklist values of `object.field`.
 pub fn picklist(snap: &Snapshot, object: &str, field: &str) -> Result<PicklistDto, QueryError> {
     let schema = sqlite::read_object(&snap.conn, object)?
-        .ok_or_else(|| QueryError::NotFound(format!("object '{object}' not in index")))?;
+        .ok_or_else(|| missing(snap, format!("object '{object}' not in index")))?;
     let f = schema
         .fields
         .iter()
         .find(|f| f.name.eq_ignore_ascii_case(field))
-        .ok_or_else(|| QueryError::NotFound(format!("field '{object}.{field}' not in index")))?;
+        .ok_or_else(|| missing(snap, format!("field '{object}.{field}' not in index")))?;
     Ok(PicklistDto {
         stamp: Stamp::from_meta(&snap.meta),
         object: schema.name.clone(),
@@ -249,7 +273,7 @@ pub struct ApexDto {
 /// Member signatures of an Apex class/interface/enum (org type or stdlib).
 pub fn apex(snap: &Snapshot, name: &str) -> Result<ApexDto, QueryError> {
     let (namespace, ty) = snapshot::read_apex_type(&snap.conn, name)?
-        .ok_or_else(|| QueryError::NotFound(format!("Apex type '{name}' not in index")))?;
+        .ok_or_else(|| missing(snap, format!("Apex type '{name}' not in index")))?;
     let kind = match ty.kind {
         TypeKind::Class => "class",
         TypeKind::Interface => "interface",
@@ -287,6 +311,7 @@ pub fn apex(snap: &Snapshot, name: &str) -> Result<ApexDto, QueryError> {
 #[serde(rename_all = "camelCase")]
 pub struct SearchDto {
     pub stamp: Stamp,
+    pub objects: Vec<String>,
     /// `"Object.Field"` matches from the field FTS index.
     pub fields: Vec<String>,
     /// Apex type-name matches.
@@ -308,6 +333,11 @@ pub fn search(snap: &Snapshot, query: &str, limit: usize) -> Result<SearchDto, Q
     };
     Ok(SearchDto {
         stamp: Stamp::from_meta(&snap.meta),
+        objects: if expr.is_empty() {
+            Vec::new()
+        } else {
+            sqlite::search_objects(&snap.conn, &expr, limit)?
+        },
         fields,
         apex,
     })
@@ -363,6 +393,8 @@ pub struct FieldDrift {
     /// Every (org, object) carrying the field. Divergent `type` across orgs =
     /// schema drift.
     pub hits: Vec<FieldHit>,
+    pub snapshots: Vec<Stamp>,
+    pub skipped: Vec<SkippedOrg>,
 }
 
 /// Which objects/orgs carry `field`. `org = Some` scopes to one org; `None`
@@ -373,14 +405,35 @@ pub fn field_drift(root: &Path, field: &str, org: Option<&str>) -> Result<FieldD
         None => list_orgs(root),
     };
     let mut hits = Vec::new();
-    for org in &orgs {
-        let snap = match open_org(root, org) {
+    let mut snapshots = Vec::new();
+    let mut skipped = Vec::new();
+    for alias in &orgs {
+        let snap = match open_org(root, alias) {
             Ok(s) => s,
-            Err(QueryError::NotIndexed(_) | QueryError::StaleIndex(_)) => continue,
+            Err(e @ (QueryError::NotIndexed(_) | QueryError::StaleIndex(_))) if org.is_none() => {
+                skipped.push(SkippedOrg {
+                    org: alias.clone(),
+                    reason: e.to_string(),
+                });
+                continue;
+            }
+            Err(e) if org.is_none() => {
+                skipped.push(SkippedOrg::from_error(alias, &e));
+                continue;
+            }
             Err(e) => return Err(e),
         };
+        let rows = match sqlite::find_field(&snap.conn, field) {
+            Ok(rows) => rows,
+            Err(e) if org.is_none() => {
+                skipped.push(SkippedOrg::from_error(alias, &e.into()));
+                continue;
+            }
+            Err(e) => return Err(e.into()),
+        };
+        snapshots.push(snap.stamp());
         let age = human_age(&snap.meta.indexed_at);
-        for (object, field_type, custom) in sqlite::find_field(&snap.conn, field)? {
+        for (object, field_type, custom) in rows {
             hits.push(FieldHit {
                 org: snap.meta.alias.clone(),
                 object,
@@ -393,7 +446,81 @@ pub fn field_drift(root: &Path, field: &str, org: Option<&str>) -> Result<FieldD
     Ok(FieldDrift {
         field: field.to_string(),
         hits,
+        snapshots,
+        skipped,
     })
+}
+
+/// An indexed org excluded from a cross-org answer. Never include raw DB errors.
+#[derive(Serialize, schemars::JsonSchema)]
+pub struct SkippedOrg {
+    pub org: String,
+    pub reason: String,
+}
+
+impl SkippedOrg {
+    pub fn from_error(org: &str, error: &QueryError) -> Self {
+        let reason = match error {
+            QueryError::NotIndexed(_)
+            | QueryError::StaleIndex(_)
+            | QueryError::IdentityMismatch(_) => error.to_string(),
+            _ => "index unreadable — run ost_reindex to rebuild it".to_string(),
+        };
+        Self {
+            org: org.to_string(),
+            reason,
+        }
+    }
+}
+
+/// Scoped calls preserve their original shape; unscoped calls group answers by org.
+#[derive(Serialize, schemars::JsonSchema)]
+pub struct SearchResponse {
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub scoped: Option<SearchDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub orgs: Option<Vec<SearchDto>>,
+    pub skipped: Vec<SkippedOrg>,
+}
+
+pub fn search_orgs(
+    root: &Path,
+    query: &str,
+    org: Option<&str>,
+    limit: usize,
+) -> Result<SearchResponse, QueryError> {
+    if let Some(org) = org {
+        return Ok(SearchResponse {
+            scoped: Some(search(&open_org(root, org)?, query, limit)?),
+            orgs: None,
+            skipped: vec![],
+        });
+    }
+    let mut response = SearchResponse {
+        scoped: None,
+        orgs: Some(vec![]),
+        skipped: vec![],
+    };
+    for org in list_orgs(root) {
+        match open_org(root, &org) {
+            Ok(snap) => match search(&snap, query, limit) {
+                Ok(result) => response
+                    .orgs
+                    .as_mut()
+                    .expect("cross-org response")
+                    .push(result),
+                Err(e) => response.skipped.push(SkippedOrg::from_error(&org, &e)),
+            },
+            Err(e @ (QueryError::NotIndexed(_) | QueryError::StaleIndex(_))) => {
+                response.skipped.push(SkippedOrg {
+                    org,
+                    reason: e.to_string(),
+                })
+            }
+            Err(e) => response.skipped.push(SkippedOrg::from_error(&org, &e)),
+        }
+    }
+    Ok(response)
 }
 
 /// Aliases of every org with an `index.db` under `root`.
@@ -404,14 +531,18 @@ pub fn list_orgs(root: &Path) -> Vec<String> {
     };
     for entry in entries.flatten() {
         let db = entry.path().join("index.db");
-        if !db.exists() {
+        if !entry.path().is_dir() || !db.is_file() {
             continue;
         }
-        if let Ok(conn) = sqlite::open_readonly(&db) {
-            if let Ok(Some(meta)) = db::read_meta(&conn) {
-                out.push(meta.alias);
-            }
-        }
+        let folder = entry.file_name().to_string_lossy().into_owned();
+        // Recover the original alias only after binding it to this physical
+        // folder. A foreign meta.alias must never redirect the next open.
+        let alias = sqlite::open_readonly(&db)
+            .ok()
+            .and_then(|conn| db::read_meta(&conn).ok().flatten())
+            .map(|meta| meta.alias)
+            .filter(|alias| sqlite::sanitize(alias) == folder);
+        out.push(alias.unwrap_or(folder));
     }
     out.sort();
     out
@@ -424,7 +555,7 @@ fn fts_expr(query: &str) -> String {
     query
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .filter(|t| !t.is_empty())
-        .map(|t| format!("{t}*"))
+        .map(|t| format!("\"{t}\"*"))
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -482,6 +613,55 @@ mod tests {
     use sf_core::{runner::MockRunner, SfInvoker};
     use std::sync::Arc;
 
+    #[test]
+    fn snapshot_pins_metadata_and_search_across_wal_commit() {
+        let root = std::env::temp_dir().join(format!("uf-ost-pinned-{}", std::process::id()));
+        let path = sqlite::db_path(&root, "Synthetic");
+        let mut writer = db::open_apex(&path).unwrap();
+        writer.execute("INSERT INTO meta VALUES (1, ?1, 'Synthetic', 'id', '60.0', '2020-01-01T00:00:00Z', 1, 0, 0, 1, NULL)", [db::SCHEMA_VERSION]).unwrap();
+        sqlite::write_objects(
+            &mut writer,
+            &[sf_schema::model::SObjectSchema {
+                name: "Old__c".into(),
+                label: "Before".into(),
+                ..Default::default()
+            }],
+        )
+        .unwrap();
+        let snap = open_org(&root, "Synthetic").unwrap();
+        {
+            let tx = writer.transaction().unwrap();
+            sqlite::delete_object(&tx, "Old__c").unwrap();
+            sqlite::upsert_object(
+                &tx,
+                &sf_schema::model::SObjectSchema {
+                    name: "New__c".into(),
+                    label: "After".into(),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            tx.execute(
+                "UPDATE meta SET generation=2, indexed_at='2026-10-21T00:00:00Z'",
+                [],
+            )
+            .unwrap();
+            tx.commit().unwrap();
+        }
+        let old = search(&snap, "Before", 25).unwrap();
+        assert_eq!(old.stamp.generation, 1);
+        assert_eq!(old.objects, ["Old__c"]);
+        assert!(search(&snap, "After", 25).unwrap().objects.is_empty());
+        let next = open_org(&root, "Synthetic").unwrap();
+        let new = search(&next, "After", 25).unwrap();
+        assert_eq!(new.stamp.generation, 2);
+        assert_eq!(new.objects, ["New__c"]);
+        drop(snap);
+        drop(next);
+        drop(writer);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
     // Round-trip check for the RFC3339 parse against features' formatter.
     #[test]
     fn iso_parse_matches_known_instants() {
@@ -492,8 +672,8 @@ mod tests {
 
     #[test]
     fn fts_expr_prefixes_tokens_and_drops_operators() {
-        assert_eq!(fts_expr("Bill City"), "Bill* City*");
-        assert_eq!(fts_expr("  a-b  "), "a* b*");
+        assert_eq!(fts_expr("Bill City"), "\"Bill\"* \"City\"*");
+        assert_eq!(fts_expr("  a-b  "), "\"a\"* \"b\"*");
         assert_eq!(fts_expr("***"), "");
     }
 

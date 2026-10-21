@@ -84,9 +84,103 @@ fn insert_type(conn: &Connection, ty: &ApexType, namespace: Option<&str>) -> rus
 
 /// Persist the assembled OST + manifest under `<root>/<org_id>/index.db`.
 pub fn save_snapshot(root: &Path, ost: &Ost, manifest: &IndexManifest) -> std::io::Result<()> {
+    save_generation_inner(root, ost, manifest, None, None, None)
+}
+
+/// Optimistic publication token, captured before acquiring a generation's data.
+pub struct GenerationToken(Option<crate::db::Meta>);
+
+pub fn generation_token(root: &Path, org: &str) -> std::io::Result<GenerationToken> {
+    let path = db_path(root, org);
+    if !path.exists() {
+        return Ok(GenerationToken(None));
+    }
+    let conn = sf_schema::sqlite::open_readonly(&path).map_err(std::io::Error::other)?;
+    conn.execute_batch("BEGIN").map_err(std::io::Error::other)?;
+    let has_meta: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta')",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(std::io::Error::other)?;
+    let meta = if has_meta {
+        crate::db::read_meta(&conn).map_err(std::io::Error::other)?
+    } else {
+        None
+    };
+    if meta.as_ref().is_some_and(|meta| meta.alias != org) {
+        return Err(std::io::Error::other(
+            "index identity mismatch; clear the conflicting local index before rebuilding",
+        ));
+    }
+    Ok(GenerationToken(meta))
+}
+
+/// Publish schema rows, all FTS indexes, Apex symbols and provenance together.
+/// Fetching must finish before this call; any failure rolls back the generation.
+pub fn save_generation(
+    root: &Path,
+    ost: &Ost,
+    manifest: &IndexManifest,
+    schemas: &[sf_schema::SObjectSchema],
+    full: bool,
+    raw_org_types: Option<&[serde_json::Value]>,
+    expected: &GenerationToken,
+) -> std::io::Result<()> {
+    save_generation_inner(
+        root,
+        ost,
+        manifest,
+        Some((schemas, full)),
+        raw_org_types,
+        Some(expected),
+    )
+}
+
+fn save_generation_inner(
+    root: &Path,
+    ost: &Ost,
+    manifest: &IndexManifest,
+    schemas: Option<(&[sf_schema::SObjectSchema], bool)>,
+    raw_org_types: Option<&[serde_json::Value]>,
+    expected: Option<&GenerationToken>,
+) -> std::io::Result<()> {
     let path = db_path(root, &manifest.org_id);
-    let mut conn = crate::db::open_apex(&path).map_err(std::io::Error::other)?;
-    let tx = conn.transaction().map_err(std::io::Error::other)?;
+    let mut conn = sf_schema::sqlite::open_without_schema(&path).map_err(std::io::Error::other)?;
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .map_err(std::io::Error::other)?;
+    crate::db::ensure_apex_schema(&tx).map_err(std::io::Error::other)?;
+    sf_schema::sqlite::ensure_object_schema(&tx).map_err(std::io::Error::other)?;
+    if let Some(expected) = expected {
+        let current = crate::db::read_meta(&tx).map_err(std::io::Error::other)?;
+        if current.as_ref() != expected.0.as_ref() {
+            return Err(std::io::Error::other(
+                "index changed while data was being fetched; retry indexing or sync",
+            ));
+        }
+    }
+    if let Some((schemas, full)) = schemas {
+        if let Some(raw) = raw_org_types {
+            let body = serde_json::to_string(raw).map_err(std::io::Error::other)?;
+            crate::db::write_raw(&tx, &manifest.api_version, "org_types", &body)
+                .map_err(std::io::Error::other)?;
+        } else {
+            // A delta cannot reconstruct the full raw SymbolTable response.
+            // Invalidate it atomically rather than expose a stale source cache.
+            crate::db::delete_raw(&tx, &manifest.api_version, "org_types")
+                .map_err(std::io::Error::other)?;
+        }
+        if full {
+            sf_schema::sqlite::replace_objects_in_transaction(&tx, schemas)
+                .map_err(std::io::Error::other)?;
+        } else {
+            for schema in schemas {
+                sf_schema::sqlite::upsert_object(&tx, schema).map_err(std::io::Error::other)?;
+            }
+        }
+    }
 
     let generation: i64 = tx
         .query_row("SELECT generation FROM meta WHERE id = 1", [], |row| {
@@ -141,7 +235,7 @@ pub fn snapshot_api_version(root: &Path, org_id: &str) -> Option<String> {
     if !path.exists() {
         return None;
     }
-    let conn = crate::db::open_apex(&path).ok()?;
+    let conn = sf_schema::sqlite::open_readonly(&path).ok()?;
     conn.query_row("SELECT api_version FROM meta WHERE id = 1", [], |row| {
         row.get(0)
     })
@@ -150,12 +244,26 @@ pub fn snapshot_api_version(root: &Path, org_id: &str) -> Option<String> {
 
 /// Load a persisted snapshot, or `None` when absent / built for another API version.
 pub fn load_snapshot(root: &Path, org_id: &str, api_version: &str) -> Option<(Ost, IndexManifest)> {
+    load_snapshot_with_token(root, org_id, api_version).map(|(ost, manifest, _)| (ost, manifest))
+}
+
+/// Read staged-sync data and its publication token from one pinned DB snapshot.
+pub fn load_snapshot_with_token(
+    root: &Path,
+    org_id: &str,
+    api_version: &str,
+) -> Option<(Ost, IndexManifest, GenerationToken)> {
     let path = db_path(root, org_id);
     if !path.exists() {
         tracing::info!(org = %org_id, "snapshot miss: no index.db file");
         return None;
     }
-    let conn = crate::db::open_apex(&path).ok()?;
+    let conn = sf_schema::sqlite::open_readonly(&path).ok()?;
+    conn.execute_batch("BEGIN").ok()?;
+    let meta = crate::db::read_meta(&conn).ok()??;
+    if meta.schema_version != crate::db::SCHEMA_VERSION || meta.alias != org_id {
+        return None;
+    }
 
     let manifest = read_manifest(&conn)?;
     if manifest.api_version != api_version {
@@ -169,7 +277,7 @@ pub fn load_snapshot(root: &Path, org_id: &str, api_version: &str) -> Option<(Os
     }
 
     let ost = read_ost(&conn).ok()?;
-    Some((ost, manifest))
+    Some((ost, manifest, GenerationToken(Some(meta))))
 }
 
 fn read_manifest(conn: &Connection) -> Option<IndexManifest> {
@@ -388,6 +496,25 @@ mod tests {
         assert_eq!(got_ost, ost);
         assert_eq!(got_m, m);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn stale_snapshot_is_not_loaded_or_promoted_by_delta_sync() {
+        let root = std::env::temp_dir().join(format!("snap-stale-{}", std::process::id()));
+        let (ost, manifest) = sample();
+        save_snapshot(&root, &ost, &manifest).unwrap();
+        {
+            let conn = crate::db::open_apex(&db_path(&root, "myorg")).unwrap();
+            conn.execute("UPDATE meta SET schema_version=3", [])
+                .unwrap();
+            conn.pragma_update(None, "journal_mode", "DELETE").unwrap();
+        }
+        let path = db_path(&root, "myorg");
+        let before = std::fs::read(&path).unwrap();
+        assert!(load_snapshot(&root, "myorg", "60.0").is_none());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(!path.with_extension("db-wal").exists());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

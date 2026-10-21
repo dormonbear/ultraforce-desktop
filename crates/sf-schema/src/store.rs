@@ -114,11 +114,40 @@ impl SchemaStore {
         names: &[String],
         on_progress: &mut (dyn FnMut(usize, usize) + Send),
     ) -> Vec<(String, SObjectSchema)> {
+        self.fetch_many_impl(invoker, api_version, names, on_progress, true)
+            .await
+    }
+
+    /// Fetch a generation's describes without reading or changing the published
+    /// schema cache. The caller owns atomic publication with its Apex/meta data.
+    pub async fn fetch_many(
+        &mut self,
+        invoker: &SfInvoker,
+        api_version: &str,
+        names: &[String],
+        on_progress: &mut (dyn FnMut(usize, usize) + Send),
+    ) -> Vec<(String, SObjectSchema)> {
+        self.fetch_many_impl(invoker, api_version, names, on_progress, false)
+            .await
+    }
+
+    async fn fetch_many_impl(
+        &mut self,
+        invoker: &SfInvoker,
+        api_version: &str,
+        names: &[String],
+        on_progress: &mut (dyn FnMut(usize, usize) + Send),
+        cached: bool,
+    ) -> Vec<(String, SObjectSchema)> {
         let total = names.len();
         let mut out: Vec<(String, SObjectSchema)> = Vec::new();
         let mut missing: Vec<String> = Vec::new();
 
         for name in names {
+            if !cached {
+                missing.push(name.clone());
+                continue;
+            }
             if let Some(s) = self.get(api_version, name) {
                 out.push((name.clone(), s.clone()));
             } else if let Ok(Some(s)) = self.load_disk(api_version, name) {
