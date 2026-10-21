@@ -14,6 +14,7 @@ import time
 from sf_fixture import ORG
 from webdriver_client import WebDriver
 from webview_runtime import matching_runtime
+from startup_diagnostics import capture_desktop, startup_probe
 
 
 def fixture(root, runtime=None):
@@ -65,12 +66,19 @@ def application(application_path, environment, artifacts, name):
                     driver.screenshot(artifacts / f"{name}-failure.png")
                 except Exception:
                     pass
+            else:
+                capture_desktop(artifacts / f"{name}-attach-failure.png")
             raise
         finally:
             # Kill the owned tree before the tray can keep a closed app resident. / 在托盘保留关闭的应用前，终止拥有的进程树。
             if process.poll() is None:
                 subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, check=False)
             process.wait(timeout=15)
+            if driver is None:
+                try:
+                    startup_probe(application_path, environment, artifacts, name)
+                except Exception as error:
+                    (artifacts / f"{name}-probe-error.txt").write_text(str(error), encoding="utf-8")
 
 
 def verify_completions(driver):

@@ -24,6 +24,9 @@ jobs:
           python-version: '3.13'
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: native-tauri-2.1.0-msedge-8c4b34f
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v7
         with:
@@ -36,9 +39,17 @@ jobs:
       - name: Verify Synthetic CLI / 验证合成 CLI
         run: python -m unittest discover -s desktop/native-e2e -p '*_test.py'
       - name: Install Native Driver / 安装原生驱动
-        run: cargo install tauri-driver --version 2.1.0 --locked
+        run: |
+          if (-not (Test-Path "$env:CARGO_HOME/bin/tauri-driver.exe")) {
+            cargo install tauri-driver --version 2.1.0 --locked
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Install Matching Driver Tool / 安装匹配驱动工具
-        run: cargo install --git https://github.com/chippers/msedgedriver-tool --rev 8c4b34f51b45f5cf08013366d703de464ab871d1 --locked
+        run: |
+          if (-not (Test-Path "$env:CARGO_HOME/bin/msedgedriver-tool.exe")) {
+            cargo install --git https://github.com/chippers/msedgedriver-tool --rev 8c4b34f51b45f5cf08013366d703de464ab871d1 --locked
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
       - name: Match WebView2 Driver / 匹配 WebView2 驱动
         run: msedgedriver-tool
       - name: Expose Native Driver / 配置原生驱动路径
