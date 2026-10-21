@@ -76,9 +76,11 @@ async fn npm_cli_uses_literal_argv_and_preserves_standalone_precedence() {
     ));
     let _cleanup = Fixture(root.clone());
     let bin = root.join("bin");
+    let node_bin = root.join("node bin");
     let payload = bin.join("node_modules/@salesforce/cli/bin/run.js");
     std::fs::create_dir_all(payload.parent().unwrap()).unwrap();
-    std::fs::copy(&node, bin.join("node.exe")).unwrap();
+    std::fs::create_dir_all(&node_bin).unwrap();
+    std::fs::copy(&node, node_bin.join("node.exe")).unwrap();
     // Deliberately unusable: the implementation must never evaluate this batch file. / 故意不可执行，实现绝不能解释此批处理文件。
     std::fs::write(bin.join("sf.cmd"), "@exit /b 91\r\n").unwrap();
     std::fs::write(
@@ -96,8 +98,15 @@ if (args[0] === '--version') {
     )
     .unwrap();
     let script = std::fs::read(&payload).unwrap();
-    for mode in ["npm", "missing", "standalone"] {
-        if mode == "missing" {
+    for mode in [
+        "npm_path_node",
+        "npm_adjacent_node",
+        "missing",
+        "standalone",
+    ] {
+        if mode == "npm_adjacent_node" {
+            std::fs::copy(&node, bin.join("node.exe")).unwrap();
+        } else if mode == "missing" {
             std::fs::remove_file(&payload).unwrap();
         } else if mode == "standalone" {
             std::fs::write(&payload, &script).unwrap();
@@ -110,7 +119,7 @@ if (args[0] === '--version') {
                 "--nocapture",
             ])
             .env("UF_NPM_CLI_CHILD", mode)
-            .env("PATH", &bin)
+            .env("PATH", std::env::join_paths([&bin, &node_bin]).unwrap())
             .env("NODE_OPTIONS", "")
             .env("SF_DISABLE_TELEMETRY", "false")
             .env("SFDX_DISABLE_TELEMETRY", "false")
