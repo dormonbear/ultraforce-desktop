@@ -6,6 +6,11 @@
 ### Bug Fixes / 缺陷修复
 
 * initialize identity catalog atomically / 原子初始化身份目录 ([c6707c5](https://github.com/dormonbear/ultraforce-desktop/commit/c6707c5827ec8e9b36668f8084872fa17ea2d297))
+  Make concurrent first-time metadata cache setup atomic. Failed setup rolls back new catalog tables and keeps existing content; the lock-wait budget remains bounded.
+  将并发首次元数据缓存初始化改为原子执行。初始化失败时回滚新目录表并保留既有内容；锁等待仍有界。
+
+Existing verified 0.3.20 bindings need no cache-format migration. Upgrades from 0.3.19 or older still require the full reindex described in the [0.3.20 upgrade note](https://github.com/dormonbear/ultraforce-desktop/releases/tag/v0.3.20).
+既有经验证的 0.3.20 绑定无需缓存格式迁移。从 0.3.19 或更早版本升级，仍需按照 [0.3.20 升级说明](https://github.com/dormonbear/ultraforce-desktop/releases/tag/v0.3.20) 完整重建索引。
 
 ## [0.3.20](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.19...v0.3.20) (2026-10-21)
 
