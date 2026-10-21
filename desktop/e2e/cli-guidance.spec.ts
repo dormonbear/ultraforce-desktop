@@ -50,6 +50,6 @@ test("ok status with no orgs → connect form, not CLI guidance", async ({
   page,
 }) => {
   await gotoApp(page, { list_orgs: [] });
-  await expect(page.getByText("Connect a Salesforce org")).toBeVisible();
+  await expect(page.getByRole("main").getByRole("heading", { name: "Connect a Salesforce org" })).toBeVisible();
   await expect(page.getByText("Salesforce CLI not found")).toHaveCount(0);
 });

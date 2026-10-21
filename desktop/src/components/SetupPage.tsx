@@ -2,6 +2,7 @@ import { Loader2, Globe } from "lucide-react";
 import { useOrgs } from "../org";
 import { ConnectOrgForm } from "./ConnectOrg";
 import { CliGuidance, useSfStatus } from "./CliGuidance";
+import { useI18n } from "../i18n";
 
 /**
  * Shown in the main area when there is no usable org. Checks `sf` CLI health
@@ -9,6 +10,7 @@ import { CliGuidance, useSfStatus } from "./CliGuidance";
  * CLI is healthy, guides the user to log in to an org.
  */
 export function SetupPage() {
+  const { t } = useI18n();
   const { error, reload } = useOrgs();
   const { status, refresh } = useSfStatus();
 
@@ -17,7 +19,7 @@ export function SetupPage() {
     return (
       <Centered>
         <Loader2 className="spin text-muted-foreground" size={20} />
-        <p className="text-sm text-text-dim">Checking Salesforce CLI…</p>
+        <p className="text-sm text-text-dim">{t("Checking Salesforce CLI…")}</p>
       </Centered>
     );
   }
@@ -39,12 +41,12 @@ export function SetupPage() {
   return (
     <Centered>
       <Globe className="text-primary" size={28} />
-      <h2 className="text-2xl font-semibold tracking-tight text-foreground">Connect a Salesforce org</h2>
+      <h2 className="text-2xl font-semibold tracking-tight text-foreground">{t("Connect a Salesforce org")}</h2>
       {error && (
         <p className="max-w-sm text-center text-[12px] text-destructive">{error}</p>
       )}
       <p className="max-w-sm text-center text-sm text-text-dim">
-        Log in via your browser. Pick the environment, optionally set an alias.
+        {t("Log in via your browser. Pick the environment, optionally set an alias.")}
       </p>
 
       <ConnectOrgForm onConnected={reload} />
