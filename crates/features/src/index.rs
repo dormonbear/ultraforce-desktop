@@ -376,7 +376,7 @@ mod tests {
                 )
             } else if a.contains("ApexClass") {
                 ok(
-                    r#"{"status":0,"result":{"records":[{"NamespacePrefix":null,"Name":"Foo","SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[],"properties":[],"innerClasses":[],"interfaces":[]}}]}}"#,
+                    r#"{"status":0,"result":{"records":[{"NamespacePrefix":null,"Name":"Foo","SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[],"properties":[],"innerClasses":[],"interfaces":[]}}],"done":true,"totalSize":1}}"#,
                 )
             } else if a.contains("sobject list") {
                 ok(r#"{"status":0,"result":["Account"]}"#)
@@ -431,11 +431,11 @@ mod tests {
                 // No `publicDeclarations` key → parse_stdlib returns no namespaces.
                 ok(r#"{"errorCode":"NOT_FOUND","message":"completions unavailable"}"#)
             } else if a.contains("ApexClass") {
-                ok(r#"{"status":0,"result":{"records":[]}}"#)
+                ok(r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#)
             } else if a.contains("sobject list") {
                 ok(r#"{"status":0,"result":[]}"#)
             } else {
-                ok(r#"{"status":0,"result":{"records":[]}}"#)
+                ok(r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#)
             }
         });
         let invoker = SfInvoker::new(Arc::new(runner));
@@ -476,3 +476,7 @@ mod deletion_tests;
 #[cfg(test)]
 #[path = "index_unavailable_tests.rs"]
 mod unavailable_tests;
+
+#[cfg(test)]
+#[path = "index_query_proof_tests.rs"]
+mod query_proof_tests;

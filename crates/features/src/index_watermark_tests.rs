@@ -28,7 +28,7 @@ async fn full_index_watermark_precedes_remote_acquisition() {
             // Changes made after this read must remain eligible for delta
             // sync, even when the full index finishes in a later second.
             std::thread::sleep(std::time::Duration::from_secs(2));
-            ok(r#"{"status":0,"result":{"records":[]}}"#)
+            ok(r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#)
         } else if args.contains("sobject list") {
             ok(r#"{"status":0,"result":[]}"#)
         } else {

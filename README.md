@@ -111,6 +111,11 @@ both current class and object lists to be non-empty; an empty list permits
 changed upserts but suppresses all deletion reconciliation. Failed or incomplete
 enumeration retains the previous generation and watermark. Sync
 counts refer to source classes and objects, rather than expanded inner types.
+Full and changed-source Tooling queries (Apex classes, entities and custom
+fields) require `done: true` and `totalSize` matching the returned record count,
+including empty results. The Salesforce CLI handles pagination; missing or
+incomplete completion proof returns a retry error without publishing a new
+generation or watermark.
 
 All completion and diagnostics data comes from first-party Salesforce endpoints
 (Tooling API completions, object describes) — no bundled third-party metadata.

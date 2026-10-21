@@ -90,7 +90,7 @@ async fn reads_object_picklist_apex_search_and_drift() {
             )
         } else if a.contains("ApexClass") {
             ok(
-                r#"{"status":0,"result":{"records":[{"Name":"Foo","NamespacePrefix":null,"SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[{"name":"bar","returnType":"String","parameters":[{"type":"Integer"}]}],"properties":[],"innerClasses":[],"interfaces":[]}}]}}"#,
+                r#"{"status":0,"result":{"records":[{"Name":"Foo","NamespacePrefix":null,"SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[{"name":"bar","returnType":"String","parameters":[{"type":"Integer"}]}],"properties":[],"innerClasses":[],"interfaces":[]}}],"done":true,"totalSize":1}}"#,
             )
         } else if a.contains("sobject list") {
             ok(r#"{"status":0,"result":["Account"]}"#)

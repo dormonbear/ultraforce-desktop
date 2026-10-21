@@ -12,9 +12,9 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
             let stdout = if args.contains("ApexClass") {
                 r#"{"status":0,"result":{"done":true,"totalSize":1,"records":[{"NamespacePrefix":null,"Name":"StaleService","SymbolTable":{"name":"StaleService","methods":[],"properties":[]}}]}}"#
             } else if args.contains("FROM EntityDefinition") {
-                r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}]}}"#
+                r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}],"done":true,"totalSize":1}}"#
             } else if args.contains("FROM CustomField") {
-                r#"{"status":0,"result":{"records":[]}}"#
+                r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#
             } else if args.contains("sobject list") {
                 r#"{"status":0,"result":["Account"]}"#
             } else if args.contains("composite") {
@@ -218,7 +218,7 @@ async fn failed_rebuild_does_not_initialize_corrupt_schema_outside_transaction()
     let runner = MockRunner::new(|_, args: &[String]| {
         let args = args.join(" ");
         let stdout = if args.contains("ApexClass") {
-            r#"{"status":0,"result":{"records":[]}}"#
+            r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#
         } else if args.contains("sobject list") {
             r#"{"status":0,"result":[]}"#
         } else {
@@ -266,7 +266,7 @@ async fn full_list_or_describe_failure_retains_the_previous_generation() {
         let runner = MockRunner::new(move |_, args: &[String]| {
             let args = args.join(" ");
             let stdout = if args.contains("ApexClass") {
-                r#"{"status":0,"result":{"records":[]}}"#
+                r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#
             } else if args.contains("sobject list") && !fail_list {
                 r#"{"status":0,"result":["Account"]}"#
             } else {
@@ -321,9 +321,9 @@ async fn delta_fetch_and_failed_publish_preserve_the_published_generation() {
         let stdout = if args.contains("ApexClass") {
             r#"{"status":0,"result":{"done":true,"totalSize":1,"records":[{"NamespacePrefix":null,"Name":"NewService","SymbolTable":{"name":"NewService","methods":[],"properties":[]}}]}}"#
         } else if args.contains("FROM EntityDefinition") {
-            r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}]}}"#
+            r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}],"done":true,"totalSize":1}}"#
         } else if args.contains("FROM CustomField") {
-            r#"{"status":0,"result":{"records":[]}}"#
+            r#"{"status":0,"result":{"records":[],"done":true,"totalSize":0}}"#
         } else if args.contains("sobject list") {
             r#"{"status":0,"result":["Account"]}"#
         } else if args.contains("composite") {

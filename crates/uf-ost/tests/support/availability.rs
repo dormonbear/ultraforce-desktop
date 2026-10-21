@@ -19,11 +19,11 @@ fn invoker(changed: bool) -> SfInvoker {
         } else if command.contains("NamespacePrefix FROM ApexClass") {
             json!({"status":0,"result":{"done":true,"totalSize":5,"records":records().into_iter().map(|r|json!({"Name":r["Name"],"NamespacePrefix":r["NamespacePrefix"]})).collect::<Vec<_>>()}})
         } else if command.contains("ApexClass") {
-            json!({"status":0,"result":{"records":if changed {vec![json!({"Name":"Foo","NamespacePrefix":null,"SymbolTable":null})]} else {records()}}})
+            json!({"status":0,"result":{"records":if changed {vec![json!({"Name":"Foo","NamespacePrefix":null,"SymbolTable":null})]} else {records()},"done":true,"totalSize":if changed {1}else{5}}})
         } else if command.contains("sobject list") {
             json!({"status":0,"result":["Account"]})
         } else if command.contains("EntityDefinition") || command.contains("CustomField") {
-            json!({"status":0,"result":{"records":[]}})
+            json!({"status":0,"result":{"records":[],"done":true,"totalSize":0}})
         } else if command.contains("composite") {
             json!({"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"Account","fields":[],"childRelationships":[]}}]})
         } else {

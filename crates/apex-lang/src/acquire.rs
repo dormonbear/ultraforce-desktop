@@ -147,10 +147,6 @@ pub async fn fetch_changed_entities(
         name: String,
     }
     #[derive(Deserialize)]
-    struct EntityEnv {
-        records: Vec<EntityRec>,
-    }
-    #[derive(Deserialize)]
     struct FieldParent {
         #[serde(rename = "QualifiedApiName")]
         name: String,
@@ -160,37 +156,35 @@ pub async fn fetch_changed_entities(
         #[serde(rename = "EntityDefinition")]
         entity: Option<FieldParent>,
     }
-    #[derive(Deserialize)]
-    struct FieldEnv {
-        records: Vec<FieldRec>,
-    }
 
     let mut out = std::collections::BTreeSet::new();
 
     let eq =
         format!("SELECT QualifiedApiName FROM EntityDefinition WHERE LastModifiedDate > {since}");
-    let env: EntityEnv = invoker
-        .run_json(&with_target(
+    let entities: Vec<EntityRec> = records::fetch(
+        invoker,
+        &with_target(
             vec!["data", "query", "--query", &eq, "--use-tooling-api"],
             org,
-        ))
-        .await?;
-    out.extend(env.records.into_iter().map(|r| r.name));
+        ),
+        None,
+    )
+    .await?;
+    out.extend(entities.into_iter().map(|r| r.name));
 
     let fq = format!(
         "SELECT EntityDefinition.QualifiedApiName FROM CustomField WHERE LastModifiedDate > {since}"
     );
-    let fenv: FieldEnv = invoker
-        .run_json(&with_target(
+    let fields: Vec<FieldRec> = records::fetch(
+        invoker,
+        &with_target(
             vec!["data", "query", "--query", &fq, "--use-tooling-api"],
             org,
-        ))
-        .await?;
-    out.extend(
-        fenv.records
-            .into_iter()
-            .filter_map(|r| r.entity.map(|e| e.name)),
-    );
+        ),
+        None,
+    )
+    .await?;
+    out.extend(fields.into_iter().filter_map(|r| r.entity.map(|e| e.name)));
 
     Ok(out.into_iter().collect())
 }
@@ -756,9 +750,9 @@ mod tests {
         let inv = SfInvoker::new(Arc::new(MockRunner::new(|_p, args| {
             let a = args.join(" ");
             let body = if a.contains("FROM EntityDefinition") {
-                r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"},{"QualifiedApiName":"My__c"}]}}"#
+                r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"},{"QualifiedApiName":"My__c"}],"done":true,"totalSize":2}}"#
             } else {
-                r#"{"status":0,"result":{"records":[{"EntityDefinition":{"QualifiedApiName":"My__c"}},{"EntityDefinition":{"QualifiedApiName":"Other__c"}}]}}"#
+                r#"{"status":0,"result":{"records":[{"EntityDefinition":{"QualifiedApiName":"My__c"}},{"EntityDefinition":{"QualifiedApiName":"Other__c"}}],"done":true,"totalSize":2}}"#
             };
             Ok(RawOutput {
                 status: 0,

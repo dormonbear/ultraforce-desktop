@@ -31,7 +31,7 @@ async fn seed_index(root: &std::path::Path, org: &str) {
             )
         } else if a.contains("ApexClass") {
             ok(
-                r#"{"status":0,"result":{"records":[{"NamespacePrefix":null,"Name":"Foo","SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[{"name":"bar","returnType":"String","parameters":[{"type":"Integer"}]}],"properties":[],"innerClasses":[],"interfaces":[]}}]}}"#,
+                r#"{"status":0,"result":{"records":[{"NamespacePrefix":null,"Name":"Foo","SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[{"name":"bar","returnType":"String","parameters":[{"type":"Integer"}]}],"properties":[],"innerClasses":[],"interfaces":[]}}],"done":true,"totalSize":1}}"#,
             )
         } else if a.contains("sobject list") {
             ok(r#"{"status":0,"result":["Account"]}"#)

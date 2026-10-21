@@ -34,11 +34,11 @@ pub(super) fn runner_names(
         } else if command.contains("SELECT Name, NamespacePrefix FROM ApexClass") {
             json!({"status":0,"result":{"records":names,"done":true,"totalSize":names.len()}})
         } else if command.contains("ApexClass") {
-            json!({"status":0,"result":{"records":classes}})
+            json!({"status":0,"result":{"records":classes,"done":true,"totalSize":classes.len()}})
         } else if command.contains("sobject list") {
             json!({"status":0,"result":objects})
         } else if command.contains("EntityDefinition") || command.contains("CustomField") {
-            json!({"status":0,"result":{"records":if changed {vec![json!({"QualifiedApiName":"Account"})]} else {vec![]}}})
+            json!({"status":0,"result":{"records":if changed {vec![json!({"QualifiedApiName":"Account"})]} else {vec![]},"done":true,"totalSize":if changed {1}else{0}}})
         } else if command.contains("composite") {
             // Each requested reference appears in the JSON argument following --body.
             let body = args
@@ -148,7 +148,7 @@ pub(super) async fn seeded(label: &str, classes: Vec<Value>) -> PathBuf {
     root
 }
 
-fn fingerprint(root: &std::path::Path) -> String {
+pub(super) fn fingerprint(root: &std::path::Path) -> String {
     let conn =
         apex_lang::db::open_apex(&sf_schema::sqlite::db_path(root, "SyntheticDelta")).unwrap();
     format!(
@@ -387,7 +387,7 @@ async fn failed_enumeration_or_corrupt_delta_retains_generation() {
             } else if command.contains("ApexClass") && failure == "corrupt-delta" {
                 json!({"status":0,"result":{"records":[{"Name":"Keeper","SymbolTable":false}]}})
             } else {
-                json!({"status":0,"result":{"records":[]}})
+                json!({"status":0,"result":{"records":[],"done":true,"totalSize":0}})
             };
             Ok(RawOutput {
                 status: 0,
