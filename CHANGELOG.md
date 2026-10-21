@@ -1,5 +1,20 @@
 # Changelog / 更新日志
 
+## [0.3.23](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.22...v0.3.23) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* localize SOQL status and result guards / 本地化 SOQL 状态及结果保护提示 ([#108](https://github.com/dormonbear/ultraforce-desktop/issues/108)) ([78d4a4b](https://github.com/dormonbear/ultraforce-desktop/commit/78d4a4bd5729f581d354f34f1d21350af4e09020))
+  SOQL panel feedback now follows the system language (English or Simplified Chinese), including size-check cancellation, large-result confirmation, row counts and progress. Adding a LIMIT preserves valid SOQL syntax.
+  SOQL 面板反馈现会跟随系统语言（英文或简体中文），涵盖规模检查取消、大结果集确认、行数及进度。添加 LIMIT 时保留有效的 SOQL 语法。
+* localize SOQL toolbar and run controls / 本地化 SOQL 工具栏及运行控件 ([#112](https://github.com/dormonbear/ultraforce-desktop/issues/112)) ([492127c](https://github.com/dormonbear/ultraforce-desktop/commit/492127c3fc1c3071e43042fd81c1fb88ea04ddcf))
+  Query options and default Run/Running labels follow the system language. Keyboard-shortcut tooltips match the action label, while explicit custom labels and query execution options are preserved.
+  查询选项及默认运行／运行中标签跟随系统语言。快捷键提示与操作标签保持一致，同时保留显式自定义标签和查询执行选项。
+* refresh query plan target on org switch / 切换组织时刷新查询计划目标 ([#111](https://github.com/dormonbear/ultraforce-desktop/issues/111)) ([54739d0](https://github.com/dormonbear/ultraforce-desktop/commit/54739d0e415bd94dcf2313473fe447c8781a1ba8))
+  After switching organizations, Explain now uses the current selection immediately, without requiring an edit to the query.
+  切换组织后，执行计划现会立即使用当前选择，无需编辑查询。
+
 ## [0.3.22](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.21...v0.3.22) (2026-10-21)
 
 
