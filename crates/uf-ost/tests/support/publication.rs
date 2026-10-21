@@ -10,7 +10,7 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
         let runner = MockRunner::new(move |_, args: &[String]| {
             let args = args.join(" ");
             let stdout = if args.contains("ApexClass") {
-                r#"{"status":0,"result":{"records":[{"Name":"StaleService","SymbolTable":{"name":"StaleService","methods":[],"properties":[]}}]}}"#
+                r#"{"status":0,"result":{"done":true,"totalSize":1,"records":[{"NamespacePrefix":null,"Name":"StaleService","SymbolTable":{"name":"StaleService","methods":[],"properties":[]}}]}}"#
             } else if args.contains("FROM EntityDefinition") {
                 r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}]}}"#
             } else if args.contains("FROM CustomField") {
@@ -319,11 +319,13 @@ async fn delta_fetch_and_failed_publish_preserve_the_published_generation() {
     let runner = MockRunner::new(move |_, args: &[String]| {
         let args = args.join(" ");
         let stdout = if args.contains("ApexClass") {
-            r#"{"status":0,"result":{"records":[{"Name":"NewService","SymbolTable":{"name":"NewService","methods":[],"properties":[]}}]}}"#
+            r#"{"status":0,"result":{"done":true,"totalSize":1,"records":[{"NamespacePrefix":null,"Name":"NewService","SymbolTable":{"name":"NewService","methods":[],"properties":[]}}]}}"#
         } else if args.contains("FROM EntityDefinition") {
             r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}]}}"#
         } else if args.contains("FROM CustomField") {
             r#"{"status":0,"result":{"records":[]}}"#
+        } else if args.contains("sobject list") {
+            r#"{"status":0,"result":["Account"]}"#
         } else if args.contains("composite") {
             // Observe the ACTUAL coordinator during fetching, before publication.
             let reader = sf_schema::sqlite::open_readonly(&during_fetch_path).unwrap();
@@ -439,7 +441,7 @@ async fn failed_generation_publication_keeps_previous_schema_and_metadata() {
         } else if args.contains("composite") {
             r#"{"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"New__c","label":"New Generation","fields":[],"childRelationships":[]}}]}"#
         } else if args.contains("ApexClass") {
-            r#"{"status":0,"result":{"records":[{"Name":"NewService","SymbolTable":{"name":"NewService","methods":[],"properties":[]}}]}}"#
+            r#"{"status":0,"result":{"done":true,"totalSize":1,"records":[{"NamespacePrefix":null,"Name":"NewService","SymbolTable":{"name":"NewService","methods":[],"properties":[]}}]}}"#
         } else {
             r#"{"status":0,"result":[]}"#
         };
@@ -473,8 +475,10 @@ async fn failed_generation_publication_keeps_previous_schema_and_metadata() {
     assert!(apex_lang::snapshot::read_apex_type(&writer, "Foo")
         .unwrap()
         .is_some());
-    let old_raw = apex_lang::db::read_raw(&writer, "60.0", "org_types")
-        .unwrap()
+    let old_raw = writer
+        .query_row::<String, _, _>("SELECT body FROM apex_sources WHERE id=1", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert!(old_raw.contains("Foo") && !old_raw.contains("NewService"));
     assert!(sf_schema::sqlite::search_objects(&writer, "New*", 25)
@@ -514,8 +518,10 @@ async fn failed_generation_publication_keeps_previous_schema_and_metadata() {
     assert!(apex_lang::snapshot::read_apex_type(&writer, "Foo")
         .unwrap()
         .is_none());
-    let new_raw = apex_lang::db::read_raw(&writer, "60.0", "org_types")
-        .unwrap()
+    let new_raw = writer
+        .query_row::<String, _, _>("SELECT body FROM apex_sources WHERE id=1", [], |row| {
+            row.get(0)
+        })
         .unwrap();
     assert!(new_raw.contains("NewService") && !new_raw.contains("Foo"));
     assert_eq!(

@@ -105,6 +105,12 @@ completion is served entirely from local data — no per-keystroke network calls
 Re-selecting an org runs an **incremental delta-sync** that refreshes only what
 changed (changed classes + sObjects, with deletion reconcile); bulk object
 describes use the Composite REST API to keep first-index time down.
+Delta sync keeps each source SymbolTable, including its namespace identity, and
+rebuilds derived inner types and inherited members locally. Deletions require
+both current class and object lists to be non-empty; an empty list permits
+changed upserts but suppresses all deletion reconciliation. Failed or incomplete
+enumeration retains the previous generation and watermark. Sync
+counts refer to source classes and objects, rather than expanded inner types.
 
 All completion and diagnostics data comes from first-party Salesforce endpoints
 (Tooling API completions, object describes) — no bundled third-party metadata.
@@ -170,8 +176,12 @@ preserve the scoped `stamp`/`fields`/`apex` response (plus `objects`), or omit i
 for `orgs`, grouped by snapshot. `ost_field.snapshots` identifies consulted
 snapshots even when `hits` is empty. Cross-org answers explicitly list unusable
 indexes in `skipped`; an empty result with skipped indexes is incomplete.
-Existing v3 caches require a full `ost_reindex` to build the new object index;
+Existing v3/v4 caches require a full `ost_reindex` to build schema v5 with source provenance;
 read tools and delta sync reject incompatible snapshots instead of migrating them.
+Missing or corrupt source provenance also requires a full reindex. Source JSON
+replaces the old raw org-types cache inside the same local index, without keeping
+a duplicate source blob. Public Apex type names retain their existing bare-name
+behavior; same-name types across namespaces can still be ambiguous in completion.
 Rebuilds publish schema, Apex symbols and freshness together. A refresh prepared
 against an older generation refuses to overwrite a newer publication; retry the
 refresh when it reports that the index changed during fetching.

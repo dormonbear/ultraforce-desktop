@@ -67,14 +67,22 @@ new frontend wiring is the `sync-result` toast.
 
    For each affected entity, re-describe via `SchemaStore` (force-refresh, see
    below) → `schema_to_apex_type` → upsert into `ost.org_types`.
-4. **Deletion reconcile** — fetch the full current name sets: class names
-   (`fetch_apex_class_names`) ∪ sObject names (`list_sobject_names`). Retain
-   only `ost.org_types` whose `name` is in that union (case-insensitive). This
-   needs **no per-type origin marker** — surviving on a match to *either* list
-   is correct (a deleted class/object is in neither → removed).
-5. Persist: `save_snapshot(root, patched_ost, manifest')` where `manifest'`
-   bumps `indexed_at = started_at` and recomputes counts. Return
-   `SyncOutcome { added, updated, removed }`.
+4. **Deletion reconcile (schema v5)** — persist complete source SymbolTables
+   keyed by `(NamespacePrefix, Name)`, independently of the flattened OST and
+   mutable auxiliary caches. Merge changed source records and object describes.
+   Fetch authoritative namespace-aware class names and all object names; remove
+   missing source records and objects only when **both lists are non-empty**.
+   Empty lists allow changed upserts but suppress both deletion families. Failed
+   or explicitly incomplete enumeration aborts publication. Never subtract source
+   names from flattened inner/referenced types. Re-parse all retained source
+   records to remove changed inner types and recompute inherited members, then
+   append only the retained object-derived types.
+5. Persist sources, schema, all FTS indexes, OST and `indexed_at = started_at`
+   in the existing single generation transaction, with a metadata publication
+   token captured alongside the source/schema read in one pinned snapshot.
+   Source JSON replaces the legacy raw org-types blob. Versions before v5 and
+   missing/corrupt provenance require a full reindex. `SyncOutcome` counts source
+   class records plus object records; expanded inner types are not counted.
 
 `on_progress` reuses the Phase-1 `IndexProgress` shape but with delta-sized
 totals; the entry does NOT drive the top progress bar for delta (it is fast).

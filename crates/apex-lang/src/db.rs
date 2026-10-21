@@ -10,7 +10,7 @@ use std::path::Path;
 /// — one `index.db`, one shared version. The read path rejects a mismatched
 /// index (forcing a reindex); a full reindex rebuilds every table fresh, so a
 /// derived cache is never ALTERed or data-migrated.
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 /// Create apex-lang's tables if absent.
 pub fn ensure_apex_schema(conn: &Connection) -> rusqlite::Result<()> {
@@ -39,6 +39,9 @@ pub fn ensure_apex_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE TABLE IF NOT EXISTS raw_cache (
           api_version TEXT NOT NULL, source TEXT NOT NULL, body TEXT NOT NULL,
           PRIMARY KEY (api_version, source)
+        );
+        CREATE TABLE IF NOT EXISTS apex_sources (
+          id INTEGER PRIMARY KEY CHECK (id=1), body TEXT NOT NULL
         );
         CREATE VIRTUAL TABLE IF NOT EXISTS apex_fts USING fts5(type_name);
         ",

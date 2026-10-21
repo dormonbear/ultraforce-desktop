@@ -1,9 +1,12 @@
-use crate::symbols::{ApexType, Method, Namespace, Property, TypeKind};
 use crate::stdlib_hierarchy::stdlib_parent;
+use crate::symbols::{ApexType, Method, Namespace, Property, TypeKind};
 use serde::Deserialize;
 use serde_json::Value;
 use sf_core::{SfError, SfInvoker};
 use std::time::Duration;
+
+#[path = "acquire_records.rs"]
+mod records;
 
 /// The Tooling completions payload is multi-megabyte (≈18 MB / ~140 s observed)
 /// and only fetched once per org+api before being cached to disk, so it needs a
@@ -43,25 +46,17 @@ pub async fn fetch_apex_symbols(
     invoker: &SfInvoker,
     org: &str,
 ) -> Result<Vec<serde_json::Value>, SfError> {
-    #[derive(Deserialize)]
-    struct QueryEnvelope {
-        records: Vec<serde_json::Value>,
-    }
-
     let args = with_target(
         vec![
             "data",
             "query",
             "--query",
-            "SELECT Name, SymbolTable FROM ApexClass",
+            "SELECT Name, NamespacePrefix, SymbolTable FROM ApexClass",
             "--use-tooling-api",
         ],
         org,
     );
-    let env: QueryEnvelope = invoker
-        .run_json_with_timeout(&args, APEX_SYMBOLS_TIMEOUT)
-        .await?;
-    Ok(env.records)
+    records::fetch(invoker, &args, Some(APEX_SYMBOLS_TIMEOUT)).await
 }
 
 /// Fetch just the NAMES of every org Apex class (cheap — no `SymbolTable`), for
@@ -128,18 +123,15 @@ pub async fn fetch_changed_apex_classes(
     org: &str,
     since: &str,
 ) -> Result<Vec<serde_json::Value>, SfError> {
-    #[derive(Deserialize)]
-    struct QueryEnvelope {
-        records: Vec<serde_json::Value>,
-    }
     // `since` is our own machine-generated ISO8601 — no SOQL-injection surface.
-    let q = format!("SELECT Name, SymbolTable FROM ApexClass WHERE LastModifiedDate > {since}");
+    let q = format!(
+        "SELECT Name, NamespacePrefix, SymbolTable FROM ApexClass WHERE LastModifiedDate > {since}"
+    );
     let args = with_target(
         vec!["data", "query", "--query", &q, "--use-tooling-api"],
         org,
     );
-    let env: QueryEnvelope = invoker.run_json(&args).await?;
-    Ok(env.records)
+    records::fetch(invoker, &args, None).await
 }
 
 /// Entities (objects) whose definition or any custom field changed since
@@ -223,7 +215,8 @@ pub fn parse_stdlib(raw: &serde_json::Value) -> Vec<Namespace> {
                             // The completions payload carries no inheritance info
                             // (verified), so the links come from the curated
                             // stdlib_hierarchy map — see its module docs.
-                            parent_class: stdlib_parent(namespace_name, type_name).map(str::to_string),
+                            parent_class: stdlib_parent(namespace_name, type_name)
+                                .map(str::to_string),
                             interfaces: Vec::new(),
                             methods: parse_stdlib_methods(raw_type),
                             properties: parse_stdlib_properties(raw_type),
@@ -589,7 +582,7 @@ mod tests {
                 "data",
                 "query",
                 "--query",
-                "SELECT Name, SymbolTable FROM ApexClass",
+                "SELECT Name, NamespacePrefix, SymbolTable FROM ApexClass",
                 "--use-tooling-api",
                 "--json"
             ]

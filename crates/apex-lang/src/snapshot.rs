@@ -161,17 +161,23 @@ fn save_generation_inner(
             ));
         }
     }
+    // Every publication must either replace provenance or explicitly discard
+    // it. A source-less save_snapshot must not leave stale source ownership.
+    if raw_org_types.is_none() {
+        tx.execute("DELETE FROM apex_sources", [])
+            .map_err(std::io::Error::other)?;
+    }
     if let Some((schemas, full)) = schemas {
         if let Some(raw) = raw_org_types {
             let body = serde_json::to_string(raw).map_err(std::io::Error::other)?;
-            crate::db::write_raw(&tx, &manifest.api_version, "org_types", &body)
-                .map_err(std::io::Error::other)?;
-        } else {
-            // A delta cannot reconstruct the full raw SymbolTable response.
-            // Invalidate it atomically rather than expose a stale source cache.
-            crate::db::delete_raw(&tx, &manifest.api_version, "org_types")
+            tx.execute("INSERT INTO apex_sources (id, body) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![body])
                 .map_err(std::io::Error::other)?;
         }
+        // Generation provenance is authoritative; do not retain a second large,
+        // mutable raw-cache copy. Legacy callers without sources cannot leave
+        // old provenance attached to a new generation.
+        crate::db::delete_raw(&tx, &manifest.api_version, "org_types")
+            .map_err(std::io::Error::other)?;
         if full {
             sf_schema::sqlite::replace_objects_in_transaction(&tx, schemas)
                 .map_err(std::io::Error::other)?;
@@ -278,6 +284,59 @@ pub fn load_snapshot_with_token(
 
     let ost = read_ost(&conn).ok()?;
     Some((ost, manifest, GenerationToken(Some(meta))))
+}
+
+/// Inputs for delta derivation, pinned to one SQLite generation. Source JSON
+/// belongs to the generation, independently of the auxiliary mutable raw cache.
+pub struct SyncSnapshot {
+    pub ost: Ost,
+    pub manifest: IndexManifest,
+    pub token: GenerationToken,
+    pub sources: Vec<serde_json::Value>,
+    pub schemas: Vec<sf_schema::SObjectSchema>,
+}
+
+pub fn load_sync_snapshot(
+    root: &Path,
+    org: &str,
+    api: &str,
+) -> std::io::Result<Option<SyncSnapshot>> {
+    let path = db_path(root, org);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let conn = sf_schema::sqlite::open_readonly(&path).map_err(std::io::Error::other)?;
+    conn.execute_batch("BEGIN").map_err(std::io::Error::other)?;
+    let Some(meta) = crate::db::read_meta(&conn).map_err(std::io::Error::other)? else {
+        return Ok(None);
+    };
+    if meta.api_version != api {
+        return Ok(None);
+    }
+    if meta.schema_version != crate::db::SCHEMA_VERSION || meta.alias != org {
+        return Err(std::io::Error::other(
+            "index version or identity mismatch; run full reindex before syncing",
+        ));
+    }
+    let read = || -> Option<SyncSnapshot> {
+        let body: String = conn
+            .query_row("SELECT body FROM apex_sources WHERE id=1", [], |row| {
+                row.get(0)
+            })
+            .ok()?;
+        Some(SyncSnapshot {
+            ost: read_ost(&conn).ok()?,
+            manifest: read_manifest(&conn)?,
+            token: GenerationToken(Some(meta)),
+            sources: serde_json::from_str(&body).ok()?,
+            schemas: sf_schema::sqlite::read_all_objects(&conn).ok()?,
+        })
+    };
+    read().map(Some).ok_or_else(|| {
+        std::io::Error::other(
+            "index source provenance missing or corrupt; run full reindex before syncing",
+        )
+    })
 }
 
 fn read_manifest(conn: &Connection) -> Option<IndexManifest> {
