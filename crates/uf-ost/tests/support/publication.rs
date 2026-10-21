@@ -1,6 +1,125 @@
 use super::*;
 
 #[tokio::test]
+async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
+    for full in [false, true] {
+        let root = std::env::temp_dir().join(format!("uf-ost-cas-{full}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        seed_index(&root, "Synthetic").await;
+        let during_fetch_root = root.clone();
+        let runner = MockRunner::new(move |_, args: &[String]| {
+            let args = args.join(" ");
+            let stdout = if args.contains("ApexClass") {
+                r#"{"status":0,"result":{"records":[{"Name":"StaleService","SymbolTable":{"name":"StaleService","methods":[],"properties":[]}}]}}"#
+            } else if args.contains("FROM EntityDefinition") {
+                r#"{"status":0,"result":{"records":[{"QualifiedApiName":"Account"}]}}"#
+            } else if args.contains("FROM CustomField") {
+                r#"{"status":0,"result":{"records":[]}}"#
+            } else if args.contains("sobject list") {
+                r#"{"status":0,"result":["Account"]}"#
+            } else if args.contains("composite") {
+                // Another process publishes while this writer awaits its fetch.
+                let schema = sf_schema::SObjectSchema {
+                    name: "Account".into(),
+                    label: "Winner Ledger".into(),
+                    ..Default::default()
+                };
+                // Keep timestamp and all declared counts identical: only the
+                // monotonic generation revision distinguishes this publication.
+                let (mut ost, manifest) =
+                    apex_lang::load_snapshot(&during_fetch_root, "Synthetic", "60.0").unwrap();
+                ost.org_types = vec![
+                    apex_lang::symbols::ApexType {
+                        name: "WinnerService".into(),
+                        ..Default::default()
+                    },
+                    apex_lang::symbols::ApexType {
+                        name: "Account".into(),
+                        ..Default::default()
+                    },
+                ];
+                let expected =
+                    apex_lang::snapshot::generation_token(&during_fetch_root, "Synthetic").unwrap();
+                apex_lang::snapshot::save_generation(
+                    &during_fetch_root,
+                    &ost,
+                    &manifest,
+                    &[schema],
+                    false,
+                    None,
+                    &expected,
+                )
+                .unwrap();
+                r#"{"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"Account","label":"Stale Ledger","fields":[],"childRelationships":[]}}]}"#
+            } else {
+                return Err(sf_core::SfError::Spawn(std::io::Error::other(
+                    "unexpected synthetic command",
+                )));
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: stdout.into(),
+                stderr: String::new(),
+            })
+        });
+        let invoker = SfInvoker::new(Arc::new(runner));
+        let result = if full {
+            features::index::index_org(
+                &invoker,
+                root.clone(),
+                "Synthetic",
+                "60.0",
+                &features::index::NamespacePolicy::All,
+                &mut |_| {},
+            )
+            .await
+            .map(|_| ())
+        } else {
+            features::index::sync_org(
+                &invoker,
+                root.clone(),
+                "Synthetic",
+                "60.0",
+                &features::index::NamespacePolicy::All,
+            )
+            .await
+            .map(|_| ())
+        };
+        assert!(
+            result.is_err(),
+            "prepared writer must refuse to overwrite a newer generation"
+        );
+        let reader =
+            sf_schema::sqlite::open_readonly(&sf_schema::sqlite::db_path(&root, "Synthetic"))
+                .unwrap();
+        assert_eq!(
+            sf_schema::sqlite::read_object(&reader, "Account")
+                .unwrap()
+                .unwrap()
+                .label,
+            "Winner Ledger"
+        );
+        assert!(
+            apex_lang::snapshot::read_apex_type(&reader, "WinnerService")
+                .unwrap()
+                .is_some()
+        );
+        assert!(apex_lang::snapshot::read_apex_type(&reader, "StaleService")
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            apex_lang::db::read_meta(&reader)
+                .unwrap()
+                .unwrap()
+                .generation,
+            2
+        );
+        drop(reader);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}
+
+#[tokio::test]
 async fn first_failed_index_with_only_raw_cache_returns_actionable_runtime_errors() {
     let root = std::env::temp_dir().join(format!("uf-ost-first-publish-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);

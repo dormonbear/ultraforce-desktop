@@ -172,6 +172,9 @@ snapshots even when `hits` is empty. Cross-org answers explicitly list unusable
 indexes in `skipped`; an empty result with skipped indexes is incomplete.
 Existing v3 caches require a full `ost_reindex` to build the new object index;
 read tools and delta sync reject incompatible snapshots instead of migrating them.
+Rebuilds publish schema, Apex symbols and freshness together. A refresh prepared
+against an older generation refuses to overwrite a newer publication; retry the
+refresh when it reports that the index changed during fetching.
 Successful offline results carry the org alias and snapshot age; negative
 object/field/type lookups include that provenance in their error. The bundled [`skills/ost`](skills/ost/SKILL.md) teaches
 the retrieval discipline (verify freshness → sync → reindex + fall back to live

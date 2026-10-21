@@ -120,6 +120,7 @@ pub async fn index_org(
     policy: &NamespacePolicy,
     on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
+    let expected = apex_lang::snapshot::generation_token(&root, org_id).map_err(SfError::Spawn)?;
     let started = std::time::Instant::now();
     tracing::info!(org = %org_id, api = %api, "index_org start (full index)");
 
@@ -218,6 +219,7 @@ pub async fn index_org(
         &schemas,
         true,
         Some(&org_types_raw),
+        &expected,
     )
     .map_err(SfError::Spawn)?;
     tracing::info!(
@@ -276,7 +278,9 @@ pub async fn sync_org(
     api: &str,
     policy: &NamespacePolicy,
 ) -> Result<(SyncOutcome, Ost), SfError> {
-    let Some((mut ost, manifest)) = apex_lang::load_snapshot(&root, org_id, api) else {
+    let Some((mut ost, manifest, expected)) =
+        apex_lang::snapshot::load_snapshot_with_token(&root, org_id, api)
+    else {
         return Ok((SyncOutcome::default(), Ost::default()));
     };
     let since = manifest.indexed_at.clone();
@@ -335,7 +339,7 @@ pub async fn sync_org(
         sobjects: prev_sobjects,
         stdlib_error,
     };
-    apex_lang::snapshot::save_generation(&root, &ost, &manifest, &delta, false, None)
+    apex_lang::snapshot::save_generation(&root, &ost, &manifest, &delta, false, None, &expected)
         .map_err(SfError::Spawn)?;
     Ok((outcome, ost))
 }
