@@ -2,6 +2,22 @@ use crate::error::SfError;
 use async_trait::async_trait;
 use std::time::Duration;
 
+fn cli_command(program: impl AsRef<std::ffi::OsStr>) -> tokio::process::Command {
+    let mut command = tokio::process::Command::new(program);
+    // Keep the same cancellation and privacy policy for standalone and npm CLI processes. / 独立版与 npm CLI 进程使用相同的取消及隐私策略。
+    command
+        .kill_on_drop(true)
+        .env("NO_COLOR", "1")
+        .env("FORCE_COLOR", "0")
+        .env("SF_AUTOUPDATE_DISABLE", "true")
+        .env("SFDX_AUTOUPDATE_DISABLE", "true")
+        .env("SF_DISABLE_TELEMETRY", "true")
+        .env("SFDX_DISABLE_TELEMETRY", "true")
+        .env("SF_DISABLE_LOG_FILE", "true")
+        .env("SFDX_DISABLE_LOG_FILE", "true");
+    command
+}
+
 /// Captured result of a finished subprocess.
 #[derive(Debug, Clone)]
 pub struct RawOutput {
@@ -32,26 +48,23 @@ impl CommandRunner for ProcessRunner {
         args: &[String],
         timeout: Duration,
     ) -> Result<RawOutput, SfError> {
-        // NO_COLOR/FORCE_COLOR=0 stop the CLI emitting ANSI escapes that would
-        // otherwise show as garbled control codes in our UI. AUTOUPDATE_DISABLE
-        // silences the "update available" banner on stderr.
-        let fut = tokio::process::Command::new(program)
-            .args(args)
-            // Timeout or caller cancellation drops the output future. Terminate
-            // its owned direct child too; this does not undo remote operations.
-            // 超时或调用方取消会丢弃输出 future，同时终止其直接子进程；这不会撤销远程操作。
-            .kill_on_drop(true)
-            .env("NO_COLOR", "1")
-            .env("FORCE_COLOR", "0")
-            .env("SF_AUTOUPDATE_DISABLE", "true")
-            .env("SFDX_AUTOUPDATE_DISABLE", "true")
-            // Never let a user-wide CLI setting opt app-launched commands into
-            // usage collection or disk logs containing Salesforce data.
-            .env("SF_DISABLE_TELEMETRY", "true")
-            .env("SFDX_DISABLE_TELEMETRY", "true")
-            .env("SF_DISABLE_LOG_FILE", "true")
-            .env("SFDX_DISABLE_LOG_FILE", "true")
-            .output();
+        let fut = async {
+            let output = cli_command(program).args(args).output().await;
+            #[cfg(windows)]
+            if program == "sf"
+                && output
+                    .as_ref()
+                    .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
+            {
+                // Rust does not append .cmd; invoke npm's Node entry point directly with literal argv. / Rust 不补充 .cmd，直接以原始参数调用 npm 的 Node 入口。
+                if let Some((node, script)) =
+                    std::env::var_os("PATH").and_then(|path| crate::windows_cli::npm_command(&path))
+                {
+                    return cli_command(node).arg(script).args(args).output().await;
+                }
+            }
+            output
+        };
         let out = match tokio::time::timeout(timeout, fut).await {
             Err(_) => return Err(SfError::Timeout(timeout)),
             Ok(Err(e)) if e.kind() == std::io::ErrorKind::NotFound => {

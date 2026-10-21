@@ -7,6 +7,8 @@ pub mod models;
 pub mod org;
 pub mod runner;
 pub mod version;
+#[cfg(any(windows, test))]
+mod windows_cli;
 
 pub use error::SfError;
 pub use invoker::SfInvoker;
