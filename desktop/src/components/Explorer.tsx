@@ -141,8 +141,7 @@ export function Explorer({
     const trimmed = value.trim();
     if (!trimmed) return;
     try {
-      const to = await renameNode(path, trimmed);
-      onRenamed(path, to);
+      await renameNode(path, trimmed, onRenamed);
     } catch (err) {
       toast.error(formatIpcError(err));
       return;
@@ -151,9 +150,12 @@ export function Explorer({
   };
 
   const del = async (node: Node) => {
-    await removeNode(node.path, node.kind === "dir");
-    onRemoved(node.path);
-    refresh();
+    try {
+      await removeNode(node.path, node.kind === "dir", onRemoved);
+      refresh();
+    } catch (err) {
+      toast.error(formatIpcError(err));
+    }
   };
 
   const newAt = (kind: "new-file" | "new-dir") => {
@@ -197,8 +199,7 @@ export function Explorer({
         const from = d.getId();
         if (dirname(from) === intoDir) continue; // already there
         try {
-          const to = await moveNode(from, intoDir);
-          onRenamed(from, to);
+          await moveNode(from, intoDir, onRenamed);
         } catch (err) {
           toast.error(formatIpcError(err));
         }

@@ -7,6 +7,7 @@ import {
   type DirEntry,
 } from "@tauri-apps/plugin-fs";
 import { joinPath, dirname, movedPath } from "./paths";
+import { mutateFiles } from "./save";
 
 export type TreeNode = {
   path: string;
@@ -55,18 +56,45 @@ export async function createDir(dir: string, name: string): Promise<string> {
   return path;
 }
 
-export async function renameNode(path: string, newName: string): Promise<string> {
+export async function renameNode(
+  path: string,
+  newName: string,
+  changed?: (from: string, to: string) => void,
+): Promise<string> {
   const next = joinPath(dirname(path), newName);
-  await rename(path, next);
+  await mutateFiles(
+    path,
+    next,
+    () => rename(path, next),
+    () => changed?.(path, next),
+  );
   return next;
 }
 
-export async function removeNode(path: string, isDir: boolean): Promise<void> {
-  await remove(path, { recursive: isDir });
+export async function removeNode(
+  path: string,
+  isDir: boolean,
+  changed?: (path: string) => void,
+): Promise<void> {
+  await mutateFiles(
+    path,
+    null,
+    () => remove(path, { recursive: isDir }),
+    () => changed?.(path),
+  );
 }
 
-export async function moveNode(path: string, intoDir: string): Promise<string> {
+export async function moveNode(
+  path: string,
+  intoDir: string,
+  changed?: (from: string, to: string) => void,
+): Promise<string> {
   const next = movedPath(path, intoDir);
-  await rename(path, next);
+  await mutateFiles(
+    path,
+    next,
+    () => rename(path, next),
+    () => changed?.(path, next),
+  );
   return next;
 }
