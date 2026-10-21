@@ -24,6 +24,7 @@ import { useTheme } from "./theme";
 import { focusSearch, trackSearchOrigin } from "./focusSearch";
 import { Toaster } from "@/components/ui/sonner";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
+import { useI18n } from "./i18n";
 
 type ActivePanel = "soql" | "apex" | "logs" | "schema" | "settings";
 
@@ -35,6 +36,10 @@ const RAIL = [
 ] as const;
 
 export default function App() {
+  const { locale, t } = useI18n();
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
   const [active, setActive] = useState<ActivePanel>("soql");
   // Bumped when a workspace root changes, to remount the affected tool panel.
   const [wsVersion, setWsVersion] = useState(0);
@@ -154,7 +159,7 @@ export default function App() {
                 placement="end"
                 content={
                   <>
-                    {label}
+                    {t(label)}
                     {enabled ? (
                       <span className="ml-2 text-muted-foreground">
                         {isMac() ? "⌘" : "Ctrl+"}
@@ -162,7 +167,7 @@ export default function App() {
                       </span>
                     ) : (
                       <span className="ml-2 text-muted-foreground">
-                        Coming soon
+                        {t("Coming soon")}
                       </span>
                     )}
                   </>
@@ -171,7 +176,7 @@ export default function App() {
                 <button
                   type="button"
                   aria-disabled={!enabled}
-                  aria-label={label}
+                  aria-label={t(label)}
                   aria-current={current ? "page" : undefined}
                   onClick={() => enabled && setActive(id as ActivePanel)}
                   className={`focus-accent relative flex h-9 w-9 items-center justify-center rounded-md ${
@@ -194,7 +199,7 @@ export default function App() {
             placement="end"
             content={
               <>
-                Settings
+                {t("Settings")}
                 <span className="ml-2 text-muted-foreground">
                   {isMac() ? "⌘," : "Ctrl+,"}
                 </span>
@@ -203,7 +208,7 @@ export default function App() {
           >
             <button
               type="button"
-              aria-label="Settings"
+              aria-label={t("Settings")}
               aria-current={active === "settings" ? "page" : undefined}
               onClick={() => setActive("settings")}
               className={`focus-accent relative mt-auto mb-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-md ${
