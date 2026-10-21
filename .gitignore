@@ -1,5 +1,6 @@
 /target
 /node_modules
+__pycache__/
 .git_signing_key_tmp*
 
 # Local scratch / external analysis (not part of the project)

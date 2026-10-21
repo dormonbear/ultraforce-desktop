@@ -282,6 +282,11 @@ UF_E2E_ORG=<your-dev-org-alias> \
 
 </details>
 
+## Release verification / 发布验证
+
+Release PRs must align the release manifest, desktop/npm packages, Tauri configuration, Rust manifest and the local desktop entry in `Cargo.lock`. Run `python3 scripts/check_release_versions.py`; CI also runs its regressions. Release Please's TOML selector reads the parsed `name.value` node and excludes registry entries, so it updates only the local desktop package without rewriting unrelated dependencies.
+发布 PR 须保持发布清单、桌面／npm 包、Tauri 配置、Rust 清单及 `Cargo.lock` 中的本地桌面条目版本一致。运行 `python3 scripts/check_release_versions.py` 检查，CI 也会执行回归测试。Release Please 的 TOML 选择器读取解析后的 `name.value` 节点并排除注册表条目，因此仅更新本地桌面包，不重写无关依赖。
+
 ## License
 
 [MIT](./LICENSE) © 2026 Dormon Zhou

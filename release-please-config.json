@@ -12,7 +12,8 @@
         { "type": "json", "path": "desktop/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "npm/package.json", "jsonpath": "$.version" },
         { "type": "json", "path": "desktop/src-tauri/tauri.conf.json", "jsonpath": "$.version" },
-        { "type": "toml", "path": "desktop/src-tauri/Cargo.toml", "jsonpath": "$.package.version" }
+        { "type": "toml", "path": "desktop/src-tauri/Cargo.toml", "jsonpath": "$.package.version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name.value=='ultraforce-desktop' && !@.source)].version" }
       ]
     }
   }
