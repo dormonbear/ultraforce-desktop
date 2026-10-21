@@ -109,7 +109,10 @@ pub fn generation_token(root: &Path, org: &str) -> std::io::Result<GenerationTok
     } else {
         None
     };
-    if meta.as_ref().is_some_and(|meta| meta.alias != org) {
+    if meta
+        .as_ref()
+        .is_some_and(|meta| meta.alias != org || meta.org_id != org)
+    {
         return Err(std::io::Error::other(
             "index identity mismatch; clear the conflicting local index before rebuilding",
         ));
@@ -249,9 +252,11 @@ pub fn snapshot_api_version(root: &Path, org_id: &str) -> Option<String> {
         return None;
     }
     let conn = sf_schema::sqlite::open_readonly(&path).ok()?;
-    conn.query_row("SELECT api_version FROM meta WHERE id = 1", [], |row| {
-        row.get(0)
-    })
+    conn.query_row(
+        "SELECT api_version FROM meta WHERE id = 1 AND alias=?1 AND org_id=?1",
+        [org_id],
+        |row| row.get(0),
+    )
     .ok()
 }
 
@@ -274,7 +279,10 @@ pub fn load_snapshot_with_token(
     let conn = sf_schema::sqlite::open_readonly(&path).ok()?;
     conn.execute_batch("BEGIN").ok()?;
     let meta = crate::db::read_meta(&conn).ok()??;
-    if meta.schema_version != crate::db::SCHEMA_VERSION || meta.alias != org_id {
+    if meta.schema_version != crate::db::SCHEMA_VERSION
+        || meta.alias != org_id
+        || meta.org_id != org_id
+    {
         return None;
     }
 

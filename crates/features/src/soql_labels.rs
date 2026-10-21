@@ -43,8 +43,13 @@ pub async fn column_labels(
     let Some(object) = soql_lang::outline(query).from_object else {
         return out;
     };
-    let mut store = sf_schema::SchemaStore::new(root, org_id);
-    let api = crate::api_version::api_version_for(invoker, org_id).await;
+    let root = root.into();
+    let Ok(context) = crate::metadata_context::cached_or_resolve(invoker, &root, org_id).await
+    else {
+        return out;
+    };
+    let mut store = context.schema_store(root);
+    let api = context.api_version;
     let Ok(root_schema) = store.get_or_fetch(invoker, &api, &object).await else {
         return out;
     };
@@ -148,7 +153,9 @@ mod tests {
     }
 
     fn tmp(tag: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("soql-labels-{tag}-{}", std::process::id()))
+        let root = std::env::temp_dir().join(format!("soql-labels-{tag}-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&root, "myorg");
+        root
     }
 
     #[tokio::test]

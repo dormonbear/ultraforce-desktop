@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 
 ORG = "native@example.invalid"
+ORG_ID = "00D000000000001"
 
 
 def response(args, mode):
@@ -17,7 +18,9 @@ def response(args, mode):
             "instanceUrl": "https://native.example.invalid", "isSandbox": True,
         }]}
     if command.startswith("org display"):
-        return {"apiVersion": "60.0", "id": "00DSYNTHETIC", "instanceUrl": "https://native.example.invalid"}
+        return {"apiVersion": "60.0", "id": ORG_ID, "username": ORG, "instanceUrl": "https://native.example.invalid"}
+    if "--target-org" in args and args[args.index("--target-org") + 1] != ORG:
+        raise RuntimeError("Unpinned synthetic target / 未固定的合成目标")
     if mode == "offline":
         raise RuntimeError("Synthetic offline acquisition / 合成离线采集")
     if "completions" in command:

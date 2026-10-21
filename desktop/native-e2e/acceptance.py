@@ -118,6 +118,9 @@ def verify_completions(driver):
     query = "SELECT  FROM Synthetic__c"
     fields = driver.invoke("soql_complete", {"query": query, "offset": 7, "org": ORG})
     assert any(item["label"] == "Name" for item in fields), fields
+    query = "SELECT Name FROM Synth"
+    objects = driver.invoke("soql_complete", {"query": query, "offset": len(query), "org": ORG})
+    assert any(item["label"] == "Synthetic__c" for item in objects), objects
     source = "NativeService."
     members = driver.invoke("apex_complete", {"src": source, "offset": len(source), "org": ORG})
     assert any(item["label"] == "run" for item in members), members
@@ -126,6 +129,17 @@ def verify_completions(driver):
 def verify_database(root, stdlib_error):
     # Verify the real indexer leaves no loose shared response. / 验证真实索引器不留下独立的共享响应文件。
     cache = root / "local" / "ultraforce"
+    with closing(sqlite3.connect(cache / "_identity" / "bindings.db")) as catalog:
+        catalog.execute("PRAGMA query_only=ON")
+        contexts = catalog.execute("SELECT cache_key, org_id, username FROM contexts").fetchall()
+        assert len(contexts) == 1, contexts
+        key, org_id, username = contexts[0]
+        assert (org_id, username) == ("00D000000000001EAA", ORG), contexts
+        assert key.startswith("org-") and len(key) == 36, key
+        targets = dict(catalog.execute("SELECT target, cache_key FROM bindings WHERE cache_key IS NOT NULL"))
+        assert targets[ORG] == key, targets
+        if not stdlib_error:
+            assert targets["NativeFixture"] == key, targets
     assert not list(cache.rglob("completions.json"))
     shared = list(cache.rglob("completions.db"))
     assert len(shared) == (0 if stdlib_error else 1), shared
@@ -139,12 +153,14 @@ def verify_database(root, stdlib_error):
             assert "String" in json.loads(body)["publicDeclarations"]["System"]
     files = list((root / "local" / "ultraforce").rglob("index.db"))
     assert len(files) == 1, files
+    assert files[0] == cache / key / "index.db", files
     # Readers may need WAL sidecars; SQL stays read-only in this owned fixture. / 读取可能需要 WAL 辅助文件，此专属夹具中 SQL 保持只读。
     with closing(sqlite3.connect(files[0])) as database:
         database.execute("PRAGMA query_only=ON")
         assert database.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         version, error, generation = database.execute("SELECT schema_version, stdlib_error, generation FROM meta").fetchone()
         assert version == 5, version
+        assert database.execute("SELECT alias, org_id FROM meta").fetchone() == (key, key)
         assert bool(error) == stdlib_error, error
         if stdlib_error:
             assert "Synthetic Tooling stdlib failure" in error, error
@@ -204,11 +220,23 @@ def run(application_path, artifacts):
         with application(application_path, environment, artifacts, "full") as driver:
             assert driver.invoke("sf_status", {})["state"] == "ok"
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
+            driver.invoke("ensure_ready", {"org": "NativeFixture", "namespaces": "all"})
             verify_completions(driver)
             generation = verify_database(root, False)
             verify_schema_ui(driver)
             driver.screenshot(artifacts / "native-schema.png")
             verify_editor_ui(driver)
+            # A failed forced rebuild must retain the published generation. / 强制重建失败必须保留已发布代次。
+            (root / "mode").write_text("offline", encoding="utf-8")
+            try:
+                driver.invoke("reindex_org", {"org": ORG, "namespaces": "all"})
+            except RuntimeError as error:
+                assert "Synthetic offline acquisition" in str(error), error
+            else:
+                raise AssertionError("Forced offline rebuild must fail / 强制离线重建必须失败")
+            assert verify_database(root, False) == generation
+            verify_completions(driver)
+            verify_schema_ui(driver)
         # Reopen with acquisition unavailable: completion must reload SQLite. / 禁用采集后重新启动，补全必须从 SQLite 重载。
         (root / "mode").write_text("offline", encoding="utf-8")
         with application(application_path, environment, artifacts, "offline") as driver:
@@ -226,6 +254,12 @@ def run(application_path, artifacts):
             verify_database(failed_root, True)
             verify_schema_ui(driver)
             verify_editor_ui(driver)
+            # Retry must replace a cached failure without deleting the previous generation first.
+            # 重试必须替换缓存的失败响应，且不得预先删除旧代次。
+            (failed_root / "mode").write_text("normal", encoding="utf-8")
+            driver.invoke("reindex_org", {"org": "NativeFixture", "namespaces": "all"})
+            verify_database(failed_root, False)
+            verify_completions(driver)
         print("PASS: native UI, real IPC, SQLite reopen, completions and stdlib failure / 原生界面、真实 IPC、SQLite 重载、补全及标准库失败验证通过")
 
 

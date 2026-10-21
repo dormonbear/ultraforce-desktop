@@ -97,6 +97,19 @@ pub(crate) fn bound_index_api_version(
     binding: &sf_schema::identity::CacheBinding,
     display_version: Option<String>,
 ) -> (String, bool) {
+    static DETECTED: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    let detected = {
+        let mut versions = DETECTED
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap();
+        if let Some(version) = display_version {
+            versions.insert(binding.cache_key().to_owned(), version.clone());
+            Some(version)
+        } else {
+            versions.get(binding.cache_key()).cloned()
+        }
+    };
     let configured = {
         let overrides = overrides().lock().unwrap();
         overrides
@@ -104,7 +117,7 @@ pub(crate) fn bound_index_api_version(
             .or_else(|| overrides.get(binding.username()))
             .cloned()
     };
-    if let Some(version) = configured.or(display_version) {
+    if let Some(version) = configured.or(detected) {
         return (version, true);
     }
     let stored = apex_lang::snapshot_api_version(root, binding.cache_key());

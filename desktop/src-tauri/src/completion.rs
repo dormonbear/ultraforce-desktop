@@ -23,17 +23,9 @@ pub(crate) async fn apex_complete(
     let start = Instant::now();
     tracing::info!("apex_complete start");
     let org = org_key(org);
-    // sObject names (cached via warm_schema) so inline-SOQL FROM completion works.
-    let objects = state
-        .sobjects
-        .lock()
-        .unwrap()
-        .get(&org)
-        .cloned()
-        .unwrap_or_default();
     let cands = state
         .apex
-        .complete(&state.invoker, &org, &src, offset, &objects)
+        .complete(&state.invoker, &org, &src, offset, &[])
         .await
         .map_err(|e| {
             tracing::warn!(
@@ -75,13 +67,6 @@ pub(crate) async fn soql_complete(
     let start = Instant::now();
     tracing::info!("soql_complete start");
     let org = org_key(org);
-    let objects = state
-        .sobjects
-        .lock()
-        .unwrap()
-        .get(&org)
-        .cloned()
-        .unwrap_or_default();
     // Intentional: completion errors are swallowed inside `complete_fields`
     // (editor hot path) — an empty candidate list beats surfacing an error
     // on every keystroke.
@@ -91,7 +76,7 @@ pub(crate) async fn soql_complete(
         &org,
         &query,
         offset,
-        &objects,
+        &[],
     )
     .await;
     tracing::info!(

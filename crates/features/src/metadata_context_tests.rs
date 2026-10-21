@@ -210,6 +210,94 @@ async fn reassigned_alias_does_not_reuse_its_process_cached_api_version() {
 }
 
 #[tokio::test]
+async fn cached_editor_context_retains_detected_api_without_cli_or_snapshot() {
+    let root = root();
+    let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(payload(
+        "00D000000000001",
+        Some("64.0"),
+    ))));
+    let initial = resolve(&invoker, &root, "alias").await.unwrap();
+    let before = std::fs::read(root.join("_identity/bindings.db")).unwrap();
+    let offline = SfInvoker::new(Arc::new(MockRunner::new(|_, _| {
+        panic!("No CLI for cached context / 缓存上下文不调用 CLI")
+    })));
+    let cached = cached_or_resolve(&offline, &root, "alias").await.unwrap();
+    assert_eq!(cached.binding, initial.binding);
+    assert_eq!(cached.api_version, "64.0");
+    assert!(cached.api_version_detected);
+    assert_eq!(
+        std::fs::read(root.join("_identity/bindings.db")).unwrap(),
+        before
+    );
+    assert!(super::cached(&root.join("unknown-root"), "alias")
+        .unwrap()
+        .is_none());
+    assert!(!root.join("unknown-root").exists());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn late_object_name_results_cannot_replace_a_reassigned_alias_context() {
+    let root = root();
+    let first = fixture_binding(&root, "first@example.invalid");
+    let second = fixture_binding(&root, "second@example.invalid");
+    install_sobject_names(&first, vec!["First__c".into()]);
+    install_sobject_names(&second, vec!["Second__c".into()]);
+    begin_resolution(&root, "moving")
+        .unwrap()
+        .complete(&OrgIdentity {
+            id: "00D000000000001".into(),
+            username: second.username().into(),
+            alias: None,
+            api_version: None,
+        })
+        .unwrap();
+    install_sobject_names(&first, vec!["LateFirst__c".into()]);
+    let current = super::cached(&root, "moving").unwrap().unwrap();
+    assert_eq!(
+        sobject_names(&root, &current.binding).as_ref(),
+        &["Second__c"]
+    );
+    assert_eq!(sobject_names(&root, &first).as_ref(), &["LateFirst__c"]);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn schema_readers_reject_unverified_legacy_and_foreign_generation_identity() {
+    let root = root();
+    let binding = fixture_binding(&root, "alias");
+    let manifest = |key: &str| apex_lang::IndexManifest {
+        org_id: key.into(),
+        api_version: "60.0".into(),
+        indexed_at: "2026-10-21T00:00:00Z".into(),
+        namespaces: 0,
+        classes: 0,
+        sobjects: 0,
+        stdlib_error: None,
+    };
+    apex_lang::save_snapshot(&root, &apex_lang::Ost::default(), &manifest("legacy")).unwrap();
+    assert!(indexed_schema_path(&root, "legacy").is_err());
+    assert!(indexed_schema_path(&root, "alias").is_err());
+    apex_lang::save_snapshot(
+        &root,
+        &apex_lang::Ost::default(),
+        &manifest(binding.cache_key()),
+    )
+    .unwrap();
+    let path = indexed_schema_path(&root, "alias").unwrap();
+    assert_eq!(path, sf_schema::sqlite::db_path(&root, binding.cache_key()));
+    let conn = sf_schema::sqlite::open(&path).unwrap();
+    conn.execute("UPDATE meta SET org_id='foreign'", [])
+        .unwrap();
+    drop(conn);
+    assert!(indexed_schema_path(&root, "alias").is_err());
+    assert!(apex_lang::load_snapshot(&root, binding.cache_key(), "60.0").is_none());
+    assert!(apex_lang::snapshot_api_version(&root, binding.cache_key()).is_none());
+    assert!(apex_lang::snapshot::generation_token(&root, binding.cache_key()).is_err());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[tokio::test]
 async fn default_target_is_resolved_without_a_literal_default_cli_flag() {
     let root = root();
     let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
