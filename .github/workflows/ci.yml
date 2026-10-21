@@ -74,7 +74,7 @@ jobs:
         working-directory: desktop
         env:
           PERF_PROD: '1'
-        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts e2e/org-i18n.spec.ts --reporter=line
+        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts e2e/org-i18n.spec.ts e2e/soql-i18n.spec.ts --reporter=line
 
       - name: Browser failure evidence / 浏览器失败证据
         if: failure()

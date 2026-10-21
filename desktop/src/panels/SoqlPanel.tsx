@@ -22,6 +22,7 @@ import { parseSfError, isCliUnavailable, formatIpcError } from "../errorFormat";
 import { CliGuidanceForError } from "../components/CliGuidance";
 import { SfErrorDetail } from "../components/SfErrorDetail";
 import type { SoqlTab } from "../tabs/types";
+import { useI18n } from "../i18n";
 
 /** Warn before fetching an unconstrained query larger than this (rows). */
 const LARGE_THRESHOLD = 5000;
@@ -37,6 +38,7 @@ interface SoqlViewProps {
 
 /** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
 export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
+  const { locale, t } = useI18n();
   const { query, result, error, useToolingApi, allRows, plan, lastMs } = tab;
   const [running, setRunning] = useState(false);
   // True while the pre-flight COUNT() is in flight (before the real query).
@@ -91,7 +93,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         const ms = performance.now() - t0;
         onPatch({ result: dto, lastMs: ms });
         if (!dto.done)
-          toast.info(`Cancelled — showing ${dto.rows.length.toLocaleString()} rows`);
+          toast.info(t("Cancelled — showing {count} rows", { count: dto.rows.length.toLocaleString(locale) }));
       } catch (e) {
         const message = formatIpcError(e);
         toast.error(parseSfError(message).detail);
@@ -103,12 +105,12 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
         setRunning(false);
       }
     },
-    [onPatch, org, useToolingApi, allRows],
+    [onPatch, org, useToolingApi, allRows, locale, t],
   );
 
   const run = useCallback(async () => {
     if (!query.trim()) {
-      toast.error("Write a query to run");
+      toast.error(t("Write a query to run"));
       return;
     }
     // Pre-flight: warn before fetching an unconstrained, very large result set
@@ -138,7 +140,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       return;
     }
     await execute(query);
-  }, [query, useToolingApi, org, execute]);
+  }, [query, useToolingApi, org, execute, t]);
 
   const cancel = useCallback(() => {
     abortedRef.current = true;
@@ -159,13 +161,19 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     }
   }, [query, onPatch]);
 
-  const ms = lastMs != null ? ` · ${Math.round(lastMs)} ms` : "";
+  const ms = lastMs != null
+    ? ` · ${t("{milliseconds} ms", { milliseconds: Math.round(lastMs).toLocaleString(locale) })}`
+    : "";
   const status = error
-    ? "error"
+    ? t("error")
     : result
       ? result.done
-        ? `${result.totalSize} row${result.totalSize === 1 ? "" : "s"} returned${ms}`
-        : `${result.rows.length.toLocaleString()} of ${result.totalSize.toLocaleString()} rows · cancelled${ms}`
+        ? t(result.totalSize === 1 ? "{count} row returned" : "{count} rows returned", {
+            count: result.totalSize.toLocaleString(locale),
+          }) + ms
+        : t("{fetched} of {total} rows · cancelled", {
+            fetched: result.rows.length.toLocaleString(locale), total: result.totalSize.toLocaleString(locale),
+          }) + ms
       : "";
 
   // Rough ETA from the rows/sec measured so far. Recomputed each progress tick.
@@ -176,7 +184,11 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     const rate = progress.fetched / elapsed;
     if (!isFinite(rate) || rate <= 0) return null;
     const secs = (progress.total - progress.fetched) / rate;
-    return secs < 1 ? "<1s" : secs < 60 ? `${Math.round(secs)}s` : `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s`;
+    return secs < 1 ? t("<1s") : secs < 60
+      ? t("{seconds}s", { seconds: Math.round(secs).toLocaleString(locale) })
+      : t("{minutes}m {seconds}s", {
+          minutes: Math.floor(secs / 60).toLocaleString(locale), seconds: Math.round(secs % 60).toLocaleString(locale),
+        });
   })();
   const pct =
     progress && progress.total > 0
@@ -228,20 +240,20 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                     : "text-text-dim hover:text-foreground"
                 }`}
               >
-                Explain
+                {t("Explain")}
               </button>
             </div>
             {running || counting ? (
               <div className="flex items-center gap-2 text-[11px] text-text-dim">
                 {counting ? (
-                  <span className="tnum">Checking size…</span>
+                  <span className="tnum">{t("Checking size…")}</span>
                 ) : progress && progress.total > 0 ? (
                   <>
                     <span className="tnum">
-                      {progress.fetched.toLocaleString()} /{" "}
-                      {progress.total.toLocaleString()}
+                      {progress.fetched.toLocaleString(locale)} /{" "}
+                      {progress.total.toLocaleString(locale)}
                       {pct != null ? ` · ${pct}%` : ""}
-                      {eta ? ` · ETA ${eta}` : ""}
+                      {eta ? ` · ${t("ETA {time}", { time: eta })}` : ""}
                     </span>
                     <span className="h-1 w-20 overflow-hidden rounded-full bg-border">
                       <span
@@ -253,14 +265,14 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
                     </span>
                   </>
                 ) : (
-                  <span className="tnum">Executing…</span>
+                  <span className="tnum">{t("Executing…")}</span>
                 )}
                 <button
                   type="button"
                   onClick={cancel}
                   className="focus-accent cursor-pointer rounded-md border border-border px-2 py-0.5 text-text-dim transition-colors hover:border-destructive hover:text-destructive"
                 >
-                  Cancel
+                  {t("Cancel")}
                 </button>
               </div>
             ) : (
@@ -287,7 +299,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
               <SfErrorDetail error={error} className="m-4" />
             ) : !result ? (
               <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-                Run a query to see results
+                {t("Run a query to see results")}
               </div>
             ) : (
               <ResultTable data={result} query={query} arrivalNonce={arrivalNonce} />
@@ -303,26 +315,27 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
       width={480}
     >
       <DialogHeader
-        title="Large result set"
+        title={t("Large result set")}
         onOpenChange={(o) => !o && setLargeConfirm(null)}
       />
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text-dim">
-          This query has no <code>LIMIT</code> and would return about{" "}
+          {t("This query has no")} <code>LIMIT</code>{locale === "en" ? " " : ""}{t("and would return about")}{" "}
           <span className="font-medium text-foreground">
-            {largeConfirm?.count.toLocaleString()}
+            {largeConfirm?.count.toLocaleString(locale)}
           </span>{" "}
-          rows — more than the {LARGE_THRESHOLD.toLocaleString()} row guard.
-          Fetching them all may be slow.
+          {t("rows — more than the {threshold} row guard. Fetching them all may be slow.", {
+            threshold: LARGE_THRESHOLD.toLocaleString(locale),
+          })}
         </p>
         <div className="flex justify-end gap-2">
           <Button
-            label="Cancel"
+            label={t("Cancel")}
             variant="ghost"
             onClick={() => setLargeConfirm(null)}
           />
           <Button
-            label={`Add LIMIT ${PREVIEW_LIMIT.toLocaleString()}`}
+            label={t("Add LIMIT {count}", { count: PREVIEW_LIMIT.toLocaleString(locale) })}
             variant="secondary"
             onClick={() => {
               setLargeConfirm(null);
@@ -330,7 +343,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
             }}
           />
           <Button
-            label="Run anyway"
+            label={t("Run anyway")}
             onClick={() => {
               setLargeConfirm(null);
               void execute(query);
