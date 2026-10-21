@@ -294,16 +294,18 @@ pnpm -C desktop e2e         # Playwright (mocked Tauri IPC)
 ```
 
 Rust CI runs the full default workspace suite with LLVM coverage on macOS and ordinary
-tests on Windows. macOS also runs doctests separately. It retains JSON/LCOV reports for 14 days and requires at least 84% line
-coverage, 82% function coverage and 40% desktop Rust line coverage. The separate desktop
-floor prevents library coverage from hiding regressions there. The initial synthetic
-baseline passed 585 tests with 22 ignored: 84.64% workspace lines and 41.84% desktop lines.
-These are initial regression floors; the desktop still needs more test coverage.
+tests on Windows. macOS also runs doctests separately. It retains JSON/LCOV reports for
+14 days and requires at least 85% line coverage, 83% function coverage and 44% desktop
+Rust line coverage. The separate desktop floor prevents library coverage from hiding
+regressions there. The qualified macOS synthetic baseline passed 587 tests with 22
+ignored: 85.29% workspace lines, 83.83% functions and 45.01% desktop lines.
+These are regression floors; the desktop still needs more test coverage.
 Rust CI 在 macOS 上对默认工作区单元及集成测试采集 LLVM 覆盖率，在 Windows 上运行普通测试。
 macOS 另行运行文档测试，保留原有测试范围。
-JSON／LCOV 报告保留 14 天，要求整体行覆盖率至少 84%、函数覆盖率至少 82%、桌面 Rust
-行覆盖率至少 40%。独立桌面门槛避免库覆盖率掩盖该部分的回归。初始合成基线通过 585 项测试、
-忽略 22 项，整体行覆盖率为 84.64%，桌面为 41.84%。这些是初始回归门槛，桌面仍需进一步补测。
+JSON／LCOV 报告保留 14 天，要求整体行覆盖率至少 85%、函数覆盖率至少 83%、桌面 Rust
+行覆盖率至少 44%。独立桌面门槛避免库覆盖率掩盖该部分的回归。已验证的 macOS 合成基线通过
+587 项测试、忽略 22 项，整体行覆盖率为 85.29%、函数为 83.83%、桌面为 45.01%。
+这些是回归门槛，桌面仍需进一步补测。
 
 For local macOS coverage, install `llvm-tools-preview` and `cargo-llvm-cov` 0.9.1, then run each command:
 macOS 本地覆盖率需安装 `llvm-tools-preview` 和 `cargo-llvm-cov` 0.9.1，再分别运行：
