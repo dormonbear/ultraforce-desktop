@@ -2,10 +2,33 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from webdriver_client import WebDriver
+from webdriver_client import WebDriver, key_actions
 
 
 class NativeAttachTest(unittest.TestCase):
+    def test_native_keys_hold_and_release_control_without_textarea(self):
+        self.assertEqual(key_actions("\ue009a\ue000X"), [
+            {"type": "keyDown", "value": "\ue009"},
+            {"type": "keyDown", "value": "a"}, {"type": "keyUp", "value": "a"},
+            {"type": "keyUp", "value": "\ue009"},
+            {"type": "keyDown", "value": "X"}, {"type": "keyUp", "value": "X"},
+        ])
+        self.assertEqual(key_actions("\ue009")[-1], {"type": "keyUp", "value": "\ue009"})
+
+    def test_editor_receives_native_focus_and_w3c_actions(self):
+        driver = WebDriver.__new__(WebDriver)
+        driver.session = "fixture"
+        driver.wait_script = MagicMock()
+        driver.execute = MagicMock(return_value={"element-6066-11e4-a52e-4f735466cecf": "editor"})
+        driver.request = MagicMock()
+        driver.editor_keys("X")
+        self.assertEqual(driver.request.call_args_list[0].args, ("POST", "/session/fixture/element/editor/click", {}))
+        self.assertEqual(driver.request.call_args_list[1].args, ("POST", "/session/fixture/actions", {
+            "actions": [{"type": "key", "id": "native-editor", "actions": [
+                {"type": "keyDown", "value": "X"}, {"type": "keyUp", "value": "X"},
+            ]}],
+        }))
+
     def test_fresh_workspace_creates_tab_with_native_click(self):
         driver = WebDriver.__new__(WebDriver)
         driver.session = "fixture"
