@@ -1,9 +1,7 @@
 """Owned synthetic startup diagnostics, captured only on hosted CI. / 仅在托管 CI 采集专属合成启动诊断。"""
-import json
 import os
 from pathlib import Path
 import subprocess
-import time
 
 
 def capture_desktop(path):
@@ -14,19 +12,3 @@ def capture_desktop(path):
         "powershell", "-NoProfile", "-File", str(Path(__file__).with_name("capture-desktop.ps1")),
     ], env={**os.environ, "UF_NATIVE_SCREENSHOT": str(path)}, capture_output=True, check=False)
     return result.returncode == 0
-
-
-def startup_probe(application_path, environment, artifacts, name):
-    with (artifacts / f"{name}-startup.stdout.log").open("wb") as stdout:
-        with (artifacts / f"{name}-startup.stderr.log").open("wb") as stderr:
-            process = subprocess.Popen([str(application_path)], env=environment, stdout=stdout, stderr=stderr)
-            try:
-                time.sleep(5)
-                (artifacts / f"{name}-startup.json").write_text(json.dumps({
-                    "exitCode": process.poll(), "observedSeconds": 5,
-                }), encoding="utf-8")
-                capture_desktop(artifacts / f"{name}-direct-startup.png")
-            finally:
-                if process.poll() is None:
-                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, check=False)
-                process.wait(timeout=15)

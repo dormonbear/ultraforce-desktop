@@ -7,10 +7,11 @@ import time
 
 
 class WebDriver:
-    def __init__(self, application: Path):
+    def __init__(self, debugger_address):
         self.session = None
         result = self.request("POST", "/session", {"capabilities": {"alwaysMatch": {
-            "browserName": "wry", "tauri:options": {"application": str(application)},
+            "browserName": "webview2", "ms:edgeChromium": True,
+            "ms:edgeOptions": {"debuggerAddress": debugger_address},
         }}})
         self.session = result["sessionId"]
         self.request("POST", self.endpoint("timeouts"), {"script": 120000, "implicit": 0})

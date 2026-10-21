@@ -1,6 +1,7 @@
 """Native Tauri, real IPC and SQLite acceptance. / 原生 Tauri、真实 IPC 及 SQLite 验收。"""
 import argparse
 from contextlib import closing, contextmanager
+import json
 import os
 from pathlib import Path
 import shutil
@@ -14,7 +15,8 @@ import time
 from sf_fixture import ORG
 from webdriver_client import WebDriver
 from webview_runtime import matching_runtime
-from startup_diagnostics import capture_desktop, startup_probe
+from startup_diagnostics import capture_desktop
+from native_process import stop_process_tree, wait_for_debugging
 
 
 def fixture(root, runtime=None):
@@ -43,9 +45,25 @@ def fixture(root, runtime=None):
 @contextmanager
 def application(application_path, environment, artifacts, name):
     driver = None
-    with (artifacts / f"{name}-driver.log").open("wb") as log:
-        process = subprocess.Popen(["tauri-driver"], env=environment, stdout=log, stderr=subprocess.STDOUT)
+    process = None
+    app = None
+    with socket.socket() as reservation:
+        reservation.bind(("127.0.0.1", 0))
+        port = reservation.getsockname()[1]
+    app_environment = {
+        **environment,
+        "TAURI_WEBVIEW_AUTOMATION": "true",
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS": f"--remote-debugging-port={port} --remote-debugging-address=127.0.0.1",
+        "WEBVIEW2_USER_DATA_FOLDER": str(Path(environment["UF_NATIVE_FIXTURE"]) / f"{name}-browser"),
+    }
+    with (artifacts / f"{name}-driver.log").open("wb") as log, \
+            (artifacts / f"{name}-stdout.log").open("wb") as stdout, \
+            (artifacts / f"{name}-stderr.log").open("wb") as stderr:
         try:
+            # Launch the real app, then attach to its loopback WebView2 endpoint. / 启动真实应用，再连接其回环 WebView2 端点。
+            app = subprocess.Popen([str(application_path)], env=app_environment, stdout=stdout, stderr=stderr)
+            wait_for_debugging(app, port)
+            process = subprocess.Popen(["tauri-driver"], env=app_environment, stdout=log, stderr=subprocess.STDOUT)
             deadline = time.monotonic() + 30
             while True:
                 if process.poll() is not None:
@@ -57,10 +75,13 @@ def application(application_path, environment, artifacts, name):
                     if time.monotonic() >= deadline:
                         raise TimeoutError("Native driver startup / 原生驱动启动超时")
                     time.sleep(0.1)
-            driver = WebDriver(application_path)
+            driver = WebDriver(f"127.0.0.1:{port}")
             driver.wait_script("return !!window.__TAURI_INTERNALS__ && !!document.querySelector('nav button[aria-label=SOQL]')")
             yield driver
         except Exception:
+            (artifacts / f"{name}-startup.json").write_text(json.dumps({
+                "exitCode": None if app is None else app.poll(), "debuggingPort": port,
+            }), encoding="utf-8")
             if driver:
                 try:
                     driver.screenshot(artifacts / f"{name}-failure.png")
@@ -70,15 +91,11 @@ def application(application_path, environment, artifacts, name):
                 capture_desktop(artifacts / f"{name}-attach-failure.png")
             raise
         finally:
-            # Kill the owned tree before the tray can keep a closed app resident. / 在托盘保留关闭的应用前，终止拥有的进程树。
-            if process.poll() is None:
-                subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], capture_output=True, check=False)
-            process.wait(timeout=15)
-            if driver is None:
-                try:
-                    startup_probe(application_path, environment, artifacts, name)
-                except Exception as error:
-                    (artifacts / f"{name}-probe-error.txt").write_text(str(error), encoding="utf-8")
+            # Both trees belong to this fixture; the proxy did not launch the app. / 两棵进程树均属于此夹具，代理未启动应用。
+            try:
+                stop_process_tree(process)
+            finally:
+                stop_process_tree(app)
 
 
 def verify_completions(driver):
