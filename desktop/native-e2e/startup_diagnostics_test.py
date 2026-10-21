@@ -5,9 +5,20 @@ import unittest
 from unittest.mock import patch
 
 from startup_diagnostics import capture_desktop
+from acceptance import run
 
 
 class CapturePrivacyTest(unittest.TestCase):
+    def test_native_launcher_rejects_local_and_self_hosted_profiles(self):
+        application = Path("unused.exe")
+        artifacts = Path("unused-artifacts")
+        for actions, runner in [("false", "github-hosted"), ("true", "self-hosted")]:
+            with self.subTest(actions=actions, runner=runner):
+                with patch("acceptance.os.name", "nt"):
+                    with patch.dict(os.environ, {"GITHUB_ACTIONS": actions, "RUNNER_ENVIRONMENT": runner}):
+                        with self.assertRaisesRegex(RuntimeError, "hosted Windows CI"):
+                            run(application, artifacts)
+
     def test_local_and_self_hosted_desktops_are_never_captured(self):
         for actions, runner in [("false", "github-hosted"), ("true", "self-hosted"), ("true", "")]:
             with self.subTest(actions=actions, runner=runner):

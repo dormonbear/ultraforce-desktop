@@ -134,8 +134,8 @@ def verify_editor_ui(driver):
 
 
 def run(application_path, artifacts):
-    if os.name != "nt":
-        raise RuntimeError("Run native acceptance on Windows / 请在 Windows 运行原生验收")
+    if os.name != "nt" or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted":
+        raise RuntimeError("Run native acceptance on hosted Windows CI / 请在托管 Windows CI 运行原生验收")
     artifacts.mkdir(parents=True, exist_ok=True)
     runtime = matching_runtime()
     (artifacts / "runtime-location.txt").write_text(str(runtime), encoding="utf-8")
