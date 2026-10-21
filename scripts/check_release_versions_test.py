@@ -71,7 +71,7 @@ class ReleaseVersionsTest(unittest.TestCase):
         self.write("Cargo.lock", "not valid TOML")
         result = subprocess.run(
             [sys.executable, str(Path(__file__).with_name("check_release_versions.py")), "--root", str(self.root)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding="utf-8", check=False,
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("Release version check failed", result.stderr)
