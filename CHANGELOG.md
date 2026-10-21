@@ -1,5 +1,14 @@
 # Changelog / 更新日志
 
+## [0.3.23](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.22...v0.3.23) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* localize SOQL status and result guards / 本地化 SOQL 状态及结果保护提示 ([#108](https://github.com/dormonbear/ultraforce-desktop/issues/108)) ([78d4a4b](https://github.com/dormonbear/ultraforce-desktop/commit/78d4a4bd5729f581d354f34f1d21350af4e09020))
+* localize SOQL toolbar and run controls / 本地化 SOQL 工具栏及运行控件 ([#112](https://github.com/dormonbear/ultraforce-desktop/issues/112)) ([492127c](https://github.com/dormonbear/ultraforce-desktop/commit/492127c3fc1c3071e43042fd81c1fb88ea04ddcf))
+* refresh query plan target on org switch / 切换组织时刷新查询计划目标 ([#111](https://github.com/dormonbear/ultraforce-desktop/issues/111)) ([54739d0](https://github.com/dormonbear/ultraforce-desktop/commit/54739d0e415bd94dcf2313473fe447c8781a1ba8))
+
 ## [0.3.22](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.21...v0.3.22) (2026-10-21)
 
 
