@@ -16,6 +16,7 @@ import { RunButton } from "./RunButton";
 import { TargetOrg } from "./TargetOrg";
 import { useTheme, monacoTheme } from "../theme";
 import { useOrgs } from "../org";
+import { useI18n } from "../i18n";
 
 interface Props {
   value: string;
@@ -77,10 +78,11 @@ function QueryToolbar({
   | "onRun"
   | "running"
 >) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center justify-between gap-3 px-4 py-2">
       <div className="flex min-w-0 items-center gap-2.5">
-        <span className="micro-label">Query</span>
+        <span className="micro-label">{t("Query")}</span>
         <TargetOrg />
       </div>
       <div className="flex shrink-0 items-center gap-1">
@@ -89,7 +91,7 @@ function QueryToolbar({
           on={useToolingApi}
           onClick={onToggleToolingApi}
         />
-        <RunOption label="All rows" on={allRows} onClick={onToggleAllRows} />
+        <RunOption label={t("All rows")} on={allRows} onClick={onToggleAllRows} />
         <RunButton onRun={onRun} running={running} />
       </div>
     </div>

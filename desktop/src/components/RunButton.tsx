@@ -1,6 +1,7 @@
 import { Play, LoaderCircle } from "lucide-react";
 import { Button } from "@astryxdesign/core/Button";
 import { runShortcut } from "../platform";
+import { useI18n } from "../i18n";
 
 interface Props {
   onRun: () => void;
@@ -37,9 +38,11 @@ function RunIcon({ running }: { running: boolean }) {
 export function RunButton({
   onRun,
   running,
-  label = "Run",
-  runningLabel = "Running",
+  label,
+  runningLabel,
 }: Props) {
+  const { t } = useI18n();
+  const idleLabel = label ?? t("Run");
   // aria-busy lives on a wrapper: astryx Button hard-codes `aria-busy` from its
   // own `isLoading` state (spread after our props), so passing it to the Button
   // is clobbered. `isDisabled` reproduces the exact disabled styling the old
@@ -48,11 +51,11 @@ export function RunButton({
   return (
     <span aria-busy={running || undefined} className="ml-3 inline-flex">
       <Button
-        label={running ? runningLabel : label}
+        label={running ? runningLabel ?? t("Running") : idleLabel}
         icon={<RunIcon running={running} />}
         isDisabled={running}
         size="md"
-        tooltip={`Run (${runShortcut()})`}
+        tooltip={`${idleLabel} (${runShortcut()})`}
         onClick={onRun}
       />
     </span>

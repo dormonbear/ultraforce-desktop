@@ -2,6 +2,10 @@ import { useCallback, useSyncExternalStore } from "react";
 
 const chinese = {
   SOQL: "SOQL",
+  Query: "查询",
+  "All rows": "所有行",
+  Run: "运行",
+  Running: "运行中",
   Apex: "Apex",
   Logs: "日志",
   Schema: "对象结构",
