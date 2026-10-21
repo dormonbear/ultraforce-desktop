@@ -23,6 +23,15 @@ if (args[0] === 'org' && args[1] === 'display') {
 }
 if (target !== identity.username) throw new Error('Fetch target was not pinned / 取数目标未固定');
 const command = args.join(' ');
+if (command.includes('ApexClass') && fs.existsSync(path.join(root, 'pause'))) {
+  fs.writeFileSync(path.join(root, 'entered'), target);
+  const deadline = Date.now() + 10000;
+  const wait = new Int32Array(new SharedArrayBuffer(4));
+  while (!fs.existsSync(path.join(root, 'release'))) {
+    if (Date.now() >= deadline) throw new Error('Synthetic pause expired / 合成暂停超时');
+    Atomics.wait(wait, 0, 0, 10);
+  }
+}
 if (command.includes('completions')) {
   console.log(JSON.stringify({ publicDeclarations: { System: { String: { methods: [], properties: [] } } } }));
 } else if (command.includes('ApexClass')) {

@@ -3,6 +3,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
 const ALIAS: &str = "moving / 合成;&";
+const FRESH_ALIAS: &str = "fresh / 新别名";
 const USER: &str = "first@example.invalid";
 const OTHER_USER: &str = "second@example.invalid";
 const FOREIGN_USER: &str = "foreign@example.invalid";
@@ -58,7 +59,7 @@ impl Fixture {
         let foreign = json!({"id":"00D000000000002","username":FOREIGN_USER,"apiVersion":"60.0","service":"ForeignService","label":"Foreign Ledger"});
         std::fs::write(
             root.join("orgs.json"),
-            json!({ALIAS:first, USER:first, OTHER_USER:other, FOREIGN_USER:foreign}).to_string(),
+            json!({ALIAS:first, FRESH_ALIAS:first, USER:first, OTHER_USER:other, FOREIGN_USER:foreign}).to_string(),
         )
         .unwrap();
         Self { root, bin, cache }
@@ -121,6 +122,13 @@ impl Fixture {
 impl Drop for Fixture {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
+struct PausedFetch<'a>(&'a Fixture);
+impl Drop for PausedFetch<'_> {
+    fn drop(&mut self) {
+        let _ = std::fs::write(self.0.root.join("release"), b"");
     }
 }
 
@@ -203,6 +211,32 @@ async fn actual_cli_and_mcp_share_alias_generations_but_isolate_users_and_reassi
     assert_eq!(fixture.generation(USER), 2);
     assert_eq!(fixture.generation(OTHER_USER), 1);
     let client = fixture.server(false).await;
+    assert!(sf_schema::identity::lookup(&fixture.cache, FRESH_ALIAS)
+        .unwrap()
+        .is_none());
+    let commands_before = std::fs::read(fixture.root.join("commands.jsonl")).unwrap();
+    let mut unverified_read = CallToolRequestParams::new("ost_object");
+    unverified_read.arguments = Some(
+        json!({"org":FRESH_ALIAS,"object":"Account"})
+            .as_object()
+            .unwrap()
+            .clone(),
+    );
+    let missing = client
+        .call_tool(unverified_read)
+        .await
+        .unwrap_err()
+        .to_string();
+    assert!(missing.contains("ost_reindex"));
+    assert_eq!(
+        std::fs::read(fixture.root.join("commands.jsonl")).unwrap(),
+        commands_before
+    );
+    let before_fresh = fixture.generation(USER);
+    let discovered = call(&client, "ost_sync", json!({"org":FRESH_ALIAS})).await;
+    assert_eq!(discovered["stamp"]["org"], FRESH_ALIAS);
+    assert_eq!(discovered["stamp"]["generation"], before_fresh + 1);
+    assert_eq!(fixture.binding(FRESH_ALIAS), fixture.binding(USER));
     let before = fixture.generation(USER);
     let synced = call(&client, "ost_sync", json!({"org":ALIAS})).await;
     assert_eq!(synced["stamp"]["org"], ALIAS);
@@ -316,4 +350,53 @@ async fn actual_cli_and_mcp_share_alias_generations_but_isolate_users_and_reassi
     )
     .into_owned();
     assert!(!text.contains("SYNTHETIC_SECRET"));
+    // Reassignment during a live sync must not replace its captured response context.
+    // 实时同步期间重绑定别名，不得替换该同步已捕获的响应上下文。
+    let before_foreign = fixture.generation(FOREIGN_USER);
+    let before_other = fixture.generation(OTHER_USER);
+    std::fs::write(fixture.root.join("pause"), b"").unwrap();
+    let pause = PausedFetch(&fixture);
+    let client = fixture.server(false).await;
+    let reassign = async {
+        tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            while !fixture.root.join("entered").exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("Synthetic sync entry / 合成同步进入点");
+        assert_eq!(
+            std::fs::read_to_string(fixture.root.join("entered")).unwrap(),
+            FOREIGN_USER
+        );
+        let path = fixture.root.join("orgs.json");
+        let mut config: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        config[ALIAS] = config[OTHER_USER].clone();
+        std::fs::write(path, config.to_string()).unwrap();
+        sf_schema::identity::begin_resolution(&fixture.cache, ALIAS)
+            .unwrap()
+            .complete(&sf_core::OrgIdentity {
+                id: "00D000000000001".into(),
+                username: OTHER_USER.into(),
+                alias: None,
+                api_version: None,
+            })
+            .unwrap();
+        std::fs::write(fixture.root.join("release"), b"").unwrap();
+    };
+    let (synced, ()) = tokio::join!(call(&client, "ost_sync", json!({"org":ALIAS})), reassign);
+    assert_eq!(synced["stamp"]["org"], ALIAS);
+    assert_eq!(synced["stamp"]["generation"], before_foreign + 1);
+    assert_eq!(fixture.generation(FOREIGN_USER), before_foreign + 1);
+    assert_eq!(fixture.generation(OTHER_USER), before_other);
+    assert_eq!(fixture.binding(ALIAS), fixture.binding(OTHER_USER));
+    let current = call(
+        &client,
+        "ost_apex",
+        json!({"org":ALIAS,"name":"SecondService"}),
+    )
+    .await;
+    assert_eq!(current["stamp"]["generation"], before_other);
+    client.cancel().await.unwrap();
+    drop(pause);
 }

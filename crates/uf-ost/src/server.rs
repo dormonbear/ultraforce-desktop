@@ -389,8 +389,6 @@ impl OstServer {
         Parameters(a): Parameters<OrgArgs>,
     ) -> Result<Json<SyncDto>, ErrorData> {
         use std::sync::Arc as StdArc;
-        // Fail fast if the org was never indexed (sync is a no-op there).
-        self.open(&a.org)?;
         let invoker = sf_core::SfInvoker::new(StdArc::new(sf_core::ProcessRunner));
         let context = features::metadata_context::resolve(&invoker, &self.root, &a.org)
             .await

@@ -35,7 +35,7 @@ impl std::fmt::Display for QueryError {
         match self {
             QueryError::NotIndexed(org) => write!(
                 f,
-                "org '{org}' is not indexed — run `ost_reindex` (or `uf-ost index --org {org}`) / 组织尚无已验证索引，请运行 ost_reindex 或 uf-ost index 重建"
+                "org '{org}' is not indexed — run `ost_reindex`, or `uf-ost index` with `--org` set to this target / 组织尚无已验证索引，请运行 ost_reindex，或使用 --org 指定此目标运行 uf-ost index 重建"
             ),
             QueryError::StaleIndex(org) => write!(
                 f,
