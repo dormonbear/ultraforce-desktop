@@ -121,6 +121,8 @@ pub async fn index_org(
     on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
     let expected = apex_lang::snapshot::generation_token(&root, org_id).map_err(SfError::Spawn)?;
+    // Keep changes made during acquisition eligible for the next delta sync.
+    let indexed_at = now_iso8601();
     let started = std::time::Instant::now();
     tracing::info!(org = %org_id, api = %api, "index_org start (full index)");
 
@@ -206,7 +208,7 @@ pub async fn index_org(
     let manifest = IndexManifest {
         org_id: org_id.to_string(),
         api_version: api.to_string(),
-        indexed_at: now_iso8601(),
+        indexed_at,
         namespaces: ost.namespaces.len(),
         classes: class_count,
         sobjects,
@@ -767,3 +769,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 }
+
+#[cfg(test)]
+#[path = "index_watermark_tests.rs"]
+mod watermark_tests;
