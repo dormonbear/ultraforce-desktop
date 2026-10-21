@@ -149,8 +149,21 @@ pub async fn sync_org(
     api: &str,
     policy: &NamespacePolicy,
 ) -> Result<(SyncOutcome, Ost), SfError> {
+    sync_org_for_target(invoker, root, org, org, api, policy).await
+}
+
+/// Reconcile the cache generation using a separately pinned CLI target.
+/// 使用独立固定的 CLI 目标协调缓存代次。
+pub async fn sync_org_for_target(
+    invoker: &SfInvoker,
+    root: PathBuf,
+    cache_key: &str,
+    target: &str,
+    api: &str,
+    policy: &NamespacePolicy,
+) -> Result<(SyncOutcome, Ost), SfError> {
     let Some(snapshot) =
-        apex_lang::snapshot::load_sync_snapshot(&root, org, api).map_err(SfError::Spawn)?
+        apex_lang::snapshot::load_sync_snapshot(&root, cache_key, api).map_err(SfError::Spawn)?
     else {
         return Ok((SyncOutcome::default(), Ost::default()));
     };
@@ -170,14 +183,15 @@ pub async fn sync_org(
         ));
     }
     let started_at = now_iso8601();
-    let changed = fetch_changed_apex_classes(invoker, org, &snapshot.manifest.indexed_at).await?;
+    let changed =
+        fetch_changed_apex_classes(invoker, target, &snapshot.manifest.indexed_at).await?;
     validate_sources(&changed)?;
-    let entities: Vec<_> = fetch_changed_entities(invoker, org, &snapshot.manifest.indexed_at)
+    let entities: Vec<_> = fetch_changed_entities(invoker, target, &snapshot.manifest.indexed_at)
         .await?
         .into_iter()
         .filter(|name| policy.permits(name))
         .collect();
-    let mut store = sf_schema::SchemaStore::new(root.clone(), org);
+    let mut store = sf_schema::SchemaStore::for_target(root.clone(), cache_key, target);
     let schemas: Vec<_> = store
         .fetch_many(invoker, api, &entities, &mut |_, _| {})
         .await
@@ -189,10 +203,10 @@ pub async fn sync_org(
     // abort publication; empty lists allow upserts but cannot erase old data.
     // 两类删除均须完整权威列表；获取失败则中止发布，空列表仅允许更新而不能删除。
     let live: std::collections::BTreeSet<_> =
-        live_classes(invoker, org).await?.into_iter().collect();
+        live_classes(invoker, target).await?.into_iter().collect();
     let mut args = vec!["sobject", "list", "--sobject", "all"];
-    if org != "default" {
-        args.extend(["--target-org", org]);
+    if target != "default" {
+        args.extend(["--target-org", target]);
     }
     let live_objects: Vec<String> = invoker.run_json(&args).await?;
     if live_objects.iter().any(|name| name.is_empty()) {
@@ -262,7 +276,7 @@ pub async fn sync_org(
         org_types,
     };
     let manifest = IndexManifest {
-        org_id: org.to_owned(),
+        org_id: cache_key.to_owned(),
         api_version: api.to_owned(),
         indexed_at: started_at,
         namespaces: ost.namespaces.len(),
