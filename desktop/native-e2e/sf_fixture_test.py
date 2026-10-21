@@ -6,6 +6,7 @@ from sf_fixture import ORG, ORG_ID
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 
@@ -70,6 +71,48 @@ class NativeFixtureTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(flag, result.stderr)
         self.assertEqual(self.invoke(["unexpected", "command"]).returncode, 1)
+
+    def test_rest_auth_requires_an_explicit_loopback_endpoint(self):
+        for address in ("https://example.invalid", "http://example.invalid:8080",
+                        "http://127.0.0.1", "http://127.0.0.1:bad",
+                        "http://token@127.0.0.1:8080", "http://127.0.0.1:8080/private"):
+            with self.subTest(address=address):
+                (self.root / "rest-url").write_text(address, encoding="utf-8")
+                result = self.invoke(["org", "display", "--target-org", ORG, "--json"])
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("loopback", json.loads(result.stdout)["message"])
+        (self.root / "rest-url").write_text("http://127.0.0.1:8080", encoding="utf-8")
+        result = self.invoke(["org", "display", "--target-org", ORG, "--json"])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        value = json.loads(result.stdout)["result"]
+        self.assertEqual(value["instanceUrl"], "http://127.0.0.1:8080")
+        self.assertEqual(value["accessToken"], "synthetic-native-token")
+
+    def test_auth_barrier_blocks_a_real_fixture_process_until_release(self):
+        (self.root / "mode").write_text("normal", encoding="utf-8")
+        (self.root / "rest-url").write_text("http://127.0.0.1:8080", encoding="utf-8")
+        (self.root / "block-auth").touch()
+        process = subprocess.Popen([
+            sys.executable, str(Path(__file__).with_name("sf_fixture.py")),
+            "org", "display", "--target-org", ORG, "--json",
+        ], env=self.environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        try:
+            deadline = time.monotonic() + 5
+            while not (self.root / "auth-entered").exists():
+                self.assertIsNone(process.poll())
+                self.assertLess(time.monotonic(), deadline)
+                time.sleep(0.02)
+            self.assertIsNone(process.poll())
+        finally:
+            (self.root / "release-auth").touch()
+            try:
+                output, error = process.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate(timeout=5)
+                raise
+        self.assertEqual(process.returncode, 0, error)
+        self.assertEqual(json.loads(output)["result"]["accessToken"], "synthetic-native-token")
 
 
 if __name__ == "__main__":
