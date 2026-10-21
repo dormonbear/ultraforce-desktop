@@ -105,14 +105,19 @@ fn validate(binding: CacheBinding) -> std::io::Result<CacheBinding> {
 fn writer(root: &Path) -> std::io::Result<Connection> {
     let path = catalog_path(root);
     std::fs::create_dir_all(path.parent().ok_or_else(invalid)?)?;
-    let conn = Connection::open(path).map_err(db_error)?;
+    let mut conn = Connection::open(path).map_err(db_error)?;
     conn.busy_timeout(Duration::from_secs(5))
         .map_err(db_error)?;
     conn.pragma_update(None, "foreign_keys", true)
         .map_err(db_error)?;
     // DELETE keeps offline catalog reads free of WAL/SHM creation. Snapshot publication remains WAL/CAS.
     // DELETE 避免离线目录读取创建 WAL/SHM 文件；快照发布仍使用 WAL/CAS。
-    conn.execute_batch(
+    // One setup transaction avoids partial schemas and repeated first-open commits.
+    // 单个初始化事务避免残缺结构及首次打开时的重复提交。
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(db_error)?;
+    tx.execute_batch(
         "CREATE TABLE IF NOT EXISTS contexts (
             cache_key TEXT PRIMARY KEY, org_id TEXT NOT NULL, username TEXT NOT NULL,
             UNIQUE(org_id, username)
@@ -127,6 +132,7 @@ fn writer(root: &Path) -> std::io::Result<Connection> {
          INSERT OR IGNORE INTO resolution_order VALUES (1,0);",
     )
     .map_err(db_error)?;
+    tx.commit().map_err(db_error)?;
     Ok(conn)
 }
 
