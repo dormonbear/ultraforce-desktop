@@ -229,6 +229,40 @@ fn invalid_identity_is_rejected_and_unneeded_display_fields_are_not_persisted() 
 }
 
 #[test]
+fn failed_initialization_does_not_publish_partial_catalog_tables() {
+    let root = root();
+    let path = catalog_path(&root);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    let conn = Connection::open(&path).unwrap();
+    conn.execute_batch("CREATE TABLE resolution_order (singleton INTEGER PRIMARY KEY);")
+        .unwrap();
+    conn.execute("INSERT INTO resolution_order VALUES (7)", [])
+        .unwrap();
+    drop(conn);
+    assert!(begin_resolution(&root, "synthetic").is_err());
+    let conn = Connection::open(&path).unwrap();
+    let partial: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('contexts','bindings')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        partial, 0,
+        "Failed setup must be atomic / 失败的初始化须保持原子性"
+    );
+    let existing: i64 = conn
+        .query_row("SELECT singleton FROM resolution_order", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(existing, 7);
+    drop(conn);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn concurrent_writers_deduplicate_one_context() {
     let root = root();
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
