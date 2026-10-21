@@ -1,4 +1,4 @@
-//! Debug-config, opt-in telemetry, and Configure-Logging (trace flags / debug
+//! Debug-config and Configure-Logging (trace flags / debug
 //! levels) DTOs, plus the diff input DTOs the frontend sends back.
 
 use features::debug_config::{CategoryLevels, DebugConfig, LogLevel};
@@ -74,33 +74,6 @@ impl From<&DebugConfig> for DebugConfigDto {
             trace_flag_id: c.trace_flag_id.clone(),
             levels: CategoryLevelsDto::from(&c.levels),
             expiration_date: c.expiration_date.clone(),
-        }
-    }
-}
-
-// ---- Opt-in telemetry config ----
-
-#[derive(serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TelemetryConfigDto {
-    pub local_enabled: bool,
-    pub remote_enabled: bool,
-}
-
-impl From<&features::telemetry_config::TelemetryConfig> for TelemetryConfigDto {
-    fn from(c: &features::telemetry_config::TelemetryConfig) -> Self {
-        TelemetryConfigDto {
-            local_enabled: c.local_enabled,
-            remote_enabled: c.remote_enabled,
-        }
-    }
-}
-
-impl From<&TelemetryConfigDto> for features::telemetry_config::TelemetryConfig {
-    fn from(d: &TelemetryConfigDto) -> Self {
-        features::telemetry_config::TelemetryConfig {
-            local_enabled: d.local_enabled,
-            remote_enabled: d.remote_enabled,
         }
     }
 }

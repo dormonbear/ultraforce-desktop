@@ -42,9 +42,8 @@ export async function checkForUpdates(verbose = false): Promise<void> {
     if (update) offerUpdate(update);
     else if (verbose) toast.success("You're up to date");
   } catch (e) {
-    // Network error / no release yet — stay silent on startup, just log.
+    // Network error / no release yet — stay silent on startup.
     done();
     if (verbose) toast.error(`Update check failed: ${e}`);
-    console.warn("update check failed:", e);
   }
 }

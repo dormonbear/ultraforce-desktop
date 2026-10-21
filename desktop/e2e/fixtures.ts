@@ -184,8 +184,6 @@ const RESP: Record<string, unknown> = {
       },
     ],
   },
-  // Dev builds seed telemetry on and disclose it; the mocked app is neither.
-  telemetry_dev_seeded: false,
   fetch_apex_source: {
     name: "MyClass",
     kind: "class",
@@ -215,6 +213,7 @@ const RESP: Record<string, unknown> = {
   source_line_indices: [],
   source_at_line: null,
   soql_diagnostics: [],
+  soql_subquery_spans: [],
   apex_soql_diagnostics: [],
   apex_diagnostics: [],
   sf_status: {
@@ -252,7 +251,8 @@ async function installMocks(
 
     // Registered `listen` handlers, keyed by event name, so tests can drive
     // backend-emitted events via `window.__ufEmit(event, payload)`.
-    const handlers: Record<string, ((e: unknown) => void)[]> = {};
+    const handlers: Record<string, Map<number, (e: unknown) => void>> = {};
+    let nextEventId = 1;
 
     const invoke = (
       cmd: string,
@@ -303,8 +303,9 @@ async function installMocks(
       if (cmd === "plugin:event|listen") {
         const ev = args.event as string;
         const h = args.handler as (e: unknown) => void;
-        (handlers[ev] ??= []).push(h);
-        return Promise.resolve(0);
+        const id = nextEventId++;
+        (handlers[ev] ??= new Map()).set(id, h);
+        return Promise.resolve(id);
       }
       if (cmd.startsWith("plugin:event|")) {
         return Promise.resolve(0);
@@ -359,9 +360,16 @@ async function installMocks(
         currentWebview: { label: "main" },
       },
     };
+    // Tauri v2 cleans its JS event registry before invoking backend unlisten.
+    // Model that lifecycle so StrictMode cleanup cannot leak test listeners.
+    Object.assign(window, {
+      __TAURI_EVENT_PLUGIN_INTERNALS__: {
+        unregisterListener: (event: string, id: number) => handlers[event]?.delete(id),
+      },
+    });
     // @ts-expect-error — test-only hook to deliver a backend event.
     window.__ufEmit = (event: string, payload: unknown) =>
-      (handlers[event] ?? []).forEach((h) => h({ event, id: 0, payload }));
+      handlers[event]?.forEach((h, id) => h({ event, id, payload }));
     // @ts-expect-error — test-only hook to read a file the app wrote.
     window.__ufReadFile = (path: string) => files[path] ?? null;
     },

@@ -5,7 +5,6 @@ import type {
   LoggingConfigDto,
   LoggingDiffDto,
   SaveOutcomeDto,
-  TelemetryConfig,
 } from "../types";
 
 /** The running user's TraceFlag / DebugLevel config in `org` (null = CLI default). */
@@ -40,21 +39,4 @@ export function saveLoggingConfig(
   org: string | null,
 ): Promise<SaveOutcomeDto> {
   return invoke<SaveOutcomeDto>("save_logging_config", { diff, org });
-}
-
-/** The persisted local + remote telemetry opt-in flags (both OFF by default). */
-export function getTelemetryConfig(): Promise<TelemetryConfig> {
-  return invoke<TelemetryConfig>("get_telemetry_config");
-}
-
-/** Whether this launch switched telemetry on by itself (dev builds seed it).
- * Sourced from the backend: Vite's DEV flag and Rust's `debug_assertions`
- * disagree under `tauri build --debug`, so the frontend can't infer it. */
-export function telemetryDevSeeded(): Promise<boolean> {
-  return invoke<boolean>("telemetry_dev_seeded");
-}
-
-/** Persist the local + remote telemetry opt-in flags. */
-export function setTelemetryConfig(config: TelemetryConfig): Promise<void> {
-  return invoke<void>("set_telemetry_config", { config });
 }

@@ -325,14 +325,14 @@ test("top bar shows indexing progress then clears when done", async ({
   await page.evaluate(() =>
     (window as unknown as { __ufEmit: (e: string, p: unknown) => void }).__ufEmit(
       "index-progress",
-      { org: "x", phase: "sobjects", done: 120, total: 340 },
+      { org: "dev@acme.com", phase: "sobjects", done: 120, total: 340 },
     ),
   );
   await expect(page.getByText("Indexing objects 120/340")).toBeVisible();
   await page.evaluate(() =>
     (window as unknown as { __ufEmit: (e: string, p: unknown) => void }).__ufEmit(
       "index-progress",
-      { org: "x", phase: "done", done: 340, total: 340 },
+      { org: "dev@acme.com", phase: "done", done: 340, total: 340 },
     ),
   );
   await expect(page.getByText(/Indexing objects/)).toHaveCount(0);
@@ -346,8 +346,7 @@ test("sync-result event is handled silently (no toast)", async ({ page }) => {
       { org: "x", added: 1, updated: 2, removed: 0 },
     ),
   );
-  // The sync toast was intentionally removed — SyncToast now logs silently. No
-  // toast should surface for a sync-result event.
+  // Background sync does not create a usage log or toast.
   await expect(page.getByText(/Synced .* updates/)).toHaveCount(0);
 });
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import type { Monaco, OnMount } from "@monaco-editor/react";
+import Editor from "../editor/LocalEditor";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import { configureMonaco, registerSoqlFormatter } from "../editor/monaco-soql";

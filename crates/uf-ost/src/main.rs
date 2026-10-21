@@ -14,7 +14,6 @@ mod root;
 mod server;
 mod soql;
 mod status_cmd;
-mod telemetry;
 
 use std::path::PathBuf;
 

@@ -27,6 +27,9 @@
 
 ## Why Ultraforce
 
+- **No analytics or usage tracking.** Workspaces and functional caches stay on
+  your computer. Salesforce tools contact your org; update checks contact GitHub.
+  See [Privacy](PRIVACY.md) for local storage, network access and legacy files.
 - ⚡ **Local-first & fast.** A native Tauri 2 + Rust desktop app that drives the
   official Salesforce CLI (`sf`) under the hood — it works against any org you
   are already authenticated to, with no extra login.

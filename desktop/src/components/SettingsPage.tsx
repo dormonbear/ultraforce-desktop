@@ -20,8 +20,6 @@ import { getNamespacePolicy, setNamespacePolicy } from "../indexSettings";
 import { getConfirmApexRun, setConfirmApexRun } from "../apexSettings";
 import { useOrgs } from "../org";
 import { reindexOrg } from "../ipc/schema";
-import { getTelemetryConfig, setTelemetryConfig, telemetryDevSeeded } from "../ipc/config";
-import type { TelemetryConfig } from "../types";
 import { useTheme } from "../theme";
 import {
   HIGHLIGHT_SCHEMES,
@@ -31,45 +29,6 @@ import {
 import { checkForUpdates } from "../updater";
 
 const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
-
-// Shown only when the backend actually seeded (dev builds do, at first run):
-// that contradicts the "OFF by default" line of the disclosure, so say so rather
-// than let the disclosure lie.
-const DEV_TELEMETRY_NOTE = `\n\nDEVELOPMENT BUILD: the "OFF by default" line above did not apply to this launch —
-this build switched anonymous usage statistics ON by itself on first run, and wrote
-that choice to the config it shares with the uf-ost binary. Released builds behave
-as stated above.`;
-
-// Verbatim privacy disclosure — the contract of exactly what telemetry sends.
-// Do not paraphrase, shorten, or reword; it was reviewed word-by-word.
-const TELEMETRY_DISCLOSURE = `Both are OFF by default; nothing is recorded or sent until you turn them on.
-
-"Anonymous usage statistics" (Aptabase) — when ON, each tool call sends a scrubbed
-event to Aptabase's cloud:
-  • tool name (e.g. soql_query, apex_run)
-  • result: success / failure
-  • duration (ms)
-  • error CATEGORY label (e.g. INVALID_FIELD) — never the error text
-  • whether the target org is production (a true/false flag)
-  • basic system info: operating-system name, app version, and a random per-session id
-
-"Local telemetry" — when ON, records the FULL detail of each tool call — including your
-SOQL/Apex text, the org alias, and error messages — to a database on THIS computer only.
-It never leaves your machine and is never uploaded anywhere; it is for your own
-troubleshooting.
-
-Sent to Aptabase's cloud — NEVER:
-  • your SOQL / Apex query or code text
-  • any record data: field values, record Ids, object contents
-  • org names / aliases
-  • error message text (only the category label)
-  • any Salesforce business data
-
-Recorded NOWHERE, under any setting:
-  • access tokens / credentials / passwords
-
-Aptabase does not store your IP address, name, email, or other personal data, and does no
-cross-session tracking or device fingerprinting.`;
 
 interface Props {
   /** Called after a workspace root changes so the owner can remount the panel. */
@@ -123,15 +82,6 @@ export function SettingsPage({ onChanged }: Props) {
   const [ns, setNs] = useState<string>("all");
   const [version, setVersion] = useState("");
   const [confirmRun, setConfirmRun] = useState(false);
-  const [telemetry, setTelemetry] = useState<TelemetryConfig>({
-    localEnabled: false,
-    remoteEnabled: false,
-  });
-  const [devSeeded, setDevSeeded] = useState(false);
-  // Locks the switches while a save is in flight: an overlapping on/off pair can
-  // land out of order and leave them showing the opposite of what is being sent.
-  const [savingTelemetry, setSavingTelemetry] = useState(false);
-
   useEffect(() => {
     void Promise.all([getRoot("soql"), getRoot("apex")]).then(([soql, apex]) =>
       setRoots({ soql, apex }),
@@ -139,26 +89,7 @@ export function SettingsPage({ onChanged }: Props) {
     void getNamespacePolicy().then(setNs);
     void getVersion().then(setVersion);
     void getConfirmApexRun().then(setConfirmRun);
-    void getTelemetryConfig().then(setTelemetry);
-    void telemetryDevSeeded().then(setDevSeeded);
   }, []);
-
-  // Persist the updated telemetry pair whenever a toggle flips. A failed save
-  // must roll the switch back: leaving it showing OFF while the backend kept
-  // reporting would make this panel lie about what is being sent.
-  const changeTelemetry = async (next: TelemetryConfig) => {
-    const prev = telemetry;
-    setTelemetry(next);
-    setSavingTelemetry(true);
-    try {
-      await setTelemetryConfig(next);
-    } catch (e) {
-      setTelemetry(prev);
-      toast.error(`Telemetry setting not saved: ${formatIpcError(e)}`);
-    } finally {
-      setSavingTelemetry(false);
-    }
-  };
 
   // Change the index namespace scope and reindex the active org so it takes effect.
   const changeNs = async (value: string) => {
@@ -273,33 +204,19 @@ export function SettingsPage({ onChanged }: Props) {
           />
         </Section>
 
-        <Section title="Privacy & Telemetry">
+        <Section title="Privacy">
           <div className="flex flex-col gap-3">
-            <Switch
-              label="Local telemetry"
-              description="Local telemetry — record tool calls to a local database on this computer for your own debugging. Never leaves your machine."
-              labelPosition="start"
-              labelSpacing="spread"
-              value={telemetry.localEnabled}
-              isDisabled={savingTelemetry}
-              onChange={(next) =>
-                void changeTelemetry({ ...telemetry, localEnabled: next })
-              }
-            />
-            <Switch
-              label="Anonymous usage statistics"
-              description="Anonymous usage statistics (Aptabase) — send scrubbed events to help improve the tool."
-              labelPosition="start"
-              labelSpacing="spread"
-              value={telemetry.remoteEnabled}
-              isDisabled={savingTelemetry}
-              onChange={(next) =>
-                void changeTelemetry({ ...telemetry, remoteEnabled: next })
-              }
-            />
-            <pre className="whitespace-pre-wrap font-sans text-[11px] leading-relaxed text-text-dim">
-              {devSeeded ? TELEMETRY_DISCLOSURE + DEV_TELEMETRY_NOTE : TELEMETRY_DISCLOSURE}
-            </pre>
+            <Text display="block">
+              No analytics, telemetry, usage tracking, or automatic crash reports are collected or sent.
+            </Text>
+            <Text display="block">
+              Your scripts, execution history, preferences, Salesforce logs and schema indexes stay on this computer.
+              Salesforce operations communicate with your selected org. Update checks contact GitHub Releases.
+            </Text>
+            <Text display="block">
+              Apex History keeps your last 50 runs locally; use Clear history in the History drawer to remove them.
+              Opened Salesforce logs are cached locally for reopening.
+            </Text>
           </div>
         </Section>
 
