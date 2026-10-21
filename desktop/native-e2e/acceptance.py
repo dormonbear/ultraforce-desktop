@@ -28,6 +28,10 @@ def fixture(root):
         **os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
         "APPDATA": str(root / "roaming"), "LOCALAPPDATA": str(root / "local"),
         "UF_NATIVE_FIXTURE": str(root),
+        # Prove the app overrides inherited opt-ins for every CLI process. / 验证应用为每个 CLI 进程覆盖继承的收集启用值。
+        **{flag: "false" for flag in [
+            "SF_DISABLE_TELEMETRY", "SFDX_DISABLE_TELEMETRY", "SF_DISABLE_LOG_FILE", "SFDX_DISABLE_LOG_FILE",
+        ]},
     }
 
 
