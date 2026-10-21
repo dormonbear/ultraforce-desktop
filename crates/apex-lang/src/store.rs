@@ -93,7 +93,16 @@ impl OstStore {
         let Some(raw) = db::read_raw(&conn, api_version, source.stem()).map_err(io_err)? else {
             return Ok(None);
         };
-        let value: Value = serde_json::from_str(&raw).map_err(SfError::Parse)?;
+        let value: Value = match serde_json::from_str(&raw) {
+            Ok(value) => value,
+            Err(_) if source == OstSource::Stdlib => return Ok(None),
+            Err(error) => return Err(SfError::Parse(error)),
+        };
+        // Failed/corrupt stdlib responses are cache misses, not a reason to erase a generation.
+        // 失败或损坏的标准库响应视为缓存未命中，无需删除代次。
+        if source == OstSource::Stdlib && !shared_stdlib::is_usable(&value) {
+            return Ok(None);
+        }
         self.mem
             .insert(Self::key(api_version, source), value.clone());
         Ok(Some(value))
@@ -390,6 +399,41 @@ mod tests {
         let mut cold = OstStore::new(&root, "00Dsecond");
         assert!(cold.load_disk(API, OstSource::Stdlib).unwrap().is_some());
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn invalid_org_stdlib_is_retried_without_discarding_the_published_snapshot() {
+        for raw in [
+            r#"{"message":"Synthetic failed response / 合成失败响应"}"#,
+            "{synthetic-broken-json",
+        ] {
+            let root = unique_root();
+            let manifest = crate::IndexManifest {
+                org_id: "context-error".into(),
+                api_version: API.into(),
+                indexed_at: "2026-10-21T00:00:00Z".into(),
+                namespaces: 0,
+                classes: 0,
+                sobjects: 0,
+                stdlib_error: Some("Synthetic Tooling failure / 合成 Tooling 失败".into()),
+            };
+            crate::save_snapshot(&root, &crate::Ost::default(), &manifest).unwrap();
+            let conn = open_raw_cache(&sf_schema::sqlite::db_path(&root, "context-error")).unwrap();
+            db::write_raw(&conn, API, "stdlib", raw).unwrap();
+            drop(conn);
+            let (invoker, calls) = counting_invoker();
+            let mut reopened =
+                OstStore::for_target(&root, "context-error", "synthetic@example.invalid");
+            let value = reopened
+                .get_or_fetch(&invoker, API, OstSource::Stdlib)
+                .await
+                .unwrap();
+            assert!(crate::shared_stdlib::is_usable(&value));
+            assert_eq!(calls.load(Ordering::SeqCst), 1);
+            let (_, retained) = crate::load_snapshot(&root, "context-error", API).unwrap();
+            assert_eq!(retained, manifest);
+            std::fs::remove_dir_all(root).unwrap();
+        }
     }
 
     #[tokio::test]
