@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.17](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.16...v0.3.17) (2026-10-21)
+
+
+### Bug Fixes
+
+* reconcile index deletions from source provenance / 按来源归属协调索引删除 ([2b167dc](https://github.com/dormonbear/ultraforce-desktop/commit/2b167dc2b081bd9978f45ffcb0b645d9aa934cc2))
+* **release:** align desktop lock versions automatically / 自动对齐桌面发布锁版本 ([182bdb7](https://github.com/dormonbear/ultraforce-desktop/commit/182bdb79caba1cf98c995825e64a844c468c258d))
+* terminate owned CLI children on timeout or cancellation / 超时或取消时终止直接 CLI 子进程 ([3f1e44d](https://github.com/dormonbear/ultraforce-desktop/commit/3f1e44deee8c297444b47d8da4e068258e0f454d))
+
 ## [0.3.16](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.15...v0.3.16) (2026-10-21)
 
 
