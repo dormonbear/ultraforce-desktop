@@ -1,4 +1,32 @@
-# Changelog
+# Changelog / 更新日志
+
+## [0.3.18](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.17...v0.3.18) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* **editor:** preserve rapidly typed and replaced editor content / 保留快速输入及替换的编辑器内容 ([f40ff8c](https://github.com/dormonbear/ultraforce-desktop/commit/f40ff8cf6aa968b8d238bdab1325a5d91096763a))
+* localize desktop navigation and settings / 本地化桌面导航和设置 ([ecbea28](https://github.com/dormonbear/ultraforce-desktop/commit/ecbea28314984aed59ec3f857e5c205aed022673))
+* **release:** generate bilingual release metadata / 生成双语发布元信息 ([e1650f1](https://github.com/dormonbear/ultraforce-desktop/commit/e1650f163f867744b743192087a38ab9de3111fb))
+* **release:** publish updater manifest once after all builds / 所有构建完成后统一发布更新清单 ([#82](https://github.com/dormonbear/ultraforce-desktop/issues/82)) ([5d33cac](https://github.com/dormonbear/ultraforce-desktop/commit/5d33cac36257473183573c72b148d3aa5c79050f))
+* support npm Salesforce CLI on Windows / 支持 Windows npm Salesforce CLI ([7cff356](https://github.com/dormonbear/ultraforce-desktop/commit/7cff356e2a449633556fe12ab0239f81756a8765))
+* **uf-ost:** reserve global reindex before spawn / 启动前全局预留重建 ([#79](https://github.com/dormonbear/ultraforce-desktop/issues/79)) ([417aabd](https://github.com/dormonbear/ultraforce-desktop/commit/417aabd071265e4ac76bdd0f84be0f853d496997))
+
+### Upgrade notes / 升级说明
+
+Close older `uf-ost` MCP servers and background indexers before upgrading, then restart them with this version. Older running processes do not participate in the new per-root operating-system lease protocol. Background reindex reserves its slot before launch and immediately appears in status; separate index roots remain independent.
+升级前关闭旧版 `uf-ost` MCP 服务和后台索引进程，随后使用此版本重新启动。仍在运行的旧进程不会参与新的按索引根目录限定的操作系统租约协议。后台重建在启动前预留运行位置，并立即反映在状态中；不同索引根目录仍互不影响。
+
+The index schema remains v5 and existing v0.3.17 v5 caches are compatible. Existing v3/v4 caches, or missing/corrupt source provenance, still require a full reindex. The new coordination protocol preserves synchronous sync and generation compare-and-swap behavior.
+索引模式仍为 v5，现有 v0.3.17 的 v5 缓存保持兼容。v3／v4 缓存或来源归属缺失／损坏的缓存仍须完整重建。新的协调协议保留同步执行的增量同步及代次比较交换行为。
+
+### Verification and publishing / 验证及发布
+
+CI now runs Windows/macOS tests with full-source frontend coverage floors and production keyboard regressions. Native Windows acceptance exercises real Tauri IPC, SQLite/WAL indexing, offline reopen, Schema browsing, SOQL/Apex editor suggestions and recorded stdlib failure with synthetic metadata.
+CI 现运行 Windows／macOS 测试，并执行全量前端源码覆盖率阈值及生产构建键盘回归。Windows 原生验收使用合成元数据，覆盖真实 Tauri IPC、SQLite／WAL 索引、离线重载、对象浏览、SOQL／Apex 编辑器补全及标准库错误记录。
+
+Updater metadata is published once after platform builds and all seven signed update bundles are available; npm publication waits for that step. Navigation and settings follow English or Simplified Chinese system preferences; other desktop panels still need localization.
+更新元信息在各平台构建及七份签名更新包就绪后统一发布一次，npm 发布等待该步骤完成。导航和设置跟随英语或简体中文系统偏好；其他桌面面板仍需继续本地化。
 
 ## [0.3.17](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.16...v0.3.17) (2026-10-21)
 
