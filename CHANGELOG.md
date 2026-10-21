@@ -1,5 +1,12 @@
 # Changelog / 更新日志
 
+## [0.3.21](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.20...v0.3.21) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* initialize identity catalog atomically / 原子初始化身份目录 ([c6707c5](https://github.com/dormonbear/ultraforce-desktop/commit/c6707c5827ec8e9b36668f8084872fa17ea2d297))
+
 ## [0.3.20](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.19...v0.3.20) (2026-10-21)
 
 
