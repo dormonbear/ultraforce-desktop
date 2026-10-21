@@ -32,7 +32,7 @@ def native_auth(root, args, result):
         raise RuntimeError("Synthetic REST must use loopback / 合成 REST 必须使用回环地址")
     if display:
         return {**result, "instanceUrl": address}
-    if "--target-org" not in args or args[args.index("--target-org") + 1] != ORG:
+    if "--target-org" in args and args[args.index("--target-org") + 1] != ORG:
         raise RuntimeError("Unpinned synthetic target / 未固定的合成目标")
     if (root / "block-auth").exists():
         (root / "auth-entered").touch()

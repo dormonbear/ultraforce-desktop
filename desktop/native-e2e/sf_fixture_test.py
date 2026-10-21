@@ -92,6 +92,10 @@ class NativeFixtureTest(unittest.TestCase):
         token = self.invoke(["org", "auth", "show-access-token", "--target-org", ORG, "--json"])
         self.assertEqual(token.returncode, 0, token.stderr)
         self.assertEqual(json.loads(token.stdout)["result"]["accessToken"], "synthetic-native-token")
+        default = self.invoke(["org", "auth", "show-access-token", "--json"])
+        self.assertEqual(default.returncode, 0, default.stderr)
+        self.assertEqual(json.loads(default.stdout)["result"]["accessToken"], "synthetic-native-token")
+        self.assertEqual(self.invoke(["org", "auth", "show-access-token", "--target-org", "other@example.invalid"]).returncode, 1)
         self.assertEqual(self.invoke(["org", "auth", "show-access-token", "--target-org", ORG], "offline").returncode, 1)
 
     def test_auth_barrier_blocks_a_real_fixture_process_until_release(self):
