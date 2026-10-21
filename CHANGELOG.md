@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.16](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.15...v0.3.16) (2026-10-21)
+
+
+### Bug Fixes
+
+* **desktop:** preserve workspace edits across file lifecycle races ([#69](https://github.com/dormonbear/ultraforce-desktop/issues/69)) ([df0d563](https://github.com/dormonbear/ultraforce-desktop/commit/df0d56355cf542e454aa793c57c82dedd6a3fea3))
+* **mcp:** publish coherent offline snapshots and complete search provenance ([#72](https://github.com/dormonbear/ultraforce-desktop/issues/72)) ([0d5ec57](https://github.com/dormonbear/ultraforce-desktop/commit/0d5ec579f77df6970bcee966679c626e6ff83051))
+* preserve native Windows workspace paths and save identity ([#71](https://github.com/dormonbear/ultraforce-desktop/issues/71)) ([3f348de](https://github.com/dormonbear/ultraforce-desktop/commit/3f348dedf1b2436ba08557ba5d80c9f77069b72f))
+
 ## [0.3.15](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.14...v0.3.15) (2026-10-21)
 
 
