@@ -1,5 +1,12 @@
 # Changelog / 更新日志
 
+## [0.3.20](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.19...v0.3.20) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* unify metadata cache identity / 统一元数据缓存身份 ([8e384f8](https://github.com/dormonbear/ultraforce-desktop/commit/8e384f8937a473a4a0300ec915c3faefef26e730))
+
 ## [0.3.19](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.18...v0.3.19) (2026-10-21)
 
 
