@@ -36,6 +36,54 @@ struct OrgDisplay {
     api_version: Option<String>,
 }
 
+/// Routing metadata from `sf org display`; credential fields are ignored.
+/// `sf org display` 返回的路由元数据；忽略凭据字段。
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct OrgIdentity {
+    #[serde(deserialize_with = "deserialize_org_id")]
+    pub id: String,
+    #[serde(deserialize_with = "deserialize_username")]
+    pub username: String,
+    #[serde(default)]
+    pub alias: Option<String>,
+    #[serde(default)]
+    pub api_version: Option<String>,
+}
+
+fn deserialize_org_id<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<String, D::Error> {
+    let id = String::deserialize(deserializer)?;
+    let prefix = if id.len() == 18 {
+        id.get(..3)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("00D"))
+    } else {
+        id.starts_with("00D")
+    };
+    if !matches!(id.len(), 15 | 18)
+        || !id.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        || !prefix
+    {
+        return Err(serde::de::Error::custom(
+            "Invalid Salesforce organization ID / 无效的 Salesforce 组织 ID",
+        ));
+    }
+    Ok(id)
+}
+
+fn deserialize_username<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<String, D::Error> {
+    let username = String::deserialize(deserializer)?;
+    if username.trim().is_empty() {
+        return Err(serde::de::Error::custom(
+            "Org identity has no usable username / 组织身份缺少可用用户名",
+        ));
+    }
+    Ok(username)
+}
+
 /// The bits needed to call the org's REST API directly: a live access token,
 /// the instance host, and the API version. Host and version come from
 /// `sf org display`; the token comes from `sf org auth show-access-token`.
@@ -69,6 +117,19 @@ fn is_usable_token(token: &str) -> bool {
 pub struct OrgRegistry;
 
 impl OrgRegistry {
+    /// Read org identity and a username for routing through one display call.
+    /// 通过一次显示命令读取组织身份和用于路由的用户名。
+    pub async fn identity(
+        invoker: &SfInvoker,
+        target: Option<&str>,
+    ) -> Result<OrgIdentity, SfError> {
+        let mut args = vec!["org", "display"];
+        if let Some(target) = target {
+            args.extend(["--target-org", target]);
+        }
+        invoker.run_json(&args).await
+    }
+
     pub async fn list(invoker: &SfInvoker) -> Result<Vec<OrgRef>, SfError> {
         let r: OrgListResult = invoker.run_json(&["org", "list"]).await?;
         let mut all = r.non_scratch;
@@ -117,10 +178,7 @@ impl OrgRegistry {
     /// `MIN_SF_VERSION` is 2.0.0 and `show-access-token` is not present across
     /// that whole range, so an unconditional call would break older CLIs that
     /// still hand back a usable token inline. Those pay nothing here.
-    pub async fn auth_info(
-        invoker: &SfInvoker,
-        target: Option<&str>,
-    ) -> Result<AuthInfo, SfError> {
+    pub async fn auth_info(invoker: &SfInvoker, target: Option<&str>) -> Result<AuthInfo, SfError> {
         let mut args = vec!["org", "display"];
         if let Some(t) = target {
             args.push("--target-org");
@@ -270,7 +328,11 @@ mod tests {
         let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
             let redacted = args.iter().all(|a| a != "show-access-token");
             seen2.lock().unwrap().push(args.to_vec());
-            let token = if redacted { "[REDACTED] Use it" } else { "00Dreal" };
+            let token = if redacted {
+                "[REDACTED] Use it"
+            } else {
+                "00Dreal"
+            };
             Ok(crate::runner::RawOutput {
                 status: 0,
                 stdout: format!(
@@ -301,5 +363,85 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(v.as_deref(), Some("67.0"));
+    }
+
+    #[tokio::test]
+    async fn identity_discovery_keeps_target_literal_and_discards_credentials() {
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured = seen.clone();
+        let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
+            captured.lock().unwrap().push(args.to_vec());
+            Ok(crate::RawOutput {
+                status: 0,
+                stdout: serde_json::json!({"status":0,"result":{
+                    "id":"00D000000000001EAA", "username":"synthetic@example.invalid",
+                    "alias":"SyntheticAlias", "apiVersion":"60.0",
+                    "accessToken":"SYNTHETIC_SECRET_ACCESS", "refreshToken":"SYNTHETIC_SECRET_REFRESH",
+                    "password":"SYNTHETIC_SECRET_PASSWORD", "sfdxAuthUrl":"SYNTHETIC_SECRET_AUTH_URL"
+                }}).to_string(),
+                stderr: String::new(),
+            })
+        })));
+        let target = "alias / 合成;&";
+        let identity = OrgRegistry::identity(&invoker, Some(target)).await.unwrap();
+        assert_eq!(identity.id, "00D000000000001EAA");
+        assert_eq!(identity.username, "synthetic@example.invalid");
+        assert_eq!(identity.alias.as_deref(), Some("SyntheticAlias"));
+        assert_eq!(identity.api_version.as_deref(), Some("60.0"));
+        assert!(!format!("{identity:?}").contains("SYNTHETIC_SECRET"));
+        assert_eq!(
+            *seen.lock().unwrap(),
+            vec![vec!["org", "display", "--target-org", target, "--json"]]
+        );
+    }
+
+    #[tokio::test]
+    async fn identity_accepts_default_target_and_optional_metadata() {
+        let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
+            assert_eq!(args, ["org", "display", "--json"]);
+            Ok(crate::RawOutput {
+                status: 0,
+                stdout: r#"{"status":0,"result":{"id":"00D000000000001","username":"synthetic@example.invalid"}}"#.into(),
+                stderr: String::new(),
+            })
+        })));
+        let identity = OrgRegistry::identity(&invoker, None).await.unwrap();
+        assert_eq!(identity.id, "00D000000000001");
+        assert_eq!(identity.alias, None);
+        assert_eq!(identity.api_version, None);
+    }
+
+    #[tokio::test]
+    async fn identity_rejects_missing_or_invalid_routing_fields_without_payload_echo() {
+        for result in [
+            serde_json::json!({"username":"synthetic@example.invalid"}),
+            serde_json::json!({"id":"00D000000000001"}),
+            serde_json::json!({"id":"00D000000000001", "username":" \t"}),
+            serde_json::json!({"id":"../../outside", "username":"synthetic@example.invalid"}),
+            serde_json::json!({"id":"001000000000001", "username":"synthetic@example.invalid"}),
+            serde_json::json!({"id":"00D00000000000/", "username":"synthetic@example.invalid"}),
+        ] {
+            let mut result = result;
+            result["accessToken"] = serde_json::json!("SYNTHETIC_SECRET_ACCESS");
+            let body = serde_json::json!({"status":0,"result":result}).to_string();
+            let invoker = SfInvoker::new(Arc::new(MockRunner::ok_json(body)));
+            let error = OrgRegistry::identity(&invoker, Some("synthetic"))
+                .await
+                .unwrap_err()
+                .to_string();
+            assert!(!error.contains("SYNTHETIC_SECRET"));
+            assert!(!error.contains("../../outside"));
+        }
+    }
+
+    #[tokio::test]
+    async fn identity_cli_failure_does_not_fabricate_a_binding() {
+        let invoker = invoker_returning(
+            r#"{"status":1,"name":"InvalidOrg","message":"Synthetic unavailable / 合成不可用"}"#,
+        );
+        assert!(matches!(
+            OrgRegistry::identity(&invoker, Some("synthetic")).await,
+            Err(SfError::Command { status: 1, .. })
+        ));
     }
 }
