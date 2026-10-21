@@ -19,7 +19,12 @@ It keeps working files and functional caches on your computer:
   message. Open Apex **History** and use **Clear history** to remove this history.
 - Salesforce debug logs that you open, cached under the application data
   directory's `workspace/logcache` folder for reopening without downloading.
-- Local Salesforce schema and Apex symbol indexes for offline completion.
+- Local Salesforce schema and Apex symbol indexes for offline completion, plus current
+  routing bindings (organization ID, authenticated username, requested target and generated
+  cache key). These bindings keep aliases and offline snapshots associated with the correct
+  user; they contain no credentials or usage history.
+  用于离线补全的本地 Salesforce schema 与 Apex 符号索引，以及当前路由绑定（组织 ID、认证用户名、
+  请求目标和生成的缓存键）。这些绑定确保别名及离线快照关联至正确用户，不包含凭据或使用历史。
 
 These files may contain private business data. They are work products and
 functional caches, not analytics, and are not uploaded to the maintainers.
