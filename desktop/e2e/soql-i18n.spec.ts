@@ -13,9 +13,11 @@ for (const language of ["en-US", "zh-CN"] as const) {
     const words = language === "zh-CN" ? {
       org: "当前组织：DevHub。切换组织", explain: "执行计划", checking: "正在检查结果规模…",
       cancel: "取消", large: "大结果集", limit: "添加 LIMIT 2,000", result: "已返回 1 行",
+      run: "运行", all: "所有行", query: "查询",
     } : {
       org: "Current org: DevHub. Switch org", explain: "Explain", checking: "Checking size…",
       cancel: "Cancel", large: "Large result set", limit: "Add LIMIT 2,000", result: "1 row returned",
+      run: "Run", all: "All rows", query: "Query",
     };
 
     async function openQuery(page: Page) {
@@ -39,6 +41,25 @@ for (const language of ["en-US", "zh-CN"] as const) {
         .toEqual(["stg@acme.com"]);
     });
 
+    test("localized toolbar preserves execution options / 本地化工具栏保留执行选项", async ({ page }) => {
+      await installMocks(page, { count_soql: 1 });
+      await openQuery(page);
+      await expect(page.getByText(words.query, { exact: true })).toBeVisible();
+      const all = page.getByRole("button", { name: words.all, exact: true });
+      const tooling = page.getByRole("button", { name: "Tooling API", exact: true });
+      await expect(all).toHaveAttribute("aria-pressed", "false");
+      await all.click();
+      await tooling.click();
+      await expect(all).toHaveAttribute("aria-pressed", "true");
+      await expect(tooling).toHaveAttribute("aria-pressed", "true");
+      await page.getByRole("button", { name: words.run, exact: true }).click();
+      await expect.poll(() => page.evaluate(() => (window as unknown as IpcScope).__ufCalls
+        .filter((call) => call.cmd === "run_soql").map((call) => ({
+          query: call.args.query, org: call.args.org, allRows: call.args.allRows, useToolingApi: call.args.useToolingApi,
+        }))))
+        .toEqual([{ query: "SELECT Id, Name, AnnualRevenue FROM Account", org: "dev@acme.com", allRows: true, useToolingApi: true }]);
+    });
+
     test("cancel uses the localized control and stops preflight / 本地化取消控件停止预检", async ({ page }) => {
       await installMocks(page);
       await openQuery(page);
@@ -55,11 +76,11 @@ for (const language of ["en-US", "zh-CN"] as const) {
           return invoke(command, args, options);
         };
       });
-      await page.getByRole("button", { name: "Run", exact: true }).click();
+      await page.getByRole("button", { name: words.run, exact: true }).click();
       await expect(page.getByText(words.checking, { exact: true })).toBeVisible();
       await page.getByRole("button", { name: words.cancel, exact: true }).click();
       await expect(page.getByText(words.checking, { exact: true })).not.toBeVisible();
-      await expect(page.getByRole("button", { name: "Run", exact: true })).toBeEnabled();
+      await expect(page.getByRole("button", { name: words.run, exact: true })).toBeEnabled();
       const calls = await page.evaluate(() => (window as unknown as IpcScope).__ufCalls);
       const count = calls.filter((call) => call.cmd === "count_soql");
       const cancel = calls.filter((call) => call.cmd === "cancel_soql");
@@ -75,7 +96,7 @@ for (const language of ["en-US", "zh-CN"] as const) {
         run_soql: { columns: ["Id"], rows: [["synthetic"]], totalSize: 1, done: true, childTables: [] },
       });
       await openQuery(page);
-      await page.getByRole("button", { name: "Run", exact: true }).click();
+      await page.getByRole("button", { name: words.run, exact: true }).click();
       const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", { name: words.large }) });
       await expect(dialog).toBeVisible();
       await expect(dialog).toContainText("10,000");
