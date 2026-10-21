@@ -40,7 +40,7 @@ impl std::fmt::Display for QueryError {
                 f,
                 "org '{org}' index was built by an older uf-ost — run `ost_reindex {org}` to rebuild it"
             ),
-            QueryError::IdentityMismatch(org) => write!(f, "org '{org}' index identity mismatch — run ost_reindex to rebuild it"),
+            QueryError::IdentityMismatch(org) => write!(f, "org '{org}' index identity mismatch — inspect or clear the conflicting local index, then run ost_reindex"),
             QueryError::NotFound(what) => write!(f, "{what}"),
             QueryError::Db(e) => write!(f, "index read error: {e}"),
         }
