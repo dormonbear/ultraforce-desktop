@@ -37,6 +37,10 @@ impl CommandRunner for ProcessRunner {
         // silences the "update available" banner on stderr.
         let fut = tokio::process::Command::new(program)
             .args(args)
+            // Timeout or caller cancellation drops the output future. Terminate
+            // its owned direct child too; this does not undo remote operations.
+            // 超时或调用方取消会丢弃输出 future，同时终止其直接子进程；这不会撤销远程操作。
+            .kill_on_drop(true)
             .env("NO_COLOR", "1")
             .env("FORCE_COLOR", "0")
             .env("SF_AUTOUPDATE_DISABLE", "true")
