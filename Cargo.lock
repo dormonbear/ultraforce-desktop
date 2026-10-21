@@ -4826,7 +4826,7 @@ dependencies = [
 
 [[package]]
 name = "ultraforce-desktop"
-version = "0.3.21"
+version = "0.3.22"
 dependencies = [
  "apex-lang",
  "async-trait",

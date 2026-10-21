@@ -1,5 +1,12 @@
 # Changelog / 更新日志
 
+## [0.3.22](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.21...v0.3.22) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* cancel SOQL credential refresh promptly / 及时取消 SOQL 凭据刷新 ([#104](https://github.com/dormonbear/ultraforce-desktop/issues/104)) ([6835cc4](https://github.com/dormonbear/ultraforce-desktop/commit/6835cc444eb5f742789ed1b403b678418b422159))
+
 ## [0.3.21](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.20...v0.3.21) (2026-10-21)
 
 
