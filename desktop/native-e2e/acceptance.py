@@ -1,6 +1,6 @@
 """Native Tauri, real IPC and SQLite acceptance. / 原生 Tauri、真实 IPC 及 SQLite 验收。"""
 import argparse
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 import os
 from pathlib import Path
 import shutil
@@ -77,7 +77,9 @@ def verify_completions(driver):
 def verify_database(root, stdlib_error):
     files = list((root / "local" / "ultraforce").rglob("index.db"))
     assert len(files) == 1, files
-    with sqlite3.connect(files[0].as_uri() + "?mode=ro", uri=True) as database:
+    # Readers may need WAL sidecars; SQL stays read-only in this owned fixture. / 读取可能需要 WAL 辅助文件，此专属夹具中 SQL 保持只读。
+    with closing(sqlite3.connect(files[0])) as database:
+        database.execute("PRAGMA query_only=ON")
         assert database.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         version, error, generation = database.execute("SELECT schema_version, stdlib_error, generation FROM meta").fetchone()
         assert version == 5, version
