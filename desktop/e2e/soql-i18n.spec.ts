@@ -26,6 +26,19 @@ for (const language of ["en-US", "zh-CN"] as const) {
       await expect(page.getByRole("button", { name: words.explain, exact: true })).toBeVisible();
     }
 
+    test("query plans follow the selected organization / 查询计划跟随所选组织", async ({ page }) => {
+      await installMocks(page);
+      await openQuery(page);
+      await page.getByRole("button", { name: words.org, exact: true }).click();
+      await page.getByRole("dialog").getByText("Staging", { exact: true }).click();
+      const selected = language === "zh-CN" ? "当前组织：Staging。切换组织" : "Current org: Staging. Switch org";
+      await expect(page.getByRole("button", { name: selected, exact: true })).toBeVisible();
+      await page.getByRole("button", { name: words.explain, exact: true }).click();
+      await expect.poll(() => page.evaluate(() => (window as unknown as IpcScope).__ufCalls
+        .filter((call) => call.cmd === "query_plan").map((call) => call.args.org)))
+        .toEqual(["stg@acme.com"]);
+    });
+
     test("cancel uses the localized control and stops preflight / 本地化取消控件停止预检", async ({ page }) => {
       await installMocks(page);
       await openQuery(page);

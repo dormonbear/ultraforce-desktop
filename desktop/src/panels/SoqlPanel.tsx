@@ -159,7 +159,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     } finally {
       setExplaining(false);
     }
-  }, [query, onPatch]);
+  }, [query, org, onPatch]);
 
   const ms = lastMs != null
     ? ` · ${t("{milliseconds} ms", { milliseconds: Math.round(lastMs).toLocaleString(locale) })}`
