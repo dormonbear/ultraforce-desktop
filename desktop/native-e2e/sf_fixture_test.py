@@ -2,12 +2,13 @@
 import json
 import os
 from pathlib import Path
-from sf_fixture import ORG, ORG_ID
+from sf_fixture import ORG, ORG_ID, native_auth
 import subprocess
 import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 
 
 class NativeFixtureTest(unittest.TestCase):
@@ -71,6 +72,7 @@ class NativeFixtureTest(unittest.TestCase):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(flag, result.stderr)
         self.assertEqual(self.invoke(["unexpected", "command"]).returncode, 1)
+        self.assertEqual(self.invoke(["org", "auth", "show-access-token", "--target-org", ORG]).returncode, 1)
 
     def test_rest_auth_requires_an_explicit_loopback_endpoint(self):
         for address in ("https://example.invalid", "http://example.invalid:8080",
@@ -86,7 +88,11 @@ class NativeFixtureTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         value = json.loads(result.stdout)["result"]
         self.assertEqual(value["instanceUrl"], "http://127.0.0.1:8080")
-        self.assertEqual(value["accessToken"], "synthetic-native-token")
+        self.assertNotIn("accessToken", value)
+        token = self.invoke(["org", "auth", "show-access-token", "--target-org", ORG, "--json"])
+        self.assertEqual(token.returncode, 0, token.stderr)
+        self.assertEqual(json.loads(token.stdout)["result"]["accessToken"], "synthetic-native-token")
+        self.assertEqual(self.invoke(["org", "auth", "show-access-token", "--target-org", ORG], "offline").returncode, 1)
 
     def test_auth_barrier_blocks_a_real_fixture_process_until_release(self):
         (self.root / "mode").write_text("normal", encoding="utf-8")
@@ -94,7 +100,7 @@ class NativeFixtureTest(unittest.TestCase):
         (self.root / "block-auth").touch()
         process = subprocess.Popen([
             sys.executable, str(Path(__file__).with_name("sf_fixture.py")),
-            "org", "display", "--target-org", ORG, "--json",
+            "org", "auth", "show-access-token", "--target-org", ORG, "--json",
         ], env=self.environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
         try:
             deadline = time.monotonic() + 5
@@ -113,6 +119,14 @@ class NativeFixtureTest(unittest.TestCase):
                 raise
         self.assertEqual(process.returncode, 0, error)
         self.assertEqual(json.loads(output)["result"]["accessToken"], "synthetic-native-token")
+
+    def test_expired_auth_barrier_leaves_a_failure_marker(self):
+        (self.root / "rest-url").write_text("http://127.0.0.1:8080", encoding="utf-8")
+        (self.root / "block-auth").touch()
+        with patch("sf_fixture.time.monotonic", side_effect=[0, 16]):
+            with self.assertRaisesRegex(RuntimeError, "barrier expired"):
+                native_auth(self.root, ["org", "auth", "show-access-token", "--target-org", ORG], {})
+        self.assertTrue((self.root / "auth-expired").is_file())
 
 
 if __name__ == "__main__":

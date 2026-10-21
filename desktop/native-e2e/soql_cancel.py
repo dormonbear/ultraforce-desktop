@@ -53,6 +53,7 @@ def verify_soql_cancel(driver, root):
         with lock:
             assert len(queries) == 1, "Cancel launched another query / 取消后又启动了查询"
         assert not (root / "release-auth").exists(), "Auth completed before cancel / 认证在取消前已完成"
+        assert not (root / "auth-expired").exists(), "Auth expired before cancel / 认证在取消前已超时"
         print("PASS: native UI cancels pending credential refresh without starting the query / 原生界面取消等待中的凭据刷新，且未启动实际查询")
     finally:
         # Release any fixture grandchild even if the shim was cancelled. / 即使垫片被取消，也释放夹具孙进程。
@@ -60,5 +61,5 @@ def verify_soql_cancel(driver, root):
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
-        for name in ("rest-url", "block-auth", "auth-entered"):
+        for name in ("rest-url", "block-auth", "auth-entered", "auth-expired"):
             (root / name).unlink(missing_ok=True)
