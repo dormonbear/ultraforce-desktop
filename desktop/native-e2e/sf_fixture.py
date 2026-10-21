@@ -3,9 +3,46 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
+from urllib.parse import urlsplit
 
 ORG = "native@example.invalid"
 ORG_ID = "00D000000000001"
+
+
+def native_auth(root, args, result):
+    config = root / "rest-url"
+    display = args[:2] == ["org", "display"]
+    token = args[:3] == ["org", "auth", "show-access-token"]
+    if not display and not token:
+        return result
+    if not config.exists():
+        if token:
+            raise RuntimeError("Synthetic auth is not configured / 未配置合成认证")
+        return result
+    address = config.read_text(encoding="utf-8").strip()
+    try:
+        parsed = urlsplit(address)
+        valid = (parsed.scheme == "http" and parsed.hostname == "127.0.0.1"
+                 and parsed.port is not None and parsed.port > 0
+                 and not any((parsed.username, parsed.password, parsed.path, parsed.query, parsed.fragment)))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise RuntimeError("Synthetic REST must use loopback / 合成 REST 必须使用回环地址")
+    if display:
+        return {**result, "instanceUrl": address}
+    if "--target-org" in args and args[args.index("--target-org") + 1] != ORG:
+        raise RuntimeError("Unpinned synthetic target / 未固定的合成目标")
+    if (root / "block-auth").exists():
+        (root / "auth-entered").touch()
+        deadline = time.monotonic() + 15
+        while not (root / "release-auth").exists():
+            if time.monotonic() >= deadline:
+                (root / "auth-expired").touch()
+                raise RuntimeError("Synthetic auth barrier expired / 合成认证屏障超时")
+            time.sleep(0.02)
+    return {"accessToken": "synthetic-native-token"}
 
 
 def response(args, mode):
@@ -60,7 +97,12 @@ def main():
     args = sys.argv[1:]
     mode = (root / "mode").read_text(encoding="utf-8").strip()
     try:
-        result = response(args, mode)
+        if args[:3] == ["org", "auth", "show-access-token"]:
+            if mode == "offline":
+                raise RuntimeError("Synthetic offline acquisition / 合成离线采集")
+            result = native_auth(root, args, {})
+        else:
+            result = native_auth(root, args, response(args, mode))
     except RuntimeError as error:
         print(json.dumps({"status": 1, "message": str(error)}))
         return 1

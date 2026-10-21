@@ -19,6 +19,7 @@ from webview_runtime import matching_runtime
 from startup_diagnostics import capture_desktop
 from native_process import stop_process_tree, wait_for_debugging
 from webview_policy import webview_policy
+from soql_cancel import verify_soql_cancel
 
 
 def fixture(root, runtime=None):
@@ -226,6 +227,7 @@ def run(application_path, artifacts):
             verify_schema_ui(driver)
             driver.screenshot(artifacts / "native-schema.png")
             verify_editor_ui(driver)
+            verify_soql_cancel(driver, root)
             # A failed forced rebuild must retain the published generation. / 强制重建失败必须保留已发布代次。
             (root / "mode").write_text("offline", encoding="utf-8")
             try:
