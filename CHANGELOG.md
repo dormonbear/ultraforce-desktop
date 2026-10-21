@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.18](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.17...v0.3.18) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* **editor:** commit Monaco changes synchronously / 同步提交 Monaco 变更 ([f40ff8c](https://github.com/dormonbear/ultraforce-desktop/commit/f40ff8cf6aa968b8d238bdab1325a5d91096763a))
+* localize desktop navigation and settings / 本地化桌面导航和设置 ([ecbea28](https://github.com/dormonbear/ultraforce-desktop/commit/ecbea28314984aed59ec3f857e5c205aed022673))
+* **release:** generate bilingual release metadata / 生成双语发布元信息 ([e1650f1](https://github.com/dormonbear/ultraforce-desktop/commit/e1650f163f867744b743192087a38ab9de3111fb))
+* **release:** publish updater manifest once after all builds / 所有构建完成后统一发布更新清单 ([#82](https://github.com/dormonbear/ultraforce-desktop/issues/82)) ([5d33cac](https://github.com/dormonbear/ultraforce-desktop/commit/5d33cac36257473183573c72b148d3aa5c79050f))
+* support npm Salesforce CLI on Windows / 支持 Windows npm Salesforce CLI ([7cff356](https://github.com/dormonbear/ultraforce-desktop/commit/7cff356e2a449633556fe12ab0239f81756a8765))
+* **uf-ost:** reserve global reindex before spawn / 启动前全局预留重建 ([#79](https://github.com/dormonbear/ultraforce-desktop/issues/79)) ([417aabd](https://github.com/dormonbear/ultraforce-desktop/commit/417aabd071265e4ac76bdd0f84be0f853d496997))
+
 ## [0.3.17](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.16...v0.3.17) (2026-10-21)
 
 
