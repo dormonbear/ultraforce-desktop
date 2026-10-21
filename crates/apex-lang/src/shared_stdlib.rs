@@ -6,21 +6,18 @@
 //! is also cached once per API version at `<root>/_shared/stdlib/<api>/`.
 //!
 //! Org `SymbolTable` and sObject describes stay per-org and never come here.
+//! The shared payload lives in completions.db/raw_cache; legacy JSON is ignored.
+//! 共享响应存储于 completions.db 的 raw_cache 表；忽略旧 JSON 文件。
 
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
-/// Distinguishes concurrent writers inside one process — see [`write`].
-static TMP_SEQ: AtomicUsize = AtomicUsize::new(0);
-
-/// `<root>/_shared/stdlib/<api_version>/completions.json`. `_shared` cannot
-/// collide with an org directory: those are named after an org id.
+/// Shared SQLite cache, separated by API version. Legacy JSON is ignored.
+/// 按 API 版本隔离的共享 SQLite 缓存；忽略旧 JSON 文件。
 pub fn path(root: &Path, api_version: &str) -> PathBuf {
     root.join("_shared")
         .join("stdlib")
         .join(crate::store::sanitize(api_version))
-        .join("completions.json")
+        .join("completions.db")
 }
 
 /// Whether a raw payload is worth sharing: some orgs answer the completions
@@ -35,45 +32,24 @@ pub fn is_usable(raw: &Value) -> bool {
         .is_some_and(|namespaces| !namespaces.is_empty())
 }
 
-/// Read the shared payload, or `None` when it is absent, unreadable, or not
-/// valid JSON. A corrupt file is a cache miss, not an error: the caller falls
-/// through to the live fetch and overwrites it.
+/// Read without creating files; missing or corrupt data falls through to live fetch.
+/// 读取时不创建文件；缺失或损坏的数据回退至实时获取。
 pub fn read(root: &Path, api_version: &str) -> Option<Value> {
-    let body = std::fs::read_to_string(path(root, api_version)).ok()?;
-    serde_json::from_str(&body).ok()
+    let conn = sf_schema::sqlite::open_readonly(&path(root, api_version)).ok()?;
+    let body = crate::db::read_raw(&conn, api_version, "stdlib").ok()??;
+    let raw = serde_json::from_str(&body).ok()?;
+    is_usable(&raw).then_some(raw)
 }
 
-/// Write the shared payload. Best-effort — a failure here only costs the next
-/// org a re-download, so callers ignore the result.
-///
-/// The write goes to a temp file and is renamed into place: the uf-ost MCP
-/// server is a separate process reading the same file, and an 18 MB write
-/// straight to the destination would let it read a half-written payload.
+/// Publish one raw_cache row atomically in WAL mode, without generation tables.
+/// Best-effort: failed writes leave callers free to use their live response.
+/// 以 WAL 模式原子发布一条 raw_cache 记录，不初始化代际表。
+/// 尽力缓存：写入失败时调用方仍可使用实时响应。
 pub fn write(root: &Path, api_version: &str, raw: &Value) -> std::io::Result<()> {
-    let dest = path(root, api_version);
-    let dir = dest
-        .parent()
-        .ok_or_else(|| std::io::Error::other("shared stdlib path has no parent"))?;
-    std::fs::create_dir_all(dir)?;
-
-    // Unique per writer, not merely per process: indexing one org and building
-    // completions for another run concurrently in the desktop app, and a shared
-    // temp name would let those two 18 MB writes interleave into a corrupt file.
-    // Both then rename, and the last one wins with intact content.
-    let tmp = dir.join(format!(
-        "completions.json.{}.{}.tmp",
-        std::process::id(),
-        TMP_SEQ.fetch_add(1, Ordering::Relaxed)
-    ));
     let body = serde_json::to_string(raw)?;
-    std::fs::write(&tmp, body)?;
-    match std::fs::rename(&tmp, &dest) {
-        Ok(()) => Ok(()),
-        Err(e) => {
-            let _ = std::fs::remove_file(&tmp);
-            Err(e)
-        }
-    }
+    let conn =
+        crate::store::open_raw_cache(&path(root, api_version)).map_err(std::io::Error::other)?;
+    crate::db::write_raw(&conn, api_version, "stdlib", &body).map_err(std::io::Error::other)
 }
 
 #[cfg(test)]
@@ -123,9 +99,62 @@ mod tests {
         write(&root, "60.0", &raw).unwrap();
 
         assert_eq!(read(&root, "60.0").unwrap(), raw);
+        let conn = sf_schema::sqlite::open_readonly(&path(&root, "60.0")).unwrap();
+        let mode: String = conn
+            .query_row("PRAGMA journal_mode", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(mode, "wal");
+        assert_eq!(
+            crate::db::read_raw(&conn, "60.0", "stdlib").unwrap(),
+            Some(raw.to_string())
+        );
+        let tables: Vec<String> = conn
+            .prepare("SELECT name FROM sqlite_master WHERE type='table'")
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(tables, ["raw_cache"]);
+        drop(conn);
+        assert!(!path(&root, "60.0")
+            .with_file_name("completions.json")
+            .exists());
         // Keyed by api version: another version is a miss, not a stale hit.
         assert!(read(&root, "61.0").is_none());
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn legacy_json_is_ignored_without_creating_a_database() {
+        let root = unique_root();
+        let dest = path(&root, "60.0");
+        std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        let legacy = dest.with_file_name("completions.json");
+        let body = r#"{"publicDeclarations":{"System":{"String":{}}}}"#;
+        std::fs::write(&legacy, body).unwrap();
+        assert!(read(&root, "60.0").is_none());
+        assert!(!dest.with_file_name("completions.db").exists());
+        assert_eq!(std::fs::read_to_string(legacy).unwrap(), body);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn readers_see_only_committed_usable_payloads() {
+        let root = unique_root();
+        let old = json!({"publicDeclarations": {"System": {"String": {}}}});
+        let new = json!({"publicDeclarations": {"System": {"Integer": {}}}});
+        write(&root, "60.0", &old).unwrap();
+        let mut conn = crate::store::open_raw_cache(&path(&root, "60.0")).unwrap();
+        let tx = conn.transaction().unwrap();
+        crate::db::write_raw(&tx, "60.0", "stdlib", &new.to_string()).unwrap();
+        assert_eq!(read(&root, "60.0"), Some(old));
+        tx.commit().unwrap();
+        assert_eq!(read(&root, "60.0"), Some(new));
+        crate::db::write_raw(&conn, "60.0", "stdlib", "{}").unwrap();
+        assert!(read(&root, "60.0").is_none());
+        drop(conn);
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]
@@ -140,23 +169,33 @@ mod tests {
             .map(|e| e.file_name().to_string_lossy().to_string())
             .filter(|n| n.ends_with(".tmp"))
             .collect();
-        assert!(leftovers.is_empty(), "temp files left behind: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "temp files left behind: {leftovers:?}"
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
     fn concurrent_writers_leave_one_intact_payload() {
         let root = unique_root();
-        // Bodies of different lengths: interleaving a shared temp file would
-        // leave a truncated or spliced payload, which fails to parse.
+        let start = std::sync::Arc::new(std::sync::Barrier::new(4));
+        // Concurrent connections must publish complete rows of different sizes.
+        // 并发连接必须发布大小不同但完整的缓存行。
         let writers: Vec<_> = (0..4)
             .map(|n| {
                 let root = root.clone();
+                let start = start.clone();
                 std::thread::spawn(move || {
                     let types: serde_json::Map<_, _> = (0..n * 50)
                         .map(|i| (format!("Type{i}"), json!({})))
                         .collect();
-                    write(&root, "60.0", &json!({"publicDeclarations": {"System": types}}))
+                    start.wait();
+                    write(
+                        &root,
+                        "60.0",
+                        &json!({"publicDeclarations": {"System": types}}),
+                    )
                 })
             })
             .collect();
@@ -174,7 +213,7 @@ mod tests {
         let root = unique_root();
         let dest = path(&root, "60.0");
         std::fs::create_dir_all(dest.parent().unwrap()).unwrap();
-        // A half-written payload — what a non-atomic writer would leave.
+        // An invalid database is a cache miss. / 无效数据库视为缓存未命中。
         std::fs::write(&dest, r#"{"publicDeclarations": {"Sys"#).unwrap();
 
         assert!(read(&root, "60.0").is_none());

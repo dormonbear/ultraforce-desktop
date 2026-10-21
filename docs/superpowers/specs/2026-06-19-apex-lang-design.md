@@ -31,13 +31,18 @@ The OST is an offline, on-disk + in-memory symbol table, versioned per
 sources feed it; each is acquired once and cached, then completion reads the
 cache with zero `sf` calls.
 
-> **Since 2026-08-01:** the stdlib half is additionally cached *across* orgs at
-> `<cache root>/_shared/stdlib/<apiVersion>/completions.json`, because the
-> completions payload is platform standard library — identical for every org on
-> an API version. Lookup order is memory → org `raw_cache` → shared → live
-> fetch; a shared hit is still copied into the org's `raw_cache` so per-org
-> snapshots stay self-contained. Org `SymbolTable` and sObject describes remain
-> strictly per-org. See `doc/ultraforce-desktop/stdlib-shared-cache.md`.
+> The standard library is additionally cached across orgs at
+> `<cache root>/_shared/stdlib/<apiVersion>/completions.db`, in SQLite's
+> `raw_cache` table. Lookup order is memory → org `raw_cache` → shared → live
+> fetch; shared hits are copied into each org's `raw_cache` so snapshots remain
+> self-contained. Org `SymbolTable` and sObject describes stay per-org.
+> Legacy shared JSON files are ignored. See [shared-cache design](2026-07-24-stdlib-shared-cache.md).
+>
+> 标准库还跨组织缓存于 `<cache root>/_shared/stdlib/<apiVersion>/completions.db`
+> 的 SQLite `raw_cache` 表。查找顺序为内存 → 组织 `raw_cache` → 共享缓存 → 实时获取；
+> 共享命中仍复制至每个组织的 `raw_cache`，使快照保持完整独立。
+> 组织 `SymbolTable` 和 sObject 描述保持按组织隔离。忽略旧共享 JSON 文件。
+> 参见[共享缓存设计](2026-07-24-stdlib-shared-cache.md)。
 
 | OST part | First-party source | Invocation (verification status) |
 |---|---|---|

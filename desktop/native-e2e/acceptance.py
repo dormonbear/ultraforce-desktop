@@ -124,6 +124,19 @@ def verify_completions(driver):
 
 
 def verify_database(root, stdlib_error):
+    # Verify the real indexer leaves no loose shared response. / 验证真实索引器不留下独立的共享响应文件。
+    cache = root / "local" / "ultraforce"
+    assert not list(cache.rglob("completions.json"))
+    shared = list(cache.rglob("completions.db"))
+    assert len(shared) == (0 if stdlib_error else 1), shared
+    if shared:
+        with closing(sqlite3.connect(shared[0].as_uri() + "?mode=ro", uri=True)) as database:
+            assert database.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+            rows = database.execute("SELECT api_version, source, body FROM raw_cache").fetchall()
+            assert len(rows) == 1, rows
+            api, source, body = rows[0]
+            assert (api, source) == ("60.0", "stdlib"), (api, source)
+            assert "String" in json.loads(body)["publicDeclarations"]["System"]
     files = list((root / "local" / "ultraforce").rglob("index.db"))
     assert len(files) == 1, files
     # Readers may need WAL sidecars; SQL stays read-only in this owned fixture. / 读取可能需要 WAL 辅助文件，此专属夹具中 SQL 保持只读。
