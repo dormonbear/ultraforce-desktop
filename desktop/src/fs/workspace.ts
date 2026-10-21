@@ -1,7 +1,7 @@
 import { appDataDir } from "@tauri-apps/api/path";
 import { exists, mkdir } from "@tauri-apps/plugin-fs";
 import { getJson, setJson } from "../store";
-import { joinPath } from "./paths";
+import { joinPath, normalizePath } from "./paths";
 
 export type Tool = "soql" | "apex";
 
@@ -13,7 +13,9 @@ export function resolveRoot(
   override: string | null,
   appData: string,
 ): string {
-  return override ?? joinPath(appData, "workspace", tool);
+  return override === null
+    ? joinPath(appData, "workspace", tool)
+    : normalizePath(override);
 }
 
 export async function getRoot(tool: Tool): Promise<string> {

@@ -68,6 +68,64 @@ beforeEach(() => {
 });
 
 describe("useFileTabs", () => {
+  it("coalesces mixed-separator Windows opens and uses the filename title", async () => {
+    const { result } = await mounted();
+    await open(result, "C:\\workspace\\a.apex");
+    await open(result, "C:/workspace/a.apex");
+    expect(result.current.tabs).toHaveLength(1);
+    expect(result.current.active?.title).toBe("a.apex");
+    expect(readTextFile).toHaveBeenCalledTimes(1);
+  });
+  it("restores mixed Windows spellings once and keeps the active path", async () => {
+    vi.mocked(getJson).mockResolvedValue({
+      openPaths: [
+        "C:/workspace/a.apex",
+        "c:\\workspace\\a.apex",
+        "C:/workspace/b.apex",
+      ],
+      activePath: "c:\\workspace\\b.apex",
+    });
+    const { result } = await mounted();
+    await waitFor(() => expect(result.current.tabs).toHaveLength(2));
+    expect(result.current.active?.path).toBe("C:\\workspace\\b.apex");
+    expect(readTextFile).toHaveBeenCalledTimes(2);
+  });
+  it("keeps a malformed stored path from breaking restore", async () => {
+    vi.mocked(getJson).mockResolvedValue({
+      openPaths: [null, "C:/workspace/a.apex"],
+    });
+    const { result } = await mounted();
+    await waitFor(() => expect(result.current.tabs).toHaveLength(1));
+    expect(result.current.active?.path).toBe("C:\\workspace\\a.apex");
+  });
+  it.each(["C:\\workspace", "\\\\server\\share\\workspace"])(
+    "retitles and removes descendants under %s without touching siblings",
+    async (root) => {
+      const { result } = await mounted();
+      await open(result, root + "\\folder\\a.apex");
+      await open(result, root + "\\folder-other\\b.apex");
+      act(() => result.current.retitle(root + "\\folder", root + "\\renamed"));
+      expect(result.current.tabs[0].path).toBe(root + "\\renamed\\a.apex");
+      expect(result.current.tabs[0].title).toBe("a.apex");
+      act(() => result.current.closeByPath(root + "\\renamed"));
+      expect(result.current.tabs.map((t) => t.path)).toEqual([
+        root + "\\folder-other\\b.apex",
+      ]);
+    },
+  );
+  it("protects an already-open native Windows path from mixed-separator Save As", async () => {
+    const { result } = await mounted();
+    await open(result, "C:\\workspace\\a.apex");
+    act(() => result.current.newUntitled());
+    vi.mocked(saveDialog).mockResolvedValue("C:/workspace/a.apex");
+    await act(async () => {
+      await expect(
+        result.current.save(result.current.activeId!),
+      ).rejects.toThrow("already open");
+    });
+    expect(writeFileNow).not.toHaveBeenCalled();
+    expect(result.current.active?.path).toBe("");
+  });
   it("starts empty when nothing is persisted", async () => {
     const { result } = await mounted();
     expect(result.current.tabs).toHaveLength(0);

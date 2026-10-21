@@ -3,7 +3,7 @@ import { readTextFile } from "@tauri-apps/plugin-fs";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getJson, setJson } from "../store";
 import { saveFile, writeFileNow } from "../fs/save";
-import { basename } from "../fs/paths";
+import { basename, isWithin, normalizePath, rebasePath } from "../fs/paths";
 import type { TabBase } from "./types";
 
 type ReadTicket = { path: string; valid: boolean };
@@ -45,14 +45,13 @@ export function useFileTabs<T extends TabBase & { path: string }>(
   const hydrationSkips = useRef<Set<string> | null>(null);
   const saving = useRef(new Map<string, Promise<void>>());
   const invalidate = useCallback((path: string) => {
+    path = normalizePath(path);
     hydrationSkips.current?.add(path);
     for (const read of reads.current) {
-      if (read.path === path || read.path.startsWith(`${path}/`))
-        read.valid = false;
+      if (isWithin(read.path, path)) read.valid = false;
     }
     for (const opening of openingFiles.current.keys()) {
-      if (opening === path || opening.startsWith(`${path}/`))
-        openingFiles.current.delete(opening);
+      if (isWithin(opening, path)) openingFiles.current.delete(opening);
     }
   }, []);
   const untitledCounter = useRef(0);
@@ -80,7 +79,12 @@ export function useFileTabs<T extends TabBase & { path: string }>(
         }
         const loaded: T[] = [];
         const restoring = new Map(
-          saved.openPaths.map((path) => [path, { path, valid: true }]),
+          saved.openPaths
+            .filter((path) => typeof path === "string" && path !== "")
+            .map((raw) => {
+              const path = normalizePath(raw);
+              return [path, { path, valid: true }];
+            }),
         );
         for (const ticket of restoring.values()) reads.current.add(ticket);
         try {
@@ -100,9 +104,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(
             const restored = loaded.filter((t) => {
               if (
                 !restoring.get(t.path)?.valid ||
-                [...skipped].some(
-                  (path) => t.path === path || t.path.startsWith(`${path}/`),
-                )
+                [...skipped].some((path) => isWithin(t.path, path))
               )
                 return false;
               if (paths.has(t.path)) return false;
@@ -112,8 +114,13 @@ export function useFileTabs<T extends TabBase & { path: string }>(
             return [...restored, ...current];
           });
           const act =
-            tabsRef.current.find((t) => t.path === saved.activePath) ??
-            tabsRef.current[0];
+            tabsRef.current.find(
+              (t) =>
+                t.path ===
+                (typeof saved.activePath === "string"
+                  ? normalizePath(saved.activePath)
+                  : null),
+            ) ?? tabsRef.current[0];
           setActiveId((current) => current ?? act?.id ?? null);
           setHydrated(true);
         } finally {
@@ -141,6 +148,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(
 
   const openFile = useCallback(
     async (path: string, line?: number) => {
+      path = normalizePath(path);
       const fire = (id: string) => {
         if (line == null) return;
         revealNonce.current += 1;
@@ -233,6 +241,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(
   // patch an already-open tab, otherwise open a fresh one.
   const openOrReplace = useCallback(
     async (path: string, content: string) => {
+      path = normalizePath(path);
       const existing = tabsRef.current.find((t) => t.path === path);
       const tab = existing
         ? { ...existing, [contentKey]: content }
@@ -250,14 +259,16 @@ export function useFileTabs<T extends TabBase & { path: string }>(
 
   // Reflect external path changes (rename/move) on any open tab.
   const retitle = useCallback((from: string, to: string) => {
+    from = normalizePath(from);
+    to = normalizePath(to);
     invalidate(from);
     setTabs((prev) =>
       prev.map((t) =>
-        t.path === from || t.path.startsWith(`${from}/`)
+        isWithin(t.path, from)
           ? {
               ...t,
-              path: to + t.path.slice(from.length),
-              title: basename(to + t.path.slice(from.length)),
+              path: rebasePath(t.path, from, to),
+              title: basename(rebasePath(t.path, from, to)),
             }
           : t,
       ),
@@ -266,11 +277,10 @@ export function useFileTabs<T extends TabBase & { path: string }>(
 
   // Close a tab whose file was deleted.
   const closeByPath = useCallback((path: string) => {
+    path = normalizePath(path);
     invalidate(path);
     setTabs((prev) => {
-      const removed = prev.filter(
-        (t) => t.path === path || t.path.startsWith(`${path}/`),
-      );
+      const removed = prev.filter((t) => isWithin(t.path, path));
       const removedIds = new Set(removed.map((t) => t.id));
       const next = prev.filter((t) => !removedIds.has(t.id));
       setActiveId((cur) =>
@@ -301,8 +311,9 @@ export function useFileTabs<T extends TabBase & { path: string }>(
         await writeFileNow(tab.path, String(tab[contentKey]));
         return;
       }
-      const picked = await saveDialog({ defaultPath: `${tab.title}.${ext}` });
-      if (!picked) return;
+      const selected = await saveDialog({ defaultPath: `${tab.title}.${ext}` });
+      if (!selected) return;
+      const picked = normalizePath(selected);
       if (tabsRef.current.some((t) => t.id !== id && t.path === picked)) {
         throw new Error(
           "This file is already open. Save its tab or choose another path.",
