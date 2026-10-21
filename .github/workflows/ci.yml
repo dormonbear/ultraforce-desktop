@@ -86,7 +86,32 @@ jobs:
           retention-days: 7
 
       - name: Rust tests
+        if: runner.os != 'macOS'
         run: cargo test --locked --workspace
+
+      - name: Rust coverage tooling / Rust 覆盖率工具
+        if: runner.os == 'macOS'
+        run: |
+          rustup component add llvm-tools-preview
+          cargo install cargo-llvm-cov --version '=0.9.1' --locked
+
+      - name: Rust coverage and floors / Rust 覆盖率及门槛
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p target/rust-coverage
+          cargo llvm-cov --locked --workspace --json --summary-only --output-path target/rust-coverage/summary.json
+          cargo llvm-cov report --lcov --output-path target/rust-coverage/lcov.info
+          python scripts/check_rust_coverage.py --summary-file target/rust-coverage/summary.json
+          cargo test --locked --workspace --doc
+
+      - name: Rust coverage report / Rust 覆盖率报告
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: rust-coverage-${{ runner.os }}
+          path: target/rust-coverage/
+          retention-days: 14
 
       - name: Clippy
         run: cargo clippy --locked --workspace -- -D warnings

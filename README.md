@@ -264,12 +264,16 @@ or copy `skills/ost/SKILL.md` into your agent's skills directory.
   `ApexClass` SymbolTable query. Prefer `ost_sync` (cheap watermark delta);
   reindex only when staleness is broad.
 
-## Development
+<a id="development"></a>
+
+## Development / 开发
 
 **Requirements:** [Rust](https://www.rust-lang.org/tools/install) (stable),
-[Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/), and the
-[Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`)
-authenticated to at least one org (`sf org login web`).
+[Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/), and Python 3.11+ for repository checks.
+The [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`) and org login
+are needed for live Salesforce operations; default automated tests use synthetic fixtures.
+**环境要求：** Rust 稳定版、Node.js 与 pnpm，以及用于仓库检查的 Python 3.11+。
+仅实际操作 Salesforce 时需要 Salesforce CLI（`sf`）及组织登录；默认自动测试使用合成数据。
 
 ```bash
 # Install frontend dependencies
@@ -287,6 +291,29 @@ cargo clippy --all-targets -- -D warnings
 cargo fmt --check
 pnpm -C desktop test        # vitest
 pnpm -C desktop e2e         # Playwright (mocked Tauri IPC)
+```
+
+Rust CI runs the full default workspace suite with LLVM coverage on macOS and ordinary
+tests on Windows. macOS also runs doctests separately. It retains JSON/LCOV reports for 14 days and requires at least 84% line
+coverage, 82% function coverage and 40% desktop Rust line coverage. The separate desktop
+floor prevents library coverage from hiding regressions there. The initial synthetic
+baseline passed 585 tests with 22 ignored: 84.64% workspace lines and 41.84% desktop lines.
+These are initial regression floors; the desktop still needs more test coverage.
+Rust CI 在 macOS 上对默认工作区单元及集成测试采集 LLVM 覆盖率，在 Windows 上运行普通测试。
+macOS 另行运行文档测试，保留原有测试范围。
+JSON／LCOV 报告保留 14 天，要求整体行覆盖率至少 84%、函数覆盖率至少 82%、桌面 Rust
+行覆盖率至少 40%。独立桌面门槛避免库覆盖率掩盖该部分的回归。初始合成基线通过 585 项测试、
+忽略 22 项，整体行覆盖率为 84.64%，桌面为 41.84%。这些是初始回归门槛，桌面仍需进一步补测。
+
+For local macOS coverage, install `llvm-tools-preview` and `cargo-llvm-cov` 0.9.1, then run each command:
+macOS 本地覆盖率需安装 `llvm-tools-preview` 和 `cargo-llvm-cov` 0.9.1，再分别运行：
+
+```sh
+mkdir -p target/rust-coverage
+cargo llvm-cov --locked --workspace --json --summary-only --output-path target/rust-coverage/summary.json
+cargo llvm-cov report --lcov --output-path target/rust-coverage/lcov.info
+python3 scripts/check_rust_coverage.py --summary-file target/rust-coverage/summary.json
+cargo test --locked --workspace --doc
 ```
 
 <details>
