@@ -27,6 +27,7 @@ import {
   type HighlightScheme,
 } from "../editor-themes";
 import { checkForUpdates } from "../updater";
+import { useI18n } from "../i18n";
 
 const REPO_URL = "https://github.com/dormonbear/ultraforce-desktop";
 
@@ -48,13 +49,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** Live sample of the selected highlight scheme, colored from its palette. */
 function SchemePreview({ scheme, dark }: { scheme: HighlightScheme; dark: boolean }) {
+  const { t } = useI18n();
   const c = schemeColors(scheme, dark);
   return (
     <pre
       className="overflow-x-auto rounded-md border border-border p-3 font-mono text-[11px] leading-relaxed"
       style={{ background: c.bg, color: c.fg }}
     >
-      <div style={{ color: c.comment }}>// syntax highlighting preview</div>
+      <div style={{ color: c.comment }}>// {t("syntax highlighting preview")}</div>
       <div>
         <span style={{ color: c.keyword }}>public class</span>{" "}
         <span style={{ color: c.type }}>Demo</span> {"{"}
@@ -76,6 +78,7 @@ function SchemePreview({ scheme, dark }: { scheme: HighlightScheme; dark: boolea
 
 /** Full settings center: appearance, per-tool workspace roots, index scope, about. */
 export function SettingsPage({ onChanged }: Props) {
+  const { t } = useI18n();
   const { selected: org } = useOrgs();
   const { theme, toggle, scheme, setScheme } = useTheme();
   const [roots, setRoots] = useState<Record<Tool, string>>({ soql: "", apex: "" });
@@ -98,9 +101,9 @@ export function SettingsPage({ onChanged }: Props) {
     if (org) {
       try {
         await reindexOrg(org, value);
-        toast.success("Reindexing org…");
+        toast.success(t("Reindexing org…"));
       } catch (e) {
-        toast.error(`Reindex failed: ${formatIpcError(e)}`);
+        toast.error(t("Reindex failed: {error}", { error: formatIpcError(e) }));
       }
     }
   };
@@ -123,28 +126,28 @@ export function SettingsPage({ onChanged }: Props) {
   return (
     <div className="h-full overflow-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-6 p-6 text-[12px]">
-        <Heading level={1}>Settings</Heading>
+        <Heading level={1}>{t("Settings")}</Heading>
 
-        <Section title="Appearance">
+        <Section title={t("Appearance")}>
           <div className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <Text>Theme</Text>
+              <Text>{t("Theme")}</Text>
               <SegmentedControl
-                label="Theme"
+                label={t("Theme")}
                 size="sm"
                 value={theme}
-                onChange={(t) => {
-                  if (theme !== t) toggle();
+                onChange={(nextTheme) => {
+                  if (theme !== nextTheme) toggle();
                 }}
               >
-                <SegmentedControlItem value="light" label="Light" />
-                <SegmentedControlItem value="dark" label="Dark" />
+                <SegmentedControlItem value="light" label={t("Light")} />
+                <SegmentedControlItem value="dark" label={t("Dark")} />
               </SegmentedControl>
             </div>
             <div className="flex items-center justify-between">
-              <Text>Syntax highlighting</Text>
+              <Text>{t("Syntax highlighting")}</Text>
               <Selector
-                label="Syntax highlighting scheme"
+                label={t("Syntax highlighting scheme")}
                 isLabelHidden
                 size="sm"
                 value={scheme}
@@ -161,25 +164,25 @@ export function SettingsPage({ onChanged }: Props) {
           </div>
         </Section>
 
-        <Section title="Workspace">
+        <Section title={t("Workspace")}>
           <div className="flex flex-col gap-3">
             {(["soql", "apex"] as Tool[]).map((tool) => (
               <div key={tool} className="flex flex-col gap-1">
                 <Text type="supporting" display="block">
-                  {tool} workspace
+                  {t("{tool} workspace", { tool })}
                 </Text>
                 <span className="truncate text-foreground">
                   {roots[tool] || "…"}
                 </span>
                 <div className="flex gap-2">
                   <Button
-                    label="Change…"
+                    label={t("Change…")}
                     variant="ghost"
                     size="sm"
                     clickAction={() => pick(tool)}
                   />
                   <Button
-                    label="Reset"
+                    label={t("Reset")}
                     variant="ghost"
                     size="sm"
                     clickAction={() => reset(tool)}
@@ -190,10 +193,10 @@ export function SettingsPage({ onChanged }: Props) {
           </div>
         </Section>
 
-        <Section title="Apex">
+        <Section title={t("Apex")}>
           <Switch
-            label="Confirm before running anonymous Apex"
-            description="Ask for confirmation on every run — a guard against executing DML in the wrong org."
+            label={t("Confirm before running anonymous Apex")}
+            description={t("Ask for confirmation on every run — a guard against executing DML in the wrong org.")}
             labelPosition="start"
             labelSpacing="spread"
             value={confirmRun}
@@ -204,38 +207,36 @@ export function SettingsPage({ onChanged }: Props) {
           />
         </Section>
 
-        <Section title="Privacy">
+        <Section title={t("Privacy")}>
           <div className="flex flex-col gap-3">
             <Text display="block">
-              No analytics, telemetry, usage tracking, or automatic crash reports are collected or sent.
+              {t("No analytics, telemetry, usage tracking, or automatic crash reports are collected or sent.")}
             </Text>
             <Text display="block">
-              Your scripts, execution history, preferences, Salesforce logs and schema indexes stay on this computer.
-              Salesforce operations communicate with your selected org. Update checks contact GitHub Releases.
+              {t("Your scripts, execution history, preferences, Salesforce logs and schema indexes stay on this computer. Salesforce operations communicate with your selected org. Update checks contact GitHub Releases.")}
             </Text>
             <Text display="block">
-              Apex History keeps your last 50 runs locally; use Clear history in the History drawer to remove them.
-              Opened Salesforce logs are cached locally for reopening.
+              {t("Apex History keeps your last 50 runs locally; use Clear history in the History drawer to remove them. Opened Salesforce logs are cached locally for reopening.")}
             </Text>
           </div>
         </Section>
 
-        <Section title="Indexing">
+        <Section title={t("Indexing")}>
           <Selector
-            label="Index scope"
+            label={t("Index scope")}
             value={ns}
             changeAction={changeNs}
             options={[
-              { value: "all", label: "All objects" },
+              { value: "all", label: t("All objects") },
               {
                 value: "unmanaged",
-                label: "Unmanaged only (skip managed packages)",
+                label: t("Unmanaged only (skip managed packages)"),
               },
             ]}
           />
         </Section>
 
-        <Section title="About">
+        <Section title={t("About")}>
           <div className="flex items-center justify-between">
             <Text>
               Ultraforce
@@ -252,7 +253,7 @@ export function SettingsPage({ onChanged }: Props) {
                 clickAction={() => openUrl(REPO_URL)}
               />
               <Button
-                label="Check for updates"
+                label={t("Check for updates")}
                 variant="ghost"
                 size="sm"
                 clickAction={() => checkForUpdates(true)}
