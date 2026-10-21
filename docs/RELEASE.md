@@ -40,6 +40,9 @@ cargo test --locked --workspace
 Run each command separately and preserve its exit code. Frontend, native desktop and other required CI gates still apply.
 分别运行各命令并保留其退出码。前端、原生桌面及其他必需 CI 检查仍须通过。
 
+Keep the release PR's generated header, both standalone `---` separators and footer when expanding its notes. Release Please parses that envelope to create the release; removing it can skip publication even when the workflow is green. Put verification commentary in a PR comment. The lightweight release-body workflow rechecks the envelope on body edits and compares its version with the manifest.
+扩展发布说明时，须保留发布 PR 生成的页首、两个独立成行的 `---` 分隔符及页尾。Release Please 解析此结构以创建发布；移除它可能导致工作流显示成功却跳过发布。验证说明请放在 PR 评论中。轻量正文工作流会在正文编辑时重新检查结构，并将版本与清单比较。
+
 ## Publication order / 发布顺序
 
 | Stage / 阶段 | Current behavior / 当前行为 |
