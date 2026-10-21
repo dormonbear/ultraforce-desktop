@@ -1,5 +1,14 @@
 # Changelog / 更新日志
 
+## [0.3.19](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.18...v0.3.19) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* localize CLI setup and org connection / 本地化 CLI 设置与组织连接 ([#90](https://github.com/dormonbear/ultraforce-desktop/issues/90)) ([bcb1c1b](https://github.com/dormonbear/ultraforce-desktop/commit/bcb1c1bf31d39392e0f7b9690dd8334e195f197e))
+* localize organization controls / 本地化组织操作控件 ([#92](https://github.com/dormonbear/ultraforce-desktop/issues/92)) ([6c0ea14](https://github.com/dormonbear/ultraforce-desktop/commit/6c0ea1480b3f7bdd29a52d4177b7a63ac2edb624))
+* persist shared stdlib in SQLite / 将共享标准库持久化至 SQLite ([#89](https://github.com/dormonbear/ultraforce-desktop/issues/89)) ([6091b60](https://github.com/dormonbear/ultraforce-desktop/commit/6091b60f491a48c3a62e8044438728e8512fa16e))
+
 ## [0.3.18](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.17...v0.3.18) (2026-10-21)
 
 
