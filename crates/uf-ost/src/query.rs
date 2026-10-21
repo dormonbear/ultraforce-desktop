@@ -264,6 +264,8 @@ pub struct ApexDto {
     /// Provider returned an object (true) or explicit null (false) for this
     /// source. None means unknown/not a direct source; true is not a guarantee
     /// that every member is present in the provider's table.
+    /// 来源返回对象时为 true，显式 null 时为 false；None 表示未知或非直接来源。
+    /// true 不保证提供方的表包含全部成员。
     pub symbol_table_available: Option<bool>,
     /// `null` for an org type, else the stdlib namespace.
     pub namespace: Option<String>,

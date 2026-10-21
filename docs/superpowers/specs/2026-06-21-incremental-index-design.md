@@ -77,12 +77,20 @@ new frontend wiring is the `sync-result` toast.
    names from flattened inner/referenced types. Re-parse all retained source
    records to remove changed inner types and recompute inherited members, then
    append only the retained object-derived types.
+   **删除协调（v5 模式）**：按 `(NamespacePrefix, Name)` 保留完整来源 SymbolTable，
+   独立于扁平化 OST 及可变辅助缓存。合并变更来源与对象描述后，获取带命名空间的权威类列表
+   及全部对象列表；仅在两者均非空时删除缺失来源及对象。空列表仅允许更新，禁止两类删除；
+   枚举失败或明确不完整时中止发布。来源名称不能用于直接裁剪展开的内部／引用类型。
+   重新解析全部保留来源，移除已变更的内部类型、重算继承成员，再附加保留对象的派生类型。
 5. Persist sources, schema, all FTS indexes, OST and `indexed_at = started_at`
    in the existing single generation transaction, with a metadata publication
    token captured alongside the source/schema read in one pinned snapshot.
    Source JSON replaces the legacy raw org-types blob. Versions before v5 and
    missing/corrupt provenance require a full reindex. `SyncOutcome` counts source
    class records plus object records; expanded inner types are not counted.
+   在同一个代际事务中保存来源、模式、全部 FTS 索引、OST 及 `indexed_at = started_at`。
+   发布令牌与来源／模式在同一固定快照中读取。来源 JSON 替换旧原始组织类型数据；v5 之前的
+   版本或缺失／损坏的来源须完整重建。`SyncOutcome` 统计来源类及对象，不计展开的内部类型。
 
 `on_progress` reuses the Phase-1 `IndexProgress` shape but with delta-sized
 totals; the entry does NOT drive the top progress bar for delta (it is fast).

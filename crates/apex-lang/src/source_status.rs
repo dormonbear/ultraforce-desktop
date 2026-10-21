@@ -1,4 +1,5 @@
 //! Small, transaction-owned availability projection of canonical source JSON.
+//! 规范来源 JSON 的轻量可用性投影，由同一事务维护。
 use rusqlite::{params, Connection};
 use serde_json::Value;
 
@@ -79,6 +80,7 @@ pub fn read(conn: &Connection) -> rusqlite::Result<Vec<SourceStatus>> {
 /// Cheap publication-shape checks. Complete canonical cross-checking occurs
 /// during sync, which already loads the large source JSON. This does not detect
 /// arbitrary same-length external edits of the canonical blob on every lookup.
+/// 查询执行轻量结构检查；同步加载完整来源时交叉核验，不逐次检测外部任意等长篡改。
 pub fn unavailable_count(conn: &Connection, classes: i64) -> rusqlite::Result<Option<i64>> {
     let (sources, total, bad, unavailable): (i64, i64, i64, i64) = conn.query_row(
         "SELECT (SELECT count(*) FROM apex_sources WHERE id=1),count(*),
@@ -96,6 +98,7 @@ pub fn availability(conn: &Connection, name: &str, classes: i64) -> rusqlite::Re
     }
     // Bare-name lookup may match more than one namespace. Be conservative:
     // one unavailable matching source prevents claiming availability.
+    // 裸名称可能匹配多个命名空间；任一匹配来源不可用时，保守地报告不可用。
     conn.query_row(
         "SELECT min(available) FROM apex_source_status WHERE name=?1 COLLATE NOCASE",
         [name],

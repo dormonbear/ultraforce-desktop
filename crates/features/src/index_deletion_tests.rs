@@ -41,6 +41,7 @@ pub(super) fn runner_names(
             json!({"status":0,"result":{"records":if changed {vec![json!({"QualifiedApiName":"Account"})]} else {vec![]},"done":true,"totalSize":if changed {1}else{0}}})
         } else if command.contains("composite") {
             // Each requested reference appears in the JSON argument following --body.
+            // 每个请求引用均位于 --body 后的 JSON 参数中。
             let body = args
                 .iter()
                 .find_map(|arg| serde_json::from_str::<Value>(arg).ok())
@@ -585,6 +586,7 @@ async fn a_new_object_is_counted_separately_from_a_new_class() {
     let conn =
         apex_lang::db::open_apex(&sf_schema::sqlite::db_path(&root, "SyntheticDelta")).unwrap();
     // Seed a real full generation whose sole object is Gone__c.
+    // 创建仅含 Gone__c 对象的真实完整代际。
     index_org(
         &runner(vec![class("Keeper", &[])], vec![], vec!["Gone__c"], false),
         root.clone(),

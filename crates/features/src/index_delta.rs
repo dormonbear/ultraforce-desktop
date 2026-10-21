@@ -10,6 +10,7 @@ fn invalid(message: &str) -> SfError {
 }
 
 // Identity is the source record, never a flattened SymbolTable output name.
+// 以来源记录作为身份，不使用扁平化 SymbolTable 输出名称。
 fn key(record: &Value) -> Result<(String, String), SfError> {
     let name = record
         .get("Name")
@@ -42,6 +43,7 @@ pub(super) fn validate_sources(records: &[Value]) -> Result<(), SfError> {
             .ok_or_else(|| invalid("Apex SymbolTable missing; previous index retained"))?;
         // Null is Salesforce's supported unavailable-table response. Retain
         // ownership and the parser's name-only fallback, never old members.
+        // null 是 Salesforce 支持的不可用响应；保留归属及名称占位，不沿用旧成员。
         if value.is_null() {
             continue;
         }
@@ -138,6 +140,8 @@ async fn live_classes(invoker: &SfInvoker, org: &str) -> Result<Vec<(String, Str
 /// Reconcile source records and regenerate their derived graph. No snapshot/API
 /// mismatch remains a no-op; stale versions or missing provenance require a full
 /// reindex. Counts refer to Apex source records and sObjects, not inner types.
+/// 按来源重建派生图；无快照或 API 不匹配时不操作，旧版本或缺失来源须完整重建。
+/// 数量统计 Apex 来源记录及对象，不统计展开的内部类型。
 pub async fn sync_org(
     invoker: &SfInvoker,
     root: PathBuf,
@@ -183,6 +187,7 @@ pub async fn sync_org(
     ensure_complete_describes(&entities, &schemas)?;
     // Complete authoritative lists gate BOTH deletion families. Fetch errors
     // abort publication; empty lists allow upserts but cannot erase old data.
+    // 两类删除均须完整权威列表；获取失败则中止发布，空列表仅允许更新而不能删除。
     let live: std::collections::BTreeSet<_> =
         live_classes(invoker, org).await?.into_iter().collect();
     let mut args = vec!["sobject", "list", "--sobject", "all"];

@@ -163,6 +163,7 @@ fn save_generation_inner(
     }
     // Every publication must either replace provenance or explicitly discard
     // it. A source-less save_snapshot must not leave stale source ownership.
+    // 每次发布须替换或清除来源信息；无来源的保存不能保留旧归属。
     if raw_org_types.is_none() {
         tx.execute("DELETE FROM apex_sources", [])
             .map_err(std::io::Error::other)?;
@@ -181,6 +182,7 @@ fn save_generation_inner(
         // Generation provenance is authoritative; do not retain a second large,
         // mutable raw-cache copy. Legacy callers without sources cannot leave
         // old provenance attached to a new generation.
+        // 以代际来源为准，移除可变缓存中的重复大数据；无来源调用不能沿用旧归属。
         crate::db::delete_raw(&tx, &manifest.api_version, "org_types")
             .map_err(std::io::Error::other)?;
         if full {
@@ -293,6 +295,7 @@ pub fn load_snapshot_with_token(
 
 /// Inputs for delta derivation, pinned to one SQLite generation. Source JSON
 /// belongs to the generation, independently of the auxiliary mutable raw cache.
+/// 增量推导输入固定在同一 SQLite 代际，来源 JSON 独立于辅助可变缓存。
 pub struct SyncSnapshot {
     pub ost: Ost,
     pub manifest: IndexManifest,

@@ -91,6 +91,7 @@ async fn mixed_available_unavailable_full_index_then_sync_preserves_ownership() 
     );
     assert_eq!(snapshot.manifest.classes, 3);
     // An unavailable source is still owned and can be truly deleted later.
+    // 不可用来源仍保留归属，之后可按权威列表实际删除。
     let (counts, _) = sync_org(
         &runner(vec![], vec!["Available", "Empty"], vec!["Account"], false),
         root.clone(),
