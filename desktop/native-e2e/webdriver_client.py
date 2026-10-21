@@ -24,6 +24,14 @@ def key_actions(text):
 
 
 class WebDriver:
+    EDITOR_STATE = """const editor = [...document.querySelectorAll('.monaco-editor')]
+        .find(e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');
+        const context = editor?.querySelector('.native-edit-context')?.editContext;
+        const textarea = editor?.querySelector('textarea.inputarea');
+        const input = context || textarea;
+        return input ? {text: context ? context.text : textarea.value,
+            start: input.selectionStart, end: input.selectionEnd} : null;"""
+
     def __init__(self, debugger_address):
         self.session = None
         result = self.request("POST", "/session", {"capabilities": {"alwaysMatch": {
@@ -97,7 +105,19 @@ class WebDriver:
             identifier = buttons[0]["element-6066-11e4-a52e-4f735466cecf"]
             self.request("POST", self.endpoint(f"element/{identifier}/click"), {})
 
-    def editor_keys(self, text):
+    def editor_state(self):
+        return self.execute(self.EDITOR_STATE)
+
+    def wait_editor_state(self, text=None, offset=None):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            state = self.editor_state()
+            if state and (text is None or state["text"] == text) and (offset is None or state["start"] == offset == state["end"]):
+                return
+            time.sleep(0.1)
+        raise TimeoutError(f"Native editor state / 原生编辑器状态: {state}")
+
+    def editor_keys(self, text, focus=True):
         # Native key actions support both EditContext and textarea editors. / 原生键盘动作兼容 EditContext 和 textarea 编辑器。
         script = """return [...document.querySelectorAll('.monaco-editor')].find(
             e => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden'
@@ -105,7 +125,8 @@ class WebDriver:
         self.wait_script(script)
         element = self.execute(script)
         identifier = element["element-6066-11e4-a52e-4f735466cecf"]
-        self.request("POST", self.endpoint(f"element/{identifier}/click"), {})
+        if focus:
+            self.request("POST", self.endpoint(f"element/{identifier}/click"), {})
         self.request("POST", self.endpoint("actions"), {"actions": [{
             "type": "key", "id": "native-editor", "actions": key_actions(text),
         }]})

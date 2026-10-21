@@ -96,6 +96,10 @@ def application(application_path, environment, artifacts, name):
             }), encoding="utf-8")
             if driver:
                 try:
+                    (artifacts / f"{name}-editor-state.json").write_text(json.dumps(driver.editor_state()), encoding="utf-8")
+                except Exception:
+                    pass
+                try:
                     driver.screenshot(artifacts / f"{name}-failure.png")
                 except Exception:
                     pass
@@ -154,12 +158,19 @@ def verify_editor_ui(driver):
     # WebDriver sends native keys through Monaco's actual completion providers. / WebDriver 向 Monaco 的真实补全提供器发送原生按键。
     driver.click("css selector", 'nav button[aria-label="SOQL"]')
     driver.open_editor("New query")
-    driver.editor_keys("\ue009a\ue000SELECT  FROM Synthetic__c\ue009\ue011\ue000" + "\ue014" * 7 + "\ue009\ue00d\ue000")
+    query = "SELECT  FROM Synthetic__c"
+    driver.editor_keys("\ue009a\ue000" + query)
+    driver.wait_editor_state(text=query)
+    driver.editor_keys("\ue012" * (len(query) - 7), focus=False)
+    driver.wait_editor_state(text=query, offset=7)
+    driver.editor_keys("\ue009\ue00d\ue000", focus=False)
     driver.wait_script("return [...document.querySelectorAll('.suggest-widget.visible .monaco-list-row')].some(e => e.getClientRects().length && e.innerText.includes('Name'))")
     driver.editor_keys("\ue00c")
     driver.click("css selector", 'nav button[aria-label="Apex"]')
     driver.open_editor("New script")
-    driver.editor_keys("\ue009a\ue000NativeService.\ue009\ue00d\ue000")
+    driver.editor_keys("\ue009a\ue000NativeService.")
+    driver.wait_editor_state(text="NativeService.", offset=len("NativeService."))
+    driver.editor_keys("\ue009\ue00d\ue000", focus=False)
     driver.wait_script("return [...document.querySelectorAll('.suggest-widget.visible .monaco-list-row')].some(e => e.getClientRects().length && e.innerText.includes('run'))")
     driver.editor_keys("\ue00c")
 

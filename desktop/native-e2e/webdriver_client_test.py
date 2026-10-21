@@ -6,6 +6,16 @@ from webdriver_client import WebDriver, key_actions
 
 
 class NativeAttachTest(unittest.TestCase):
+    def test_cursor_navigation_does_not_click_and_reset_selection(self):
+        driver = WebDriver.__new__(WebDriver)
+        driver.session = "fixture"
+        driver.wait_script = MagicMock()
+        driver.execute = MagicMock(return_value={"element-6066-11e4-a52e-4f735466cecf": "editor"})
+        driver.request = MagicMock()
+        driver.editor_keys("\ue012", focus=False)
+        driver.request.assert_called_once()
+        self.assertEqual(driver.request.call_args.args[1], "/session/fixture/actions")
+
     def test_native_keys_hold_and_release_control_without_textarea(self):
         self.assertEqual(key_actions("\ue009a\ue000X"), [
             {"type": "keyDown", "value": "\ue009"},
