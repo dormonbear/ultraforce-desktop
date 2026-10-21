@@ -151,6 +151,8 @@ def run(application_path, artifacts):
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
             verify_completions(driver)
             verify_database(failed_root, True)
+            verify_schema_ui(driver)
+            verify_editor_ui(driver)
         print("PASS: native UI, real IPC, SQLite reopen, completions and stdlib failure / 原生界面、真实 IPC、SQLite 重载、补全及标准库失败验证通过")
 
 

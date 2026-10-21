@@ -8,6 +8,10 @@ on:
     paths: ['desktop/**', 'crates/**', '.github/workflows/native-e2e.yml']
   workflow_dispatch:
 
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native-windows:
     name: Native Tauri on Windows / Windows 原生 Tauri
