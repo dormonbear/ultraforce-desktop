@@ -119,18 +119,33 @@ pub async fn index_org(
     policy: &NamespacePolicy,
     on_progress: &mut (dyn FnMut(IndexProgress) + Send),
 ) -> Result<Ost, SfError> {
-    let expected = apex_lang::snapshot::generation_token(&root, org_id).map_err(SfError::Spawn)?;
+    index_org_for_target(invoker, root, org_id, org_id, api, policy, on_progress).await
+}
+
+/// Publish under a cache key while fetching through a pinned CLI target.
+/// 使用固定的 CLI 目标取数，并按独立缓存键发布。
+pub async fn index_org_for_target(
+    invoker: &SfInvoker,
+    root: PathBuf,
+    cache_key: &str,
+    target: &str,
+    api: &str,
+    policy: &NamespacePolicy,
+    on_progress: &mut (dyn FnMut(IndexProgress) + Send),
+) -> Result<Ost, SfError> {
+    let expected =
+        apex_lang::snapshot::generation_token(&root, cache_key).map_err(SfError::Spawn)?;
     // Keep changes made during acquisition eligible for the next delta sync.
     let indexed_at = now_iso8601();
     let started = std::time::Instant::now();
-    tracing::info!(org = %org_id, api = %api, "index_org start (full index)");
+    tracing::info!(org = %target, api = %api, "index_org start (full index)");
 
     on_progress(IndexProgress {
         phase: "stdlib",
         done: 0,
         total: 1,
     });
-    let mut ost_store = OstStore::new(root.clone(), org_id);
+    let mut ost_store = OstStore::for_target(root.clone(), cache_key, target);
     let stdlib = ost_store
         .get_or_fetch(invoker, api, OstSource::Stdlib)
         .await?;
@@ -153,7 +168,7 @@ pub async fn index_org(
     });
     // A full rebuild must fetch current org symbols, rather than relabel an old
     // raw cache with a fresh generation watermark.
-    let org_types_raw = fetch_apex_symbols(invoker, org_id).await?;
+    let org_types_raw = fetch_apex_symbols(invoker, target).await?;
     delta::validate_sources(&org_types_raw)?;
     let mut org_types = parse_org_types(&org_types_raw);
     let class_count = org_types_raw.len();
@@ -168,8 +183,8 @@ pub async fn index_org(
     // (ApexClass.NamespacePrefix isn't queried), so managed classes can't be
     // filtered here without an extra query.
     let mut list_args = vec!["sobject", "list", "--sobject", "all"];
-    if org_id != "default" {
-        list_args.extend(["--target-org", org_id]);
+    if target != "default" {
+        list_args.extend(["--target-org", target]);
     }
     let names: Vec<String> = invoker
         .run_json::<Vec<String>>(&list_args)
@@ -181,7 +196,7 @@ pub async fn index_org(
     // Describe all sObjects via batched Composite REST (25 per call, up to 4
     // calls concurrently) instead of one `sf` process per object — the latter
     // made a managed-package org's first index take ~15 min.
-    let mut store = SchemaStore::new(root.clone(), org_id);
+    let mut store = SchemaStore::for_target(root.clone(), cache_key, target);
     let described = store
         .fetch_many(invoker, api, &names, &mut |done, _total| {
             on_progress(IndexProgress {
@@ -206,7 +221,7 @@ pub async fn index_org(
         org_types,
     };
     let manifest = IndexManifest {
-        org_id: org_id.to_string(),
+        org_id: cache_key.to_string(),
         api_version: api.to_string(),
         indexed_at,
         namespaces: ost.namespaces.len(),
@@ -225,7 +240,7 @@ pub async fn index_org(
     )
     .map_err(SfError::Spawn)?;
     tracing::info!(
-        org = %org_id,
+        org = %target,
         classes = class_count,
         sobjects,
         namespaces = ost.namespaces.len(),
@@ -255,7 +270,7 @@ impl SyncOutcome {
 
 #[path = "index_delta.rs"]
 mod delta;
-pub use delta::sync_org;
+pub use delta::{sync_org, sync_org_for_target};
 
 fn ensure_complete_describes(
     names: &[String],
@@ -480,3 +495,11 @@ mod unavailable_tests;
 #[cfg(test)]
 #[path = "index_query_proof_tests.rs"]
 mod query_proof_tests;
+
+#[cfg(test)]
+#[path = "index_target_tests.rs"]
+mod target_tests;
+
+#[cfg(test)]
+#[path = "index_on_demand_tests.rs"]
+mod on_demand_tests;

@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+from sf_fixture import ORG, ORG_ID
 import subprocess
 import sys
 import tempfile
@@ -42,6 +43,15 @@ class NativeFixtureTest(unittest.TestCase):
         self.assertTrue(payload["result"]["done"])
         self.assertEqual(payload["result"]["totalSize"], len(payload["result"]["records"]))
         self.assertEqual(payload["result"]["records"][0]["Name"], "NativeService")
+
+    def test_identity_resolves_alias_but_metadata_requires_the_pinned_username(self):
+        identity = self.invoke(["org", "display", "--target-org", "NativeFixture", "--json"])
+        self.assertEqual(identity.returncode, 0, identity.stderr)
+        value = json.loads(identity.stdout)["result"]
+        self.assertEqual((value["id"], value["username"]), (ORG_ID, ORG))
+        for target, status in [("NativeFixture", 1), (ORG, 0)]:
+            result = self.invoke(["sobject", "list", "--sobject", "all", "--target-org", target, "--json"])
+            self.assertEqual(result.returncode, status, result.stdout)
 
     def test_offline_and_stdlib_failures_are_actual_nonzero_commands(self):
         query = ["data", "query", "--query", "SELECT Name FROM ApexClass"]

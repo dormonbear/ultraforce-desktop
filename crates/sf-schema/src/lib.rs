@@ -1,6 +1,7 @@
 //! sf-schema: on-demand Salesforce object describe → trimmed model → cache → query.
 
 pub mod deps;
+pub mod identity;
 pub mod model;
 pub mod puller;
 pub mod query;

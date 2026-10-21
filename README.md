@@ -235,10 +235,29 @@ the retrieval discipline (verify freshness → sync → reindex + fall back to l
 
 or copy `skills/ost/SKILL.md` into your agent's skills directory.
 
-- **Storage:** one SQLite `index.db` per org under `<cache>/ultraforce/<alias>/`
-  (`$XDG_CACHE_HOME` / `~/.cache` / `%LOCALAPPDATA%`), overridable with `--root`
-  or `UF_OST_ROOT`. WAL mode, so the MCP server reads a consistent snapshot while
-  a reindex writes.
+- **Storage:** one SQLite `index.db` per verified Salesforce org ID and authenticated username,
+  under `<root>/org-<generated-key>/index.db`. The default root is `ultraforce` under
+  `$XDG_CACHE_HOME` / `~/.cache` / `%LOCALAPPDATA%`; override it with `--root` or `UF_OST_ROOT`.
+  `<root>/_identity/bindings.db` maps literal CLI aliases/usernames to these contexts:
+  equivalent targets for one user share a generation; different users in one org remain isolated.
+  Snapshot databases retain WAL, allowing consistent reads during atomic reindex publication.
+  **存储：** 每个已验证的 Salesforce 组织 ID 与认证用户名组合拥有一个 SQLite `index.db`，
+  路径为 `<root>/org-<generated-key>/index.db`。默认根目录是 `$XDG_CACHE_HOME`／`~/.cache`／
+  `%LOCALAPPDATA%` 下的 `ultraforce`，可通过 `--root` 或 `UF_OST_ROOT` 覆盖。
+  `<root>/_identity/bindings.db` 将原样 CLI 别名／用户名映射至上下文：同一用户的等价目标共享代次，
+  同一组织的不同用户保持隔离。快照数据库继续使用 WAL，重建原子发布期间仍可一致读取。
+- **On-demand describes:** missing object descriptions are cached separately from published
+  snapshot rows and expire when a new generation is published. A slow describe cannot overwrite
+  a newer published generation; failed publication preserves the previous cache.
+  **按需描述：** 缺失对象的描述独立于已发布快照行缓存，并在新代次发布时失效。
+  耗时较长的 describe 不会覆盖更新的已发布代次；发布失败会保留之前的缓存。
+- **Existing logical-key indexes:** old `<root>/<alias-or-username>/index.db` files cannot prove
+  their physical org/user identity. They remain untouched; use `ost_reindex` or
+  `uf-ost index --org '<target>'` to rebuild into a verified context. Sync can discover a new
+  alias for an already verified snapshot, but cannot adopt an unverified legacy snapshot.
+  **既有逻辑键索引：** 旧 `<root>/<alias-or-username>/index.db` 文件无法证明其物理组织／用户身份，
+  因此保留不变；请运行 `ost_reindex` 或 `uf-ost index --org '<target>'`，在已验证上下文中重建。
+  同步可以发现已验证快照的新别名，但不会采用未经验证的旧快照。
 - **Org IP:** the index contains your org's describe output. It stays local and
   is never committed — treat the cache dir as sensitive.
 - **API consumption:** a full reindex pulls ~4–5k object describes plus the heavy

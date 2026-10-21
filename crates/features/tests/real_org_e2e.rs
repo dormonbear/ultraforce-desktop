@@ -305,12 +305,16 @@ async fn e2e_index_org_offline() {
     let root = std::env::temp_dir().join(format!("uf-e2e-index-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
 
-    let (api, _) = features::api_version::resolve_index_api_version(&inv, &root, &o).await;
+    let context = features::metadata_context::resolve(&inv, &root, &o)
+        .await
+        .expect("Resolve org identity / 解析组织身份");
+    let api = context.api_version;
     let mut phases: Vec<&'static str> = vec![];
-    let ost = features::index::index_org(
+    let ost = features::index::index_org_for_target(
         &inv,
         root.clone(),
-        &o,
+        context.binding.cache_key(),
+        context.binding.username(),
         &api,
         &features::index::NamespacePolicy::All,
         &mut |p| {
@@ -342,7 +346,8 @@ async fn e2e_index_org_offline() {
     );
 
     // Snapshot persisted and reloads to exactly the same OST.
-    let (loaded, manifest) = apex_lang::load_snapshot(&root, &o, &api).expect("snapshot reload");
+    let (loaded, manifest) = apex_lang::load_snapshot(&root, context.binding.cache_key(), &api)
+        .expect("Snapshot reload / 快照重载");
     assert_eq!(loaded, ost, "reloaded OST must equal the indexed one");
     assert!(
         manifest.indexed_at.ends_with('Z'),
@@ -354,7 +359,7 @@ async fn e2e_index_org_offline() {
     // Offline serve: install the index, then complete with an invoker that
     // PANICS on any sf call — proving zero on-demand network once indexed.
     let completer = ApexCompleter::new(root.clone());
-    completer.install_index(&o, ost);
+    completer.install_index(&context.binding, ost);
     let panicking = SfInvoker::new(Arc::new(sf_core::runner::MockRunner::new(|_p, _a| {
         panic!("indexed completion must not hit the network")
     })));

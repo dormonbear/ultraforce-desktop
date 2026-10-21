@@ -4,14 +4,15 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use crate::metadata_context::{cached_or_resolve, MetadataContext};
 use apex_lang::acquire::{fetch_apex_class, fetch_apex_class_names, parse_org_types, parse_stdlib};
 use apex_lang::candidate::{Candidate, CandidateKind};
 use apex_lang::complete_source;
-use apex_lang::symbols::resolve_type;
 use apex_lang::store::{OstSource, OstStore};
+use apex_lang::symbols::resolve_type;
 use apex_lang::symbols::{ApexType, Method, Ost, Property, TypeKind};
 use sf_core::{SfError, SfInvoker};
-use sf_schema::{SObjectSchema, SchemaStore};
+use sf_schema::SObjectSchema;
 
 pub fn default_index_root() -> PathBuf {
     OstStore::default_root()
@@ -69,9 +70,10 @@ impl ApexCompleter {
     }
 
     /// Store a freshly-built full index and mark the org indexed.
-    pub fn install_index(&self, org_id: &str, ost: Ost) {
-        *self.cache.lock().unwrap() = Some((org_id.to_string(), Arc::new(ost)));
-        self.indexed.lock().unwrap().insert(org_id.to_string());
+    pub fn install_index(&self, binding: &sf_schema::identity::CacheBinding, ost: Ost) {
+        let key = binding.cache_key().to_owned();
+        *self.cache.lock().unwrap() = Some((key.clone(), Arc::new(ost)));
+        self.indexed.lock().unwrap().insert(key);
     }
 
     /// Build (or reuse) the OST for `org_id`, then complete at `cursor`.
@@ -97,29 +99,51 @@ impl ApexCompleter {
                     })
                     .collect());
             }
+            let context = if soql_lang::outline(&src[s..e]).from_object.is_some() {
+                cached_or_resolve(invoker, &self.root, org_id).await.ok()
+            } else {
+                None
+            };
+            let cached_names = context.as_ref().map(|context| {
+                crate::metadata_context::sobject_names(&self.root, &context.binding)
+            });
+            let objects = if objects.is_empty() {
+                cached_names.as_deref().map(Vec::as_slice).unwrap_or(&[])
+            } else {
+                objects
+            };
             return self
-                .complete_soql(invoker, org_id, &src[s..e], cursor.saturating_sub(s), objects)
+                .complete_soql(
+                    invoker,
+                    context.as_ref(),
+                    &src[s..e],
+                    cursor.saturating_sub(s),
+                    objects,
+                )
                 .await;
         }
 
-        let ost = self.ensure_base(invoker, org_id).await?;
+        let context = cached_or_resolve(invoker, &self.root, org_id).await?;
+        let ost = self.ensure_base(invoker, &context).await?;
         // On-demand acquisition: if the cursor needs a type the base OST (stdlib)
         // lacks, fetch JUST that type — an sObject describe first, then a single
         // Apex class. Both are bounded to one type, so this scales to large orgs
         // (we never bulk-fetch every class).
-        if !self.is_indexed(org_id) {
+        if !self.is_indexed(context.binding.cache_key()) {
             if let Some(type_name) = apex_lang::needed_type_at(src, cursor) {
                 // Fetch when the type is unknown OR is a members-less stub (so a
                 // top-level-named org class upgrades to its full SymbolTable here).
                 if resolve_type(&ost, &type_name).is_none_or(is_stub_type) {
-                    if let Some(apex_ty) = self.describe_sobject(invoker, org_id, &type_name).await
+                    if let Some(apex_ty) =
+                        self.describe_sobject(invoker, &context, &type_name).await
                     {
-                        let augmented = self.augment_types(org_id, vec![apex_ty]);
+                        let augmented =
+                            self.augment_types(context.binding.cache_key(), vec![apex_ty]);
                         return Ok(complete_source(src, cursor, &augmented));
                     }
-                    let classes = self.fetch_org_class(invoker, org_id, &type_name).await;
+                    let classes = self.fetch_org_class(invoker, &context, &type_name).await;
                     if !classes.is_empty() {
-                        let augmented = self.augment_types(org_id, classes);
+                        let augmented = self.augment_types(context.binding.cache_key(), classes);
                         return Ok(complete_source(src, cursor, &augmented));
                     }
                 }
@@ -138,7 +162,8 @@ impl ApexCompleter {
         src: &str,
         cursor: usize,
     ) -> Result<Option<apex_lang::ast::signature::SignatureHelp>, SfError> {
-        let ost = self.ensure_base(invoker, org_id).await?;
+        let context = cached_or_resolve(invoker, &self.root, org_id).await?;
+        let ost = self.ensure_base(invoker, &context).await?;
         Ok(apex_lang::signature_help_source(src, cursor, &ost))
     }
 
@@ -146,8 +171,10 @@ impl ApexCompleter {
     /// on populated org types). Non-blocking: uses the in-memory OST if the org is
     /// indexed, else an empty OST (duplicate-variable checks still run).
     pub fn diagnostics(&self, org_id: &str, src: &str) -> Vec<ApexDiagnostic> {
-        let ost = self
-            .cached(org_id)
+        let ost = sf_schema::identity::lookup(&self.root, org_id)
+            .ok()
+            .flatten()
+            .and_then(|binding| self.cached(binding.cache_key()))
             .map(|a| (*a).clone())
             .unwrap_or_default();
         let cu = apex_lang::ast::parser::parse(src);
@@ -177,14 +204,14 @@ impl ApexCompleter {
     async fn complete_soql(
         &self,
         invoker: &SfInvoker,
-        org_id: &str,
+        context: Option<&MetadataContext>,
         inner: &str,
         rel_cursor: usize,
         objects: &[String],
     ) -> Result<Vec<Candidate>, SfError> {
-        let schema = match soql_lang::outline(inner).from_object {
-            Some(object) => self.describe_schema(invoker, org_id, &object).await,
-            None => None,
+        let schema = match (soql_lang::outline(inner).from_object, context) {
+            (Some(object), Some(context)) => self.describe_schema(invoker, context, &object).await,
+            _ => None,
         };
         let empty = SObjectSchema::default();
         let schema = schema.as_ref().unwrap_or(&empty);
@@ -200,19 +227,23 @@ impl ApexCompleter {
             .collect())
     }
 
-    async fn ensure_base(&self, invoker: &SfInvoker, org_id: &str) -> Result<Arc<Ost>, SfError> {
-        if let Some(ost) = self.cached(org_id) {
+    async fn ensure_base(
+        &self,
+        invoker: &SfInvoker,
+        context: &MetadataContext,
+    ) -> Result<Arc<Ost>, SfError> {
+        let key = context.binding.cache_key();
+        if let Some(ost) = self.cached(key) {
             return Ok(ost);
         }
-        let api = crate::api_version::api_version_for(invoker, org_id).await;
-        if let Some((ost, _)) = apex_lang::load_snapshot(&self.root, org_id, &api) {
+        if let Some((ost, _)) = apex_lang::load_snapshot(&self.root, key, &context.api_version) {
             let arc = Arc::new(ost);
-            *self.cache.lock().unwrap() = Some((org_id.to_string(), arc.clone()));
-            self.indexed.lock().unwrap().insert(org_id.to_string());
+            *self.cache.lock().unwrap() = Some((key.to_string(), arc.clone()));
+            self.indexed.lock().unwrap().insert(key.to_string());
             return Ok(arc);
         }
-        let ost = Arc::new(self.build(invoker, org_id).await?);
-        *self.cache.lock().unwrap() = Some((org_id.to_string(), ost.clone()));
+        let ost = Arc::new(self.build(invoker, context).await?);
+        *self.cache.lock().unwrap() = Some((key.to_string(), ost.clone()));
         Ok(ost)
     }
 
@@ -221,10 +252,10 @@ impl ApexCompleter {
     async fn fetch_org_class(
         &self,
         invoker: &SfInvoker,
-        org_id: &str,
+        context: &MetadataContext,
         name: &str,
     ) -> Vec<ApexType> {
-        match fetch_apex_class(invoker, org_id, name).await {
+        match fetch_apex_class(invoker, context.binding.username(), name).await {
             Ok(records) if !records.is_empty() => parse_org_types(&records),
             _ => Vec::new(),
         }
@@ -234,10 +265,10 @@ impl ApexCompleter {
     async fn describe_sobject(
         &self,
         invoker: &SfInvoker,
-        org_id: &str,
+        context: &MetadataContext,
         name: &str,
     ) -> Option<ApexType> {
-        self.describe_schema(invoker, org_id, name)
+        self.describe_schema(invoker, context, name)
             .await
             .map(|s| schema_to_apex_type(&s))
     }
@@ -246,12 +277,14 @@ impl ApexCompleter {
     async fn describe_schema(
         &self,
         invoker: &SfInvoker,
-        org_id: &str,
+        context: &MetadataContext,
         object: &str,
     ) -> Option<SObjectSchema> {
-        let api = crate::api_version::api_version_for(invoker, org_id).await;
-        let mut store = SchemaStore::new(self.root.clone(), org_id);
-        store.get_or_fetch(invoker, &api, object).await.ok()
+        let mut store = context.schema_store(self.root.clone());
+        store
+            .get_or_fetch(invoker, &context.api_version, object)
+            .await
+            .ok()
     }
 
     /// Insert `tys` into the cached OST's org_types (dedupe by name); returns the new Arc.
@@ -274,18 +307,19 @@ impl ApexCompleter {
         arc
     }
 
-    async fn build(&self, invoker: &SfInvoker, org_id: &str) -> Result<Ost, SfError> {
+    async fn build(&self, invoker: &SfInvoker, context: &MetadataContext) -> Result<Ost, SfError> {
         // Fresh disk-backed store each rebuild; the disk cache makes repeat builds cheap.
-        let api = crate::api_version::api_version_for(invoker, org_id).await;
-        let mut store = OstStore::new(self.root.clone(), org_id);
+        let mut store = context.ost_store(self.root.clone());
         // get_or_fetch returns an OWNED Value -- do NOT add `.clone()` (clippy redundant_clone).
-        let stdlib = store.get_or_fetch(invoker, &api, OstSource::Stdlib).await?;
+        let stdlib = store
+            .get_or_fetch(invoker, &context.api_version, OstSource::Stdlib)
+            .await?;
         let namespaces = parse_stdlib(&stdlib);
         // Top-level org-class-name completion is cheap: a names-only query (no
         // SymbolTable) builds stub types. Each class's MEMBERS load lazily on
         // member access (see `complete` / `fetch_org_class`), so we never bulk
         // fetch every class's symbol table.
-        let org_types = fetch_apex_class_names(invoker, org_id)
+        let org_types = fetch_apex_class_names(invoker, context.binding.username())
             .await
             .unwrap_or_default()
             .into_iter()

@@ -16,10 +16,6 @@ pub struct AppState {
     /// queryable `status`), consolidating the former parallel warm+index calls.
     pub(crate) index: crate::index_coordinator::IndexCoordinator,
     pub(crate) apex: features::apex_complete::ApexCompleter,
-    /// Cached sObject-name list per org, for FROM completion. Populated by
-    /// `warm_schema`/`refresh_schema_cache` so keystroke completion never blocks
-    /// on a live (multi-second) `sf sobject list`.
-    pub(crate) sobjects: std::sync::Mutex<std::collections::HashMap<String, Arc<Vec<String>>>>,
     /// In-flight SOQL runs, keyed by the frontend's query id, so `cancel_soql`
     /// can signal the paginating loop to stop.
     pub(crate) query_cancels:

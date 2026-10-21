@@ -89,6 +89,44 @@ pub async fn resolve_index_api_version(
     (effective_api_version(false, resolved, snapshot), false)
 }
 
+/// Resolve a verified context without reusing an alias's stale detection cache.
+/// 解析已验证上下文，不复用别名过时的探测缓存。
+pub(crate) fn bound_index_api_version(
+    root: &Path,
+    requested: &str,
+    binding: &sf_schema::identity::CacheBinding,
+    display_version: Option<String>,
+) -> (String, bool) {
+    static DETECTED: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    let detected = {
+        let mut versions = DETECTED
+            .get_or_init(|| Mutex::new(HashMap::new()))
+            .lock()
+            .unwrap();
+        if let Some(version) = display_version {
+            versions.insert(binding.cache_key().to_owned(), version.clone());
+            Some(version)
+        } else {
+            versions.get(binding.cache_key()).cloned()
+        }
+    };
+    let configured = {
+        let overrides = overrides().lock().unwrap();
+        overrides
+            .get(requested)
+            .or_else(|| overrides.get(binding.username()))
+            .cloned()
+    };
+    if let Some(version) = configured.or(detected) {
+        return (version, true);
+    }
+    let stored = apex_lang::snapshot_api_version(root, binding.cache_key());
+    (
+        stored.unwrap_or_else(|| DEFAULT_API_VERSION.to_string()),
+        false,
+    )
+}
+
 /// Pure decision behind [`resolve_index_api_version`], unit-testable without a
 /// live org: detected → resolved value; fallback + snapshot → the snapshot's
 /// stored version; fallback + no snapshot → the fallback.

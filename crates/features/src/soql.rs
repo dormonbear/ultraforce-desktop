@@ -486,11 +486,22 @@ pub async fn complete_fields(
     objects: &[String],
 ) -> Vec<soql_lang::Candidate> {
     let object = soql_lang::outline(query).from_object;
-    let mut store = sf_schema::SchemaStore::new(root, org_id);
     let Some(object) = object else {
         return soql_lang::complete(query, cursor, &empty_schema(), objects, &|_| None);
     };
-    let api = crate::api_version::api_version_for(invoker, org_id).await;
+    let root = root.into();
+    let Ok(context) = crate::metadata_context::cached_or_resolve(invoker, &root, org_id).await
+    else {
+        return soql_lang::complete(query, cursor, &empty_schema(), objects, &|_| None);
+    };
+    let cached_names = crate::metadata_context::sobject_names(&root, &context.binding);
+    let objects = if objects.is_empty() {
+        cached_names.as_slice()
+    } else {
+        objects
+    };
+    let mut store = context.schema_store(root);
+    let api = context.api_version;
     let root_schema = store
         .get_or_fetch(invoker, &api, &object)
         .await
@@ -637,8 +648,16 @@ pub async fn diagnose(
     org_id: &str,
     query: &str,
 ) -> Vec<SoqlDiagnostic> {
-    let api = crate::api_version::api_version_for(invoker, org_id).await;
-    let mut store = sf_schema::SchemaStore::new(root, org_id);
+    let root = root.into();
+    let Ok(context) = crate::metadata_context::cached_or_resolve(invoker, &root, org_id).await
+    else {
+        return soql_lang::missing_limit(query)
+            .into_iter()
+            .map(|d| to_dto(d, 0))
+            .collect();
+    };
+    let mut store = context.schema_store(root);
+    let api = context.api_version;
     let mut diags = soql_query_diagnostics(&mut store, invoker, &api, query).await;
     // Schema-free lint: warn on unbounded (no-LIMIT) queries even offline.
     diags.extend(soql_lang::missing_limit(query));
@@ -653,8 +672,13 @@ pub async fn diagnose_apex_soql(
     org_id: &str,
     src: &str,
 ) -> Vec<SoqlDiagnostic> {
-    let api = crate::api_version::api_version_for(invoker, org_id).await;
-    let mut store = sf_schema::SchemaStore::new(root, org_id);
+    let root = root.into();
+    let Ok(context) = crate::metadata_context::cached_or_resolve(invoker, &root, org_id).await
+    else {
+        return Vec::new();
+    };
+    let mut store = context.schema_store(root);
+    let api = context.api_version;
     let mut out = Vec::new();
     for (start, end) in apex_lang::soql_regions(src) {
         let inner = &src[start..end];
@@ -998,6 +1022,7 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-panel-test-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&dir, "myorg");
         let q = "SELECT Na FROM Account";
         let cursor = q.find("Na").unwrap() + 2;
         let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
@@ -1024,6 +1049,7 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-rel-complete-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&dir, "myorg");
         let q = "SELECT Owner.Em FROM Account";
         let cursor = "SELECT Owner.Em".len();
         let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
@@ -1050,6 +1076,7 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-subq-complete-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&dir, "myorg");
         let q = "SELECT Id, (SELECT La FROM Contacts) FROM Account";
         let cursor = q.find("La FROM").unwrap() + 2;
         let got = complete_fields(&invoker, &dir, "myorg", q, cursor, &[]).await;
@@ -1074,6 +1101,7 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-rel-diag-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&dir, "myorg");
         let diags = diagnose(
             &invoker,
             &dir,
@@ -1121,6 +1149,7 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("soql-diag-test-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&dir, "myorg");
         let diags = diagnose(
             &invoker,
             &dir,
@@ -1166,6 +1195,7 @@ mod tests {
         });
         let invoker = sf_core::SfInvoker::new(std::sync::Arc::new(runner));
         let dir = std::env::temp_dir().join(format!("apex-soql-diag-{}", std::process::id()));
+        crate::metadata_context::fixture_binding(&dir, "myorg");
         let src = "Account a = [SELECT Bogus FROM Account];";
         let diags = diagnose_apex_soql(&invoker, &dir, "myorg", src).await;
         assert_eq!(diags.len(), 1, "{diags:?}");

@@ -447,7 +447,6 @@ pub fn run() {
         selected_org: std::sync::Mutex::new(None),
         index: index_coordinator::IndexCoordinator::new(),
         apex: features::apex_complete::ApexCompleter::with_default_root(),
-        sobjects: std::sync::Mutex::new(std::collections::HashMap::new()),
         query_cancels: std::sync::Mutex::new(std::collections::HashMap::new()),
         auth_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
         log_cache: std::sync::Mutex::new(None),

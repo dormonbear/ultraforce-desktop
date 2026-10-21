@@ -7,6 +7,9 @@ use sf_core::{SfError, SfInvoker};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+#[path = "store_demand.rs"]
+mod demand;
+
 /// Wrap an I/O-shaped error as `SfError::Spawn` (mirrors the existing
 /// fs-error convention in this store).
 fn io_err(e: impl std::fmt::Display) -> SfError {
@@ -19,17 +22,31 @@ type Key = (String, String);
 /// Caches schemas in memory and on disk under a per-org/version directory.
 pub struct SchemaStore {
     root: PathBuf,
-    org_id: String,
+    cache_key: String,
+    target: String,
     mem: HashMap<Key, SObjectSchema>,
+    mem_generation: Option<i64>,
 }
 
 impl SchemaStore {
     /// Build a store rooted at an explicit cache directory.
     pub fn new(root: impl Into<PathBuf>, org_id: impl Into<String>) -> Self {
+        let org_id = org_id.into();
+        Self::for_target(root, org_id.clone(), org_id)
+    }
+
+    /// Keep cache storage distinct from the pinned CLI target. / 缓存位置与固定的 CLI 目标分离。
+    pub fn for_target(
+        root: impl Into<PathBuf>,
+        cache_key: impl Into<String>,
+        target: impl Into<String>,
+    ) -> Self {
         Self {
             root: root.into(),
-            org_id: org_id.into(),
+            cache_key: cache_key.into(),
+            target: target.into(),
             mem: HashMap::new(),
+            mem_generation: None,
         }
     }
 
@@ -49,9 +66,9 @@ impl SchemaStore {
         (api_version.to_string(), object.to_ascii_lowercase())
     }
 
-    /// `<root>/<org_id>/index.db`, with separators sanitized.
+    /// `<root>/<cache_key>/index.db`, with separators sanitized. / 替换分隔符后的缓存数据库路径。
     fn db_path(&self) -> PathBuf {
-        sqlite::db_path(&self.root, &self.org_id)
+        sqlite::db_path(&self.root, &self.cache_key)
     }
 
     /// Look up a schema in memory only.
@@ -59,8 +76,15 @@ impl SchemaStore {
         self.mem.get(&Self::key(api_version, object))
     }
 
-    /// Load a schema from disk into memory. `Ok(None)` if no db file or the
-    /// object isn't stored.
+    fn observe_generation(&mut self, generation: Option<i64>) {
+        if self.mem_generation != generation {
+            self.mem.clear();
+            self.mem_generation = generation;
+        }
+    }
+
+    /// Read a published schema or a generation-scoped auxiliary describe into memory.
+    /// 以只读方式将已发布 schema 或按代次限定的辅助 describe 载入内存。
     pub fn load_disk(
         &mut self,
         api_version: &str,
@@ -70,8 +94,26 @@ impl SchemaStore {
         if !path.exists() {
             return Ok(None);
         }
-        let conn = sqlite::open(&path).map_err(io_err)?;
-        let Some(schema) = sqlite::read_object(&conn, object).map_err(io_err)? else {
+        let conn = sqlite::open_readonly(&path).map_err(io_err)?;
+        conn.execute_batch("BEGIN").map_err(io_err)?;
+        let generation = demand::generation(&conn, &self.cache_key).map_err(SfError::Spawn)?;
+        self.observe_generation(generation);
+        let has_objects = demand::has_table(&conn, "objects").map_err(SfError::Spawn)?;
+        let schema = if has_objects {
+            sqlite::read_object(&conn, object).map_err(io_err)?
+        } else {
+            if generation.is_some() {
+                return Err(SfError::Unexpected(
+                    "Published schema is incomplete; rebuild / 已发布 schema 不完整，请重建".into(),
+                ));
+            }
+            None
+        };
+        let schema = match schema {
+            Some(schema) => Some(schema),
+            None => demand::load(&conn, api_version, object, generation).map_err(SfError::Spawn)?,
+        };
+        let Some(schema) = schema else {
             return Ok(None);
         };
         self.mem
@@ -79,34 +121,51 @@ impl SchemaStore {
         Ok(Some(schema))
     }
 
-    /// Memory → disk → describe (and persist). Returns the schema.
+    /// Memory → disk → describe. Auxiliary caching preserves published generations.
+    /// 内存 → 磁盘 → describe；辅助缓存保留已发布代次。
     pub async fn get_or_fetch(
         &mut self,
         invoker: &SfInvoker,
         api_version: &str,
         object: &str,
     ) -> Result<SObjectSchema, SfError> {
+        let generation =
+            demand::current(&self.db_path(), &self.cache_key).map_err(SfError::Spawn)?;
+        self.observe_generation(generation);
         if let Some(s) = self.get(api_version, object) {
             return Ok(s.clone());
         }
         if let Some(s) = self.load_disk(api_version, object)? {
             return Ok(s);
         }
-        let schema = describe_object(invoker, &self.org_id, object).await?;
-        self.persist(&schema)?;
+        let schema = describe_object(invoker, &self.target, object).await?;
+        if !demand::save(
+            &self.db_path(),
+            &self.cache_key,
+            api_version,
+            &schema,
+            generation,
+        )
+        .map_err(SfError::Spawn)?
+        {
+            return self.load_disk(api_version, object)?.ok_or_else(|| {
+                SfError::Unexpected(
+                    "Index changed during describe; retry / describe 期间索引已变化，请重试".into(),
+                )
+            });
+        }
         self.mem
             .insert(Self::key(api_version, object), schema.clone());
         Ok(schema)
     }
 
-    /// Batch variant: describe the cache-miss `names` via the Composite REST
-    /// API (25 per call, up to 4 calls concurrently) and return every
-    /// `(name, schema)` (cached + freshly described). Fills the in-memory cache
-    /// but does NOT persist — the caller owns persistence so a full index can
-    /// commit atomically (`persist_full`) while a delta upserts (`persist_delta`).
-    /// `on_progress` is called with `(done, total)` after the initial cache scan
-    /// and after each completed composite call. Objects that fail to describe
-    /// are dropped.
+    /// Return cached and newly described objects using Composite REST (25 objects
+    /// per call, up to four calls concurrently). Updates memory without persisting;
+    /// published generations require the index publisher. Progress reports
+    /// `(done, total)` after the cache scan and each call; failed objects are omitted.
+    /// 通过 Composite REST 返回缓存和新描述的对象（每次 25 个对象，最多四次并发）。
+    /// 仅更新内存，不持久化；已发布代次须由索引发布器写入。缓存扫描和每次调用后
+    /// 报告 `(done, total)` 进度；省略描述失败的对象。
     pub async fn get_or_fetch_many(
         &mut self,
         invoker: &SfInvoker,
@@ -114,12 +173,17 @@ impl SchemaStore {
         names: &[String],
         on_progress: &mut (dyn FnMut(usize, usize) + Send),
     ) -> Vec<(String, SObjectSchema)> {
+        match demand::current(&self.db_path(), &self.cache_key) {
+            Ok(generation) => self.observe_generation(generation),
+            Err(_) => self.mem.clear(),
+        }
         self.fetch_many_impl(invoker, api_version, names, on_progress, true)
             .await
     }
 
     /// Fetch a generation's describes without reading or changing the published
     /// schema cache. The caller owns atomic publication with its Apex/meta data.
+    /// 获取代次所需描述，不读取或更改已发布的 schema 缓存；调用方负责与 Apex／元数据原子发布。
     pub async fn fetch_many(
         &mut self,
         invoker: &SfInvoker,
@@ -169,7 +233,7 @@ impl SchemaStore {
                 tokio::task::JoinSet::new();
             for batch in super_chunk.chunks(COMPOSITE_MAX) {
                 let invoker = invoker.clone();
-                let org = self.org_id.clone();
+                let org = self.target.clone();
                 let api = api_version.to_string();
                 let batch = batch.to_vec();
                 set.spawn(async move {
@@ -195,36 +259,35 @@ impl SchemaStore {
         out
     }
 
-    /// Persist a full generation atomically: wipe and rewrite every object in
-    /// one transaction. For the full-index path, where a background reindex
-    /// must never expose a partial generation to concurrent readers.
+    /// Replace an unpublished typed cache; published generations use the index publisher.
+    /// 替换未发布的类型缓存；已发布代次由索引发布器管理。
     pub fn persist_full(&self, schemas: &[SObjectSchema]) -> Result<(), SfError> {
-        let mut conn = sqlite::open(&self.db_path()).map_err(io_err)?;
-        sqlite::replace_all_objects(&mut conn, schemas).map_err(io_err)
+        demand::write_unpublished(&self.db_path(), &self.cache_key, schemas, true)
+            .map_err(SfError::Spawn)
     }
 
-    /// Upsert a delta (only the changed objects) in one transaction, leaving the
-    /// rest of the index intact. For the incremental `sync_org` path.
+    /// Upsert unpublished cache rows; generation deltas use the index publisher.
+    /// 更新未发布缓存行；代次增量由索引发布器管理。
     pub fn persist_delta(&self, schemas: &[SObjectSchema]) -> Result<(), SfError> {
-        let mut conn = sqlite::open(&self.db_path()).map_err(io_err)?;
-        sqlite::write_objects(&mut conn, schemas).map_err(io_err)
+        demand::write_unpublished(&self.db_path(), &self.cache_key, schemas, false)
+            .map_err(SfError::Spawn)
     }
 
-    /// Remove from memory and delete the row on disk (missing db is ignored).
+    /// Invalidate an auxiliary/unpublished entry; published rows require index/sync.
+    /// 使辅助或未发布条目失效；已发布行须通过索引或同步变更。
     pub fn invalidate(&mut self, api_version: &str, object: &str) -> Result<(), SfError> {
         self.mem.remove(&Self::key(api_version, object));
         let path = self.db_path();
         if !path.exists() {
             return Ok(());
         }
-        let conn = sqlite::open(&path).map_err(io_err)?;
-        sqlite::delete_object(&conn, object).map_err(io_err)
+        demand::invalidate(&path, &self.cache_key, api_version, object).map_err(SfError::Spawn)
     }
 
     /// Clear this org's in-memory and on-disk schema cache.
     ///
-    /// Returns the number of cached objects removed from disk (before
-    /// deleting `index.db` and its WAL/SHM sidecars).
+    /// Returns the typed-object count; deleting the database also clears auxiliary entries.
+    /// 返回类型对象数量；删除数据库时也会清除辅助条目。
     pub fn clear(&mut self) -> Result<usize, SfError> {
         self.mem.clear();
         let path = self.db_path();
@@ -242,12 +305,6 @@ impl SchemaStore {
             let _ = std::fs::remove_file(sidecar);
         }
         Ok(removed)
-    }
-
-    /// Open the db (creating it if absent) and upsert a single schema.
-    fn persist(&self, schema: &SObjectSchema) -> Result<(), SfError> {
-        let conn = sqlite::open(&self.db_path()).map_err(io_err)?;
-        sqlite::upsert_object(&conn, schema).map_err(io_err)
     }
 }
 
@@ -293,6 +350,54 @@ mod tests {
             })
         });
         (SfInvoker::new(Arc::new(runner)), calls)
+    }
+
+    #[tokio::test]
+    async fn explicit_cache_key_keeps_single_and_batch_requests_on_pinned_target() {
+        let root = unique_root();
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured = seen.clone();
+        let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
+            captured.lock().unwrap().push(args.to_vec());
+            let stdout = if args[0] == "api" {
+                r#"{"compositeResponse":[{"httpStatusCode":200,"body":{"name":"Contact","fields":[]}}]}"#
+            } else {
+                FIXTURE
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: stdout.to_string(),
+                stderr: String::new(),
+            })
+        })));
+        let target = "synthetic/用户@example.invalid";
+        let cache_key = "context-a";
+        let mut store = SchemaStore::for_target(&root, cache_key, target);
+        store.get_or_fetch(&invoker, API, "Account").await.unwrap();
+        let batch = store
+            .fetch_many(&invoker, API, &["Contact".to_string()], &mut |_, _| {})
+            .await;
+        assert_eq!(batch.len(), 1);
+        store.persist_delta(&[batch[0].1.clone()]).unwrap();
+        assert!(sqlite::db_path(&root, cache_key).exists());
+        assert!(!sqlite::db_path(&root, target).exists());
+        for args in seen.lock().unwrap().iter() {
+            let target_pos = args.iter().position(|arg| arg == "--target-org").unwrap();
+            assert_eq!(args[target_pos + 1], target);
+            assert!(!args.iter().any(|arg| arg == cache_key));
+        }
+        assert_eq!(seen.lock().unwrap().len(), 2);
+        let mut reopened = SchemaStore::for_target(&root, cache_key, "another-logical-alias");
+        assert!(reopened.load_disk(API, "Account").unwrap().is_some());
+        assert!(reopened.load_disk(API, "Contact").unwrap().is_some());
+        let mut isolated = SchemaStore::for_target(&root, "context-b", target);
+        assert!(isolated.load_disk(API, "Account").unwrap().is_none());
+        reopened.invalidate(API, "Account").unwrap();
+        assert!(reopened.load_disk(API, "Account").unwrap().is_none());
+        assert!(reopened.load_disk(API, "Contact").unwrap().is_some());
+        assert_eq!(reopened.clear().unwrap(), 1);
+        assert!(!sqlite::db_path(&root, cache_key).exists());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]

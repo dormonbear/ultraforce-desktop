@@ -18,7 +18,7 @@ use crate::state::AppState;
 fn no_index_err(org: &str) -> CommandError {
     CommandError::new(
         "no-index",
-        format!("No schema index for org “{org}”. Index this org first."),
+        format!("No verified schema index for org “{org}”. Index this org first. / 组织“{org}”尚无已验证的 schema 索引，请先建立索引。"),
     )
 }
 
@@ -84,7 +84,8 @@ pub fn object_detail_dto(s: &SObjectSchema) -> SchemaObjectDetailDto {
 
 /// Read the `objects` table for the browse list. Missing/stale index → `no-index`.
 pub fn list_objects(org: &str, _state: &AppState) -> Result<Vec<SchemaObjectDto>, CommandError> {
-    let path = sqlite::db_path(&SchemaStore::default_root(), org);
+    let path = features::metadata_context::indexed_schema_path(&SchemaStore::default_root(), org)
+        .map_err(|_| no_index_err(org))?;
     // Reject a missing OR schema-version-mismatched index before reading rows,
     // so an upgrading user with a v2 index gets the "index this org" empty state
     // rather than stale rows (or a cryptic missing-column error).
@@ -114,13 +115,18 @@ pub async fn object_detail(
     // BEFORE `get_or_fetch`, whose `load_disk` would otherwise SELECT columns
     // the old table lacks. A missing index falls through to a live describe.
     let root = SchemaStore::default_root();
-    let path = sqlite::db_path(&root, &org);
-    if path.exists() && !db::index_matches_version(&path) {
+    let context =
+        features::metadata_context::cached_or_resolve(&state.invoker, &root, &org).await?;
+    let path = sqlite::db_path(&root, context.binding.cache_key());
+    if path.exists()
+        && features::metadata_context::published_schema_path(&root, &context.binding).is_err()
+    {
         return Err(no_index_err(&org));
     }
-    let api = features::api_version::api_version_for(&state.invoker, &org).await;
-    let mut store = SchemaStore::new(root, &org);
-    let schema = store.get_or_fetch(&state.invoker, &api, &object).await?;
+    let mut store = context.schema_store(root);
+    let schema = store
+        .get_or_fetch(&state.invoker, &context.api_version, &object)
+        .await?;
     Ok(object_detail_dto(&schema))
 }
 
@@ -131,7 +137,8 @@ pub fn search(
     limit: Option<u32>,
     _state: &AppState,
 ) -> Result<Vec<SchemaSearchHitDto>, CommandError> {
-    let path = sqlite::db_path(&SchemaStore::default_root(), org);
+    let path = features::metadata_context::indexed_schema_path(&SchemaStore::default_root(), org)
+        .map_err(|_| no_index_err(org))?;
     // Same stale/missing-index guard as `list_objects` before touching rows.
     if !path.exists() || !db::index_matches_version(&path) {
         return Err(no_index_err(org));
@@ -152,7 +159,11 @@ pub fn search(
 
 // ---- Field where-used (MetadataComponentDependency + SQLite cache) --------
 
-fn dep_dto(component_type: String, component_name: String, component_id: String) -> FieldDependencyDto {
+fn dep_dto(
+    component_type: String,
+    component_name: String,
+    component_id: String,
+) -> FieldDependencyDto {
     FieldDependencyDto {
         component_type,
         component_name,
@@ -192,7 +203,10 @@ fn cached_where_used(
 /// Map a cache (SQLite) error to a user-readable `CommandError` via `Display`
 /// (no `Debug` leakage, no direct `rusqlite` dependency on this crate).
 fn cache_err(e: impl std::fmt::Display) -> CommandError {
-    CommandError::new("cache", format!("Field dependency cache error: {e}"))
+    CommandError::new(
+        "cache",
+        format!("Field dependency cache error / 字段依赖缓存错误: {e}"),
+    )
 }
 
 /// Field "where-used": referencing components for `object.field`, cached in the
@@ -208,7 +222,10 @@ pub async fn field_dependencies(
 ) -> Result<FieldDependenciesDto, CommandError> {
     // Writable open: creates the db + `field_deps` tables on first use, so a
     // never-indexed org can still cache where-used lookups.
-    let path = sqlite::db_path(&SchemaStore::default_root(), &org);
+    let root = SchemaStore::default_root();
+    let context =
+        features::metadata_context::cached_or_resolve(&state.invoker, &root, &org).await?;
+    let path = sqlite::db_path(&root, context.binding.cache_key());
     let conn = sqlite::open(&path).map_err(cache_err)?;
 
     if !refresh {
@@ -218,7 +235,8 @@ pub async fn field_dependencies(
         }
     }
 
-    let auth = sf_core::OrgRegistry::auth_info(&state.invoker, Some(&org)).await?;
+    let auth =
+        sf_core::OrgRegistry::auth_info(&state.invoker, Some(context.binding.username())).await?;
     match features::field_deps::fetch_field_dependencies(&auth, &object, &field).await? {
         features::field_deps::WhereUsed::Unsupported => Ok(FieldDependenciesDto {
             supported: false,
@@ -295,7 +313,10 @@ mod tests {
         assert_eq!(json["keyPrefix"], "001");
         assert_eq!(json["fields"][0]["fieldType"], "picklist");
         assert_eq!(json["fields"][0]["inlineHelpText"], "The account type");
-        assert_eq!(json["fields"][0]["picklistValues"][0]["defaultValue"], false);
+        assert_eq!(
+            json["fields"][0]["picklistValues"][0]["defaultValue"],
+            false
+        );
         assert_eq!(json["childRelationships"][0]["childSObject"], "Contact");
         assert_eq!(json["recordTypes"][0]["developerName"], "Master");
     }

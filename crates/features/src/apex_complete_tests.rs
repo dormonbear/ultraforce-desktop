@@ -11,10 +11,9 @@ const ORGTYPES: &str = r#"{"status":0,"result":{"records":[],"totalSize":0,"done
 
 #[test]
 fn schema_to_apex_type_includes_sobject_instance_methods() {
-    let schema: SObjectSchema = serde_json::from_str(
-        r#"{"name":"Account","fields":[{"name":"Name","type":"string"}]}"#,
-    )
-    .unwrap();
+    let schema: SObjectSchema =
+        serde_json::from_str(r#"{"name":"Account","fields":[{"name":"Name","type":"string"}]}"#)
+            .unwrap();
     let ty = schema_to_apex_type(&schema);
     assert!(
         ty.properties.iter().any(|p| p.name == "Name"),
@@ -31,7 +30,13 @@ fn counting(seen: Arc<AtomicUsize>) -> MockRunner {
     MockRunner::new(move |_p, args| {
         seen.fetch_add(1, Ordering::SeqCst);
         let is_completions = args.iter().any(|a| a.contains("tooling/completions"));
-        let body = if is_completions { STDLIB } else { ORGTYPES };
+        let body = if args.starts_with(&["org".into(), "display".into()]) {
+            r#"{"status":0,"result":{"id":"00D000000000001","username":"myorg","apiVersion":"60.0"}}"#
+        } else if is_completions {
+            STDLIB
+        } else {
+            ORGTYPES
+        };
         Ok(sf_core::RawOutput {
             status: 0,
             stdout: body.to_string(),
@@ -82,7 +87,7 @@ async fn completes_sobject_field_via_on_demand_describe() {
     let runner = MockRunner::new(move |_p, args| {
         let joined = args.join(" ");
         let body = if joined.contains("display") {
-            r#"{"status":0,"result":{"apiVersion":"67.0"}}"#
+            r#"{"status":0,"result":{"id":"00D000000000001","username":"myorg","apiVersion":"67.0"}}"#
         } else if joined.contains("request") || joined.contains("completions") {
             r#"{"publicDeclarations":{"System":{}}}"#
         } else if joined.contains("describe") || joined.contains("sobject") {
@@ -111,6 +116,85 @@ async fn completes_sobject_field_via_on_demand_describe() {
 }
 
 #[tokio::test]
+async fn reassigned_alias_and_late_old_install_keep_users_separate_in_memory_and_on_disk() {
+    let dir =
+        std::env::temp_dir().join(format!("apex-context-reassignment-{}", std::process::id()));
+    let first = crate::metadata_context::fixture_binding(&dir, "first@example.invalid");
+    let second = crate::metadata_context::fixture_binding(&dir, "second@example.invalid");
+    let ost = |name: &str| Ost {
+        namespaces: Vec::new(),
+        org_types: vec![ApexType {
+            name: name.into(),
+            ..Default::default()
+        }],
+    };
+    for (binding, name) in [(&first, "ContextA"), (&second, "ContextB")] {
+        apex_lang::save_snapshot(
+            &dir,
+            &ost(name),
+            &apex_lang::IndexManifest {
+                org_id: binding.cache_key().into(),
+                api_version: "60.0".into(),
+                indexed_at: "2026-10-21T00:00:00Z".into(),
+                namespaces: 0,
+                classes: 1,
+                sobjects: 0,
+                stdlib_error: None,
+            },
+        )
+        .unwrap();
+    }
+    let assign = |target: &str, username: &str| {
+        sf_schema::identity::begin_resolution(&dir, target)
+            .unwrap()
+            .complete(&sf_core::OrgIdentity {
+                id: "00D000000000001".into(),
+                username: username.into(),
+                alias: None,
+                api_version: None,
+            })
+            .unwrap()
+    };
+    assign("moving", first.username());
+    let completer = ApexCompleter::new(&dir);
+    completer.install_index(&first, ost("ContextA"));
+    let invoker = SfInvoker::new(Arc::new(MockRunner::new(|_, _| {
+        panic!("Offline completion called CLI / 离线补全调用了 CLI")
+    })));
+    let before = completer
+        .complete(&invoker, "moving", "Con", 3, &[])
+        .await
+        .unwrap();
+    assert!(before.iter().any(|candidate| candidate.label == "ContextA"));
+    assign("moving", second.username());
+    completer.install_index(&first, ost("ContextA"));
+    for (target, expected, forbidden) in [
+        ("moving", "ContextB", "ContextA"),
+        (first.username(), "ContextA", "ContextB"),
+    ] {
+        let candidates = completer
+            .complete(&invoker, target, "Con", 3, &[])
+            .await
+            .unwrap();
+        assert!(candidates
+            .iter()
+            .any(|candidate| candidate.label == expected));
+        assert!(!candidates
+            .iter()
+            .any(|candidate| candidate.label == forbidden));
+    }
+    assign(second.cache_key(), first.username());
+    let literal = completer
+        .complete(&invoker, second.cache_key(), "Con", 3, &[])
+        .await
+        .unwrap();
+    assert!(literal
+        .iter()
+        .any(|candidate| candidate.label == "ContextA"));
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[tokio::test]
 async fn indexed_completion_makes_no_sf_calls() {
     use apex_lang::symbols::{ApexType, Ost, Property};
     let dir = std::env::temp_dir().join(format!("idx-off-{}", std::process::id()));
@@ -124,15 +208,14 @@ async fn indexed_completion_makes_no_sf_calls() {
         ..Default::default()
     };
     completer.install_index(
-        "myorg",
+        &crate::metadata_context::fixture_binding(&dir, "myorg"),
         Ost {
             namespaces: vec![],
             org_types: vec![acct],
         },
     );
 
-    let panicking =
-        sf_core::runner::MockRunner::new(|_p, _a| panic!("no SF call when indexed"));
+    let panicking = sf_core::runner::MockRunner::new(|_p, _a| panic!("no SF call when indexed"));
     let invoker = SfInvoker::new(std::sync::Arc::new(panicking));
     let src = "Account a; a.";
     let got = completer
@@ -152,7 +235,7 @@ fn apex_diagnostics_flags_duplicate_and_unknown_field() {
     let dir = std::env::temp_dir().join(format!("apex-diag-{}", std::process::id()));
     let completer = ApexCompleter::new(dir.clone());
     completer.install_index(
-        "myorg",
+        &crate::metadata_context::fixture_binding(&dir, "myorg"),
         Ost {
             namespaces: vec![],
             org_types: vec![ApexType {
@@ -214,7 +297,7 @@ async fn ast_engine_adds_collection_chain_member_completion() {
         ..Default::default()
     };
     completer.install_index(
-        "myorg",
+        &crate::metadata_context::fixture_binding(&dir, "myorg"),
         Ost {
             namespaces: vec![],
             org_types: vec![account, user],
@@ -244,7 +327,7 @@ async fn upgrades_org_class_stub_via_on_demand_member_fetch() {
     let runner = MockRunner::new(move |_p, args| {
         let joined = args.join(" ");
         let body = if joined.contains("display") {
-            r#"{"status":0,"result":{"apiVersion":"67.0"}}"#
+            r#"{"status":0,"result":{"id":"00D000000000001","username":"myorg","apiVersion":"67.0"}}"#
         } else if joined.contains("request") || joined.contains("completions") {
             r#"{"publicDeclarations":{}}"#
         } else if joined.contains("SymbolTable") {
@@ -300,6 +383,7 @@ async fn completes_soql_field_inside_apex_literal() {
     });
     let invoker = sf_core::SfInvoker::new(Arc::new(runner));
     let dir = std::env::temp_dir().join(format!("soql-in-apex-test-{}", std::process::id()));
+    crate::metadata_context::fixture_binding(&dir, "myorg");
     let completer = ApexCompleter::new(dir.clone());
 
     let src = "Account a = [SELECT Na FROM Account];";

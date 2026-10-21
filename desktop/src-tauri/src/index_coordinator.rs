@@ -287,47 +287,72 @@ async fn run_index(
 ) -> Result<(), CommandError> {
     let started = Instant::now();
     tracing::info!(org = %org, force, "run_index start");
-    // 1. sObject names first (folded `warm_schema`): FROM completion is ready
-    //    immediately, even if the heavier Apex index below stalls on a large org.
-    let names = features::soql::list_sobject_names(&state.invoker, &org).await;
-    state
-        .sobjects
-        .lock()
-        .unwrap()
-        .insert(org.clone(), Arc::new(names));
-
     let root = features::apex_complete::default_index_root();
     // Re-read the per-org config so a just-saved apiVersion override is in effect
     // before we resolve the effective version — otherwise the snapshot staleness
     // check (which rebuilds when api_version differs) would compare against a stale
     // override and skip the needed rebuild.
     crate::org_config::apply_org_config(app, state, &org);
-    // Resolve the effective API version ONCE and thread it through the whole run
-    // (snapshot load, delta sync, full index). When live detection fails, the
-    // resolver reuses the snapshot's stored version so a good snapshot still
-    // loads instead of being discarded by the fallback default; a genuine
-    // detected-version change still rebuilds.
-    let (api, detected) =
-        features::api_version::resolve_index_api_version(&state.invoker, &root, &org).await;
+    // Pin identity before every fetch. Offline reuse never starts a metadata fetch.
+    // 所有取数前固定身份；离线复用不启动元数据取数。
+    let context = match features::metadata_context::resolve(&state.invoker, &root, &org).await {
+        Ok(context) => context,
+        Err(error) => {
+            if !force {
+                if let Some(context) = features::metadata_context::cached(&root, &org)? {
+                    if let Some((ost, _)) = apex_lang::load_snapshot(
+                        &root,
+                        context.binding.cache_key(),
+                        &context.api_version,
+                    ) {
+                        let names = features::metadata_context::cached_sobject_names(
+                            &root,
+                            &context.binding,
+                        );
+                        features::metadata_context::install_sobject_names(&context.binding, names);
+                        state.apex.install_index(&context.binding, ost);
+                        return Ok(());
+                    }
+                }
+            }
+            return Err(error.into());
+        }
+    };
+    let api = context.api_version;
+    let detected = context.api_version_detected;
+    let binding = context.binding;
     tracing::info!(org = %org, api = %api, detected, "run_index resolved api version");
+    let mut names = features::soql::list_sobject_names(&state.invoker, binding.username()).await;
+    if names.is_empty() {
+        names = features::metadata_context::cached_sobject_names(&root, &binding);
+    }
+    features::metadata_context::install_sobject_names(&binding, names);
     let policy = features::index::NamespacePolicy::parse(namespaces.as_deref().unwrap_or("all"));
 
-    // Forced rebuild drops the cached schema so the next browse reflects current
-    // metadata (matches the former `reindex_org`).
-    if force {
-        let mut store = sf_schema::SchemaStore::new(sf_schema::SchemaStore::default_root(), &org);
-        let _ = store.clear();
-    }
+    // A forced rebuild replaces atomically; a failed fetch retains the old generation.
+    // 强制重建执行原子替换；取数失败时保留旧代次。
+    let snapshot = if force {
+        None
+    } else {
+        apex_lang::load_snapshot(&root, binding.cache_key(), &api)
+    };
 
     // Already indexed → install the snapshot instantly (completion ready), then
     // delta-sync in the same run and emit a result if anything changed.
-    if let Some((ost, _)) = apex_lang::load_snapshot(&root, &org, &api) {
+    if let Some((ost, _)) = snapshot {
         tracing::info!(org = %org, "run_index snapshot hit; installing + delta-syncing");
-        state.apex.install_index(&org, ost);
-        if let Ok((outcome, patched)) =
-            features::index::sync_org(&state.invoker, root, &org, &api, &policy).await
+        state.apex.install_index(&binding, ost);
+        if let Ok((outcome, patched)) = features::index::sync_org_for_target(
+            &state.invoker,
+            root,
+            binding.cache_key(),
+            binding.username(),
+            &api,
+            &policy,
+        )
+        .await
         {
-            state.apex.install_index(&org, patched);
+            state.apex.install_index(&binding, patched);
             if outcome.changed() {
                 let _ = app.emit(
                     "sync-result",
@@ -363,11 +388,18 @@ async fn run_index(
             },
         );
     };
-    let ost =
-        features::index::index_org(&state.invoker, root, &org, &api, &policy, &mut on_progress)
-            .await
-            .map_err(CommandError::from)?;
-    state.apex.install_index(&org, ost);
+    let ost = features::index::index_org_for_target(
+        &state.invoker,
+        root,
+        binding.cache_key(),
+        binding.username(),
+        &api,
+        &policy,
+        &mut on_progress,
+    )
+    .await
+    .map_err(CommandError::from)?;
+    state.apex.install_index(&binding, ost);
     tracing::info!(
         org = %org,
         elapsed_ms = started.elapsed().as_millis() as u64,
