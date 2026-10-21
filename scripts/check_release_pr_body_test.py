@@ -38,9 +38,10 @@ class ReleaseBodyTest(unittest.TestCase):
                 result = subprocess.run(
                     [sys.executable, str(Path(__file__).with_name("check_release_pr_body.py")),
                      "--body-file", str(body), "--version-file", str(version)],
-                    capture_output=True, text=True,
+                    capture_output=True, text=True, encoding="utf-8",
                 )
                 self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
+                self.assertIn("发布 PR 正文", result.stdout if expected == 0 else result.stderr)
 
     def test_generated_envelope_keeps_expanded_bilingual_upgrade_notes(self):
         check_body(BODY, "0.3.20")
