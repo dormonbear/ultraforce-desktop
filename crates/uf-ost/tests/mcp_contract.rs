@@ -12,6 +12,10 @@ use sf_core::{runner::MockRunner, SfInvoker};
 #[path = "support/availability.rs"]
 mod availability;
 
+#[cfg(unix)]
+#[path = "support/refresh.rs"]
+mod refresh;
+
 /// Full-index a tiny org (Account with a picklist + an Apex class) into `root`.
 async fn seed_index(root: &std::path::Path, org: &str) {
     let runner = MockRunner::new(|_p, args: &[String]| {

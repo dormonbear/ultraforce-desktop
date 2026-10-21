@@ -40,26 +40,31 @@ impl OstServer {
         query::open_org(&self.root, org).map_err(to_err)
     }
 
-    /// Spawn a detached `uf-ost index` for `org`. Returns `false` when a
-    /// reindex is already running (the global lock file). The spawned indexer
-    /// acquires that lock itself, so a duplicate spawn is a harmless no-op —
-    /// this check just makes the tool's reply accurate.
+    /// Reserve before spawning; the child adopts ownership before CLI startup. / 启动前预留；子进程在 CLI 初始化前接管。
     fn start_reindex(&self, org: String) -> Result<bool, ErrorData> {
-        if lock::is_running(&self.root, &org) {
+        let Some(reservation) = lock::ReindexLock::reserve(&self.root, &org)
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?
+        else {
             return Ok(false);
-        }
+        };
         let exe =
             std::env::current_exe().map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
-        let root = self.root.clone();
+        let mut child = tokio::process::Command::new(exe)
+            .arg("index")
+            .arg("--org")
+            .arg(&org)
+            .arg("--root")
+            .arg(&self.root)
+            .env(lock::RESERVATION_ENV, reservation.token())
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| ErrorData::internal_error(e.to_string(), None))?;
         tokio::spawn(async move {
-            let _ = tokio::process::Command::new(exe)
-                .arg("index")
-                .arg("--org")
-                .arg(&org)
-                .arg("--root")
-                .arg(&root)
-                .status()
-                .await;
+            // Retain ownership through startup/failure; workers stay detached. / 启动或失败期间保留所有权；工作进程保持分离。
+            let _reservation = reservation;
+            let _ = child.wait().await;
         });
         Ok(true)
     }
