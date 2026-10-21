@@ -66,6 +66,25 @@ jobs:
         working-directory: desktop
         run: pnpm exec oxlint src
 
+      - name: Install test browser / 安装测试浏览器
+        working-directory: desktop
+        run: pnpm exec playwright install --with-deps --only-shell chromium
+
+      - name: Editor input regressions / 编辑器输入回归
+        working-directory: desktop
+        env:
+          PERF_PROD: '1'
+        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts --reporter=line
+
+      - name: Editor failure evidence / 编辑器失败证据
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: editor-input-${{ runner.os }}
+          path: desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Rust tests
         run: cargo test --locked --workspace
 
