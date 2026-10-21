@@ -52,4 +52,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # Redirected Windows streams may default to cp1252; emit bilingual UTF-8. / Windows 重定向流可能默认 cp1252；统一输出双语 UTF-8。
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main())

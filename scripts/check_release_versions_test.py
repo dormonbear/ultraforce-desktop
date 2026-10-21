@@ -1,6 +1,7 @@
 """Release metadata regressions. / 发布元信息回归测试。"""
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -70,10 +71,23 @@ class ReleaseVersionsTest(unittest.TestCase):
         self.write("Cargo.lock", "not valid TOML")
         result = subprocess.run(
             [sys.executable, str(Path(__file__).with_name("check_release_versions.py")), "--root", str(self.root)],
-            capture_output=True, text=True, check=False,
+            capture_output=True, text=True, encoding="utf-8", check=False,
         )
         self.assertEqual(result.returncode, 1)
         self.assertIn("Release version check failed", result.stderr)
+
+    def test_cli_bilingual_output_survives_windows_legacy_encoding(self):
+        # Reproduce Windows redirected-output encoding on every runner. / 在所有运行器复现 Windows 重定向输出编码。
+        command = [sys.executable, str(Path(__file__).with_name("check_release_versions.py")), "--root", str(self.root)]
+        environment = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+        success = subprocess.run(command, env=environment, capture_output=True, check=False)
+        self.assertEqual(success.returncode, 0, success.stderr)
+        self.assertIn("发布版本一致", success.stdout.decode("utf-8"))
+        self.write("Cargo.lock", "not valid TOML")
+        failure = subprocess.run(command, env=environment, capture_output=True, check=False)
+        self.assertEqual(failure.returncode, 1)
+        self.assertIn("发布版本检查失败", failure.stderr.decode("utf-8"))
+        self.assertNotIn(b"Traceback", failure.stderr)
 
 
 if __name__ == "__main__":
