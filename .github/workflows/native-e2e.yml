@@ -1,0 +1,55 @@
+name: Native Desktop Acceptance / 原生桌面验收
+
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', 'crates/**', '.github/workflows/native-e2e.yml']
+  pull_request:
+    paths: ['desktop/**', 'crates/**', '.github/workflows/native-e2e.yml']
+  workflow_dispatch:
+
+jobs:
+  native-windows:
+    name: Native Tauri on Windows / Windows 原生 Tauri
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+      - name: Install Frontend / 安装前端
+        working-directory: desktop
+        run: pnpm install --frozen-lockfile
+      - name: Verify Synthetic CLI / 验证合成 CLI
+        run: python -m unittest discover -s desktop/native-e2e -p '*_test.py'
+      - name: Install Native Driver / 安装原生驱动
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Install Matching Driver Tool / 安装匹配驱动工具
+        run: cargo install --git https://github.com/chippers/msedgedriver-tool --rev 8c4b34f51b45f5cf08013366d703de464ab871d1 --locked
+      - name: Match WebView2 Driver / 匹配 WebView2 驱动
+        run: msedgedriver-tool
+      - name: Expose Native Driver / 配置原生驱动路径
+        run: $PWD.Path >> $env:GITHUB_PATH
+      - name: Build Native Application / 构建原生应用
+        working-directory: desktop
+        run: pnpm exec tauri build --debug --no-bundle -- --locked
+      - name: Verify Real IPC and SQLite / 验证真实 IPC 及 SQLite
+        env:
+          PYTHONUTF8: '1'
+        run: python desktop/native-e2e/acceptance.py --application target/debug/ultraforce-desktop.exe
+      - name: Upload Synthetic Evidence / 上传合成验证证据
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-windows-evidence
+          path: native-e2e-artifacts/
+          retention-days: 7
