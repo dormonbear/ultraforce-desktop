@@ -447,6 +447,9 @@ async fn sanitized_alias_collision_cannot_return_another_org_snapshot() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
+#[path = "support/publication.rs"]
+mod publication;
+
 fn inventory(root: &std::path::Path) -> std::collections::BTreeMap<std::path::PathBuf, Vec<u8>> {
     fn visit(
         dir: &std::path::Path,

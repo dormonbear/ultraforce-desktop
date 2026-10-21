@@ -175,11 +175,20 @@ pub fn replace_all_objects(
     objects: &[SObjectSchema],
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
+    replace_objects_in_transaction(&tx, objects)?;
+    tx.commit()
+}
+
+/// Replace schema tables inside a caller-owned generation transaction.
+pub fn replace_objects_in_transaction(
+    conn: &Connection,
+    objects: &[SObjectSchema],
+) -> rusqlite::Result<()> {
     // DROP + recreate (not DELETE) so a reindex after a SCHEMA_VERSION bump
     // rebuilds these tables with the current column set — the index is a
     // derived cache, never migrated. DDL here is transactional in SQLite, so a
     // concurrent WAL reader still sees the whole old generation until commit.
-    tx.execute_batch(
+    conn.execute_batch(
         "DROP TABLE IF EXISTS fields;
          DROP TABLE IF EXISTS objects;
          DROP TABLE IF EXISTS fields_fts;
@@ -187,11 +196,11 @@ pub fn replace_all_objects(
          DROP TABLE IF EXISTS field_deps;
          DROP TABLE IF EXISTS field_deps_meta;",
     )?;
-    ensure_object_schema(&tx)?;
+    ensure_object_schema(conn)?;
     for schema in objects {
-        upsert_object(&tx, schema)?;
+        upsert_object(conn, schema)?;
     }
-    tx.commit()
+    Ok(())
 }
 
 /// FTS5 fuzzy match over object/field names + labels. `query` is a raw FTS5

@@ -84,9 +84,52 @@ fn insert_type(conn: &Connection, ty: &ApexType, namespace: Option<&str>) -> rus
 
 /// Persist the assembled OST + manifest under `<root>/<org_id>/index.db`.
 pub fn save_snapshot(root: &Path, ost: &Ost, manifest: &IndexManifest) -> std::io::Result<()> {
+    save_generation_inner(root, ost, manifest, None, None)
+}
+
+/// Publish schema rows, all FTS indexes, Apex symbols and provenance together.
+/// Fetching must finish before this call; any failure rolls back the generation.
+pub fn save_generation(
+    root: &Path,
+    ost: &Ost,
+    manifest: &IndexManifest,
+    schemas: &[sf_schema::SObjectSchema],
+    full: bool,
+    raw_org_types: Option<&[serde_json::Value]>,
+) -> std::io::Result<()> {
+    save_generation_inner(root, ost, manifest, Some((schemas, full)), raw_org_types)
+}
+
+fn save_generation_inner(
+    root: &Path,
+    ost: &Ost,
+    manifest: &IndexManifest,
+    schemas: Option<(&[sf_schema::SObjectSchema], bool)>,
+    raw_org_types: Option<&[serde_json::Value]>,
+) -> std::io::Result<()> {
     let path = db_path(root, &manifest.org_id);
     let mut conn = crate::db::open_apex(&path).map_err(std::io::Error::other)?;
     let tx = conn.transaction().map_err(std::io::Error::other)?;
+    if let Some((schemas, full)) = schemas {
+        if let Some(raw) = raw_org_types {
+            let body = serde_json::to_string(raw).map_err(std::io::Error::other)?;
+            crate::db::write_raw(&tx, &manifest.api_version, "org_types", &body)
+                .map_err(std::io::Error::other)?;
+        } else {
+            // A delta cannot reconstruct the full raw SymbolTable response.
+            // Invalidate it atomically rather than expose a stale source cache.
+            crate::db::delete_raw(&tx, &manifest.api_version, "org_types")
+                .map_err(std::io::Error::other)?;
+        }
+        if full {
+            sf_schema::sqlite::replace_objects_in_transaction(&tx, schemas)
+                .map_err(std::io::Error::other)?;
+        } else {
+            for schema in schemas {
+                sf_schema::sqlite::upsert_object(&tx, schema).map_err(std::io::Error::other)?;
+            }
+        }
+    }
 
     let generation: i64 = tx
         .query_row("SELECT generation FROM meta WHERE id = 1", [], |row| {
