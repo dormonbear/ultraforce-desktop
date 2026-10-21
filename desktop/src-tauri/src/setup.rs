@@ -46,12 +46,15 @@ fn path_cache_file() -> Option<std::path::PathBuf> {
     Some(dirs::data_dir()?.join("ultraforce").join("path-cache"))
 }
 
+// These helpers serve macOS startup; retain pure tests on other platforms. / 这些辅助函数用于 macOS 启动，其他平台仅保留纯测试。
+#[cfg(any(target_os = "macos", test))]
 fn read_cached_path(file: &std::path::Path) -> Option<String> {
     let path = std::fs::read_to_string(file).ok()?;
     let path = path.trim().to_string();
     (!path.is_empty()).then_some(path)
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn write_cached_path(file: &std::path::Path, path: &str) {
     if let Some(dir) = file.parent() {
         let _ = std::fs::create_dir_all(dir);
@@ -62,6 +65,7 @@ fn write_cached_path(file: &std::path::Path, path: &str) {
 /// The `~/.sfdx/key.json` body `sf` reads when `SF_USE_GENERIC_UNIX_KEYCHAIN` is
 /// set. Pure, so the exact shape `@salesforce/core` expects is unit-testable.
 /// `key` is a hex string `sf` generated, so no JSON escaping is needed.
+#[cfg(any(target_os = "macos", test))]
 fn key_json(key: &str) -> String {
     format!("{{\n  \"account\": \"local\",\n  \"key\": \"{key}\",\n  \"service\": \"sfdx\"\n}}")
 }
