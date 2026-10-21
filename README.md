@@ -105,6 +105,24 @@ completion is served entirely from local data — no per-keystroke network calls
 Re-selecting an org runs an **incremental delta-sync** that refreshes only what
 changed (changed classes + sObjects, with deletion reconcile); bulk object
 describes use the Composite REST API to keep first-index time down.
+Delta sync keeps each source SymbolTable, including its namespace identity, and
+rebuilds derived inner types and inherited members locally. Deletions require
+both current class and object lists to be non-empty; an empty list permits
+changed upserts but suppresses all deletion reconciliation. Failed or incomplete
+enumeration retains the previous generation and watermark. Sync
+counts refer to source classes and objects, rather than expanded inner types.
+Full and changed-source Tooling queries (Apex classes, entities and custom
+fields) require `done: true` and `totalSize` matching the returned record count,
+including empty results. The Salesforce CLI handles pagination; missing or
+incomplete completion proof returns a retry error without publishing a new
+generation or watermark.
+
+增量同步保留每条来源 SymbolTable 及其命名空间身份，并在本地重建内部类型及继承成员。
+只有当前类列表与对象列表均非空时才执行删除；空列表允许更新，但禁止两类删除。
+枚举失败或不完整时保留旧代际与水位。同步数量按来源类和对象统计，不包含展开的内部类型。
+完整及增量 Tooling 查询（Apex 类、实体和自定义字段）均要求 `done: true`，且 `totalSize`
+与返回记录数一致，空结果同样适用。Salesforce CLI 负责分页；缺失或不完整的完成证明会返回
+可重试错误，保留旧代际与水位。
 
 All completion and diagnostics data comes from first-party Salesforce endpoints
 (Tooling API completions, object describes) — no bundled third-party metadata.
@@ -170,8 +188,38 @@ preserve the scoped `stamp`/`fields`/`apex` response (plus `objects`), or omit i
 for `orgs`, grouped by snapshot. `ost_field.snapshots` identifies consulted
 snapshots even when `hits` is empty. Cross-org answers explicitly list unusable
 indexes in `skipped`; an empty result with skipped indexes is incomplete.
-Existing v3 caches require a full `ost_reindex` to build the new object index;
+Existing v3/v4 caches require a full `ost_reindex` to build schema v5 with source provenance;
 read tools and delta sync reject incompatible snapshots instead of migrating them.
+Missing or corrupt source provenance also requires a full reindex. Source JSON
+replaces the old raw org-types cache inside the same local index, without keeping
+a duplicate source blob. Public Apex type names retain their existing bare-name
+behavior; same-name types across namespaces can still be ambiguous in completion.
+Salesforce can legitimately return `SymbolTable: null` when it cannot build a
+class's table ([Salesforce's documented behavior](https://help.salesforce.com/s/issue?id=a028c00000gAwefAAC&language=da)).
+Those sources remain indexed by name, without fabricated or stale
+members; other sources and object schemas remain useful. `ost_apex.symbolTableAvailable`
+is `false` for a known null source and `true` when Salesforce returned an object
+(including `{}`); `true` does not promise complete member coverage. It is `null`
+for derived/object/stdlib types or unknown availability. A bare-name collision
+with any unavailable source reports `false` conservatively. `ost_status.orgs[].unavailableClasses`
+counts known null sources, or is `null` when availability metadata is missing or
+incomplete. Availability is published atomically and checked against canonical
+sources on sync; ordinary read tools use structural/count checks and do not
+reparse the large source blob to detect arbitrary external edits on every call.
+
+已有 v3／v4 缓存须执行完整 `ost_reindex`，以建立带来源信息的 v5 模式；读取工具与增量同步
+会拒绝不兼容的快照。来源缺失或损坏时同样须完整重建。来源 JSON 在同一本地索引内替换旧的
+原始组织类型缓存，避免保留重复来源数据。公共 Apex 类型仍使用裸名称，不同命名空间的同名
+类型在补全中仍可能存在歧义。
+Salesforce 无法构建类符号表时，可合法返回 `SymbolTable: null`
+（参见上方 Salesforce 官方说明）。此类来源仍按名称索引，不虚构成员或保留旧成员；其他来源
+及对象模式仍可使用。`ost_apex.symbolTableAvailable` 对已知 null 来源返回 `false`，对
+Salesforce 返回的对象（包括 `{}`）返回 `true`；`true` 不保证成员完整。
+派生类型、对象类型、标准库类型或未知状态返回 `null`。裸名称碰撞中任一来源不可用时，保守
+返回 `false`。`ost_status.orgs[].unavailableClasses` 统计已知 null 来源，元信息缺失或
+不完整时为 `null`。可用性与来源原子发布，同步时交叉核验；普通读取执行结构与数量检查，
+不逐次解析大体积来源数据以检测任意外部篡改。
+
 Rebuilds publish schema, Apex symbols and freshness together. A refresh prepared
 against an older generation refuses to overwrite a newer publication; retry the
 refresh when it reports that the index changed during fetching.
