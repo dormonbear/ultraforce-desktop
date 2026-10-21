@@ -2,12 +2,92 @@ use super::*;
 use sf_core::{runner::MockRunner, SfInvoker};
 use std::sync::Arc;
 
+fn binding(root: &Path, target: &str) -> sf_schema::identity::CacheBinding {
+    sf_schema::identity::begin_resolution(root, target)
+        .unwrap()
+        .complete(&sf_core::OrgIdentity {
+            id: "00D000000000001".into(),
+            username: target.into(),
+            alias: None,
+            api_version: None,
+        })
+        .unwrap()
+}
+
+#[test]
+fn alias_reassignment_keeps_existing_reads_and_refresh_responses_pinned() {
+    let root = std::env::temp_dir().join(format!("uf-pinned-binding-{}", std::process::id()));
+    let first = binding(&root, "first@example.invalid");
+    let second = binding(&root, "second@example.invalid");
+    for (binding, name) in [(&first, "First__c"), (&second, "Second__c")] {
+        apex_lang::save_snapshot(
+            &root,
+            &apex_lang::Ost::default(),
+            &apex_lang::IndexManifest {
+                org_id: binding.cache_key().into(),
+                api_version: "60.0".into(),
+                indexed_at: "2026-10-21T00:00:00Z".into(),
+                namespaces: 0,
+                classes: 0,
+                sobjects: 1,
+                stdlib_error: None,
+            },
+        )
+        .unwrap();
+        let conn = sqlite::open(&sqlite::db_path(&root, binding.cache_key())).unwrap();
+        sqlite::upsert_object(
+            &conn,
+            &sf_schema::SObjectSchema {
+                name: name.into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    }
+    let assign = |username: &str| {
+        sf_schema::identity::begin_resolution(&root, "moving")
+            .unwrap()
+            .complete(&sf_core::OrgIdentity {
+                id: "00D000000000001".into(),
+                username: username.into(),
+                alias: None,
+                api_version: None,
+            })
+            .unwrap()
+    };
+    assign(first.username());
+    let held = open_org(&root, "moving").unwrap();
+    assign(second.username());
+    let refreshed = open_bound_org(&root, "moving", &first).unwrap();
+    let current = open_org(&root, "moving").unwrap();
+    for snap in [&held, &refreshed] {
+        assert!(object(snap, "First__c", None).is_ok());
+        assert!(object(snap, "Second__c", None).is_err());
+        assert_eq!(snap.stamp().org, "moving");
+    }
+    assert!(object(&current, "Second__c", None).is_ok());
+    assert!(object(&current, "First__c", None).is_err());
+    drop(held);
+    drop(refreshed);
+    drop(current);
+    let conn = sqlite::open(&sqlite::db_path(&root, second.cache_key())).unwrap();
+    conn.execute("UPDATE meta SET org_id='foreign'", [])
+        .unwrap();
+    assert!(matches!(
+        open_org(&root, "moving"),
+        Err(QueryError::IdentityMismatch(_))
+    ));
+    drop(conn);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
 #[test]
 fn snapshot_pins_metadata_and_search_across_wal_commit() {
     let root = std::env::temp_dir().join(format!("uf-ost-pinned-{}", std::process::id()));
-    let path = sqlite::db_path(&root, "Synthetic");
+    let binding = binding(&root, "Synthetic");
+    let path = sqlite::db_path(&root, binding.cache_key());
     let mut writer = db::open_apex(&path).unwrap();
-    writer.execute("INSERT INTO meta VALUES (1, ?1, 'Synthetic', 'id', '60.0', '2020-01-01T00:00:00Z', 1, 0, 0, 1, NULL)", [db::SCHEMA_VERSION]).unwrap();
+    writer.execute("INSERT INTO meta VALUES (1, ?1, ?2, ?2, '60.0', '2020-01-01T00:00:00Z', 1, 0, 0, 1, NULL)", rusqlite::params![db::SCHEMA_VERSION,binding.cache_key()]).unwrap();
     sqlite::write_objects(
         &mut writer,
         &[sf_schema::model::SObjectSchema {
@@ -102,15 +182,15 @@ async fn reads_object_picklist_apex_search_and_drift() {
                 r#"{"compositeResponse":[{"httpStatusCode":200,"referenceId":"r0","body":{"name":"Account","label":"Account","fields":[{"name":"Industry","label":"Industry","type":"picklist","referenceTo":[],"picklistValues":[{"label":"Tech","value":"Tech","active":true,"defaultValue":true},{"label":"Old","value":"Old","active":false,"defaultValue":false}]}],"childRelationships":[]}}]}"#,
             )
         } else {
-            ok(
-                r#"{"status":0,"result":{"name":"Account","fields":[],"childRelationships":[]}}"#,
-            )
+            ok(r#"{"status":0,"result":{"name":"Account","fields":[],"childRelationships":[]}}"#)
         }
     });
     let inv = SfInvoker::new(Arc::new(runner));
-    features::index::index_org(
+    let binding = binding(&root, "MyOrg");
+    features::index::index_org_for_target(
         &inv,
         root.clone(),
+        binding.cache_key(),
         "MyOrg",
         "60.0",
         &features::index::NamespacePolicy::All,
@@ -181,8 +261,9 @@ async fn reads_object_picklist_apex_search_and_drift() {
     // Schema-version guard: a mismatched meta is StaleIndex, not a crash.
     // 模式版本保护：元信息不匹配时返回 StaleIndex。
     drop(snap);
-    let rw = sqlite::open(&sqlite::db_path(&root, "MyOrg")).unwrap();
-    rw.execute("UPDATE meta SET schema_version = 9999", []).unwrap();
+    let rw = sqlite::open(&sqlite::db_path(&root, binding.cache_key())).unwrap();
+    rw.execute("UPDATE meta SET schema_version = 9999", [])
+        .unwrap();
     drop(rw);
     assert!(matches!(
         open_org(&root, "MyOrg"),

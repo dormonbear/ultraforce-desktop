@@ -154,6 +154,9 @@ fn offline_reads_ignore_legacy_paths_and_do_not_change_catalog_bytes_or_inventor
     let before = std::fs::read(&path).unwrap();
     assert_eq!(lookup(&root, "../outside/合成").unwrap(), Some(binding));
     assert_eq!(lookup(&root, "missing").unwrap(), None);
+    let contexts = known_contexts(&root).unwrap();
+    assert_eq!(contexts.len(), 1);
+    assert_eq!(contexts[0].0, "synthetic/用户@example.invalid");
     assert_eq!(std::fs::read(&path).unwrap(), before);
     assert_eq!(
         std::fs::read_dir(path.parent().unwrap()).unwrap().count(),

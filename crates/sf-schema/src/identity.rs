@@ -231,6 +231,37 @@ pub fn lookup(root: &Path, target: &str) -> std::io::Result<Option<CacheBinding>
     binding.map(validate).transpose()
 }
 
+/// One usable target per verified context, preferring its username over aliases.
+/// 每个已验证上下文返回一个可用目标，优先采用用户名。
+pub fn known_contexts(root: &Path) -> std::io::Result<Vec<(String, CacheBinding)>> {
+    let path = catalog_path(root);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let conn = crate::sqlite::open_readonly(&path).map_err(db_error)?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .map_err(db_error)?;
+    let mut statement = conn
+        .prepare(
+            "SELECT c.org_id,c.username,c.cache_key,
+            COALESCE(MAX(CASE WHEN b.target=c.username THEN b.target END),MIN(b.target))
+         FROM contexts c JOIN bindings b ON b.cache_key=c.cache_key
+         GROUP BY c.cache_key ORDER BY 4",
+        )
+        .map_err(db_error)?;
+    let rows = statement
+        .query_map([], |row| Ok((row.get::<_, String>(3)?, read_binding(row)?)))
+        .map_err(db_error)?;
+    rows.map(|row| {
+        let (target, binding) = row.map_err(db_error)?;
+        if !usable_target(&target) {
+            return Err(invalid());
+        }
+        Ok((target, validate(binding)?))
+    })
+    .collect()
+}
+
 #[cfg(test)]
 #[path = "identity_tests.rs"]
 mod tests;

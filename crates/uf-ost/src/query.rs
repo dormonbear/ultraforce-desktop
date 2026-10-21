@@ -27,6 +27,7 @@ pub enum QueryError {
     NotFound(String),
     /// Underlying SQLite error.
     Db(rusqlite::Error),
+    Binding(std::io::Error),
 }
 
 impl std::fmt::Display for QueryError {
@@ -34,7 +35,7 @@ impl std::fmt::Display for QueryError {
         match self {
             QueryError::NotIndexed(org) => write!(
                 f,
-                "org '{org}' is not indexed — run `ost_reindex` (or `uf-ost index --org {org}`)"
+                "org '{org}' is not indexed — run `ost_reindex` (or `uf-ost index --org {org}`) / 组织尚无已验证索引，请运行 ost_reindex 或 uf-ost index 重建"
             ),
             QueryError::StaleIndex(org) => write!(
                 f,
@@ -43,6 +44,7 @@ impl std::fmt::Display for QueryError {
             QueryError::IdentityMismatch(org) => write!(f, "org '{org}' index identity mismatch — inspect or clear the conflicting local index, then run ost_reindex"),
             QueryError::NotFound(what) => write!(f, "{what}"),
             QueryError::Db(e) => write!(f, "index read error: {e}"),
+            QueryError::Binding(e) => write!(f, "org binding read error; verify the cache root and rebuild / 组织绑定读取失败，请检查缓存根目录并重建: {e}"),
         }
     }
 }
@@ -95,7 +97,20 @@ impl Snapshot {
 /// Open an org's `index.db` read-only. `NotIndexed` when the file or `meta`
 /// row is absent — the reader never creates or writes the database.
 pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
-    let path = sqlite::db_path(root, org);
+    let binding = sf_schema::identity::lookup(root, org)
+        .map_err(QueryError::Binding)?
+        .ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
+    open_bound_org(root, org, &binding)
+}
+
+/// Keep a refresh response pinned even if its requested alias changes in flight.
+/// 即使请求别名在刷新期间变化，刷新响应仍固定到原上下文。
+pub(crate) fn open_bound_org(
+    root: &Path,
+    org: &str,
+    binding: &sf_schema::identity::CacheBinding,
+) -> Result<Snapshot, QueryError> {
+    let path = sqlite::db_path(root, binding.cache_key());
     if !path.exists() {
         return Err(QueryError::NotIndexed(org.to_string()));
     }
@@ -109,8 +124,8 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
     if !has_meta {
         return Err(QueryError::NotIndexed(org.to_string()));
     }
-    let meta = db::read_meta(&conn)?.ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
-    if meta.alias != org {
+    let mut meta = db::read_meta(&conn)?.ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
+    if meta.alias != binding.cache_key() || meta.org_id != binding.cache_key() {
         return Err(QueryError::IdentityMismatch(org.to_string()));
     }
     // Reject an index built by an older schema before any tool SELECTs a column
@@ -120,6 +135,9 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
     }
     conn.prepare("SELECT o.name, f.name, t.name FROM objects o, fields f, apex_types t LIMIT 0")?;
     conn.prepare("SELECT object_name FROM objects_fts LIMIT 0")?;
+    // Responses retain the caller's literal target, never a generated storage key.
+    // 响应保留调用方原样目标，不暴露生成的存储键。
+    meta.alias = org.to_owned();
     Ok(Snapshot { conn, meta })
 }
 
@@ -286,8 +304,12 @@ pub fn apex(snap: &Snapshot, name: &str) -> Result<ApexDto, QueryError> {
         TypeKind::Enum => "enum",
     };
     let symbol_table_available = if namespace.is_none() {
-        apex_lang::source_status::availability(&snap.conn, &ty.name, snap.meta.classes).ok().flatten()
-    } else { None };
+        apex_lang::source_status::availability(&snap.conn, &ty.name, snap.meta.classes)
+            .ok()
+            .flatten()
+    } else {
+        None
+    };
     Ok(ApexDto {
         stamp: Stamp::from_meta(&snap.meta),
         name: ty.name,
@@ -380,7 +402,9 @@ pub fn status(snap: &Snapshot, reindex_in_progress: bool) -> StatusDto {
         api_version: m.api_version.clone(),
         namespaces: m.namespaces,
         classes: m.classes,
-        unavailable_classes: apex_lang::source_status::unavailable_count(&snap.conn, m.classes).ok().flatten(),
+        unavailable_classes: apex_lang::source_status::unavailable_count(&snap.conn, m.classes)
+            .ok()
+            .flatten(),
         sobjects: m.sobjects,
         stdlib_error: m.stdlib_error.clone(),
         reindex_in_progress,
@@ -414,7 +438,7 @@ pub struct FieldDrift {
 pub fn field_drift(root: &Path, field: &str, org: Option<&str>) -> Result<FieldDrift, QueryError> {
     let orgs: Vec<String> = match org {
         Some(o) => vec![o.to_string()],
-        None => list_orgs(root),
+        None => list_orgs(root)?,
     };
     let mut hits = Vec::new();
     let mut snapshots = Vec::new();
@@ -513,7 +537,7 @@ pub fn search_orgs(
         orgs: Some(vec![]),
         skipped: vec![],
     };
-    for org in list_orgs(root) {
+    for org in list_orgs(root)? {
         match open_org(root, &org) {
             Ok(snap) => match search(&snap, query, limit) {
                 Ok(result) => response
@@ -535,29 +559,14 @@ pub fn search_orgs(
     Ok(response)
 }
 
-/// Aliases of every org with an `index.db` under `root`.
-pub fn list_orgs(root: &Path) -> Vec<String> {
-    let mut out = Vec::new();
-    let Ok(entries) = std::fs::read_dir(root) else {
-        return out;
-    };
-    for entry in entries.flatten() {
-        let db = entry.path().join("index.db");
-        if !entry.path().is_dir() || !db.is_file() {
-            continue;
-        }
-        let folder = entry.file_name().to_string_lossy().into_owned();
-        // Recover the original alias only after binding it to this physical
-        // folder. A foreign meta.alias must never redirect the next open.
-        let alias = sqlite::open_readonly(&db)
-            .ok()
-            .and_then(|conn| db::read_meta(&conn).ok().flatten())
-            .map(|meta| meta.alias)
-            .filter(|alias| sqlite::sanitize(alias) == folder);
-        out.push(alias.unwrap_or(folder));
-    }
-    out.sort();
-    out
+/// One target per verified context with a local snapshot. / 每个有本地快照的已验证上下文返回一个目标。
+pub fn list_orgs(root: &Path) -> Result<Vec<String>, QueryError> {
+    Ok(sf_schema::identity::known_contexts(root)
+        .map_err(QueryError::Binding)?
+        .into_iter()
+        .filter(|(_, binding)| sqlite::db_path(root, binding.cache_key()).is_file())
+        .map(|(target, _)| target)
+        .collect())
 }
 
 /// Tokenize free-text into an FTS5 prefix-match expression: `Bill City` →

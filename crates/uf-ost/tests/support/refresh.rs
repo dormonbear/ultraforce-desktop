@@ -193,6 +193,7 @@ async fn direct_child_crash_stale_files_and_independent_roots() {
         "stale synthetic owner / 过期合成所有者",
     )
     .unwrap();
+    std::fs::create_dir_all(f.root.join("SyntheticA")).unwrap();
     std::fs::write(f.root.join("SyntheticA/reindex.lock"), b"").unwrap();
     let mut command = f.command(exe);
     let mut child = command

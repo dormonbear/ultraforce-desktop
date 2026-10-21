@@ -9,6 +9,10 @@ use rmcp::transport::TokioChildProcess;
 use rmcp::ServiceExt;
 use sf_core::{runner::MockRunner, SfInvoker};
 
+#[path = "support/identity.rs"]
+mod fixtures;
+use fixtures::*;
+
 #[path = "support/availability.rs"]
 mod availability;
 
@@ -48,7 +52,7 @@ async fn seed_index(root: &std::path::Path, org: &str) {
         }
     });
     let inv = SfInvoker::new(Arc::new(runner));
-    features::index::index_org(
+    index_fixture(
         &inv,
         root.to_path_buf(),
         org,
@@ -222,8 +226,7 @@ async fn offline_six_tools_include_empty_and_partial_snapshot_provenance() {
     seed_index(&root, "QueryBroken").await;
     seed_index(&root, "Mismatched").await;
     {
-        let conn =
-            sf_schema::sqlite::open(&sf_schema::sqlite::db_path(&root, "SyntheticB")).unwrap();
+        let conn = sf_schema::sqlite::open(&fixture_db_path(&root, "SyntheticB")).unwrap();
         conn.execute("UPDATE fields SET type='string' WHERE name='Industry'", [])
             .unwrap();
         let empty = sf_schema::model::SObjectSchema {
@@ -233,17 +236,15 @@ async fn offline_six_tools_include_empty_and_partial_snapshot_provenance() {
             ..Default::default()
         };
         sf_schema::sqlite::write_objects(&mut { conn }, &[empty]).unwrap();
-        let conn = sf_schema::sqlite::open(&sf_schema::sqlite::db_path(&root, "Stale")).unwrap();
+        let conn = sf_schema::sqlite::open(&fixture_db_path(&root, "Stale")).unwrap();
         conn.execute("UPDATE meta SET schema_version=3", [])
             .unwrap();
     }
     {
-        let conn =
-            sf_schema::sqlite::open(&sf_schema::sqlite::db_path(&root, "QueryBroken")).unwrap();
+        let conn = sf_schema::sqlite::open(&fixture_db_path(&root, "QueryBroken")).unwrap();
         conn.execute_batch("DROP TABLE fields; DROP TABLE objects_fts;")
             .unwrap();
-        let conn =
-            sf_schema::sqlite::open(&sf_schema::sqlite::db_path(&root, "Mismatched")).unwrap();
+        let conn = sf_schema::sqlite::open(&fixture_db_path(&root, "Mismatched")).unwrap();
         conn.execute("UPDATE meta SET alias='SyntheticA'", [])
             .unwrap();
     }
@@ -256,11 +257,12 @@ async fn offline_six_tools_include_empty_and_partial_snapshot_provenance() {
         "QueryBroken",
         "Mismatched",
     ] {
-        let conn = rusqlite::Connection::open(sf_schema::sqlite::db_path(&root, org)).unwrap();
+        let conn = rusqlite::Connection::open(fixture_db_path(&root, org)).unwrap();
         conn.pragma_update(None, "journal_mode", "DELETE").unwrap();
     }
-    std::fs::create_dir_all(root.join("Broken")).unwrap();
-    std::fs::write(root.join("Broken/index.db"), b"synthetic unreadable index").unwrap();
+    let broken = fixture_db_path(&root, "Broken");
+    std::fs::create_dir_all(broken.parent().unwrap()).unwrap();
+    std::fs::write(broken, b"synthetic unreadable index").unwrap();
     // Close all writer connections before fingerprinting the complete file set.
     let before = inventory(&root);
     let mut cmd = tokio::process::Command::new(env!("CARGO_BIN_EXE_uf-ost"));
@@ -449,7 +451,7 @@ async fn sanitized_alias_collision_cannot_return_another_org_snapshot() {
         .await
         .unwrap_err()
         .to_string();
-    assert!(error.contains("identity mismatch"), "{error}");
+    assert!(error.contains("not indexed"), "{error}");
     client.cancel().await.ok();
     std::fs::remove_dir_all(root).unwrap();
 }

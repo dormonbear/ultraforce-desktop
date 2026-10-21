@@ -27,7 +27,7 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
                 // Keep timestamp and all declared counts identical: only the
                 // monotonic generation revision distinguishes this publication.
                 let (mut ost, manifest) =
-                    apex_lang::load_snapshot(&during_fetch_root, "Synthetic", "60.0").unwrap();
+                    load_fixture_snapshot(&during_fetch_root, "Synthetic", "60.0").unwrap();
                 ost.org_types = vec![
                     apex_lang::symbols::ApexType {
                         name: "WinnerService".into(),
@@ -38,8 +38,7 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
                         ..Default::default()
                     },
                 ];
-                let expected =
-                    apex_lang::snapshot::generation_token(&during_fetch_root, "Synthetic").unwrap();
+                let expected = fixture_generation_token(&during_fetch_root, "Synthetic").unwrap();
                 apex_lang::snapshot::save_generation(
                     &during_fetch_root,
                     &ost,
@@ -64,7 +63,7 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
         });
         let invoker = SfInvoker::new(Arc::new(runner));
         let result = if full {
-            features::index::index_org(
+            index_fixture(
                 &invoker,
                 root.clone(),
                 "Synthetic",
@@ -75,7 +74,7 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
             .await
             .map(|_| ())
         } else {
-            features::index::sync_org(
+            sync_fixture(
                 &invoker,
                 root.clone(),
                 "Synthetic",
@@ -90,8 +89,7 @@ async fn prepared_full_and_delta_writers_cannot_overwrite_a_newer_generation() {
             "prepared writer must refuse to overwrite a newer generation"
         );
         let reader =
-            sf_schema::sqlite::open_readonly(&sf_schema::sqlite::db_path(&root, "Synthetic"))
-                .unwrap();
+            sf_schema::sqlite::open_readonly(&fixture_db_path(&root, "Synthetic")).unwrap();
         assert_eq!(
             sf_schema::sqlite::read_object(&reader, "Account")
                 .unwrap()
@@ -133,7 +131,7 @@ async fn first_failed_index_with_only_raw_cache_returns_actionable_runtime_error
         }
     });
     let invoker = SfInvoker::new(Arc::new(runner));
-    assert!(features::index::index_org(
+    assert!(index_fixture(
         &invoker,
         root.clone(),
         "Synthetic",
@@ -143,7 +141,7 @@ async fn first_failed_index_with_only_raw_cache_returns_actionable_runtime_error
     )
     .await
     .is_err());
-    let path = sf_schema::sqlite::db_path(&root, "Synthetic");
+    let path = fixture_db_path(&root, "Synthetic");
     let reader = sf_schema::sqlite::open_readonly(&path).unwrap();
     assert!(reader.prepare("SELECT * FROM raw_cache").is_ok());
     assert!(reader.prepare("SELECT * FROM meta").is_err());
@@ -210,7 +208,7 @@ async fn failed_rebuild_does_not_initialize_corrupt_schema_outside_transaction()
     let root = std::env::temp_dir().join(format!("uf-ost-corrupt-publish-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     seed_index(&root, "Synthetic").await;
-    let writer = apex_lang::db::open_apex(&sf_schema::sqlite::db_path(&root, "Synthetic")).unwrap();
+    let writer = apex_lang::db::open_apex(&fixture_db_path(&root, "Synthetic")).unwrap();
     writer.execute_batch("DROP TABLE objects_fts; CREATE TRIGGER reject_generation BEFORE UPDATE ON meta BEGIN SELECT RAISE(ABORT, 'synthetic publication failure'); END;").unwrap();
     let before = apex_lang::db::read_meta(&writer).unwrap().unwrap();
     // Stdlib is already cached: full generation acquisition should not repair
@@ -233,7 +231,7 @@ async fn failed_rebuild_does_not_initialize_corrupt_schema_outside_transaction()
         })
     });
     let invoker = SfInvoker::new(Arc::new(runner));
-    assert!(features::index::index_org(
+    assert!(index_fixture(
         &invoker,
         root.clone(),
         "Synthetic",
@@ -259,8 +257,7 @@ async fn full_list_or_describe_failure_retains_the_previous_generation() {
     let root = std::env::temp_dir().join(format!("uf-ost-full-fetch-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     seed_index(&root, "Synthetic").await;
-    let reader =
-        sf_schema::sqlite::open_readonly(&sf_schema::sqlite::db_path(&root, "Synthetic")).unwrap();
+    let reader = sf_schema::sqlite::open_readonly(&fixture_db_path(&root, "Synthetic")).unwrap();
     let before = apex_lang::db::read_meta(&reader).unwrap().unwrap();
     for fail_list in [true, false] {
         let runner = MockRunner::new(move |_, args: &[String]| {
@@ -281,7 +278,7 @@ async fn full_list_or_describe_failure_retains_the_previous_generation() {
             })
         });
         let invoker = SfInvoker::new(Arc::new(runner));
-        assert!(features::index::index_org(
+        assert!(index_fixture(
             &invoker,
             root.clone(),
             "Synthetic",
@@ -309,7 +306,7 @@ async fn delta_fetch_and_failed_publish_preserve_the_published_generation() {
     let root = std::env::temp_dir().join(format!("uf-ost-delta-publish-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     seed_index(&root, "Synthetic").await;
-    let path = sf_schema::sqlite::db_path(&root, "Synthetic");
+    let path = fixture_db_path(&root, "Synthetic");
     let writer = apex_lang::db::open_apex(&path).unwrap();
     let before = apex_lang::db::read_meta(&writer).unwrap().unwrap();
     writer.execute_batch("CREATE TRIGGER reject_generation BEFORE UPDATE ON meta BEGIN SELECT RAISE(ABORT, 'synthetic publication failure'); END;").unwrap();
@@ -355,7 +352,7 @@ async fn delta_fetch_and_failed_publish_preserve_the_published_generation() {
     });
     let invoker = SfInvoker::new(Arc::new(runner));
     let sync = || {
-        features::index::sync_org(
+        sync_fixture(
             &invoker,
             root.clone(),
             "Synthetic",
@@ -430,7 +427,7 @@ async fn failed_generation_publication_keeps_previous_schema_and_metadata() {
     let root = std::env::temp_dir().join(format!("uf-ost-publish-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     seed_index(&root, "Synthetic").await;
-    let path = sf_schema::sqlite::db_path(&root, "Synthetic");
+    let path = fixture_db_path(&root, "Synthetic");
     let writer = apex_lang::db::open_apex(&path).unwrap();
     writer.execute_batch("CREATE TRIGGER reject_generation BEFORE UPDATE ON meta BEGIN SELECT RAISE(ABORT, 'synthetic publication failure'); END;").unwrap();
     let before = apex_lang::db::read_meta(&writer).unwrap().unwrap();
@@ -452,7 +449,7 @@ async fn failed_generation_publication_keeps_previous_schema_and_metadata() {
         })
     });
     let invoker = SfInvoker::new(Arc::new(runner));
-    assert!(features::index::index_org(
+    assert!(index_fixture(
         &invoker,
         root.clone(),
         "Synthetic",
@@ -496,7 +493,7 @@ async fn failed_generation_publication_keeps_previous_schema_and_metadata() {
             .generation,
         before.generation
     );
-    features::index::index_org(
+    index_fixture(
         &invoker,
         root.clone(),
         "Synthetic",

@@ -22,7 +22,8 @@ if 'org display' in args:
     if (root / 'fail').exists():
         print(json.dumps({'status': 1, 'message': 'Synthetic startup failure / 合成启动失败'}))
         sys.exit(1)
-    emit({'apiVersion': '60.0'})
+    target = sys.argv[sys.argv.index('--target-org') + 1] if '--target-org' in sys.argv else 'synthetic@example.invalid'
+    emit({'id': '00D000000000001', 'username': target, 'apiVersion': '60.0'})
 elif (root / 'fail').exists():
     print(json.dumps({'status': 1, 'message': 'Synthetic acquisition failure / 合成采集失败'}))
     sys.exit(1)

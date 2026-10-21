@@ -10,7 +10,13 @@ use crate::{lock, query};
 pub fn run(root: &Path, org: Option<String>) {
     let orgs = match org {
         Some(o) => vec![o],
-        None => query::list_orgs(root),
+        None => match query::list_orgs(root) {
+            Ok(orgs) => orgs,
+            Err(error) => {
+                println!("{error}");
+                return;
+            }
+        },
     };
     if orgs.is_empty() {
         println!("no indexed orgs under {}", root.display());

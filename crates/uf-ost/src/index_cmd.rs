@@ -5,8 +5,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use features::api_version::resolve_index_api_version;
-use features::index::{index_org, sync_org, IndexProgress, NamespacePolicy};
+use features::index::{index_org_for_target, sync_org_for_target, IndexProgress, NamespacePolicy};
 use sf_core::{ProcessRunner, SfInvoker};
 
 use crate::lock::ReindexLock;
@@ -32,20 +31,32 @@ pub async fn run(org: String, root: PathBuf, policy: String, sync: bool) -> Resu
     // own extended per-call timeouts in acquire.rs — no bin-level override.
     let invoker = SfInvoker::new(Arc::new(ProcessRunner));
     let policy = NamespacePolicy::parse(&policy);
-    // Fallback-aware: a failed detection reuses the snapshot's stored version.
-    let (api, _) = resolve_index_api_version(&invoker, &root, &org).await;
+    let context = features::metadata_context::resolve(&invoker, &root, &org)
+        .await
+        .map_err(|error| error.to_string())?;
+    let api = context.api_version;
+    let binding = context.binding;
 
     if sync {
-        let (o, _) = sync_org(&invoker, root, &org, &api, &policy)
-            .await
-            .map_err(|e| e.to_string())?;
+        crate::query::open_bound_org(&root, &org, &binding).map_err(|error| error.to_string())?;
+        let (o, _) = sync_org_for_target(
+            &invoker,
+            root,
+            binding.cache_key(),
+            binding.username(),
+            &api,
+            &policy,
+        )
+        .await
+        .map_err(|e| e.to_string())?;
         eprintln!("sync {org}: +{} ~{} -{}", o.added, o.updated, o.removed);
     } else {
         let mut last = String::new();
-        index_org(
+        index_org_for_target(
             &invoker,
             root.clone(),
-            &org,
+            binding.cache_key(),
+            binding.username(),
             &api,
             &policy,
             &mut |p: IndexProgress| {

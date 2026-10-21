@@ -362,7 +362,7 @@ impl OstServer {
         let single = a.org.clone();
         let orgs = match a.org {
             Some(o) => vec![o],
-            None => query::list_orgs(&self.root),
+            None => query::list_orgs(&self.root).map_err(to_err)?,
         };
         let mut out = Vec::new();
         let mut skipped = Vec::new();
@@ -392,19 +392,26 @@ impl OstServer {
         // Fail fast if the org was never indexed (sync is a no-op there).
         self.open(&a.org)?;
         let invoker = sf_core::SfInvoker::new(StdArc::new(sf_core::ProcessRunner));
-        // Fallback-aware: a failed detection reuses the snapshot's stored version.
-        let (api, _) =
-            features::api_version::resolve_index_api_version(&invoker, &self.root, &a.org).await;
-        let (outcome, _) = features::index::sync_org(
+        let context = features::metadata_context::resolve(&invoker, &self.root, &a.org)
+            .await
+            .map_err(|e| {
+                ErrorData::internal_error(
+                    format!("org identity resolution failed / 组织身份解析失败: {e}"),
+                    None,
+                )
+            })?;
+        query::open_bound_org(&self.root, &a.org, &context.binding).map_err(to_err)?;
+        let (outcome, _) = features::index::sync_org_for_target(
             &invoker,
             self.root.clone(),
-            &a.org,
-            &api,
+            context.binding.cache_key(),
+            context.binding.username(),
+            &context.api_version,
             &features::index::NamespacePolicy::All,
         )
         .await
-        .map_err(|e| ErrorData::internal_error(format!("sync failed: {e}"), None))?;
-        let snap = self.open(&a.org)?;
+        .map_err(|e| ErrorData::internal_error(format!("sync failed / 同步失败: {e}"), None))?;
+        let snap = query::open_bound_org(&self.root, &a.org, &context.binding).map_err(to_err)?;
         Ok(Json(SyncDto {
             stamp: snap.stamp(),
             added: outcome.added,
@@ -594,7 +601,7 @@ impl ServerHandler for OstServer {
 fn to_err(e: QueryError) -> ErrorData {
     let msg = e.to_string();
     match e {
-        QueryError::Db(_) => ErrorData::internal_error(msg, None),
+        QueryError::Db(_) | QueryError::Binding(_) => ErrorData::internal_error(msg, None),
         _ => ErrorData::invalid_params(msg, None),
     }
 }

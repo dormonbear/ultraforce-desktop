@@ -41,7 +41,7 @@ fn invoker(changed: bool) -> SfInvoker {
 async fn unavailable_sources_are_explicit_in_actual_mcp_json_and_atomic_publication() {
     let root = std::env::temp_dir().join(format!("uf-availability-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
-    features::index::index_org(
+    index_fixture(
         &invoker(false),
         root.clone(),
         "Synthetic",
@@ -71,10 +71,10 @@ async fn unavailable_sources_are_explicit_in_actual_mcp_json_and_atomic_publicat
             assert_eq!(ty["methods"], json!([]));
         }
     }
-    let db = sf_schema::sqlite::db_path(&root, "Synthetic");
+    let db = fixture_db_path(&root, "Synthetic");
     let conn = apex_lang::db::open_apex(&db).unwrap();
     conn.execute_batch("CREATE TRIGGER reject_availability BEFORE UPDATE ON meta BEGIN SELECT RAISE(ABORT,'synthetic'); END").unwrap();
-    assert!(features::index::sync_org(
+    assert!(sync_fixture(
         &invoker(true),
         root.clone(),
         "Synthetic",
@@ -101,7 +101,7 @@ async fn unavailable_sources_are_explicit_in_actual_mcp_json_and_atomic_publicat
         apex_lang::source_status::unavailable_count(&pinned, 5).unwrap(),
         Some(2)
     );
-    features::index::sync_org(
+    sync_fixture(
         &invoker(true),
         root.clone(),
         "Synthetic",
@@ -137,7 +137,7 @@ async fn unavailable_sources_are_explicit_in_actual_mcp_json_and_atomic_publicat
             ["symbolTableAvailable"]
             .is_null()
     );
-    assert!(features::index::sync_org(
+    assert!(sync_fixture(
         &invoker(true),
         root.clone(),
         "Synthetic",
