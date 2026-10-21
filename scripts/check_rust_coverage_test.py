@@ -24,12 +24,12 @@ def report(lines=90, functions=85, desktop=45):
 
 class RustCoverageTest(unittest.TestCase):
     def test_accepts_boundary_values_and_current_report_shape(self):
-        values = check_report(report(lines=84, functions=82, desktop=40), Path.cwd())
-        self.assertEqual(values, {"lines": 84, "functions": 82, "desktop_lines": 40})
+        values = check_report(report(lines=85, functions=83, desktop=44), Path.cwd())
+        self.assertEqual(values, {"lines": 85, "functions": 83, "desktop_lines": 44})
 
     def test_high_library_coverage_cannot_hide_a_desktop_regression(self):
         with self.assertRaisesRegex(ValueError, "desktop_lines"):
-            check_report(report(lines=90, desktop=39), Path.cwd())
+            check_report(report(lines=90, desktop=43), Path.cwd())
 
     def test_desktop_floor_weights_lines_instead_of_averaging_file_percentages(self):
         data = report()
@@ -46,7 +46,7 @@ class RustCoverageTest(unittest.TestCase):
             check_report(data, Path.cwd())
 
     def test_line_and_function_floors_are_independent(self):
-        for metric, value in (("lines", 83.9), ("functions", 81)):
+        for metric, value in (("lines", 84.9), ("functions", 82)):
             with self.subTest(metric=metric):
                 with self.assertRaisesRegex(ValueError, metric):
                     check_report(report(**{metric: value}), Path.cwd())
@@ -81,7 +81,7 @@ class RustCoverageTest(unittest.TestCase):
     def test_ci_command_returns_failure_for_an_undercovered_desktop(self):
         with tempfile.TemporaryDirectory() as directory:
             summary = Path(directory) / "summary.json"
-            for desktop, expected in ((45, 0), (39, 1)):
+            for desktop, expected in ((45, 0), (43, 1)):
                 summary.write_text(json.dumps(report(desktop=desktop)), encoding="utf-8")
                 result = subprocess.run(
                     [sys.executable, str(Path(__file__).with_name("check_rust_coverage.py")),
