@@ -70,11 +70,11 @@ jobs:
         working-directory: desktop
         run: pnpm exec playwright install --with-deps --only-shell chromium
 
-      - name: Editor and setup regressions / 编辑器与设置回归
+      - name: Editor and localization regressions / 编辑器与本地化回归
         working-directory: desktop
         env:
           PERF_PROD: '1'
-        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts --reporter=line
+        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts e2e/org-i18n.spec.ts --reporter=line
 
       - name: Browser failure evidence / 浏览器失败证据
         if: failure()

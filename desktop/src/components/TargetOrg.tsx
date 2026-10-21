@@ -1,5 +1,6 @@
 import { useOrgs } from "../org";
 import { orgColor, orgDisplayName } from "../orgConfig";
+import { useI18n } from "../i18n";
 
 /**
  * Read-only "this runs against X" marker for an editor toolbar.
@@ -13,6 +14,7 @@ import { orgColor, orgDisplayName } from "../orgConfig";
  * and the titlebar can never disagree about what the active org is called.
  */
 export function TargetOrg() {
+  const { t } = useI18n();
   const { orgs, selected, configs } = useOrgs();
   const cur = orgs.find((o) => o.username === selected);
   if (!cur) return null;
@@ -23,7 +25,7 @@ export function TargetOrg() {
   return (
     <span
       className="flex min-w-0 items-center gap-1.5 text-[11px] text-text-dim"
-      aria-label={`Target org: ${name}`}
+      aria-label={t("Target org: {name}", { name })}
     >
       <span
         aria-hidden="true"

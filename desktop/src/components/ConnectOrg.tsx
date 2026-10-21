@@ -3,7 +3,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
-import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { LocalizedDialogHeader as DialogHeader } from "./LocalizedDialogHeader";
 import { MotionDialog } from "./motion/MotionDialog";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
@@ -11,7 +11,6 @@ import { TextInput } from "@astryxdesign/core/TextInput";
 import { useOrgs } from "../org";
 import { loginOrg } from "../ipc/org";
 import { useI18n } from "../i18n";
-import { X } from "lucide-react";
 
 type Env = "production" | "sandbox" | "custom";
 
@@ -116,15 +115,7 @@ export function ConnectOrgDialog({
     <MotionDialog isOpen={open} onOpenChange={onOpenChange} width={480}>
       <DialogHeader
         title={t("Connect a Salesforce org")}
-        endContent={
-          <Button
-            isIconOnly
-            variant="ghost"
-            label={t("Close")}
-            icon={<X size={16} />}
-            clickAction={() => onOpenChange(false)}
-          />
-        }
+        onOpenChange={onOpenChange}
       />
       <div className="flex flex-col gap-4">
         <Text type="supporting" display="block">

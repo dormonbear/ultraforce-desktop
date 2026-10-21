@@ -11,12 +11,14 @@ for (const language of ["en-US", "zh-CN"] as const) {
       copied: "已复制到剪贴板", title: "连接 Salesforce 组织", alias: "别名（可选）",
       custom: "自定义域名 / 我的域…", login: "登录", url: "实例 URL",
       missingUrl: "请输入自定义实例 URL", connected: "组织已连接", close: "关闭",
+      currentOrg: "当前组织：DevHub。切换组织", connectOrg: "连接组织…",
     } : {
       not_found: "Salesforce CLI not found", outdated: "Salesforce CLI is too old",
       path_issue: "Salesforce CLI not on this app’s PATH", retry: "Retry", copy: "Copy command",
       copied: "Copied to clipboard", title: "Connect a Salesforce org", alias: "Alias (optional)",
       custom: "Custom domain / My Domain…", login: "Log in", url: "Instance URL",
       missingUrl: "Enter a custom instance URL", connected: "Org connected", close: "Close",
+      currentOrg: "Current org: DevHub. Switch org", connectOrg: "Connect org…",
     };
 
     for (const state of ["not_found", "outdated", "path_issue"] as const) {
@@ -70,8 +72,8 @@ for (const language of ["en-US", "zh-CN"] as const) {
     test("connection dialog has a localized close control / 连接对话框提供本地化关闭控件", async ({ page }) => {
       await installMocks(page);
       await page.goto("/");
-      await page.getByRole("button", { name: "Current org: DevHub. Switch org" }).click();
-      await page.getByRole("button", { name: "Connect org…" }).click();
+      await page.getByRole("button", { name: labels.currentOrg }).click();
+      await page.getByRole("button", { name: labels.connectOrg }).click();
       const dialog = page.getByRole("dialog").filter({ has: page.getByRole("heading", {
         name: labels.title,
       }) });

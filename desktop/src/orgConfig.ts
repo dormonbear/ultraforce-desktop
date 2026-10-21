@@ -62,7 +62,7 @@ export interface OrgColor {
 }
 
 /** Preset color palette for org badges (display-only). `id` is what we persist. */
-export const ORG_COLORS: OrgColor[] = [
+export const ORG_COLORS = [
   { id: "slate", label: "Slate", bg: "#475569", fg: "#ffffff" },
   { id: "red", label: "Red", bg: "#dc2626", fg: "#ffffff" },
   { id: "amber", label: "Amber", bg: "#d97706", fg: "#ffffff" },
@@ -71,7 +71,7 @@ export const ORG_COLORS: OrgColor[] = [
   { id: "blue", label: "Blue", bg: "#2563eb", fg: "#ffffff" },
   { id: "violet", label: "Violet", bg: "#7c3aed", fg: "#ffffff" },
   { id: "pink", label: "Pink", bg: "#db2777", fg: "#ffffff" },
-];
+] as const satisfies readonly OrgColor[];
 
 /** Look up a preset color by id (undefined when unset / unknown). */
 export function orgColor(id: string | undefined): OrgColor | undefined {

@@ -30,7 +30,8 @@ export default defineConfig({
     // readiness probe hits IPv4 — pin both sides to IPv4 so they meet.
     baseURL: "http://127.0.0.1:1421",
     actionTimeout: 15_000,
-    trace: "on-first-retry",
+    // Retries are disabled, so retain evidence from the first failure. / 未启用重试，因此保留首次失败的证据。
+    trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
