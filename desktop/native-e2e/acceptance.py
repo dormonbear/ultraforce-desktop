@@ -13,9 +13,10 @@ import time
 
 from sf_fixture import ORG
 from webdriver_client import WebDriver
+from webview_runtime import matching_runtime
 
 
-def fixture(root):
+def fixture(root, runtime=None):
     root.mkdir(parents=True)
     (root / "synthetic-only").touch()
     (root / "mode").write_text("normal", encoding="utf-8")
@@ -24,7 +25,7 @@ def fixture(root):
     script = bin_dir / "sf_fixture.py"
     shutil.copyfile(Path(__file__).with_name("sf_fixture.py"), script)
     (bin_dir / "sf.cmd").write_text(f'@echo off\r\n"{sys.executable}" "{script}" %*\r\n', encoding="utf-8")
-    return {
+    environment = {
         **os.environ, "PATH": str(bin_dir) + os.pathsep + os.environ["PATH"],
         "APPDATA": str(root / "roaming"), "LOCALAPPDATA": str(root / "local"),
         "UF_NATIVE_FIXTURE": str(root),
@@ -33,6 +34,9 @@ def fixture(root):
             "SF_DISABLE_TELEMETRY", "SFDX_DISABLE_TELEMETRY", "SF_DISABLE_LOG_FILE", "SFDX_DISABLE_LOG_FILE",
         ]},
     }
+    if runtime is not None:
+        environment["WEBVIEW2_BROWSER_EXECUTABLE_FOLDER"] = str(runtime)
+    return environment
 
 
 @contextmanager
@@ -125,9 +129,12 @@ def run(application_path, artifacts):
     if os.name != "nt":
         raise RuntimeError("Run native acceptance on Windows / 请在 Windows 运行原生验收")
     artifacts.mkdir(parents=True, exist_ok=True)
+    runtime = matching_runtime()
+    (artifacts / "runtime-location.txt").write_text(str(runtime), encoding="utf-8")
+    print(f"Native WebView2 runtime / 原生 WebView2 运行时: {runtime}")
     with tempfile.TemporaryDirectory(prefix="uf-native-", ignore_cleanup_errors=True) as directory:
         root = Path(directory) / "normal"
-        environment = fixture(root)
+        environment = fixture(root, runtime)
         with application(application_path, environment, artifacts, "full") as driver:
             assert driver.invoke("sf_status", {})["state"] == "ok"
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
@@ -145,7 +152,7 @@ def run(application_path, artifacts):
             verify_schema_ui(driver)
             verify_editor_ui(driver)
         failed_root = Path(directory) / "stdlib-error"
-        failed_environment = fixture(failed_root)
+        failed_environment = fixture(failed_root, runtime)
         (failed_root / "mode").write_text("stdlib-error", encoding="utf-8")
         with application(application_path, failed_environment, artifacts, "stdlib-error") as driver:
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
