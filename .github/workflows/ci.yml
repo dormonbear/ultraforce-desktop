@@ -7,11 +7,17 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
+    name: Tests (${{ matrix.os }}) / 测试
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Architecture guardrails
+        shell: bash
         run: ./scripts/check-arch.sh
 
       - uses: actions/setup-python@v7
@@ -19,10 +25,10 @@ jobs:
           python-version: '3.13'
 
       - name: Release version alignment / 发布版本一致性
-        run: python3 scripts/check_release_versions.py
+        run: python scripts/check_release_versions.py
 
       - name: Release metadata regressions / 发布元信息回归测试
-        run: python3 -m unittest discover -s scripts -p '*_test.py'
+        run: python -m unittest discover -s scripts -p '*_test.py'
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -53,7 +59,7 @@ jobs:
         run: pnpm exec oxlint src
 
       - name: Rust tests
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
 
       - name: Clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --locked --workspace -- -D warnings
