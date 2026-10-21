@@ -166,9 +166,14 @@ fn save_generation_inner(
     if raw_org_types.is_none() {
         tx.execute("DELETE FROM apex_sources", [])
             .map_err(std::io::Error::other)?;
+        tx.execute("DELETE FROM apex_source_status", []).map_err(std::io::Error::other)?;
     }
     if let Some((schemas, full)) = schemas {
         if let Some(raw) = raw_org_types {
+            if raw.len() != manifest.classes {
+                return Err(std::io::Error::other("source count mismatch; previous generation retained"));
+            }
+            crate::source_status::replace(&tx, raw)?;
             let body = serde_json::to_string(raw).map_err(std::io::Error::other)?;
             tx.execute("INSERT INTO apex_sources (id, body) VALUES (1, ?1) ON CONFLICT(id) DO UPDATE SET body=excluded.body", params![body])
                 .map_err(std::io::Error::other)?;
@@ -294,6 +299,7 @@ pub struct SyncSnapshot {
     pub token: GenerationToken,
     pub sources: Vec<serde_json::Value>,
     pub schemas: Vec<sf_schema::SObjectSchema>,
+    pub source_status: Vec<crate::source_status::SourceStatus>,
 }
 
 pub fn load_sync_snapshot(
@@ -330,6 +336,7 @@ pub fn load_sync_snapshot(
             token: GenerationToken(Some(meta)),
             sources: serde_json::from_str(&body).ok()?,
             schemas: sf_schema::sqlite::read_all_objects(&conn).ok()?,
+            source_status: crate::source_status::read(&conn).ok()?,
         })
     };
     read().map(Some).ok_or_else(|| {

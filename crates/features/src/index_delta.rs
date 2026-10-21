@@ -17,7 +17,7 @@ fn key(record: &Value) -> Result<(String, String), SfError> {
         .filter(|s| !s.is_empty())
         .ok_or_else(|| invalid("invalid Apex source identity; full reindex required"))?;
     let namespace = match record.get("NamespacePrefix") {
-        None | Some(Value::Null) => "",
+        Some(Value::Null) => "",
         Some(Value::String(s)) => s,
         _ => {
             return Err(invalid(
@@ -37,16 +37,22 @@ pub(super) fn validate_sources(records: &[Value]) -> Result<(), SfError> {
                 "duplicate Apex source identity; retry full reindex",
             ));
         }
-        let table = record
+        let value = record
             .get("SymbolTable")
-            .and_then(Value::as_object)
-            .ok_or_else(|| {
-                invalid("Apex SymbolTable missing or corrupt; previous index retained")
-            })?;
+            .ok_or_else(|| invalid("Apex SymbolTable missing; previous index retained"))?;
+        // Null is Salesforce's supported unavailable-table response. Retain
+        // ownership and the parser's name-only fallback, never old members.
+        if value.is_null() {
+            continue;
+        }
+        let table = value
+            .as_object()
+            .ok_or_else(|| invalid("Apex SymbolTable malformed; previous index retained"))?;
         if table.get("name").is_some_and(|name| {
-            !name
-                .as_str()
-                .is_some_and(|n| n.eq_ignore_ascii_case(&identity.1))
+            !name.is_null()
+                && !name
+                    .as_str()
+                    .is_some_and(|n| n.eq_ignore_ascii_case(&identity.1))
         }) {
             return Err(invalid(
                 "Apex source/SymbolTable identity mismatch; previous index retained",
@@ -145,6 +151,13 @@ pub async fn sync_org(
         return Ok((SyncOutcome::default(), Ost::default()));
     };
     validate_sources(&snapshot.sources)?;
+    if apex_lang::source_status::expected(&snapshot.sources).map_err(SfError::Spawn)?
+        != snapshot.source_status
+    {
+        return Err(invalid(
+            "index availability provenance mismatch; full reindex required",
+        ));
+    }
     if snapshot.sources.len() != snapshot.manifest.classes
         || snapshot.schemas.len() != snapshot.manifest.sobjects
     {

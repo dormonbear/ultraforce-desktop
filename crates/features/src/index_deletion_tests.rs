@@ -3,12 +3,12 @@ use serde_json::{json, Value};
 use sf_core::{runner::MockRunner, RawOutput};
 use std::sync::Arc;
 
-fn class(name: &str, inner: &[&str]) -> Value {
-    json!({"Name":name,"SymbolTable":{"name":name,"methods":[],"properties":[],
+pub(super) fn class(name: &str, inner: &[&str]) -> Value {
+    json!({"Name":name,"NamespacePrefix":null,"SymbolTable":{"name":name,"methods":[],"properties":[],
         "innerClasses":inner.iter().map(|name| json!({"name":name,"methods":[],"properties":[]})).collect::<Vec<_>>()}})
 }
 
-fn runner(classes: Vec<Value>, names: Vec<&str>, objects: Vec<&str>, changed: bool) -> SfInvoker {
+pub(super) fn runner(classes: Vec<Value>, names: Vec<&str>, objects: Vec<&str>, changed: bool) -> SfInvoker {
     runner_names(
         classes,
         names
@@ -20,7 +20,7 @@ fn runner(classes: Vec<Value>, names: Vec<&str>, objects: Vec<&str>, changed: bo
     )
 }
 
-fn runner_names(
+pub(super) fn runner_names(
     classes: Vec<Value>,
     names: Vec<Value>,
     objects: Vec<&str>,
@@ -129,7 +129,7 @@ async fn delta_deletes_sources_and_replaces_inner_types() {
     std::fs::remove_dir_all(root).unwrap();
 }
 
-async fn seeded(label: &str, classes: Vec<Value>) -> PathBuf {
+pub(super) async fn seeded(label: &str, classes: Vec<Value>) -> PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -343,7 +343,7 @@ async fn raw_cache_poison_does_not_replace_generation_sources() {
 #[tokio::test]
 async fn invalid_provenance_requires_reindex_without_remote_calls() {
     for mutation in ["UPDATE meta SET schema_version=4", "DELETE FROM apex_sources", "UPDATE apex_sources SET body='bad'",
-        "UPDATE apex_sources SET body='[{\"Name\":\"Keeper\",\"SymbolTable\":null}]'",
+        "UPDATE apex_sources SET body='[{\"Name\":\"Keeper\",\"SymbolTable\":false}]'",
         "UPDATE apex_sources SET body='[{\"Name\":\"Keeper\",\"SymbolTable\":{\"name\":\"Wrong\"}}]'"
     ] {
         let root=seeded("invalid",vec![class("Keeper",&[])]).await;
@@ -385,7 +385,7 @@ async fn failed_enumeration_or_corrupt_delta_retains_generation() {
             } else if command.contains("NamespacePrefix FROM") {
                 json!({"status":0,"result":{"records":[{"Name":"Keeper","NamespacePrefix":null}],"done":failure!="incomplete-list","totalSize":if failure=="incomplete-list" {2}else{1}}})
             } else if command.contains("ApexClass") && failure == "corrupt-delta" {
-                json!({"status":0,"result":{"records":[{"Name":"Keeper","SymbolTable":null}]}})
+                json!({"status":0,"result":{"records":[{"Name":"Keeper","SymbolTable":false}]}})
             } else {
                 json!({"status":0,"result":{"records":[]}})
             };

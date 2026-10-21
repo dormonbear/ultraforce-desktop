@@ -182,6 +182,18 @@ Missing or corrupt source provenance also requires a full reindex. Source JSON
 replaces the old raw org-types cache inside the same local index, without keeping
 a duplicate source blob. Public Apex type names retain their existing bare-name
 behavior; same-name types across namespaces can still be ambiguous in completion.
+Salesforce can legitimately return `SymbolTable: null` when it cannot build a
+class's table ([Salesforce's documented behavior](https://help.salesforce.com/s/issue?id=a028c00000gAwefAAC&language=da)).
+Those sources remain indexed by name, without fabricated or stale
+members; other sources and object schemas remain useful. `ost_apex.symbolTableAvailable`
+is `false` for a known null source and `true` when Salesforce returned an object
+(including `{}`); `true` does not promise complete member coverage. It is `null`
+for derived/object/stdlib types or unknown availability. A bare-name collision
+with any unavailable source reports `false` conservatively. `ost_status.orgs[].unavailableClasses`
+counts known null sources, or is `null` when availability metadata is missing or
+incomplete. Availability is published atomically and checked against canonical
+sources on sync; ordinary read tools use structural/count checks and do not
+reparse the large source blob to detect arbitrary external edits on every call.
 Rebuilds publish schema, Apex symbols and freshness together. A refresh prepared
 against an older generation refuses to overwrite a newer publication; retry the
 refresh when it reports that the index changed during fetching.

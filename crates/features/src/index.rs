@@ -376,7 +376,7 @@ mod tests {
                 )
             } else if a.contains("ApexClass") {
                 ok(
-                    r#"{"status":0,"result":{"records":[{"Name":"Foo","SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[],"properties":[],"innerClasses":[],"interfaces":[]}}]}}"#,
+                    r#"{"status":0,"result":{"records":[{"NamespacePrefix":null,"Name":"Foo","SymbolTable":{"name":"Foo","tableDeclaration":{"name":"Foo"},"methods":[],"properties":[],"innerClasses":[],"interfaces":[]}}]}}"#,
                 )
             } else if a.contains("sobject list") {
                 ok(r#"{"status":0,"result":["Account"]}"#)
@@ -472,3 +472,7 @@ mod watermark_tests;
 #[cfg(test)]
 #[path = "index_deletion_tests.rs"]
 mod deletion_tests;
+
+#[cfg(test)]
+#[path = "index_unavailable_tests.rs"]
+mod unavailable_tests;

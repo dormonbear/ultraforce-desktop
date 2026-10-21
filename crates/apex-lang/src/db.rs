@@ -43,6 +43,11 @@ pub fn ensure_apex_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE TABLE IF NOT EXISTS apex_sources (
           id INTEGER PRIMARY KEY CHECK (id=1), body TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS apex_source_status (
+          namespace TEXT NOT NULL, name TEXT NOT NULL,
+          available INTEGER NOT NULL CHECK(available IN(0,1)),
+          PRIMARY KEY(namespace,name)
+        );
         CREATE VIRTUAL TABLE IF NOT EXISTS apex_fts USING fts5(type_name);
         ",
     )
