@@ -31,15 +31,27 @@ impl OstSource {
 
 pub struct OstStore {
     root: PathBuf,
-    org_id: String,
+    cache_key: String,
+    target: String,
     mem: HashMap<Key, Value>,
 }
 
 impl OstStore {
     pub fn new(root: impl Into<PathBuf>, org_id: impl Into<String>) -> Self {
+        let org_id = org_id.into();
+        Self::for_target(root, org_id.clone(), org_id)
+    }
+
+    /// Keep cache storage distinct from the pinned CLI target. / 缓存位置与固定的 CLI 目标分离。
+    pub fn for_target(
+        root: impl Into<PathBuf>,
+        cache_key: impl Into<String>,
+        target: impl Into<String>,
+    ) -> Self {
         Self {
             root: root.into(),
-            org_id: org_id.into(),
+            cache_key: cache_key.into(),
+            target: target.into(),
             mem: HashMap::new(),
         }
     }
@@ -55,9 +67,9 @@ impl OstStore {
         base.unwrap_or_else(std::env::temp_dir).join("ultraforce")
     }
 
-    /// `<root>/<org_id>/index.db`, with separators sanitized.
+    /// `<root>/<cache_key>/index.db`, with separators sanitized. / 替换分隔符后的缓存数据库路径。
     fn db_path(&self) -> PathBuf {
-        self.root.join(sanitize(&self.org_id)).join("index.db")
+        self.root.join(sanitize(&self.cache_key)).join("index.db")
     }
 
     pub fn get(&self, api_version: &str, source: OstSource) -> Option<&Value> {
@@ -102,7 +114,7 @@ impl OstStore {
 
         let value = match source {
             OstSource::Stdlib => self.stdlib(invoker, api_version).await?,
-            OstSource::OrgTypes => Value::Array(fetch_apex_symbols(invoker, &self.org_id).await?),
+            OstSource::OrgTypes => Value::Array(fetch_apex_symbols(invoker, &self.target).await?),
         };
         // Also writes a shared hit into this org's `raw_cache`, so a per-org
         // snapshot stays self-contained (offline completion, MCP status).
@@ -122,7 +134,7 @@ impl OstStore {
         if let Some(value) = shared_stdlib::read(&self.root, api_version) {
             return Ok(value);
         }
-        let value = fetch_completions(invoker, &self.org_id, api_version).await?;
+        let value = fetch_completions(invoker, &self.target, api_version).await?;
         if shared_stdlib::is_usable(&value) {
             if let Err(e) = shared_stdlib::write(&self.root, api_version, &value) {
                 tracing::warn!(api = %api_version, error = %e, "shared stdlib cache write failed");
@@ -210,6 +222,69 @@ mod tests {
             })
         });
         (SfInvoker::new(Arc::new(runner)), calls)
+    }
+
+    #[tokio::test]
+    async fn explicit_cache_key_keeps_both_sources_on_pinned_target() {
+        let root = unique_root();
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured = seen.clone();
+        let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
+            captured.lock().unwrap().push(args.to_vec());
+            Ok(RawOutput {
+                status: 0,
+                stdout: if args[0] == "api" {
+                    COMPLETIONS.to_string()
+                } else {
+                    r#"{"status":0,"result":{"records":[{"Name":"SyntheticService","SymbolTable":{"name":"SyntheticService"}}],"done":true,"totalSize":1}}"#.to_string()
+                },
+                stderr: String::new(),
+            })
+        })));
+        let target = "synthetic/用户@example.invalid";
+        let cache_key = "context-a";
+        let mut store = OstStore::for_target(&root, cache_key, target);
+        let stdlib = store
+            .get_or_fetch(&invoker, API, OstSource::Stdlib)
+            .await
+            .unwrap();
+        let org_types = store
+            .get_or_fetch(&invoker, API, OstSource::OrgTypes)
+            .await
+            .unwrap();
+        assert_eq!(org_types[0]["Name"], "SyntheticService");
+        assert!(sf_schema::sqlite::db_path(&root, cache_key).exists());
+        assert!(!sf_schema::sqlite::db_path(&root, target).exists());
+        for args in seen.lock().unwrap().iter() {
+            let target_pos = args.iter().position(|arg| arg == "--target-org").unwrap();
+            assert_eq!(args[target_pos + 1], target);
+            assert!(!args.iter().any(|arg| arg == cache_key));
+        }
+        assert_eq!(seen.lock().unwrap().len(), 2);
+        let mut reopened = OstStore::for_target(&root, cache_key, "another-logical-alias");
+        assert_eq!(
+            reopened.load_disk(API, OstSource::Stdlib).unwrap(),
+            Some(stdlib.clone())
+        );
+        assert_eq!(
+            reopened.load_disk(API, OstSource::OrgTypes).unwrap(),
+            Some(org_types)
+        );
+        let mut isolated = OstStore::for_target(&root, "context-b", target);
+        assert!(isolated
+            .load_disk(API, OstSource::OrgTypes)
+            .unwrap()
+            .is_none());
+        reopened.invalidate(API, OstSource::OrgTypes).unwrap();
+        assert!(reopened
+            .load_disk(API, OstSource::OrgTypes)
+            .unwrap()
+            .is_none());
+        assert_eq!(
+            reopened.load_disk(API, OstSource::Stdlib).unwrap(),
+            Some(stdlib)
+        );
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]

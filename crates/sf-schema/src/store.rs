@@ -19,16 +19,28 @@ type Key = (String, String);
 /// Caches schemas in memory and on disk under a per-org/version directory.
 pub struct SchemaStore {
     root: PathBuf,
-    org_id: String,
+    cache_key: String,
+    target: String,
     mem: HashMap<Key, SObjectSchema>,
 }
 
 impl SchemaStore {
     /// Build a store rooted at an explicit cache directory.
     pub fn new(root: impl Into<PathBuf>, org_id: impl Into<String>) -> Self {
+        let org_id = org_id.into();
+        Self::for_target(root, org_id.clone(), org_id)
+    }
+
+    /// Keep cache storage distinct from the pinned CLI target. / 缓存位置与固定的 CLI 目标分离。
+    pub fn for_target(
+        root: impl Into<PathBuf>,
+        cache_key: impl Into<String>,
+        target: impl Into<String>,
+    ) -> Self {
         Self {
             root: root.into(),
-            org_id: org_id.into(),
+            cache_key: cache_key.into(),
+            target: target.into(),
             mem: HashMap::new(),
         }
     }
@@ -49,9 +61,9 @@ impl SchemaStore {
         (api_version.to_string(), object.to_ascii_lowercase())
     }
 
-    /// `<root>/<org_id>/index.db`, with separators sanitized.
+    /// `<root>/<cache_key>/index.db`, with separators sanitized. / 替换分隔符后的缓存数据库路径。
     fn db_path(&self) -> PathBuf {
-        sqlite::db_path(&self.root, &self.org_id)
+        sqlite::db_path(&self.root, &self.cache_key)
     }
 
     /// Look up a schema in memory only.
@@ -92,7 +104,7 @@ impl SchemaStore {
         if let Some(s) = self.load_disk(api_version, object)? {
             return Ok(s);
         }
-        let schema = describe_object(invoker, &self.org_id, object).await?;
+        let schema = describe_object(invoker, &self.target, object).await?;
         self.persist(&schema)?;
         self.mem
             .insert(Self::key(api_version, object), schema.clone());
@@ -169,7 +181,7 @@ impl SchemaStore {
                 tokio::task::JoinSet::new();
             for batch in super_chunk.chunks(COMPOSITE_MAX) {
                 let invoker = invoker.clone();
-                let org = self.org_id.clone();
+                let org = self.target.clone();
                 let api = api_version.to_string();
                 let batch = batch.to_vec();
                 set.spawn(async move {
@@ -293,6 +305,54 @@ mod tests {
             })
         });
         (SfInvoker::new(Arc::new(runner)), calls)
+    }
+
+    #[tokio::test]
+    async fn explicit_cache_key_keeps_single_and_batch_requests_on_pinned_target() {
+        let root = unique_root();
+        let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let captured = seen.clone();
+        let invoker = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
+            captured.lock().unwrap().push(args.to_vec());
+            let stdout = if args[0] == "api" {
+                r#"{"compositeResponse":[{"httpStatusCode":200,"body":{"name":"Contact","fields":[]}}]}"#
+            } else {
+                FIXTURE
+            };
+            Ok(sf_core::RawOutput {
+                status: 0,
+                stdout: stdout.to_string(),
+                stderr: String::new(),
+            })
+        })));
+        let target = "synthetic/用户@example.invalid";
+        let cache_key = "context-a";
+        let mut store = SchemaStore::for_target(&root, cache_key, target);
+        store.get_or_fetch(&invoker, API, "Account").await.unwrap();
+        let batch = store
+            .fetch_many(&invoker, API, &["Contact".to_string()], &mut |_, _| {})
+            .await;
+        assert_eq!(batch.len(), 1);
+        store.persist_delta(&[batch[0].1.clone()]).unwrap();
+        assert!(sqlite::db_path(&root, cache_key).exists());
+        assert!(!sqlite::db_path(&root, target).exists());
+        for args in seen.lock().unwrap().iter() {
+            let target_pos = args.iter().position(|arg| arg == "--target-org").unwrap();
+            assert_eq!(args[target_pos + 1], target);
+            assert!(!args.iter().any(|arg| arg == cache_key));
+        }
+        assert_eq!(seen.lock().unwrap().len(), 2);
+        let mut reopened = SchemaStore::for_target(&root, cache_key, "another-logical-alias");
+        assert!(reopened.load_disk(API, "Account").unwrap().is_some());
+        assert!(reopened.load_disk(API, "Contact").unwrap().is_some());
+        let mut isolated = SchemaStore::for_target(&root, "context-b", target);
+        assert!(isolated.load_disk(API, "Account").unwrap().is_none());
+        reopened.invalidate(API, "Account").unwrap();
+        assert!(reopened.load_disk(API, "Account").unwrap().is_none());
+        assert!(reopened.load_disk(API, "Contact").unwrap().is_some());
+        assert_eq!(reopened.clear().unwrap(), 1);
+        assert!(!sqlite::db_path(&root, cache_key).exists());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[tokio::test]
