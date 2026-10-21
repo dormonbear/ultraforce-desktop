@@ -4,6 +4,17 @@ This is a SOQL / Anonymous-Apex / debug-log desktop tool with an Apex language e
 (`crates/apex-lang`), schema/SOQL tooling (`crates/sf-schema`, `crates/soql-lang`), and a
 Tauri/React desktop UI (`desktop/`).
 
+## Collaboration policy / 协作规则
+
+- Write all new human-readable content in English first, followed by Simplified Chinese: comments, documentation, commits, PRs, issues, reviews and release notes. Keep identifiers, file names and log/error codes in English.
+  所有新增的人类可读内容均先写英文，再写简体中文，包括注释、文档、提交、PR、议题、评审及发布说明；标识符、文件名及日志／错误代码保留英文。
+- UI localization is pre-approved: provide English and Simplified Chinese for labels, messages, settings and errors; default to the browser/OS locale, use a minimal implementation and test it. Add a heavy dependency only with clear justification.
+  UI 本地化已获批准：标签、消息、设置及错误均提供英文和简体中文，默认采用浏览器／操作系统语言，保持实现精简并添加测试；仅在理由充分时引入大型依赖。
+- Before implementing any other new user-facing feature, command, panel, setting or integration, submit a short proposal covering the problem, design and scope for user review. Proceed autonomously with bug fixes, refactors, tests, privacy removal, dependency upgrades, triage, merges and releases.
+  实现其他面向用户的新功能、命令、面板、设置或集成前，先提交涵盖问题、设计及范围的简短提案供用户审查。缺陷修复、重构、测试、隐私收集移除、依赖升级、分流、合并及发布可自主执行。
+- Ship a regression test with every fix. Prioritize coverage reports and CI thresholds, native Tauri E2E, a Windows CI runner and real-org tests runnable against a CI scratch org. Preserve every verification command's exit code; avoid separator chaining that masks failures.
+  每项修复均附带回归测试。优先完善覆盖率报告与 CI 阈值、原生 Tauri 端到端测试、Windows CI 运行器，以及可在 CI 临时组织上执行的真实组织测试。保留每个验证命令的退出码，避免用分隔符串联掩盖失败。
+
 ## Privacy
 
 Before changing networking, logging, storage, dependencies, or error handling,
