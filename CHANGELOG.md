@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.15](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.14...v0.3.15) (2026-10-21)
+
+
+### Bug Fixes
+
+* **privacy:** remove collection and keep editor assets local ([#67](https://github.com/dormonbear/ultraforce-desktop/issues/67)) ([15ab93b](https://github.com/dormonbear/ultraforce-desktop/commit/15ab93b7980efead6e67a3440f3cd01fd31f61fc))
+
 ## [0.3.14](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.13...v0.3.14) (2026-09-17)
 
 
