@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { act, render, screen, cleanup } from "@testing-library/react";
 import type { OrgConfig, OrgDto } from "../types";
 
 let orgState: {
@@ -15,9 +15,24 @@ import { TargetOrg } from "./TargetOrg";
 
 const ORG = { username: "me@example.com", alias: "CliAlias" } as OrgDto;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("TargetOrg", () => {
+  it("updates the locale while keeping the org name literal / 更新语言并保留组织名称原文", () => {
+    const languages = vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
+    orgState = {
+      orgs: [ORG], selected: ORG.username,
+      configs: { [ORG.username]: { alias: "{name}<组织>" } },
+    };
+    render(<TargetOrg />);
+    expect(screen.getByLabelText("Target org: {name}<组织>")).toBeTruthy();
+    languages.mockReturnValue(["zh-CN"]);
+    act(() => window.dispatchEvent(new Event("languagechange")));
+    expect(screen.getByLabelText("目标组织：{name}<组织>")).toBeTruthy();
+  });
   it("renders nothing when no org is selected", () => {
     orgState = { orgs: [ORG], selected: null, configs: {} };
     const { container } = render(<TargetOrg />);

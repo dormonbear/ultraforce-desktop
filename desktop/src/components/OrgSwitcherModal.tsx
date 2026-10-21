@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@astryxdesign/core/Button";
@@ -8,7 +8,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { HStack } from "@astryxdesign/core/HStack";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { FieldLabel } from "@astryxdesign/core/Field";
-import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { LocalizedDialogHeader as DialogHeader } from "./LocalizedDialogHeader";
 import { MotionDialog } from "./motion/MotionDialog";
 import { Layout, LayoutContent, LayoutFooter } from "@astryxdesign/core/Layout";
 import { List, ListItem } from "@astryxdesign/core/List";
@@ -25,9 +25,10 @@ import {
   type OrgColor,
 } from "../orgConfig";
 import type { OrgConfig, OrgDto } from "../types";
+import { translate, useI18n, type Locale, type MessageKey } from "../i18n";
 
 /** Coarse org-type chip from the flags `sf org list` returns (empty for prod). */
-function orgTypeLabel(org: OrgDto): string | null {
+function orgTypeLabel(org: OrgDto): MessageKey | null {
   if (org.isScratch) return "Scratch";
   if (org.isSandbox) return "Sandbox";
   return null;
@@ -160,6 +161,7 @@ function OrgRow({
   onSelect: (username: string) => void;
   onEdit: (username: string) => void;
 }) {
+  const { t } = useI18n();
   const typeLabel = orgTypeLabel(org);
   const name = orgDisplayName(config, org);
   return (
@@ -171,11 +173,11 @@ function OrgRow({
       startContent={<ColorDot color={orgColor(config.color)} />}
       endContent={
         <HStack gap={2} vAlign="center">
-          {typeLabel && <Badge variant="neutral" label={typeLabel} />}
+          {typeLabel && <Badge variant="neutral" label={t(typeLabel)} />}
           {isCurrent && <Icon icon="check" color="accent" size="sm" />}
           <IconButton
             variant="ghost"
-            label={`Configure ${name}`}
+            label={t("Configure {name}", { name })}
             icon={<Icon icon="wrench" />}
             onClick={() => onEdit(org.username)}
           />
@@ -206,9 +208,10 @@ function OrgListView({
   onConnect: () => void;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Layout
-      header={<DialogHeader title="Switch org" onOpenChange={onOpenChange} />}
+      header={<DialogHeader title={t("Switch org")} onOpenChange={onOpenChange} />}
       content={
         <LayoutContent>
           <List>
@@ -232,7 +235,7 @@ function OrgListView({
       footer={
         <LayoutFooter hasDivider>
           <Button
-            label="Connect org…"
+            label={t("Connect org…")}
             variant="ghost"
             icon={<Plus size={14} />}
             onClick={onConnect}
@@ -260,7 +263,7 @@ function displayConfig(input: OrgConfigInput): OrgConfig {
 }
 
 /** Validate the optional apiVersion field into `config`; error string when invalid. */
-function applyApiVersion(raw: string, config: OrgConfig): string | null {
+function applyApiVersion(raw: string, config: OrgConfig): MessageKey | null {
   const s = raw.trim();
   if (!s) return null;
   const norm = normalizeApiVersion(s);
@@ -270,7 +273,7 @@ function applyApiVersion(raw: string, config: OrgConfig): string | null {
 }
 
 /** Validate the optional timeout field into `config`; error string when invalid. */
-function applyTimeout(raw: string, config: OrgConfig): string | null {
+function applyTimeout(raw: string, config: OrgConfig): MessageKey | null {
   const s = raw.trim();
   if (!s) return null;
   const secs = parseTimeoutSecs(s);
@@ -283,7 +286,7 @@ function applyTimeout(raw: string, config: OrgConfig): string | null {
  * fields omitted (pure). Returns a user-readable error for invalid input. */
 export function validateOrgConfig(
   input: OrgConfigInput,
-): { config: OrgConfig } | { error: string } {
+): { config: OrgConfig } | { error: MessageKey } {
   const config = displayConfig(input);
   const error =
     applyApiVersion(input.apiVersion, config) ??
@@ -308,11 +311,12 @@ function ColorSwatchRow({
   value: string | undefined;
   onChange: (color: string | undefined) => void;
 }) {
+  const { t } = useI18n();
   const labelId = useId();
   return (
     <div className="flex flex-col gap-1.5">
       <FieldLabel
-        label="Color"
+        label={t("Color")}
         isGroupLabel
         inputID={labelId}
         labelID={labelId}
@@ -324,7 +328,7 @@ function ColorSwatchRow({
       >
         <button
           type="button"
-          aria-label="No color"
+          aria-label={t("No color")}
           aria-pressed={!value}
           onClick={() => onChange(undefined)}
           className={swatchClass(!value)}
@@ -333,7 +337,7 @@ function ColorSwatchRow({
           <button
             key={c.id}
             type="button"
-            aria-label={c.label}
+            aria-label={t(c.label)}
             aria-pressed={value === c.id}
             onClick={() => onChange(c.id)}
             style={{ background: c.bg }}
@@ -343,6 +347,12 @@ function ColorSwatchRow({
       </div>
     </div>
   );
+}
+
+function apiVersionPlaceholder(version: string, locale: Locale): string {
+  return version
+    ? translate(locale, "{value} (default)", { value: version })
+    : translate(locale, "e.g. 58.0");
 }
 
 /** The per-org config editor view (alias / color / apiVersion / timeout).
@@ -363,6 +373,7 @@ function OrgEditView({
   onBack: () => void;
   onSave: (next: OrgConfig) => Promise<void>;
 }) {
+  const { locale, t } = useI18n();
   const [alias, setAlias] = useState(config.alias ?? "");
   const [color, setColor] = useState<string | undefined>(config.color);
   const [apiVersion, setApiVersion] = useState(config.apiVersion ?? "");
@@ -371,15 +382,10 @@ function OrgEditView({
   );
   const [busy, setBusy] = useState(false);
 
-  const versionPlaceholder = useMemo(
-    () => (dynamicVersion ? `${dynamicVersion} (default)` : "e.g. 58.0"),
-    [dynamicVersion],
-  );
-
   const save = async () => {
     const result = validateOrgConfig({ alias, color, apiVersion, timeout });
     if ("error" in result) {
-      toast.error(result.error);
+      toast.error(t(result.error));
       return;
     }
     setBusy(true);
@@ -396,7 +402,7 @@ function OrgEditView({
     <Layout
       header={
         <DialogHeader
-          title={`Edit ${orgDisplayName(config, org)}`}
+          title={t("Edit {name}", { name: orgDisplayName(config, org) })}
           onOpenChange={onOpenChange}
           startContent={
             // astryx's DialogHeader compensates only the END actions
@@ -415,7 +421,7 @@ function OrgEditView({
               <Button
                 isIconOnly
                 variant="ghost"
-                label="Back to org list"
+                label={t("Back to org list")}
                 icon={<Icon icon="chevronLeft" />}
                 onClick={onBack}
               />
@@ -427,8 +433,7 @@ function OrgEditView({
         <LayoutContent>
           <div className="flex flex-col gap-3">
             <TextInput
-              label="Alias"
-              isOptional
+              label={t("Alias (optional)")}
               value={alias}
               onChange={setAlias}
               placeholder={org.username}
@@ -438,20 +443,18 @@ function OrgEditView({
             <ColorSwatchRow value={color} onChange={setColor} />
 
             <TextInput
-              label="API version"
-              isOptional
+              label={t("API version (optional)")}
               value={apiVersion}
               onChange={setApiVersion}
-              placeholder={versionPlaceholder}
+              placeholder={apiVersionPlaceholder(dynamicVersion, locale)}
               isDisabled={busy}
             />
 
             <TextInput
-              label="Timeout (seconds)"
-              isOptional
+              label={t("Timeout in seconds (optional)")}
               value={timeout}
               onChange={setTimeout}
-              placeholder={`${DEFAULT_TIMEOUT_SECS} (default)`}
+              placeholder={t("{value} (default)", { value: DEFAULT_TIMEOUT_SECS })}
               isDisabled={busy}
             />
           </div>
@@ -460,7 +463,7 @@ function OrgEditView({
       footer={
         <LayoutFooter hasDivider>
           <HStack hAlign="end">
-            <Button label="Save" isLoading={busy} clickAction={save} />
+            <Button label={t("Save")} isLoading={busy} clickAction={save} />
           </HStack>
         </LayoutFooter>
       }

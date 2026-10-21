@@ -6,6 +6,7 @@ import { orgColor, orgDisplayName, type OrgColor } from "../orgConfig";
 import { OrgSwitcherModal } from "./OrgSwitcherModal";
 import { ConnectOrgDialog } from "./ConnectOrg";
 import type { OrgConfig, OrgDto } from "../types";
+import { translate, useI18n, type Locale } from "../i18n";
 
 /** Resolve the active org + its config/color from the shared org state (pure). */
 function currentOrg(
@@ -19,8 +20,8 @@ function currentOrg(
 }
 
 /** Badge text when no org is selected. */
-function emptyLabel(hasOrgs: boolean): string {
-  return hasOrgs ? "Select org" : "No orgs";
+function emptyLabel(hasOrgs: boolean, locale: Locale): string {
+  return translate(locale, hasOrgs ? "Select org" : "No orgs");
 }
 
 /** Resolve the badge text (pure): error > loading > current org name > empty states. */
@@ -28,10 +29,11 @@ function badgeLabel(
   state: { error: string | null; loading: boolean; hasOrgs: boolean },
   cur: OrgDto | undefined,
   cfg: OrgConfig | undefined,
+  locale: Locale,
 ): string {
-  if (state.error) return "Org error";
-  if (state.loading) return "Loading…";
-  return cur ? orgDisplayName(cfg, cur) : emptyLabel(state.hasOrgs);
+  if (state.error) return translate(locale, "Org error");
+  if (state.loading) return translate(locale, "Loading…");
+  return cur ? orgDisplayName(cfg, cur) : emptyLabel(state.hasOrgs, locale);
 }
 
 /** Style + classes for the badge button — filled with the org's preset color when set. */
@@ -64,6 +66,7 @@ function BadgeIcon({ loading, colored }: { loading: boolean; colored: boolean })
 /** Titlebar org badge: shows the active org (alias, filled with its preset color
  * when set) and opens the switcher modal. Replaces the old dropdown selector. */
 export function OrgBadge() {
+  const { locale, t } = useI18n();
   const { orgs, selected, configs, loading, error } = useOrgs();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
@@ -73,9 +76,9 @@ export function OrgBadge() {
 
   const { cur, cfg, color } = currentOrg(orgs, selected, configs);
   const disabled = loading || orgs.length === 0;
-  const label = badgeLabel({ error, loading, hasOrgs: orgs.length > 0 }, cur, cfg);
+  const label = badgeLabel({ error, loading, hasOrgs: orgs.length > 0 }, cur, cfg, locale);
   const { style, className } = badgeAppearance(color, disabled);
-  const aria = cur ? `Current org: ${label}. Switch org` : "Select Salesforce org";
+  const aria = cur ? t("Current org: {name}. Switch org", { name: label }) : t("Select Salesforce org");
 
   return (
     <>
