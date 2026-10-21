@@ -51,10 +51,10 @@ class WebDriver:
             raise RuntimeError(f"Native IPC failed / 原生 IPC 失败: {command}: {result.get('error')}")
         return result.get("value")
 
-    def wait_script(self, script, timeout=30):
+    def wait_script(self, script, timeout=30, args=None):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            if self.execute(script):
+            if self.execute(script, args):
                 return
             time.sleep(0.1)
         raise TimeoutError("Native UI wait expired / 原生界面等待超时: " + script)
@@ -67,6 +67,18 @@ class WebDriver:
         element = self.request("POST", self.endpoint("element"), {"using": using, "value": value})
         identifier = element["element-6066-11e4-a52e-4f735466cecf"]
         self.request("POST", self.endpoint(f"element/{identifier}/click"), {})
+
+    def open_editor(self, empty_label):
+        # A fresh workspace has no editor until the user creates a tab. / 新工作区需由用户创建标签页后才有编辑器。
+        self.wait_script("""return [...document.querySelectorAll('.monaco-editor textarea.inputarea')]
+            .some(e => e.getClientRects().length) || [...document.querySelectorAll('button')]
+            .some(e => e.getClientRects().length && e.textContent.trim() === arguments[0])""", args=[empty_label])
+        buttons = self.request("POST", self.endpoint("elements"), {
+            "using": "xpath", "value": f"//button[normalize-space()='{empty_label}']",
+        })
+        if buttons:
+            identifier = buttons[0]["element-6066-11e4-a52e-4f735466cecf"]
+            self.request("POST", self.endpoint(f"element/{identifier}/click"), {})
 
     def editor_keys(self, text):
         script = """return [...document.querySelectorAll('.monaco-editor textarea.inputarea')].find(

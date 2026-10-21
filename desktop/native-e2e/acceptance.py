@@ -153,10 +153,12 @@ def verify_schema_ui(driver):
 def verify_editor_ui(driver):
     # WebDriver sends native keys through Monaco's actual completion providers. / WebDriver 向 Monaco 的真实补全提供器发送原生按键。
     driver.click("css selector", 'nav button[aria-label="SOQL"]')
+    driver.open_editor("New query")
     driver.editor_keys("\ue009a\ue000SELECT  FROM Synthetic__c\ue009\ue011\ue000" + "\ue014" * 7 + "\ue009\ue00d\ue000")
     driver.wait_script("return [...document.querySelectorAll('.suggest-widget.visible .monaco-list-row')].some(e => e.getClientRects().length && e.innerText.includes('Name'))")
     driver.editor_keys("\ue00c")
     driver.click("css selector", 'nav button[aria-label="Apex"]')
+    driver.open_editor("New script")
     driver.editor_keys("\ue009a\ue000NativeService.\ue009\ue00d\ue000")
     driver.wait_script("return [...document.querySelectorAll('.suggest-widget.visible .monaco-list-row')].some(e => e.getClientRects().length && e.innerText.includes('run'))")
     driver.editor_keys("\ue00c")
