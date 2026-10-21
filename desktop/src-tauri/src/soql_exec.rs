@@ -11,6 +11,10 @@ use crate::dto::{self, SoqlProgress, SoqlResultDto};
 use crate::error::CommandError;
 use crate::state::AppState;
 
+#[cfg(test)]
+#[path = "soql_exec_tests.rs"]
+mod tests;
+
 /// REST credentials for `org`, cached so only the first query per org pays the
 /// `sf org display` cost. Subsequent queries (and cancellation) are instant.
 async fn cached_auth(
@@ -72,7 +76,11 @@ async fn rest_query(
     match features::soql::run_query_rest(&auth, soql, opts, on_progress, cancel).await {
         Err(e) if session_expired(&e) => {
             state.auth_cache.lock().unwrap().remove(org.unwrap_or(""));
-            let auth = cached_auth(state, org).await?;
+            // Refresh must be cancellable like the initial credential fetch. / 刷新须与首次凭据获取一样支持取消。
+            let auth = tokio::select! {
+                a = cached_auth(state, org) => a?,
+                _ = poll_cancel(cancel) => return Ok(cancelled_result()),
+            };
             features::soql::run_query_rest(&auth, soql, opts, on_progress, cancel).await
         }
         other => other,

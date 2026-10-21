@@ -4829,6 +4829,7 @@ name = "ultraforce-desktop"
 version = "0.3.21"
 dependencies = [
  "apex-lang",
+ "async-trait",
  "dirs 5.0.1",
  "features",
  "log-parser",

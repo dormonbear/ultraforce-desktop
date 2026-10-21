@@ -32,6 +32,7 @@ dirs = "5"
 tauri-plugin-opener = "2"
 
 [dev-dependencies]
+async-trait = "0.1"
 # `#[tokio::test]` for the index-coordinator single-flight tests (runtime is not
 # needed by the release build, which runs under Tauri's runtime).
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
