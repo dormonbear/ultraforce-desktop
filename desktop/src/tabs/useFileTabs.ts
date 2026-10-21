@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import { save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { getJson, setJson } from "../store";
-import { saveFile, flushFiles } from "../fs/save";
+import { saveFile, writeFileNow } from "../fs/save";
 import { basename } from "../fs/paths";
 import type { TabBase } from "./types";
+
+type ReadTicket = { path: string; valid: boolean };
 
 interface Persisted {
   openPaths: string[];
@@ -21,14 +23,38 @@ interface Opts<T> {
  * File-backed tabs: open paths persist (not content); each tab's content field
  * loads from disk on open and debounce-autosaves back on patch.
  */
-export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>) {
+export function useFileTabs<T extends TabBase & { path: string }>(
+  opts: Opts<T>,
+) {
   const { tool, contentKey, make } = opts;
   const ext = tool === "apex" ? "apex" : "soql";
-  const [tabs, setTabs] = useState<T[]>([]);
+  const [tabs, setTabsState] = useState<T[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   // Untitled tabs live only in memory (path ""): no autosave, not persisted.
   const tabsRef = useRef<T[]>(tabs);
-  tabsRef.current = tabs;
+  const setTabs = useCallback((update: T[] | ((previous: T[]) => T[])) => {
+    const next =
+      typeof update === "function" ? update(tabsRef.current) : update;
+    tabsRef.current = next;
+    setTabsState(next);
+  }, []);
+  // Explorer double-clicks can arrive before the first disk read finishes.
+  const openingFiles = useRef(new Map<string, Promise<T>>());
+  const reads = useRef(new Set<ReadTicket>());
+  // Only retained while the startup store/read operation is pending.
+  const hydrationSkips = useRef<Set<string> | null>(null);
+  const saving = useRef(new Map<string, Promise<void>>());
+  const invalidate = useCallback((path: string) => {
+    hydrationSkips.current?.add(path);
+    for (const read of reads.current) {
+      if (read.path === path || read.path.startsWith(`${path}/`))
+        read.valid = false;
+    }
+    for (const opening of openingFiles.current.keys()) {
+      if (opening === path || opening.startsWith(`${path}/`))
+        openingFiles.current.delete(opening);
+    }
+  }, []);
   const untitledCounter = useRef(0);
   // Transient request to scroll a tab's editor to a line (from content search).
   const [reveal, setReveal] = useState<{
@@ -37,45 +63,81 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     nonce: number;
   } | null>(null);
   const revealNonce = useRef(0);
-  const hydrated = useRef(false);
+  const [hydrated, setHydrated] = useState(false);
   const storeKey = `tabs.${tool}`;
 
   // Hydrate: read persisted open paths, load each file's content.
   useEffect(() => {
     let cancelled = false;
-    void getJson<Persisted | null>(storeKey, null).then(async (saved) => {
-      if (cancelled || !saved || !Array.isArray(saved.openPaths)) {
-        hydrated.current = true;
-        return;
-      }
-      const loaded: T[] = [];
-      for (const path of saved.openPaths) {
-        try {
-          loaded.push(make(path, await readTextFile(path)));
-        } catch {
-          /* file deleted out-of-band — skip */
+    const skipped = new Set<string>();
+    hydrationSkips.current = skipped;
+    void getJson<Persisted | null>(storeKey, null)
+      .then(async (saved) => {
+        if (cancelled) return;
+        if (!saved || !Array.isArray(saved.openPaths)) {
+          setHydrated(true);
+          return;
         }
-      }
-      if (cancelled) return;
-      setTabs(loaded);
-      const act = loaded.find((t) => t.path === saved.activePath) ?? loaded[0];
-      setActiveId(act?.id ?? null);
-      hydrated.current = true;
-    });
+        const loaded: T[] = [];
+        const restoring = new Map(
+          saved.openPaths.map((path) => [path, { path, valid: true }]),
+        );
+        for (const ticket of restoring.values()) reads.current.add(ticket);
+        try {
+          for (const path of restoring.keys()) {
+            if (cancelled) return;
+            try {
+              loaded.push(make(path, await readTextFile(path)));
+            } catch {
+              /* file deleted out-of-band — skip */
+            }
+          }
+          if (cancelled) return;
+          // Restoration may finish after the user starts working. Keep live tab
+          // identities/content (including untitled drafts), and add only missing paths.
+          setTabs((current) => {
+            const paths = new Set(current.map((t) => t.path));
+            const restored = loaded.filter((t) => {
+              if (
+                !restoring.get(t.path)?.valid ||
+                [...skipped].some(
+                  (path) => t.path === path || t.path.startsWith(`${path}/`),
+                )
+              )
+                return false;
+              if (paths.has(t.path)) return false;
+              paths.add(t.path);
+              return true;
+            });
+            return [...restored, ...current];
+          });
+          const act =
+            tabsRef.current.find((t) => t.path === saved.activePath) ??
+            tabsRef.current[0];
+          setActiveId((current) => current ?? act?.id ?? null);
+          setHydrated(true);
+        } finally {
+          for (const ticket of restoring.values()) reads.current.delete(ticket);
+        }
+      })
+      .finally(() => {
+        if (hydrationSkips.current === skipped) hydrationSkips.current = null;
+      });
     return () => {
       cancelled = true;
+      if (hydrationSkips.current === skipped) hydrationSkips.current = null;
     };
   }, [storeKey, make]);
 
   // Persist open paths + active path (never content).
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (!hydrated) return;
     const active = tabs.find((t) => t.id === activeId) ?? null;
     void setJson<Persisted>(storeKey, {
       openPaths: tabs.filter((t) => t.path !== "").map((t) => t.path),
       activePath: active && active.path !== "" ? active.path : null,
     });
-  }, [tabs, activeId, storeKey]);
+  }, [tabs, activeId, storeKey, hydrated]);
 
   const openFile = useCallback(
     async (path: string, line?: number) => {
@@ -84,26 +146,56 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
         revealNonce.current += 1;
         setReveal({ id, line, nonce: revealNonce.current });
       };
-      const existing = tabs.find((t) => t.path === path);
+      const existing = tabsRef.current.find((t) => t.path === path);
       if (existing) {
         setActiveId(existing.id);
         fire(existing.id);
         return;
       }
-      const tab = make(path, await readTextFile(path));
-      setTabs((prev) => [...prev, tab]);
-      setActiveId(tab.id);
-      fire(tab.id);
+      let opening = openingFiles.current.get(path);
+      const ticket = { path, valid: true };
+      reads.current.add(ticket);
+      try {
+        if (!opening) {
+          opening = readTextFile(path)
+            .then((content) => make(path, content))
+            .finally(() => {
+              if (openingFiles.current.get(path) === opening)
+                openingFiles.current.delete(path);
+            });
+          openingFiles.current.set(path, opening);
+        }
+        const loaded = await opening;
+        // Validity is checked after IO because close/rename may happen during the read.
+        if (ticket.valid) {
+          const tab = tabsRef.current.find((t) => t.path === path) ?? loaded;
+          // Publish the identity immediately: another open may resume in the same
+          // React batch, before the tabs state has committed to the next render.
+          if (!tabsRef.current.some((t) => t.path === path)) {
+            setTabs((prev) =>
+              prev.some((t) => t.path === path) ? prev : [...prev, tab],
+            );
+          }
+          setActiveId(tab.id);
+          fire(tab.id);
+        }
+      } finally {
+        reads.current.delete(ticket);
+      }
     },
-    [tabs, make],
+    [make],
   );
 
   const close = useCallback((id: string) => {
+    const path = tabsRef.current.find((t) => t.id === id)?.path;
+    if (path) invalidate(path);
     setTabs((prev) => {
       const idx = prev.findIndex((t) => t.id === id);
       const next = prev.filter((t) => t.id !== id);
       setActiveId((cur) =>
-        cur !== id ? cur : (next[idx - 1] ?? next[idx] ?? next[0])?.id ?? null,
+        cur !== id
+          ? cur
+          : ((next[idx - 1] ?? next[idx] ?? next[0])?.id ?? null),
       );
       return next;
     });
@@ -113,7 +205,9 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
 
   // Re-insert a previously closed tab (powers "undo close" for unsaved tabs).
   const restore = useCallback((tab: T) => {
-    setTabs((prev) => (prev.some((t) => t.id === tab.id) ? prev : [...prev, tab]));
+    setTabs((prev) =>
+      prev.some((t) => t.id === tab.id) ? prev : [...prev, tab],
+    );
     setActiveId(tab.id);
   }, []);
 
@@ -139,38 +233,48 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
   // patch an already-open tab, otherwise open a fresh one.
   const openOrReplace = useCallback(
     async (path: string, content: string) => {
-      await writeTextFile(path, content);
-      const existing = tabs.find((t) => t.path === path);
-      if (existing) {
-        patch(existing.id, { [contentKey]: content } as Partial<T>);
-        setActiveId(existing.id);
-        return;
-      }
-      const tab = make(path, content);
-      setTabs((prev) => [...prev, tab]);
+      const existing = tabsRef.current.find((t) => t.path === path);
+      const tab = existing
+        ? { ...existing, [contentKey]: content }
+        : make(path, content);
+      setTabs((prev) =>
+        existing
+          ? prev.map((t) => (t.id === tab.id ? tab : t))
+          : [...prev, tab],
+      );
       setActiveId(tab.id);
+      await writeFileNow(path, content);
     },
-    [tabs, make, patch, contentKey],
+    [make, contentKey, setTabs],
   );
 
   // Reflect external path changes (rename/move) on any open tab.
   const retitle = useCallback((from: string, to: string) => {
+    invalidate(from);
     setTabs((prev) =>
       prev.map((t) =>
-        t.path === from ? { ...t, path: to, title: basename(to) } : t,
+        t.path === from || t.path.startsWith(`${from}/`)
+          ? {
+              ...t,
+              path: to + t.path.slice(from.length),
+              title: basename(to + t.path.slice(from.length)),
+            }
+          : t,
       ),
     );
   }, []);
 
   // Close a tab whose file was deleted.
   const closeByPath = useCallback((path: string) => {
+    invalidate(path);
     setTabs((prev) => {
-      const t = prev.find((x) => x.path === path);
-      if (!t) return prev;
-      const idx = prev.findIndex((x) => x.id === t.id);
-      const next = prev.filter((x) => x.id !== t.id);
+      const removed = prev.filter(
+        (t) => t.path === path || t.path.startsWith(`${path}/`),
+      );
+      const removedIds = new Set(removed.map((t) => t.id));
+      const next = prev.filter((t) => !removedIds.has(t.id));
       setActiveId((cur) =>
-        cur !== t.id ? cur : (next[idx - 1] ?? next[idx] ?? next[0])?.id ?? null,
+        removed.some((t) => t.id === cur) ? (next[0]?.id ?? null) : cur,
       );
       return next;
     });
@@ -187,26 +291,56 @@ export function useFileTabs<T extends TabBase & { path: string }>(opts: Opts<T>)
     setActiveId(tab.id);
   }, [make]);
 
-  // Save a tab. A saved tab just flushes its debounced autosave; an untitled
+  // Save a tab. A saved tab writes its live content and awaits IO; an untitled
   // tab prompts "Save As", writes the chosen path, and becomes a normal tab.
-  const save = useCallback(
+  const saveTab = useCallback(
     async (id: string) => {
       const tab = tabsRef.current.find((t) => t.id === id);
       if (!tab) return;
       if (tab.path !== "") {
-        await flushFiles();
+        await writeFileNow(tab.path, String(tab[contentKey]));
         return;
       }
       const picked = await saveDialog({ defaultPath: `${tab.title}.${ext}` });
       if (!picked) return;
-      await writeTextFile(picked, String(tab[contentKey]));
-      setTabs((prev) =>
-        prev.map((t) =>
-          t.id === id ? { ...t, path: picked, title: basename(picked) } : t,
-        ),
-      );
+      if (tabsRef.current.some((t) => t.id !== id && t.path === picked)) {
+        throw new Error(
+          "This file is already open. Save its tab or choose another path.",
+        );
+      }
+      // The dialog and disk write may both outlive edits to the draft.
+      // Keep writing the live content until it is stable before adopting the path.
+      const persistDraft = async (target: string): Promise<void> => {
+        const current = tabsRef.current.find((t) => t.id === id);
+        if (!current) return;
+        const content = String(current[contentKey]);
+        const destination = await writeFileNow(target, content);
+        const latest = tabsRef.current.find((t) => t.id === id);
+        if (!latest) return;
+        if (String(latest[contentKey]) !== content)
+          return persistDraft(destination);
+        setTabs((prev) =>
+          prev.map((t) =>
+            t.id === id
+              ? { ...t, path: destination, title: basename(destination) }
+              : t,
+          ),
+        );
+      };
+      await persistDraft(picked);
     },
     [contentKey, ext],
+  );
+
+  const save = useCallback(
+    (id: string): Promise<void> => {
+      const existing = saving.current.get(id);
+      if (existing) return existing;
+      const request = saveTab(id).finally(() => saving.current.delete(id));
+      saving.current.set(id, request);
+      return request;
+    },
+    [saveTab],
   );
 
   const active = tabs.find((t) => t.id === activeId) ?? null;

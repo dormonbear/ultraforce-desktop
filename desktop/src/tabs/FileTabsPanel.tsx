@@ -11,7 +11,6 @@ import { useSidebarSync } from "../panels/useSidebarSync";
 import { Explorer } from "../components/Explorer";
 import { getRoot, type Tool } from "../fs/workspace";
 import { renameNode } from "../fs/tree";
-import { flushFiles } from "../fs/save";
 import { formatIpcError } from "../errorFormat";
 import { renameIntent } from "./nameEdit";
 import type { Reveal } from "../editor/monaco-reveal";
@@ -85,7 +84,10 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   // Stable across content edits (only changes on tab switch) so the editor does
   // not re-render on every keystroke.
   const onSave = useCallback(() => {
-    if (active) void save(active.id);
+    if (active)
+      void save(active.id).catch((error: unknown) => {
+        toast.error(formatIpcError(error));
+      });
   }, [save, active?.id]);
 
   // Closing an unsaved untitled tab discards its content — offer a quick undo.
@@ -119,9 +121,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   const renameOnDisk = useCallback(
     async (from: string, to: string): Promise<boolean> => {
       try {
-        await flushFiles(); // persist pending autosaves to the old path first
-        const next = await renameNode(from, to);
-        retitle(from, next);
+        await renameNode(from, to, retitle);
         setTreeRefresh((n) => n + 1);
         return true;
       } catch (err) {
@@ -172,7 +172,11 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
             root={root}
             ext={ext}
             activePath={active?.path ?? null}
-            onOpen={(p, line) => void openFile(p, line)}
+            onOpen={(p, line) =>
+              void openFile(p, line).catch((error: unknown) => {
+                toast.error(formatIpcError(error));
+              })
+            }
             onRenamed={retitle}
             onRemoved={closeByPath}
             refreshToken={treeRefresh}

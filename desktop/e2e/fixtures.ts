@@ -227,7 +227,7 @@ const RESP: Record<string, unknown> = {
 
 /** Installs the mocked IPC before app scripts run. `overrides` patches RESP
  * (e.g. force `list_orgs` empty to exercise the setup page). */
-async function installMocks(
+export async function installMocks(
   page: Page,
   overrides: Record<string, unknown> = {},
 ): Promise<void> {
@@ -337,7 +337,29 @@ async function installMocks(
         if (path) files[path] = text;
         return Promise.resolve(null);
       }
-      if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
+      if (cmd === "plugin:fs|rename" || cmd === "plugin:fs|remove") {
+          const from = (args.oldPath ?? args.path) as string;
+          const to = args.newPath as string | undefined;
+          for (const path of Object.keys(files)) {
+            if (path !== from && !path.startsWith(`${from}/`)) continue;
+            if (to) files[to + path.slice(from.length)] = files[path];
+            delete files[path];
+          }
+          for (const [dir, entries] of Object.entries(dirs)) {
+            const index = entries.findIndex(
+              (e) => `${dir}/${(e as { name: string }).name}` === from,
+            );
+            if (index >= 0) {
+              if (to)
+                (entries[index] as { name: string }).name = to.slice(
+                  to.lastIndexOf("/") + 1,
+                );
+              else entries.splice(index, 1);
+            }
+          }
+          return Promise.resolve(null);
+        }
+        if (cmd.startsWith("plugin:fs|")) return Promise.resolve(null);
       // Save dialog: echo the requested default path under /ws so tests can
       // assert the right file (and format ↔ extension mismatches surface).
       // plugin-dialog wraps its options: invoke('plugin:dialog|save', { options }).
