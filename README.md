@@ -246,6 +246,11 @@ or copy `skills/ost/SKILL.md` into your agent's skills directory.
   `%LOCALAPPDATA%` 下的 `ultraforce`，可通过 `--root` 或 `UF_OST_ROOT` 覆盖。
   `<root>/_identity/bindings.db` 将原样 CLI 别名／用户名映射至上下文：同一用户的等价目标共享代次，
   同一组织的不同用户保持隔离。快照数据库继续使用 WAL，重建原子发布期间仍可一致读取。
+- **On-demand describes:** missing object descriptions are cached separately from published
+  snapshot rows and expire when a new generation is published. A slow describe cannot overwrite
+  a newer published generation; failed publication preserves the previous cache.
+  **按需描述：** 缺失对象的描述独立于已发布快照行缓存，并在新代次发布时失效。
+  耗时较长的 describe 不会覆盖更新的已发布代次；发布失败会保留之前的缓存。
 - **Existing logical-key indexes:** old `<root>/<alias-or-username>/index.db` files cannot prove
   their physical org/user identity. They remain untouched; use `ost_reindex` or
   `uf-ost index --org '<target>'` to rebuild into a verified context. Sync can discover a new

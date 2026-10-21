@@ -499,3 +499,7 @@ mod query_proof_tests;
 #[cfg(test)]
 #[path = "index_target_tests.rs"]
 mod target_tests;
+
+#[cfg(test)]
+#[path = "index_on_demand_tests.rs"]
+mod on_demand_tests;

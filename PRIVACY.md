@@ -25,6 +25,10 @@ It keeps working files and functional caches on your computer:
   user; they contain no credentials or usage history.
   用于离线补全的本地 Salesforce schema 与 Apex 符号索引，以及当前路由绑定（组织 ID、认证用户名、
   请求目标和生成的缓存键）。这些绑定确保别名及离线快照关联至正确用户，不包含凭据或使用历史。
+  On-demand object descriptions use a separate, generation-scoped table in the
+  same local index database. Publishing the next generation clears those entries.
+  按需对象描述保存在同一本地索引数据库的独立表中，仅对获取时的代次有效；
+  发布下一代次时会清除这些条目。
 
 These files may contain private business data. They are work products and
 functional caches, not analytics, and are not uploaded to the maintainers.

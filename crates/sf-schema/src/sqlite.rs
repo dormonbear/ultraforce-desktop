@@ -239,6 +239,20 @@ pub fn replace_objects_in_transaction(
     Ok(())
 }
 
+/// Discard obsolete on-demand entries inside the publisher's transaction.
+/// 在发布器事务内移除过时的按需条目。
+pub fn discard_demand_cache(conn: &Connection) -> rusqlite::Result<()> {
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_demand_cache')",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists {
+        conn.execute("DELETE FROM schema_demand_cache", [])?;
+    }
+    Ok(())
+}
+
 /// FTS5 fuzzy match over object/field names + labels. `query` is a raw FTS5
 /// MATCH expression (the caller tokenizes user input). Returns
 /// `(object_name, field_name, field_label)` rows, newest-inserted last.

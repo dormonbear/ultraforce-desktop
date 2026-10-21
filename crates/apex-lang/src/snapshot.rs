@@ -229,6 +229,7 @@ fn save_generation_inner(
     )
     .map_err(std::io::Error::other)?;
 
+    sf_schema::sqlite::discard_demand_cache(&tx).map_err(std::io::Error::other)?;
     for ty in &ost.org_types {
         insert_type(&tx, ty, None).map_err(std::io::Error::other)?;
     }
