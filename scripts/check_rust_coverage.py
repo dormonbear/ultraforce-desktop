@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sys
 
-FLOORS = {"lines": 84.0, "functions": 82.0, "desktop_lines": 40.0}
+FLOORS = {"lines": 85.0, "functions": 83.0, "desktop_lines": 44.0}
 
 
 def counts(summary, allow_empty=False):
