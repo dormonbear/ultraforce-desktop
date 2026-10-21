@@ -1,5 +1,14 @@
 # Changelog / 更新日志
 
+## [0.3.22](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.21...v0.3.22) (2026-10-21)
+
+
+### Bug Fixes / 缺陷修复
+
+* cancel SOQL credential refresh promptly / 及时取消 SOQL 凭据刷新 ([#104](https://github.com/dormonbear/ultraforce-desktop/issues/104)) ([6835cc4](https://github.com/dormonbear/ultraforce-desktop/commit/6835cc444eb5f742789ed1b403b678418b422159))
+  Cancel now stops an in-progress credential refresh after an expired Salesforce session, for both SOQL queries and their preflight size checks. Size-check cancellation returns control to the editor without starting the data query.
+  Salesforce 会话过期后，取消操作现可停止正在进行的凭据刷新，适用于 SOQL 查询及其预检计数。取消预检会将控制权交还编辑器，且不启动数据查询。
+
 ## [0.3.21](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.20...v0.3.21) (2026-10-21)
 
 
