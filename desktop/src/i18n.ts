@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 const chinese = {
   SOQL: "SOQL",
@@ -103,6 +103,29 @@ const chinese = {
   "API version (optional)": "API 版本（可选）",
   "Timeout in seconds (optional)": "超时时长，单位秒（可选）",
   Save: "保存",
+  Explain: "执行计划",
+  Cancel: "取消",
+  "Write a query to run": "请输入要运行的查询",
+  "Run a query to see results": "运行查询以查看结果",
+  "Checking size…": "正在检查结果规模…",
+  "Executing…": "正在执行…",
+  error: "错误",
+  "{count} row returned": "已返回 {count} 行",
+  "{count} rows returned": "已返回 {count} 行",
+  "{fetched} of {total} rows · cancelled": "{total} 行中已获取 {fetched} 行 · 已取消",
+  "Cancelled — showing {count} rows": "已取消，显示 {count} 行",
+  "{milliseconds} ms": "{milliseconds} 毫秒",
+  "<1s": "不足 1 秒",
+  "{seconds}s": "{seconds}秒",
+  "{minutes}m {seconds}s": "{minutes}分 {seconds}秒",
+  "ETA {time}": "预计剩余 {time}",
+  "Large result set": "大结果集",
+  "This query has no": "此查询未设置",
+  "and would return about": "，预计返回约",
+  "rows — more than the {threshold} row guard. Fetching them all may be slow.":
+    "行，超过 {threshold} 行保护阈值。获取全部记录可能较慢。",
+  "Add LIMIT {count}": "添加 LIMIT {count}",
+  "Run anyway": "仍然运行",
 } as const;
 
 export type Locale = "en" | "zh-CN";
@@ -141,9 +164,10 @@ function subscribe(callback: () => void) {
 
 export function useI18n() {
   const locale = useSyncExternalStore(subscribe, browserLocale, () => "en" as Locale);
-  return {
-    locale,
-    t: (key: MessageKey, values?: Readonly<Record<string, string | number>>) =>
+  const t = useCallback(
+    (key: MessageKey, values?: Readonly<Record<string, string | number>>) =>
       translate(locale, key, values),
-  };
+    [locale],
+  );
+  return { locale, t };
 }
