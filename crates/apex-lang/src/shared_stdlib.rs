@@ -179,15 +179,18 @@ mod tests {
     #[test]
     fn concurrent_writers_leave_one_intact_payload() {
         let root = unique_root();
+        let start = std::sync::Arc::new(std::sync::Barrier::new(4));
         // Concurrent connections must publish complete rows of different sizes.
         // 并发连接必须发布大小不同但完整的缓存行。
         let writers: Vec<_> = (0..4)
             .map(|n| {
                 let root = root.clone();
+                let start = start.clone();
                 std::thread::spawn(move || {
                     let types: serde_json::Map<_, _> = (0..n * 50)
                         .map(|i| (format!("Type{i}"), json!({})))
                         .collect();
+                    start.wait();
                     write(
                         &root,
                         "60.0",

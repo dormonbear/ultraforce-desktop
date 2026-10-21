@@ -6,6 +6,7 @@
 use crate::model::{Field, PicklistValue, SObjectSchema};
 use rusqlite::{params, Connection, OpenFlags};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 // Field where-used cache moved to `deps.rs`; re-exported so existing
 // `sqlite::FieldDep` / `sqlite::{get,replace}_field_deps` paths keep working.
@@ -43,8 +44,36 @@ pub fn open_without_schema(path: &Path) -> rusqlite::Result<Connection> {
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
     }
     let conn = Connection::open(path)?;
-    conn.pragma_update(None, "journal_mode", "WAL")?;
+    enable_wal(&conn)?;
     Ok(conn)
+}
+
+/// Concurrent first-open WAL upgrades can return BUSY without invoking SQLite's
+/// busy handler. Retry only lock contention within a five-second budget.
+/// 多连接首次启用 WAL 时可能直接返回 BUSY 而不调用 SQLite 等待处理器。
+/// 仅针对锁竞争重试，等待预算为五秒。
+fn enable_wal(conn: &Connection) -> rusqlite::Result<()> {
+    let budget = Duration::from_secs(5);
+    let started = Instant::now();
+    loop {
+        conn.busy_timeout(budget.saturating_sub(started.elapsed()))?;
+        match conn.pragma_update(None, "journal_mode", "WAL") {
+            Ok(()) => break,
+            Err(rusqlite::Error::SqliteFailure(error, _))
+                if matches!(
+                    error.code,
+                    rusqlite::ErrorCode::DatabaseBusy | rusqlite::ErrorCode::DatabaseLocked
+                ) && started.elapsed() < budget =>
+            {
+                std::thread::sleep(
+                    Duration::from_millis(10).min(budget.saturating_sub(started.elapsed())),
+                );
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    // Restore the usual writer timeout after initialization. / 初始化后恢复常规写入等待时长。
+    conn.busy_timeout(budget)
 }
 
 /// Create sf-schema's tables (`objects`, `fields`, `fields_fts`) if absent.
