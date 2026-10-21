@@ -9,6 +9,10 @@
 * **mcp:** publish coherent offline snapshots and complete search provenance ([#72](https://github.com/dormonbear/ultraforce-desktop/issues/72)) ([0d5ec57](https://github.com/dormonbear/ultraforce-desktop/commit/0d5ec579f77df6970bcee966679c626e6ff83051))
 * preserve native Windows workspace paths and save identity ([#71](https://github.com/dormonbear/ultraforce-desktop/issues/71)) ([3f348de](https://github.com/dormonbear/ultraforce-desktop/commit/3f348dedf1b2436ba08557ba5d80c9f77069b72f))
 
+### Upgrade note
+
+The derived offline index format advances from v3 to v4. Run a full `ost_reindex` for each existing org index before using offline tools or delta sync; incompatible indexes are rejected rather than silently upgraded. Cross-org results explicitly list skipped indexes. Refreshes publish schema, Apex and freshness together and refuse stale prepared writes; retry when a concurrent refresh wins.
+
 ## [0.3.15](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.14...v0.3.15) (2026-10-21)
 
 
