@@ -122,9 +122,10 @@ struct ApexArgs {
 
 #[derive(Deserialize, schemars::JsonSchema)]
 struct SearchArgs {
-    /// Free text; fuzzy-matched as prefixes over field and Apex-type names.
+    /// Free text; prefix-matched over object/field names, labels and Apex types.
     query: String,
-    org: String,
+    /// Omit to search all indexed orgs, grouped by snapshot.
+    org: Option<String>,
 }
 
 #[derive(Deserialize, schemars::JsonSchema)]
@@ -227,6 +228,7 @@ struct SyncDto {
 #[serde(rename_all = "camelCase")]
 struct StatusListDto {
     orgs: Vec<query::StatusDto>,
+    skipped: Vec<query::SkippedOrg>,
 }
 
 /// A live record's fields are an arbitrary JSON object; MCP requires an
@@ -333,14 +335,15 @@ impl OstServer {
 
     #[tool(
         name = "ost_search",
-        description = "FTS5 fuzzy match over field and Apex-type names in an org — for when you only know a human-ish term."
+        description = "FTS5 prefix search over object/field names and labels and Apex types. Omit org to search all indexed snapshots, grouped by org; skipped lists incompatible snapshots."
     )]
     async fn ost_search(
         &self,
         Parameters(a): Parameters<SearchArgs>,
-    ) -> Result<Json<query::SearchDto>, ErrorData> {
-        let snap = self.open(&a.org)?;
-        query::search(&snap, &a.query, 25).map(Json).map_err(to_err)
+    ) -> Result<Json<query::SearchResponse>, ErrorData> {
+        query::search_orgs(&self.root, &a.query, a.org.as_deref(), 25)
+            .map(Json)
+            .map_err(to_err)
     }
 
     #[tool(
@@ -357,6 +360,7 @@ impl OstServer {
             None => query::list_orgs(&self.root),
         };
         let mut out = Vec::new();
+        let mut skipped = Vec::new();
         for org in orgs {
             match query::open_org(&self.root, &org) {
                 Ok(snap) => out.push(query::status(&snap, lock::is_running(&self.root, &org))),
@@ -364,10 +368,11 @@ impl OstServer {
                     if single.is_some() {
                         return Err(to_err(e));
                     }
+                    skipped.push(query::SkippedOrg::from_error(&org, &e));
                 }
             }
         }
-        Ok(Json(StatusListDto { orgs: out }))
+        Ok(Json(StatusListDto { orgs: out, skipped }))
     }
 
     #[tool(

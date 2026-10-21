@@ -155,7 +155,12 @@ pub fn load_snapshot(root: &Path, org_id: &str, api_version: &str) -> Option<(Os
         tracing::info!(org = %org_id, "snapshot miss: no index.db file");
         return None;
     }
-    let conn = crate::db::open_apex(&path).ok()?;
+    let conn = sf_schema::sqlite::open_readonly(&path).ok()?;
+    conn.execute_batch("BEGIN").ok()?;
+    let meta = crate::db::read_meta(&conn).ok()??;
+    if meta.schema_version != crate::db::SCHEMA_VERSION {
+        return None;
+    }
 
     let manifest = read_manifest(&conn)?;
     if manifest.api_version != api_version {
@@ -388,6 +393,25 @@ mod tests {
         assert_eq!(got_ost, ost);
         assert_eq!(got_m, m);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn stale_snapshot_is_not_loaded_or_promoted_by_delta_sync() {
+        let root = std::env::temp_dir().join(format!("snap-stale-{}", std::process::id()));
+        let (ost, manifest) = sample();
+        save_snapshot(&root, &ost, &manifest).unwrap();
+        {
+            let conn = crate::db::open_apex(&db_path(&root, "myorg")).unwrap();
+            conn.execute("UPDATE meta SET schema_version=3", [])
+                .unwrap();
+            conn.pragma_update(None, "journal_mode", "DELETE").unwrap();
+        }
+        let path = db_path(&root, "myorg");
+        let before = std::fs::read(&path).unwrap();
+        assert!(load_snapshot(&root, "myorg", "60.0").is_none());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        assert!(!path.with_extension("db-wal").exists());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     #[test]

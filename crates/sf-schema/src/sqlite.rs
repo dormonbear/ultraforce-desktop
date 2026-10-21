@@ -67,6 +67,7 @@ pub fn ensure_object_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE VIRTUAL TABLE IF NOT EXISTS fields_fts USING fts5(
           object_name, field_name, field_label, picklist_values, help_text, formula
         );
+        CREATE VIRTUAL TABLE IF NOT EXISTS objects_fts USING fts5(object_name, object_label, object_label_plural);
         CREATE TABLE IF NOT EXISTS field_deps (
           object_name TEXT NOT NULL, field_name TEXT NOT NULL,
           component_type TEXT NOT NULL, component_name TEXT NOT NULL, component_id TEXT NOT NULL,
@@ -104,6 +105,10 @@ pub fn upsert_object(conn: &Connection, s: &SObjectSchema) -> rusqlite::Result<(
         ],
     )?;
     let object_id = conn.last_insert_rowid();
+    conn.execute(
+        "INSERT INTO objects_fts VALUES (?1, ?2, ?3)",
+        params![s.name, s.label, s.label_plural],
+    )?;
 
     for field in &s.fields {
         let reference_to = serde_json::to_string(&field.reference_to)
@@ -178,6 +183,7 @@ pub fn replace_all_objects(
         "DROP TABLE IF EXISTS fields;
          DROP TABLE IF EXISTS objects;
          DROP TABLE IF EXISTS fields_fts;
+         DROP TABLE IF EXISTS objects_fts;
          DROP TABLE IF EXISTS field_deps;
          DROP TABLE IF EXISTS field_deps_meta;",
     )?;
@@ -203,6 +209,17 @@ pub fn search_fields(
     let rows = stmt.query_map(params![query, limit as i64], |row| {
         Ok((row.get(0)?, row.get(1)?, row.get(2)?))
     })?;
+    rows.collect()
+}
+
+/// Search object API names and singular/plural labels, including fieldless objects.
+pub fn search_objects(
+    conn: &Connection,
+    query: &str,
+    limit: usize,
+) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT object_name FROM objects_fts WHERE objects_fts MATCH ?1 ORDER BY rank, object_name LIMIT ?2")?;
+    let rows = stmt.query_map(params![query, limit as i64], |row| row.get(0))?;
     rows.collect()
 }
 
@@ -410,11 +427,18 @@ pub fn delete_object(conn: &Connection, name: &str) -> rusqlite::Result<()> {
         Err(e) => return Err(e),
     };
     if let Some(object_id) = object_id {
-        conn.execute("DELETE FROM fields WHERE object_id = ?1", params![object_id])?;
+        conn.execute(
+            "DELETE FROM fields WHERE object_id = ?1",
+            params![object_id],
+        )?;
         conn.execute("DELETE FROM objects WHERE id = ?1", params![object_id])?;
     }
     conn.execute(
         "DELETE FROM fields_fts WHERE object_name = ?1 COLLATE NOCASE",
+        params![name],
+    )?;
+    conn.execute(
+        "DELETE FROM objects_fts WHERE object_name = ?1 COLLATE NOCASE",
         params![name],
     )?;
     Ok(())
