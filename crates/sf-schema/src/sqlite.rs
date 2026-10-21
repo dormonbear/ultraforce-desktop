@@ -30,13 +30,20 @@ pub fn open_readonly(path: &Path) -> rusqlite::Result<Connection> {
 /// Open (creating parent dirs as needed) the org's unified `index.db`, enable
 /// WAL mode, and ensure sf-schema's tables exist. Shared opener for apex-lang.
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
+    let conn = open_without_schema(path)?;
+    ensure_object_schema(&conn)?;
+    Ok(conn)
+}
+
+/// Open a writer without initializing any tables. Generation publishers must
+/// initialize their tables INSIDE their transaction, including failed rebuilds.
+pub fn open_without_schema(path: &Path) -> rusqlite::Result<Connection> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
     }
     let conn = Connection::open(path)?;
     conn.pragma_update(None, "journal_mode", "WAL")?;
-    ensure_object_schema(&conn)?;
     Ok(conn)
 }
 

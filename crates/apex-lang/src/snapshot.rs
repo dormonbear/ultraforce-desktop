@@ -108,8 +108,10 @@ fn save_generation_inner(
     raw_org_types: Option<&[serde_json::Value]>,
 ) -> std::io::Result<()> {
     let path = db_path(root, &manifest.org_id);
-    let mut conn = crate::db::open_apex(&path).map_err(std::io::Error::other)?;
+    let mut conn = sf_schema::sqlite::open_without_schema(&path).map_err(std::io::Error::other)?;
     let tx = conn.transaction().map_err(std::io::Error::other)?;
+    crate::db::ensure_apex_schema(&tx).map_err(std::io::Error::other)?;
+    sf_schema::sqlite::ensure_object_schema(&tx).map_err(std::io::Error::other)?;
     if let Some((schemas, full)) = schemas {
         if let Some(raw) = raw_org_types {
             let body = serde_json::to_string(raw).map_err(std::io::Error::other)?;
@@ -184,7 +186,7 @@ pub fn snapshot_api_version(root: &Path, org_id: &str) -> Option<String> {
     if !path.exists() {
         return None;
     }
-    let conn = crate::db::open_apex(&path).ok()?;
+    let conn = sf_schema::sqlite::open_readonly(&path).ok()?;
     conn.query_row("SELECT api_version FROM meta WHERE id = 1", [], |row| {
         row.get(0)
     })

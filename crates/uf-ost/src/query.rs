@@ -101,6 +101,14 @@ pub fn open_org(root: &Path, org: &str) -> Result<Snapshot, QueryError> {
     }
     let conn = sqlite::open_readonly(&path)?;
     conn.execute_batch("BEGIN")?;
+    let has_meta: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='meta')",
+        [],
+        |row| row.get(0),
+    )?;
+    if !has_meta {
+        return Err(QueryError::NotIndexed(org.to_string()));
+    }
     let meta = db::read_meta(&conn)?.ok_or_else(|| QueryError::NotIndexed(org.to_string()))?;
     if meta.alias != org {
         return Err(QueryError::IdentityMismatch(org.to_string()));

@@ -73,7 +73,11 @@ impl OstStore {
         if !path.exists() {
             return Ok(None);
         }
-        let conn = db::open_apex(&path).map_err(io_err)?;
+        let conn = sf_schema::sqlite::open_readonly(&path).map_err(io_err)?;
+        let has_cache: bool = conn.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='raw_cache')", [], |row| row.get(0)).map_err(io_err)?;
+        if !has_cache {
+            return Ok(None);
+        }
         let Some(raw) = db::read_raw(&conn, api_version, source.stem()).map_err(io_err)? else {
             return Ok(None);
         };
@@ -136,7 +140,7 @@ impl OstStore {
         if !path.exists() {
             return Ok(());
         }
-        let conn = db::open_apex(&path).map_err(io_err)?;
+        let conn = open_raw_cache(&path).map_err(io_err)?;
         db::delete_raw(&conn, api_version, source.stem()).map_err(io_err)
     }
 
@@ -145,10 +149,17 @@ impl OstStore {
     }
 
     fn persist(&self, api_version: &str, source: OstSource, value: &Value) -> Result<(), SfError> {
-        let conn = db::open_apex(&self.db_path()).map_err(io_err)?;
+        let conn = open_raw_cache(&self.db_path()).map_err(io_err)?;
         let body = serde_json::to_string(value).map_err(SfError::Parse)?;
         db::write_raw(&conn, api_version, source.stem(), &body).map_err(io_err)
     }
+}
+
+/// Auxiliary source caching must not initialize generation-owned schema tables.
+fn open_raw_cache(path: &std::path::Path) -> rusqlite::Result<rusqlite::Connection> {
+    let conn = sf_schema::sqlite::open_without_schema(path)?;
+    conn.execute_batch("CREATE TABLE IF NOT EXISTS raw_cache (api_version TEXT NOT NULL, source TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (api_version, source));")?;
+    Ok(conn)
 }
 
 pub(crate) fn sanitize(s: &str) -> String {
