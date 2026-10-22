@@ -1,5 +1,16 @@
 # Changelog / 更新日志
 
+## [0.3.24](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.23...v0.3.24) (2026-10-22)
+
+
+### Bug Fixes / 缺陷修复
+
+* handle missing native relative time formatting / 兼容缺失的原生相对时间格式化 ([#120](https://github.com/dormonbear/ultraforce-desktop/issues/120)) ([6333bf8](https://github.com/dormonbear/ultraforce-desktop/commit/6333bf801ea79607c82ff28ac676c5f61e915087))
+* keep field-reference requests out of state updaters / 将字段引用请求移出状态更新函数 ([#117](https://github.com/dormonbear/ultraforce-desktop/issues/117)) ([9e3e3c2](https://github.com/dormonbear/ultraforce-desktop/commit/9e3e3c29cf2a78264be032e5876ceedc481f8af4))
+* localize field-reference feedback / 本地化字段引用反馈 ([#118](https://github.com/dormonbear/ultraforce-desktop/issues/118)) ([72a74d5](https://github.com/dormonbear/ultraforce-desktop/commit/72a74d521a0f93560f371315f1f87df5fd6e30e3))
+* lower editor syntax for older WebKit / 降级编辑器语法以兼容旧 WebKit ([#123](https://github.com/dormonbear/ultraforce-desktop/issues/123)) ([5d14f82](https://github.com/dormonbear/ultraforce-desktop/commit/5d14f82888c43c8267c16ba1d4ad8791904af242))
+* scope Apex diagnostics to the current editor and org / 将 Apex 诊断限定于当前编辑器及组织 ([#114](https://github.com/dormonbear/ultraforce-desktop/issues/114)) ([f8c461e](https://github.com/dormonbear/ultraforce-desktop/commit/f8c461ecec67d7b4db67b374a3d4ab37ee4226cb))
+
 ## [0.3.23](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.22...v0.3.23) (2026-10-21)
 
 
