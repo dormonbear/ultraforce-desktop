@@ -89,6 +89,12 @@ const chinese = {
   "Powered by the beta Dependency API — some report types, joined reports and private-folder reports are not detected.":
     "由测试版 Dependency API 提供支持，部分报表类型、联合报表及私有文件夹报表无法检测。",
   "just now": "刚刚",
+  "{count} minute ago": "{count}分钟前",
+  "{count} minutes ago": "{count}分钟前",
+  "{count} hour ago": "{count}小时前",
+  "{count} hours ago": "{count}小时前",
+  "{count} day ago": "{count}天前",
+  "{count} days ago": "{count}天前",
   "fetched {time}": "{time}获取",
   "Current org: {name}. Switch org": "当前组织：{name}。切换组织",
   "Select Salesforce org": "选择 Salesforce 组织",

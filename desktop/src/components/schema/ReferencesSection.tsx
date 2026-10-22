@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDependencies, FieldDependency, SchemaField } from "../../types";
@@ -9,18 +9,32 @@ import { useI18n } from "../../i18n";
 const DISCLAIMER =
   "Powered by the beta Dependency API — some report types, joined reports and private-folder reports are not detected.";
 
+const AGE_MESSAGES = {
+  minute: ["{count} minute ago", "{count} minutes ago"],
+  hour: ["{count} hour ago", "{count} hours ago"],
+  day: ["{count} day ago", "{count} days ago"],
+} as const;
+
 /** Localized coarse age from an epoch-ms timestamp. / 将毫秒时间戳转换为本地化相对时间。 */
-function relativeTime(ms: number, locale: string, justNow: string): string {
+function relativeTime(
+  ms: number,
+  locale: string,
+  t: ReturnType<typeof useI18n>["t"],
+  nativeFormat: Intl.RelativeTimeFormat | null,
+): string {
   const diff = Math.max(0, Date.now() - ms);
   const sec = Math.round(diff / 1000);
-  if (sec < 45) return justNow;
-  const format = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
+  if (sec < 45) return t("just now");
+  const format = (value: number, unit: keyof typeof AGE_MESSAGES) => {
+    if (nativeFormat) return nativeFormat.format(-value, unit);
+    return t(AGE_MESSAGES[unit][value === 1 ? 0 : 1], { count: value.toLocaleString(locale) });
+  };
   const min = Math.round(sec / 60);
-  if (min < 60) return format.format(-min, "minute");
+  if (min < 60) return format(min, "minute");
   const hr = Math.round(min / 60);
-  if (hr < 24) return format.format(-hr, "hour");
+  if (hr < 24) return format(hr, "hour");
   const day = Math.round(hr / 24);
-  return format.format(-day, "day");
+  return format(day, "day");
 }
 
 /** Group where-used rows by componentType, preserving first-seen order. */
@@ -68,11 +82,17 @@ function GroupList({ items }: { items: FieldDependency[] }) {
 
 function Footer({ fetchedAt }: { fetchedAt: number | null }) {
   const { t, locale } = useI18n();
+  const nativeFormat = useMemo(
+    () => typeof Intl.RelativeTimeFormat === "function"
+      ? new Intl.RelativeTimeFormat(locale, { numeric: "always" })
+      : null,
+    [locale],
+  );
   return (
     <div className="flex flex-col gap-1 border-t border-border pt-1.5">
       {fetchedAt !== null && (
         <div className="text-[10px] text-muted-foreground">
-          {t("fetched {time}", { time: relativeTime(fetchedAt, locale, t("just now")) })}
+          {t("fetched {time}", { time: relativeTime(fetchedAt, locale, t, nativeFormat) })}
         </div>
       )}
       <div className="text-[10px] leading-snug text-muted-foreground">{t(DISCLAIMER)}</div>
