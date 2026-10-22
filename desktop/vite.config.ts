@@ -15,6 +15,7 @@ export default defineConfig({
     strictPort: true,
   },
   build: {
-    target: "es2022",
+    // Lower dependency syntax for the declared macOS WebKit baseline. / 为声明的 macOS WebKit 基线降级依赖语法。
+    target: ["es2020", "safari13"],
   },
 });
