@@ -67,6 +67,7 @@ const chinese = {
   "Log in via your browser. Pick the environment, optionally set an alias.":
     "通过浏览器登录。选择环境，也可设置别名。",
   "Copied to clipboard": "已复制到剪贴板",
+  Copied: "已复制",
   "Copy failed": "复制失败",
   "Copy command": "复制命令",
   Retry: "重试",
@@ -194,7 +195,7 @@ export function translate(
   );
 }
 
-function browserLocale(): Locale {
+export function browserLocale(): Locale {
   if (typeof navigator === "undefined") return "en";
   return resolveLocale(navigator.languages.length ? navigator.languages : [navigator.language]);
 }
