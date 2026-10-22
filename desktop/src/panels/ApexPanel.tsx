@@ -34,6 +34,7 @@ import { useOrgs } from "../org";
 import { runApex } from "../ipc/apex";
 import type { ApexTab } from "../tabs/types";
 import { useTheme, monacoTheme } from "../theme";
+import { useI18n } from "../i18n";
 
 /** A Compiled / Success chip: success-green when true, destructive when false. */
 function StatusChip({ label, ok }: { label: string; ok: boolean }) {
@@ -56,6 +57,7 @@ interface ApexViewProps {
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
 // fallow-ignore-next-line complexity
 export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
+  const { t } = useI18n();
   const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
   const { src, outcome, error, traceOpen } = tab;
@@ -90,15 +92,16 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   // fallow-ignore-next-line complexity
   const run = useCallback(async () => {
     if (!srcRef.current.trim()) {
-      toast.error("Write some Apex to run");
+      toast.error(t("Write some Apex to run"));
       return;
     }
     if (
       (await getConfirmApexRun()) &&
       !(await confirm({
-        title: "Run anonymous Apex",
-        description: `Run this anonymous Apex against ${org ?? "the default org"}?`,
-        confirmText: "Run",
+        title: t("Run anonymous Apex"),
+        description: t("Run this anonymous Apex against {org}?", { org: org ?? t("the default org") }),
+        confirmText: t("Run"),
+        cancelText: t("Cancel"),
       }))
     ) {
       return;
@@ -118,9 +121,9 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         exceptionMessage: dto.exceptionMessage,
       });
       if (!dto.compiled) {
-        toast.error(dto.compileProblem ?? "Compile failed");
+        toast.error(dto.compileProblem ?? t("Compile failed"));
       } else if (!dto.success) {
-        toast.error(dto.exceptionMessage ?? "Execution failed");
+        toast.error(dto.exceptionMessage ?? t("Execution failed"));
       }
     } catch (e) {
       const message = formatIpcError(e);
@@ -129,7 +132,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     } finally {
       setRunning(false);
     }
-  }, [onPatch, org, confirm]);
+  }, [onPatch, org, confirm, t]);
   // Keep the Monaco Ctrl+Enter command (bound once at mount) calling the latest
   // run closure, so keyboard runs record the current org (not the mount-time one).
   const runRef = useRef(run);
@@ -147,13 +150,13 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     // fire when this editor is focused — not in a focused SOQL tab.
     instance.addAction({
       id: "uf.runAnonymousApex",
-      label: "Run Anonymous Apex",
+      label: t("Run anonymous Apex"),
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
       run: () => runRef.current(),
     });
     instance.addAction({
       id: "uf.saveApex",
-      label: "Save",
+      label: t("Save"),
       keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
       run: () => onSaveRef.current?.(),
     });
@@ -178,14 +181,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <div className="flex min-w-0 flex-1 items-center gap-2.5">
-              <span className="micro-label">Anonymous Apex</span>
+              <span className="micro-label">{t("Anonymous Apex")}</span>
               <TargetOrg />
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {levels && (
                 <button
                   type="button"
-                  aria-label="Debug levels"
+                  aria-label={t("Debug levels")}
                   aria-pressed={debugOpen}
                   onClick={() => setDebugOpen((v) => !v)}
                   className={`focus-accent inline-flex size-7 items-center justify-center rounded-md cursor-pointer ${
@@ -199,7 +202,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               )}
               <button
                 type="button"
-                aria-label="Execution history"
+                aria-label={t("Execution history")}
                 onClick={() => setHistoryOpen(true)}
                 className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-text-dim hover:bg-accent hover:text-foreground cursor-pointer"
               >
@@ -243,7 +246,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
 
       <ResizablePanel id="result" defaultSize={55} minSize={20}>
         <div className="flex h-full flex-col">
-          <div className="micro-label px-4 py-2">Result</div>
+          <div className="micro-label px-4 py-2">{t("Result")}</div>
 
           {error && isCliUnavailable(error) ? (
             <CliGuidanceForError onRetry={run} />
@@ -251,21 +254,21 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
             <SfErrorDetail error={error} className="mx-4 mb-4" />
           ) : !outcome ? (
             <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-              Run to see results
+              {t("Run to see results")}
             </div>
           ) : (
             <div className="select-text flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">
               {/* Status strip */}
               <div className="flex items-center gap-2">
-                <StatusChip label="Compiled" ok={outcome.compiled} />
-                <StatusChip label="Success" ok={outcome.success} />
+                <StatusChip label={t("Compiled")} ok={outcome.compiled} />
+                <StatusChip label={t("Success")} ok={outcome.success} />
               </div>
 
               {/* Compile problem */}
               {!outcome.compiled && (
                 <div className="rounded-md border border-amber/40 bg-card p-3 text-[12px] text-amber">
                   <span className="font-medium">
-                    {outcome.compileProblem ?? "Compile failed"}
+                    {outcome.compileProblem ?? t("Compile failed")}
                   </span>
                   {outcome.line != null && (
                     <button
@@ -282,7 +285,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                       }}
                       className="tnum ml-2 cursor-pointer text-amber/80 underline-offset-2 hover:underline"
                     >
-                      Ln {outcome.line}:{outcome.column ?? 0}
+                      {t("Ln {line}:{column}", { line: outcome.line, column: outcome.column ?? 0 })}
                     </button>
                   )}
                 </div>
@@ -293,11 +296,11 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                 <div className="rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium">
-                      {outcome.exceptionMessage ?? "Execution failed"}
+                      {outcome.exceptionMessage ?? t("Execution failed")}
                     </span>
                     <button
                       type="button"
-                      aria-label="Copy exception"
+                      aria-label={t("Copy exception")}
                       onClick={() =>
                         void copyText(
                           [
@@ -306,7 +309,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                           ]
                             .filter(Boolean)
                             .join("\n"),
-                          "Exception copied",
+                          t("Exception copied"),
                         )
                       }
                       className="focus-accent shrink-0 cursor-pointer rounded-md text-muted-foreground transition-colors hover:text-foreground"
@@ -327,7 +330,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
                             traceOpen ? "rotate-90" : ""
                           }`}
                         />
-                        Stack trace
+                        {t("Stack trace")}
                       </button>
                       {traceOpen && (
                         <pre className="mt-1 whitespace-pre-wrap text-[11px] text-muted-foreground">
@@ -341,14 +344,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
 
               {/* Debug log */}
               <div className="flex min-h-0 flex-1 flex-col">
-                <div className="micro-label pb-1">Debug log</div>
+                <div className="micro-label pb-1">{t("Debug log")}</div>
                 {outcome.logs ? (
                   <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
                     <LogView raw={outcome.logs} />
                   </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-                    No debug log
+                    {t("No debug log")}
                   </div>
                 )}
               </div>
@@ -364,8 +367,10 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
         if (
           src.trim() &&
           !(await confirm({
-            description: "Replace the current editor content?",
-            confirmText: "Replace",
+            title: t("Replace editor content"),
+            description: t("Replace the current editor content?"),
+            confirmText: t("Replace"),
+            cancelText: t("Cancel"),
           }))
         )
           return;
