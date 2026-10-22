@@ -1,5 +1,14 @@
 # Changelog / 更新日志
 
+## [0.3.25](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.24...v0.3.25) (2026-10-22)
+
+
+### Bug Fixes / 缺陷修复
+
+* localize Apex panel feedback / 本地化 Apex 面板反馈 ([#124](https://github.com/dormonbear/ultraforce-desktop/issues/124)) ([29b4fbd](https://github.com/dormonbear/ultraforce-desktop/commit/29b4fbd55cb559b508e3cdcd9d4ba01b2226f68d))
+* localize shared clipboard feedback / 本地化共享剪贴板反馈 ([#126](https://github.com/dormonbear/ultraforce-desktop/issues/126)) ([3d0158c](https://github.com/dormonbear/ultraforce-desktop/commit/3d0158c26b3b3d2bbf4f1cf40fe1ffa5aca02cf5))
+* scope debug config feedback to its org / 将调试配置反馈限定于所属组织 ([#128](https://github.com/dormonbear/ultraforce-desktop/issues/128)) ([5e002f5](https://github.com/dormonbear/ultraforce-desktop/commit/5e002f5fda3e284d06b4fb3625848fa188f5234f))
+
 ## [0.3.24](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.23...v0.3.24) (2026-10-22)
 
 
