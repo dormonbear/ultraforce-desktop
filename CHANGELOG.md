@@ -1,5 +1,26 @@
 # Changelog / 更新日志
 
+## [0.3.24](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.23...v0.3.24) (2026-10-22)
+
+
+### Bug Fixes / 缺陷修复
+
+* handle missing native relative time formatting / 兼容缺失的原生相对时间格式化 ([#120](https://github.com/dormonbear/ultraforce-desktop/issues/120)) ([6333bf8](https://github.com/dormonbear/ultraforce-desktop/commit/6333bf801ea79607c82ff28ac676c5f61e915087))
+  Field-reference timestamps fall back to localized text when Intl.RelativeTimeFormat is unavailable, preserving the existing time cutoffs.
+  Intl.RelativeTimeFormat 不可用时，字段引用时间改用本地化文本，保留既有时间分界。
+* keep field-reference requests out of state updaters / 将字段引用请求移出状态更新函数 ([#117](https://github.com/dormonbear/ultraforce-desktop/issues/117)) ([9e3e3c2](https://github.com/dormonbear/ultraforce-desktop/commit/9e3e3c29cf2a78264be032e5876ceedc481f8af4))
+  In development builds, expanding field references no longer repeats the same IPC request during React state replay. Closed field views ignore late request failures.
+  开发构建中，展开字段引用不再因 React 状态重放而重复发送相同 IPC 请求。已关闭的字段视图会忽略迟到的请求失败。
+* localize field-reference feedback / 本地化字段引用反馈 ([#118](https://github.com/dormonbear/ultraforce-desktop/issues/118)) ([72a74d5](https://github.com/dormonbear/ultraforce-desktop/commit/72a74d521a0f93560f371315f1f87df5fd6e30e3))
+  Field-reference controls, loading/error/retry feedback, unsupported/empty states and fetched times follow the system language (English or Simplified Chinese). Language changes preserve metadata identifiers and cached results.
+  字段引用控件、加载／错误／重试反馈、不支持／空结果状态及获取时间跟随系统语言（英文或简体中文）。语言变化时保留元数据标识符和缓存结果。
+* lower editor syntax for older WebKit / 降级编辑器语法以兼容旧 WebKit ([#123](https://github.com/dormonbear/ultraforce-desktop/issues/123)) ([5d14f82](https://github.com/dormonbear/ultraforce-desktop/commit/5d14f82888c43c8267c16ba1d4ad8791904af242))
+  Production builds lower editor and worker dependency syntax for older WebKit and reject untransformed class static blocks. This addresses a confirmed syntax gap; full minimum-runtime qualification remains open in #121.
+  生产构建为旧 WebKit 降级编辑器和工作线程依赖语法，并拒绝未转换的类静态块。此修复处理已确认的语法缺口；完整最低运行环境核验仍由 #121 跟踪。
+* scope Apex diagnostics to the current editor and org / 将 Apex 诊断限定于当前编辑器及组织 ([#114](https://github.com/dormonbear/ultraforce-desktop/issues/114)) ([f8c461e](https://github.com/dormonbear/ultraforce-desktop/commit/f8c461ecec67d7b4db67b374a3d4ab37ee4226cb))
+  Switching organizations refreshes diagnostics for an open Apex file without requiring an edit. Late results from a previous source, organization or editor are ignored.
+  切换组织后，无需编辑已打开的 Apex 文件即可刷新诊断。会忽略之前源码、组织或编辑器的迟到结果。
+
 ## [0.3.23](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.22...v0.3.23) (2026-10-21)
 
 
