@@ -21,6 +21,17 @@ for (const language of ["en-US", "zh-CN"] as const) {
       currentOrg: "Current org: DevHub. Switch org", connectOrg: "Connect org…",
     };
 
+    test("opens localized workspace without Object.hasOwn / 缺少 Object.hasOwn 时仍可打开本地化工作区", async ({ page }) => {
+      await page.addInitScript(() => {
+        Object.defineProperty(Object, "hasOwn", { configurable: true, writable: true, value: undefined });
+      });
+      await installMocks(page);
+      await page.goto("/");
+      await expect(page.getByRole("button", { name: labels.currentOrg, exact: true })).toBeVisible();
+      await expect(page.getByRole("main")).toBeVisible();
+      expect(await page.evaluate(() => typeof Object.hasOwn)).toBe("undefined");
+    });
+
     for (const state of ["not_found", "outdated", "path_issue"] as const) {
       test(`CLI guidance / CLI 指引: ${state}`, async ({ page }) => {
         await installMocks(page, {

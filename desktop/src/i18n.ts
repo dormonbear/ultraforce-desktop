@@ -209,7 +209,7 @@ export function translate(
   const message = locale === "zh-CN" ? chinese[key] : key;
   // Replace in one pass so values are never interpreted as message templates. / 单次替换，避免将参数值解释为消息模板。
   return message.replace(/\{(\w+)\}/g, (token, name: string) =>
-    Object.hasOwn(values, name) ? String(values[name]) : token,
+    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : token,
   );
 }
 
