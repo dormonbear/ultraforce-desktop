@@ -1,5 +1,13 @@
 # Changelog / 更新日志
 
+## [0.3.27](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.26...v0.3.27) (2026-10-22)
+
+
+### Bug Fixes / 缺陷修复
+
+* **i18n:** localize debug configuration controls / 本地化调试配置控件 ([#140](https://github.com/dormonbear/ultraforce-desktop/issues/140)) ([87b20ff](https://github.com/dormonbear/ultraforce-desktop/commit/87b20ffa13ac746332598ee83df648912f7dedab))
+* **i18n:** support runtimes without Object.hasOwn / 兼容缺少 Object.hasOwn 的运行环境 ([#138](https://github.com/dormonbear/ultraforce-desktop/issues/138)) ([2275263](https://github.com/dormonbear/ultraforce-desktop/commit/2275263e75902cfb882faee5f7067b14a5a2c684))
+
 ## [0.3.26](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.25...v0.3.26) (2026-10-22)
 
 
