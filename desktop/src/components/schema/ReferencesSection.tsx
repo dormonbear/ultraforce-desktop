@@ -4,22 +4,23 @@ import { toast } from "sonner";
 import type { FieldDependencies, FieldDependency, SchemaField } from "../../types";
 import { getFieldDependencies } from "../../ipc/schema";
 import { formatIpcError } from "../../errorFormat";
+import { useI18n } from "../../i18n";
 
 const DISCLAIMER =
-  "Powered by the beta Dependency API — some report types, joined reports and " +
-  "private-folder reports are not detected.";
+  "Powered by the beta Dependency API — some report types, joined reports and private-folder reports are not detected.";
 
-/** Coarse "N units ago" from an epoch-ms timestamp. */
-function relativeTime(ms: number): string {
+/** Localized coarse age from an epoch-ms timestamp. / 将毫秒时间戳转换为本地化相对时间。 */
+function relativeTime(ms: number, locale: string, justNow: string): string {
   const diff = Math.max(0, Date.now() - ms);
   const sec = Math.round(diff / 1000);
-  if (sec < 45) return "just now";
+  if (sec < 45) return justNow;
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
   const min = Math.round(sec / 60);
-  if (min < 60) return `${min} minute${min === 1 ? "" : "s"} ago`;
+  if (min < 60) return format.format(-min, "minute");
   const hr = Math.round(min / 60);
-  if (hr < 24) return `${hr} hour${hr === 1 ? "" : "s"} ago`;
+  if (hr < 24) return format.format(-hr, "hour");
   const day = Math.round(hr / 24);
-  return `${day} day${day === 1 ? "" : "s"} ago`;
+  return format.format(-day, "day");
 }
 
 /** Group where-used rows by componentType, preserving first-seen order. */
@@ -34,9 +35,10 @@ function groupByType(items: FieldDependency[]): [string, FieldDependency[]][] {
 }
 
 function GroupList({ items }: { items: FieldDependency[] }) {
+  const { t, locale } = useI18n();
   const groups = groupByType(items);
   if (groups.length === 0) {
-    return <div className="text-[12px] text-muted-foreground">No references found.</div>;
+    return <div className="text-[12px] text-muted-foreground">{t("No references found.")}</div>;
   }
   return (
     <>
@@ -45,7 +47,7 @@ function GroupList({ items }: { items: FieldDependency[] }) {
           <div className="flex items-center gap-1.5">
             <span className="text-[12px] font-medium text-foreground">{type}</span>
             <span className="rounded-full bg-secondary px-1.5 text-[10px] text-muted-foreground">
-              {rows.length}
+              {rows.length.toLocaleString(locale)}
             </span>
           </div>
           <ul className="flex flex-col gap-0.5">
@@ -65,14 +67,15 @@ function GroupList({ items }: { items: FieldDependency[] }) {
 }
 
 function Footer({ fetchedAt }: { fetchedAt: number | null }) {
+  const { t, locale } = useI18n();
   return (
     <div className="flex flex-col gap-1 border-t border-border pt-1.5">
       {fetchedAt !== null && (
         <div className="text-[10px] text-muted-foreground">
-          fetched {relativeTime(fetchedAt)}
+          {t("fetched {time}", { time: relativeTime(fetchedAt, locale, t("just now")) })}
         </div>
       )}
-      <div className="text-[10px] leading-snug text-muted-foreground">{DISCLAIMER}</div>
+      <div className="text-[10px] leading-snug text-muted-foreground">{t(DISCLAIMER)}</div>
     </div>
   );
 }
@@ -89,19 +92,20 @@ function ReferencesBody({
   data: FieldDependencies | null;
   onRetry: () => void;
 }) {
+  const { t } = useI18n();
   if (loading) {
-    return <div className="text-[12px] text-muted-foreground">Loading…</div>;
+    return <div className="text-[12px] text-muted-foreground">{t("Loading…")}</div>;
   }
   if (error) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-        <span>Couldn’t load references.</span>
+        <span>{t("Couldn’t load references.")}</span>
         <button
           type="button"
           onClick={onRetry}
           className="cursor-pointer rounded border border-border px-2 py-0.5 text-foreground hover:bg-secondary"
         >
-          Retry
+          {t("Retry")}
         </button>
       </div>
     );
@@ -116,7 +120,7 @@ function ReferencesBody({
         <GroupList items={data.items} />
       ) : (
         <div className="text-[12px] text-muted-foreground">
-          Standard fields aren’t tracked by the Dependency API.
+          {t("Standard fields aren’t tracked by the Dependency API.")}
         </div>
       )}
       <Footer fetchedAt={data.fetchedAt} />
@@ -140,6 +144,7 @@ export const ReferencesSection = memo(function ReferencesSection({
   object: string | null;
   field: SchemaField;
 }) {
+  const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [data, setData] = useState<FieldDependencies | null>(null);
   const [loading, setLoading] = useState(false);
@@ -176,10 +181,10 @@ export const ReferencesSection = memo(function ReferencesSection({
           if (genRef.current !== gen) return;
           setError(true);
           setLoading(false);
-          toast.error(`References: ${formatIpcError(e)}`);
+          toast.error(t("References: {error}", { error: formatIpcError(e) }));
         });
     },
-    [org, object, field.name],
+    [org, object, field.name, t],
   );
 
   const onToggle = useCallback(() => {
@@ -199,12 +204,12 @@ export const ReferencesSection = memo(function ReferencesSection({
           className="flex min-w-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground"
         >
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          Where is this used?
+          {t("Where is this used?")}
         </button>
         {showRefresh && (
           <button
             type="button"
-            aria-label="Refresh references"
+            aria-label={t("Refresh references")}
             onClick={() => load(true)}
             className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground"
           >

@@ -47,7 +47,8 @@ const supported: FieldDependencies = {
 describe("ReferencesSection", () => {
   afterEach(() => {
     cleanup();
-    vi.clearAllMocks();
+    vi.resetAllMocks();
+    vi.restoreAllMocks();
   });
 
   it.each([false, true])("sends one request per expansion and reuses cached results / 展开仅请求一次并复用缓存结果 (StrictMode: %s)", async (strict) => {
@@ -77,6 +78,84 @@ describe("ReferencesSection", () => {
     unmount();
     await act(async () => { reject(new Error("Synthetic / 合成")); });
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  describe.each([
+    { language: "en-US", title: "Where is this used?", loading: "Loading…", refresh: "Refresh references", retry: "Retry",
+      failed: "Couldn’t load references.", prefix: "References: ", empty: "No references found.",
+      unsupported: "Standard fields aren’t tracked by the Dependency API.", disclaimer: "Powered by the beta Dependency API",
+      minute: "fetched 1 minute ago", now: "fetched just now", hours: "fetched 2 hours ago", days: "fetched 3 days ago" },
+    { language: "zh-CN", title: "此字段用于何处？", loading: "正在加载…", refresh: "刷新引用", retry: "重试",
+      failed: "无法加载引用。", prefix: "引用：", empty: "未找到引用。",
+      unsupported: "Dependency API 不跟踪标准字段。", disclaimer: "由测试版 Dependency API 提供支持",
+      minute: "1分钟前获取", now: "刚刚获取", hours: "2小时前获取", days: "3天前获取" },
+  ])("reference locale / 引用语言: $language", (words) => {
+    function renderLocalized() {
+      vi.spyOn(navigator, "languages", "get").mockReturnValue([words.language]);
+      return render(<ReferencesSection org="synthetic@example.invalid" object="Account" field={field("Synthetic__c")} />);
+    }
+
+    it("localizes loading, controls and age while preserving metadata / 翻译加载、控件及时间并保留元数据", async () => {
+      let resolve!: (value: FieldDependencies) => void;
+      vi.mocked(getFieldDependencies).mockReturnValue(new Promise<FieldDependencies>((done) => { resolve = done; }));
+      renderLocalized();
+      fireEvent.click(screen.getByRole("button", { name: words.title }));
+      expect(screen.getByText(words.loading)).toBeTruthy();
+      await act(async () => { resolve({ ...supported, fetchedAt: Date.now() - 60_000 }); });
+      expect(screen.getByText("AccountService")).toBeTruthy();
+      expect(screen.getByText("Layout")).toBeTruthy();
+      expect(screen.getByRole("button", { name: words.refresh })).toBeTruthy();
+      expect(screen.getByText(words.minute)).toBeTruthy();
+      expect(screen.getByText(words.disclaimer, { exact: false })).toBeTruthy();
+      expect(getFieldDependencies).toHaveBeenCalledExactlyOnceWith("synthetic@example.invalid", "Account", "Synthetic__c", false);
+    });
+
+    it("localizes failure, retry and unsupported feedback / 翻译失败、重试及不支持提示", async () => {
+      vi.mocked(getFieldDependencies)
+        .mockRejectedValueOnce({ code: "io", message: "Synthetic failure / 合成失败" })
+        .mockResolvedValueOnce({ supported: false, fetchedAt: null, items: [] });
+      renderLocalized();
+      fireEvent.click(screen.getByRole("button", { name: words.title }));
+      await screen.findByText(words.failed);
+      const message = vi.mocked(toast.error).mock.calls.at(-1)?.[0];
+      expect(message).toContain(words.prefix);
+      expect(message).toContain("Synthetic failure / 合成失败");
+      fireEvent.click(screen.getByRole("button", { name: words.retry }));
+      await screen.findByText(words.unsupported);
+      expect(screen.getByText(words.disclaimer, { exact: false })).toBeTruthy();
+      expect(screen.queryByRole("button", { name: words.refresh })).toBeNull();
+    });
+
+    it("localizes empty results and recent fetch feedback / 翻译空结果及最近获取提示", async () => {
+      vi.mocked(getFieldDependencies).mockResolvedValue({ supported: true, fetchedAt: Date.now(), items: [] });
+      renderLocalized();
+      fireEvent.click(screen.getByRole("button", { name: words.title }));
+      await screen.findByText(words.empty);
+      expect(screen.getByText(words.now)).toBeTruthy();
+    });
+
+    it.each(["hours", "days"] as const)("localizes cached age units / 翻译缓存时间单位: %s", async (unit) => {
+      const age = unit === "hours" ? 2 * 3_600_000 : 3 * 86_400_000;
+      vi.mocked(getFieldDependencies).mockResolvedValue({ ...supported, fetchedAt: Date.now() - age });
+      renderLocalized();
+      fireEvent.click(screen.getByRole("button", { name: words.title }));
+      await screen.findByText(words[unit]);
+    });
+  });
+
+  it("updates mounted reference feedback without refetching / 更新已挂载引用提示且不重新获取", async () => {
+    const languages = vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
+    vi.mocked(getFieldDependencies).mockResolvedValue({ ...supported, fetchedAt: Date.now() - 60_000 });
+    render(<ReferencesSection org="synthetic@example.invalid" object="Account" field={field("Synthetic__c")} />);
+    fireEvent.click(screen.getByRole("button", { name: "Where is this used?" }));
+    await screen.findByText("fetched 1 minute ago");
+    languages.mockReturnValue(["zh-CN"]);
+    act(() => { window.dispatchEvent(new Event("languagechange")); });
+    expect(screen.getByRole("button", { name: "此字段用于何处？" }).getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByRole("button", { name: "刷新引用" })).toBeTruthy();
+    expect(screen.getByText("1分钟前获取")).toBeTruthy();
+    expect(screen.getByText("AccountService")).toBeTruthy();
+    expect(getFieldDependencies).toHaveBeenCalledTimes(1);
   });
 
   it("is collapsed by default and does not fetch until expanded", () => {
