@@ -32,6 +32,37 @@ describe("system language / 系统语言", () => {
     expect(translate("en", "{tool} workspace", { tool: "soql" })).toBe("soql workspace");
   });
 
+  it.each(["en", "zh-CN"] as const)(
+    "interpolates without Object.hasOwn / 缺少 Object.hasOwn 时仍可插值: %s",
+    (locale) => {
+      const descriptor = Object.getOwnPropertyDescriptor(Object, "hasOwn")!;
+      let result: string;
+      try {
+        Object.defineProperty(Object, "hasOwn", { ...descriptor, value: undefined });
+        result = translate(locale, "{count} rows returned", { count: 0 });
+      } finally {
+        Object.defineProperty(Object, "hasOwn", descriptor);
+      }
+      expect(result).toBe(locale === "en" ? "0 rows returned" : "已返回 0 行");
+    },
+  );
+
+  it.each(["en", "zh-CN"] as const)(
+    "uses only own interpolation values / 仅使用自有插值参数: %s",
+    (locale) => {
+      const inherited = Object.create({ tool: "inherited" });
+      expect(translate(locale, "{tool} workspace", inherited))
+        .toBe(locale === "en" ? "{tool} workspace" : "{tool} 工作区");
+      const values = Object.assign(Object.create(null), {
+        tool: "{literal}$&", hasOwnProperty: "shadowed",
+      });
+      expect(translate(locale, "{tool} workspace", values))
+        .toBe(locale === "en" ? "{literal}$& workspace" : "{literal}$& 工作区");
+      expect(translate(locale, "{tool} workspace", { tool: "" }))
+        .toBe(locale === "en" ? " workspace" : " 工作区");
+    },
+  );
+
   it("updates mounted controls when the OS language changes / 系统语言变化时更新已挂载控件", () => {
     const languages = vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
     render(<Control />);
