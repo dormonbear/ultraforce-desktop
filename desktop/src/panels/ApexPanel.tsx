@@ -211,16 +211,14 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
               <RunButton onRun={run} running={running} />
             </div>
           </div>
-          {levels && (
-            <DebugConfigRow
-              org={org}
-              value={levels}
-              onApply={applyConfig}
-              applying={cfgApplying}
-              error={cfgError}
-              open={debugOpen}
-            />
-          )}
+          <DebugConfigRow
+            org={org}
+            value={levels}
+            onApply={applyConfig}
+            applying={cfgApplying}
+            error={cfgError}
+            open={debugOpen}
+          />
           <div className="min-h-0 flex-1">
             <Editor
               height="100%"

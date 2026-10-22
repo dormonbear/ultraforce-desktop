@@ -1,17 +1,15 @@
-import { formatIpcError } from "../errorFormat";
-import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
-import { loadLoggingConfig } from "../ipc/config";
 import { CATEGORY_FIELDS, LOG_LEVELS } from "../debug-presets";
 import type { CategoryLevels, DebugLevelDto } from "../types";
+import { useDebugPresets } from "../useDebugPresets";
 
 interface DebugConfigRowProps {
   org: string | null;
-  value: CategoryLevels;
+  value: CategoryLevels | null;
   onApply: (levels: CategoryLevels) => void;
   applying: boolean;
   error: string | null;
-  /** Controlled by the toolbar toggle; renders nothing when closed. */
+  /** Toggles controls; current config-load errors remain visible. / 切换控件；当前配置加载错误仍保持可见。 */
   open: boolean;
 }
 
@@ -31,9 +29,41 @@ function matchingDebugLevel(
   return levels.find((d) => sameLevels(d.levels, value)) ?? null;
 }
 
-// Cache org DebugLevel records per org so re-expanding doesn't re-hit the org.
-// ponytail: no invalidation; stale until app reload if levels change elsewhere.
-const levelsCache = new Map<string, DebugLevelDto[]>();
+function DebugPresetPicker({ records, loading, value, onApply, onRefresh }: {
+  records: DebugLevelDto[];
+  loading: boolean;
+  value: CategoryLevels;
+  onApply: (levels: CategoryLevels) => void;
+  onRefresh: () => void;
+}) {
+  const active = matchingDebugLevel(records, value);
+  return (
+    <div className="flex items-center gap-1">
+      <select
+        aria-label="Debug level preset"
+        className={`${SEL} w-36`}
+        value={active?.id ?? ""}
+        disabled={loading || records.length === 0}
+        onChange={(event) => {
+          const selected = records.find(record => record.id === event.target.value);
+          if (selected) onApply(selected.levels);
+        }}
+      >
+        {!active && <option value="" disabled>{loading ? "Loading…" : records.length === 0 ? "No debug levels" : "Custom"}</option>}
+        {records.map(record => <option key={record.id} value={record.id}>{record.developerName}</option>)}
+      </select>
+      <button
+        type="button"
+        aria-label="Refresh debug levels"
+        disabled={loading}
+        onClick={onRefresh}
+        className="focus-accent inline-flex size-6 shrink-0 items-center justify-center rounded text-text-dim hover:text-foreground disabled:opacity-50 cursor-pointer"
+      >
+        <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+      </button>
+    </div>
+  );
+}
 
 export function DebugConfigRow({
   org,
@@ -43,45 +73,17 @@ export function DebugConfigRow({
   error,
   open,
 }: DebugConfigRowProps) {
-  const [orgLevels, setOrgLevels] = useState<DebugLevelDto[]>([]);
-  const [loadingLevels, setLoadingLevels] = useState(false);
-  const [levelsError, setLevelsError] = useState<string | null>(null);
+  const { records: orgLevels, loading: loadingLevels, error: levelsError, refresh } = useDebugPresets(org, open && value !== null);
 
-  // Load the org's DebugLevel records; cached per org. `force` bypasses the
-  // cache to pick up levels added in the org (or elsewhere in the app).
-  const loadLevels = useCallback(
-    async (force: boolean) => {
-      const cacheKey = org ?? "";
-      if (!force) {
-        const cached = levelsCache.get(cacheKey);
-        if (cached) {
-          setOrgLevels(cached);
-          return;
-        }
-      }
-      setLoadingLevels(true);
-      setLevelsError(null);
-      try {
-        const cfg = await loadLoggingConfig(org);
-        levelsCache.set(cacheKey, cfg.debugLevels);
-        setOrgLevels(cfg.debugLevels);
-      } catch (e) {
-        setLevelsError(formatIpcError(e));
-      } finally {
-        setLoadingLevels(false);
-      }
-    },
-    [org],
-  );
-
-  // Fetch when first opened, and whenever the org changes while open.
-  useEffect(() => {
-    if (open) void loadLevels(false);
-  }, [open, loadLevels]);
+  if (!value) {
+    return error ? (
+      <div role="alert" className="border-b border-border px-4 py-2 text-[11px] text-destructive">
+        {error}
+      </div>
+    ) : null;
+  }
 
   if (!open) return null;
-
-  const active = matchingDebugLevel(orgLevels, value);
 
   const setLevel = (key: keyof CategoryLevels, level: string) => {
     onApply({ ...value, [key]: level });
@@ -118,42 +120,7 @@ export function DebugConfigRow({
           <tbody>
             <tr>
               <td className="px-2 py-0.5">
-                <div className="flex items-center gap-1">
-                  <select
-                    aria-label="Debug level preset"
-                    className={`${SEL} w-36`}
-                    value={active?.id ?? ""}
-                    disabled={loadingLevels || orgLevels.length === 0}
-                    onChange={(e) => {
-                      const d = orgLevels.find((x) => x.id === e.target.value);
-                      if (d) onApply(d.levels);
-                    }}
-                  >
-                    {!active && (
-                      <option value="" disabled>
-                        {loadingLevels
-                          ? "Loading…"
-                          : orgLevels.length === 0
-                            ? "No debug levels"
-                            : "Custom"}
-                      </option>
-                    )}
-                    {orgLevels.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.developerName}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    aria-label="Refresh debug levels"
-                    disabled={loadingLevels}
-                    onClick={() => void loadLevels(true)}
-                    className="focus-accent inline-flex size-6 shrink-0 items-center justify-center rounded text-text-dim hover:text-foreground disabled:opacity-50 cursor-pointer"
-                  >
-                    <RefreshCw size={12} className={loadingLevels ? "animate-spin" : ""} />
-                  </button>
-                </div>
+                <DebugPresetPicker records={orgLevels} loading={loadingLevels} value={value} onApply={onApply} onRefresh={refresh} />
               </td>
               {CATEGORY_FIELDS.map(({ key, label }) => (
                 <td key={key} className="px-1 py-0.5">
