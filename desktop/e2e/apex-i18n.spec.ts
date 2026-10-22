@@ -113,6 +113,13 @@ for (const language of ["en-US", "zh-CN"] as const) {
       await installMocks(page);
       await open(page);
       const next = language === "en-US" ? "zh-CN" : "en-US";
+      const editor = page.getByRole("textbox", { name: "Editor content", exact: true });
+      await editor.press("F1");
+      const palette = page.getByRole("textbox", { name: "Type to narrow down results.", exact: true });
+      const initialCommand = language === "zh-CN" ? "运行匿名 Apex" : "Run anonymous Apex";
+      await palette.fill(`> ${initialCommand}`);
+      await expect(page.getByRole("option").filter({ hasText: initialCommand })).toBeVisible();
+      await page.keyboard.press("Escape");
       await page.evaluate(locale => {
         Object.defineProperty(navigator, "languages", { configurable: true, value: [locale] });
         window.dispatchEvent(new Event("languagechange"));
