@@ -1,35 +1,44 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { formatIpcError } from "../errorFormat";
+import { browserLocale, translate } from "../i18n";
 import {
   getDebugConfig,
   quickSelfTrace as requestSelfTrace,
 } from "../ipc/config";
 
-/** Self-trace state: whether a TraceFlag on the running user is active, a live
- * minutes-left countdown, and the one-click "trace me for 30 min" action.
- *
- * `active` is whether the Logs panel is the visible tool. The countdown tick is
- * paused while Logs is hidden so the memoized panel isn't re-rendered every 30s
- * in the background; on re-activation `now` is refreshed so the minutes-left
- * countdown can't show a stale value after being paused. */
+type TraceState = { org: string | null; expiry: string | null; busy: boolean };
+const emptyState = (org: string | null): TraceState => ({ org, expiry: null, busy: false });
+
+/** Owns self-trace feedback for the current org; hidden panels pause the countdown.
+ * 管理当前组织的自身跟踪反馈；隐藏面板时暂停倒计时。
+ * Backend requests retain their original target; obsolete results cannot publish.
+ * 后端请求保留原目标；过期结果不可发布。 */
 export function useSelfTrace(org: string | null, active = true) {
-  const [tracingBusy, setTracingBusy] = useState(false);
-  // Active self-trace ExpirationDate (from the running user's TraceFlag); drives
-  // the live "Tracing · Nm" state on the button. `now` ticks to recompute it.
-  const [traceExpiry, setTraceExpiry] = useState<string | null>(null);
+  const [state, setState] = useState(() => emptyState(org));
+  const generation = useRef(0);
+  const owner = useRef({ org, active: false, busy: false });
   const [now, setNow] = useState(() => Date.now());
 
-  // Show whether a self-trace is already active (and refresh its expiry).
   useEffect(() => {
+    owner.current = { org, active: true, busy: false };
+    const request = ++generation.current;
+    setState(emptyState(org));
     getDebugConfig(org)
-      .then((dto) => setTraceExpiry(dto.expirationDate))
+      .then((dto) => {
+        if (generation.current === request) {
+          setState({ org, expiry: dto.expirationDate, busy: false });
+          setNow(Date.now());
+        }
+      })
       .catch(() => {});
+    return () => {
+      owner.current.active = false;
+      generation.current++;
+    };
   }, [org]);
 
-  // Tick so the countdown re-renders; 30s is fine for minute granularity. Only
-  // ticks while Logs is visible; re-activation refreshes `now` immediately so a
-  // paused countdown never shows a stale minutes-left after the panel reshows.
+  // Refresh immediately on activation, then every 30 seconds. / 激活时立即刷新，之后每 30 秒刷新。
   useEffect(() => {
     if (!active) return;
     setNow(Date.now());
@@ -37,24 +46,32 @@ export function useSelfTrace(org: string | null, active = true) {
     return () => clearInterval(id);
   }, [active]);
 
+  const current = state.org === org ? state : emptyState(org);
+  const traceExpiry = current.expiry;
+  const tracingBusy = current.busy;
   const traceMsLeft = traceExpiry ? new Date(traceExpiry).getTime() - now : 0;
   const tracing = traceMsLeft > 0;
   const traceMinsLeft = Math.max(1, Math.ceil(traceMsLeft / 60_000));
 
   const quickSelfTrace = useCallback(async () => {
-    if (tracingBusy) return;
-    setTracingBusy(true);
+    if (!owner.current.active || owner.current.org !== org || owner.current.busy) return;
+    owner.current.busy = true;
+    const request = ++generation.current;
+    setState((previous) => ({ ...(previous.org === org ? previous : emptyState(org)), busy: true }));
     try {
       const dto = await requestSelfTrace(30, org);
-      setTraceExpiry(dto.expirationDate);
+      if (generation.current !== request) return;
+      setState({ org, expiry: dto.expirationDate, busy: false });
       setNow(Date.now());
-      toast.success("Tracing you for 30 min");
+      toast.success(translate(browserLocale(), "Tracing you for 30 min"));
     } catch (e) {
-      toast.error(`Trace failed: ${formatIpcError(e)}`);
+      if (generation.current !== request) return;
+      setState((previous) => ({ ...previous, busy: false }));
+      toast.error(translate(browserLocale(), "Trace failed: {error}", { error: formatIpcError(e) }));
     } finally {
-      setTracingBusy(false);
+      if (generation.current === request) owner.current.busy = false;
     }
-  }, [tracingBusy, org]);
+  }, [org]);
 
   return { tracing, tracingBusy, traceExpiry, traceMinsLeft, quickSelfTrace };
 }

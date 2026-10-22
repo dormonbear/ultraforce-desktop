@@ -30,6 +30,8 @@ const chinese = {
   "Replace the current editor content?": "替换当前编辑器内容？",
   Replace: "替换",
   Logs: "日志",
+  "Tracing you for 30 min": "已为您启用 30 分钟跟踪",
+  "Trace failed: {error}": "跟踪失败：{error}",
   Schema: "对象结构",
   Settings: "设置",
   "Coming soon": "即将推出",
