@@ -2,6 +2,7 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { CATEGORY_FIELDS, LOG_LEVELS } from "../debug-presets";
 import type { CategoryLevels, DebugLevelDto } from "../types";
 import { useDebugPresets } from "../useDebugPresets";
+import { useI18n } from "../i18n";
 
 interface DebugConfigRowProps {
   org: string | null;
@@ -36,11 +37,12 @@ function DebugPresetPicker({ records, loading, value, onApply, onRefresh }: {
   onApply: (levels: CategoryLevels) => void;
   onRefresh: () => void;
 }) {
+  const { t } = useI18n();
   const active = matchingDebugLevel(records, value);
   return (
     <div className="flex items-center gap-1">
       <select
-        aria-label="Debug level preset"
+        aria-label={t("Debug level preset")}
         className={`${SEL} w-36`}
         value={active?.id ?? ""}
         disabled={loading || records.length === 0}
@@ -49,12 +51,12 @@ function DebugPresetPicker({ records, loading, value, onApply, onRefresh }: {
           if (selected) onApply(selected.levels);
         }}
       >
-        {!active && <option value="" disabled>{loading ? "Loading…" : records.length === 0 ? "No debug levels" : "Custom"}</option>}
+        {!active && <option value="" disabled>{loading ? t("Loading…") : records.length === 0 ? t("No debug levels") : t("Custom")}</option>}
         {records.map(record => <option key={record.id} value={record.id}>{record.developerName}</option>)}
       </select>
       <button
         type="button"
-        aria-label="Refresh debug levels"
+        aria-label={t("Refresh debug levels")}
         disabled={loading}
         onClick={onRefresh}
         className="focus-accent inline-flex size-6 shrink-0 items-center justify-center rounded text-text-dim hover:text-foreground disabled:opacity-50 cursor-pointer"
@@ -73,6 +75,7 @@ export function DebugConfigRow({
   error,
   open,
 }: DebugConfigRowProps) {
+  const { t } = useI18n();
   const { records: orgLevels, loading: loadingLevels, error: levelsError, refresh } = useDebugPresets(org, open && value !== null);
 
   if (!value) {
@@ -96,7 +99,7 @@ export function DebugConfigRow({
           {applying && (
             <span className="inline-flex items-center gap-1 text-text-dim">
               <Loader2 size={12} className="animate-spin text-primary" />
-              applying
+              {t("Applying…")}
             </span>
           )}
           {error && <span className="truncate text-destructive">{error}</span>}
@@ -106,13 +109,13 @@ export function DebugConfigRow({
         <table className="w-full text-[11px]">
           <thead className="text-text-dim">
             <tr className="border-b border-border">
-              <th className="px-2 py-0.5 text-left font-normal">Preset</th>
+              <th className="px-2 py-0.5 text-left font-normal">{t("Preset")}</th>
               {CATEGORY_FIELDS.map(({ key, label }) => (
                 <th
                   key={key}
                   className="whitespace-nowrap px-1 py-0.5 text-left font-normal"
                 >
-                  {label}
+                  {t(label)}
                 </th>
               ))}
             </tr>
@@ -125,7 +128,7 @@ export function DebugConfigRow({
               {CATEGORY_FIELDS.map(({ key, label }) => (
                 <td key={key} className="px-1 py-0.5">
                   <select
-                    aria-label={`${label} debug level`}
+                    aria-label={t("{category} debug level", { category: t(label) })}
                     className={`${SEL} w-[4.5rem]`}
                     value={value[key]}
                     onChange={(e) => setLevel(key, e.target.value)}

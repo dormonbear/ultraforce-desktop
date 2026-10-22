@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { presetLevels } from "../debug-presets";
+import { LOG_LEVELS, presetLevels } from "../debug-presets";
 import type { LoggingConfigDto } from "../types";
 import { DebugConfigRow } from "./DebugConfigRow";
 
@@ -23,7 +23,69 @@ function row(org: string, open = true) {
   return <DebugConfigRow org={org} value={levels} onApply={vi.fn()} applying={false} error={null} open={open} />;
 }
 beforeEach(() => { index++; ipc.load.mockReset().mockResolvedValue(config("CURRENT")); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+for (const locale of ["en-US", "zh-CN"] as const) {
+  const zh = locale === "zh-CN";
+  const labels = zh ? {
+    preset: "调试级别预设", refresh: "刷新调试级别", loading: "正在加载…",
+    applying: "正在应用…", empty: "暂无调试级别", custom: "自定义", apex: "Apex 代码调试级别",
+    headers: ["预设", "Apex 代码", "Apex 性能分析", "外部调用", "数据访问", "数据库", "NBA", "系统", "验证", "Visualforce", "Wave", "工作流"],
+  } : {
+    preset: "Debug level preset", refresh: "Refresh debug levels", loading: "Loading…",
+    applying: "Applying…", empty: "No debug levels", custom: "Custom", apex: "Apex Code debug level",
+    headers: ["Preset", "Apex Code", "Apex Profiling", "Callout", "Data Access", "Database", "Nba", "System", "Validation", "Visualforce", "Wave", "Workflow"],
+  };
+
+  it(`localizes controls and preserves org values / 本地化控件并保留组织值: ${locale}`, async () => {
+    vi.spyOn(navigator, "languages", "get").mockReturnValue([locale]);
+    const pending = deferred(); ipc.load.mockReturnValueOnce(pending.promise);
+    const onApply = vi.fn(), selected = presetLevels("Full Debugging");
+    render(<DebugConfigRow org={key("localized")} value={levels} onApply={onApply} applying error="RAW_ERROR {error}$&" open />);
+    expect(screen.getByRole("combobox", { name: labels.preset }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByRole("option", { name: labels.loading })).toBeTruthy();
+    expect(screen.getByRole("button", { name: labels.refresh }).hasAttribute("disabled")).toBe(true);
+    expect(screen.getByText(labels.applying)).toBeTruthy();
+    expect(screen.getByText("RAW_ERROR {error}$&")).toBeTruthy();
+    expect(screen.getAllByRole("columnheader").map(cell => cell.textContent)).toEqual(labels.headers);
+    await flush(() => pending.resolve({ ...config("CURRENT"), debugLevels: [
+      { id: "CURRENT", developerName: "RAW_{tool}_$&", levels },
+      { id: "SECOND", developerName: "SECOND_RAW", levels: selected },
+    ] }));
+    expect(screen.getByRole("option", { name: "RAW_{tool}_$&" })).toBeTruthy();
+    const category = screen.getByRole("combobox", { name: labels.apex });
+    expect(Array.from(category.querySelectorAll("option")).map(option => option.value)).toEqual(LOG_LEVELS);
+    fireEvent.change(category, { target: { value: "INFO" } });
+    expect(onApply).toHaveBeenLastCalledWith({ ...levels, apexCode: "INFO" });
+    fireEvent.change(screen.getByRole("combobox", { name: labels.preset }), { target: { value: "SECOND" } });
+    expect(onApply).toHaveBeenLastCalledWith(selected);
+  });
+
+  it(`localizes empty and custom presets / 本地化空预设和自定义预设: ${locale}`, async () => {
+    vi.spyOn(navigator, "languages", "get").mockReturnValue([locale]);
+    ipc.load.mockResolvedValueOnce({ ...config("EMPTY"), debugLevels: [] });
+    render(row(key("empty"))); await flush();
+    expect(screen.getByRole("option", { name: labels.empty })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: labels.preset }).hasAttribute("disabled")).toBe(true);
+    ipc.load.mockResolvedValueOnce({ ...config("OTHER"), debugLevels: [
+      { id: "OTHER", developerName: "OTHER_RAW", levels: presetLevels("None") },
+    ] });
+    fireEvent.click(screen.getByRole("button", { name: labels.refresh })); await flush();
+    expect(screen.getByRole("option", { name: labels.custom })).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: labels.preset }).hasAttribute("disabled")).toBe(false);
+  });
+}
+
+it("updates mounted debug controls without reloading org data / 更新已挂载调试控件而不重载组织数据", async () => {
+  const languages = vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
+  render(row(key("language"))); await flush();
+  expect(screen.getByRole("combobox", { name: "Apex Code debug level" })).toBeTruthy();
+  languages.mockReturnValue(["zh-CN"]);
+  act(() => window.dispatchEvent(new Event("languagechange")));
+  expect(screen.getByRole("combobox", { name: "Apex 代码调试级别" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "刷新调试级别" })).toBeTruthy();
+  expect(ipc.load).toHaveBeenCalledTimes(1);
+});
 
 it("loads current org presets and reuses a completed cache / 加载当前组织预设并复用已完成缓存", async () => {
   const org = key("a"); const { rerender } = render(row(org)); await flush();

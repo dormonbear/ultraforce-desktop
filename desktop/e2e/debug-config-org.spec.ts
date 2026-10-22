@@ -53,9 +53,48 @@ for (const language of ["en-US", "zh-CN"] as const) {
     test.use({ locale: language });
     const words = language === "zh-CN" ? {
       debug: "调试级别", previous: "当前组织：DevHub。切换组织", current: "当前组织：Staging。切换组织",
+      apex: "Apex 代码调试级别", preset: "调试级别预设", refresh: "刷新调试级别", header: "Apex 代码",
     } : {
       debug: "Debug levels", previous: "Current org: DevHub. Switch org", current: "Current org: Staging. Switch org",
+      apex: "Apex Code debug level", preset: "Debug level preset", refresh: "Refresh debug levels", header: "Apex Code",
     };
+
+    test("localized debug controls preserve preset and category writes / 本地化调试控件保留预设及分类写入", async ({ page }) => {
+      const first = presetLevels("Apex Only"), selected = presetLevels("Full Debugging");
+      await installMocks(page, {
+        get_debug_config: { traceFlagId: "synthetic", levels: first, expirationDate: null },
+        load_logging_config: { traceFlags: [], entities: [], debugLevels: [
+          { id: "FIRST", developerName: "RAW_{tool}_$&", levels: first },
+          { id: "SECOND", developerName: "SECOND_RAW", levels: selected },
+        ] },
+      });
+      await page.addInitScript(() => {
+        const scope = window as unknown as Scope, invoke = scope.__TAURI_INTERNALS__.invoke;
+        scope.__TAURI_INTERNALS__.invoke = (command, args = {}, options) => {
+          const recorded = invoke(command, args, options);
+          return command === "set_debug_config"
+            ? Promise.resolve({ traceFlagId: "synthetic", levels: args.levels, expirationDate: null })
+            : recorded;
+        };
+      });
+      await page.goto("/"); await openApexFile(page);
+      await page.getByRole("button", { name: words.debug, exact: true }).click();
+      await expect(page.getByRole("columnheader", { name: words.header, exact: true })).toBeVisible();
+      const picker = page.getByRole("combobox", { name: words.preset, exact: true });
+      await expect(picker).toHaveValue("FIRST");
+      await expect(picker.getByRole("option", { name: "RAW_{tool}_$&", exact: true })).toHaveText("RAW_{tool}_$&");
+      await expect(page.getByRole("button", { name: words.refresh, exact: true })).toBeEnabled();
+      await picker.selectOption("SECOND");
+      const category = page.getByRole("combobox", { name: words.apex, exact: true });
+      await expect(category).toHaveValue("FINEST");
+      await category.selectOption("INFO");
+      await expect(category).toHaveValue("INFO");
+      await expect.poll(() => page.evaluate(() => (window as unknown as Scope).__ufCalls
+        .filter(call => call.cmd === "set_debug_config"))).toEqual([
+        { cmd: "set_debug_config", args: { org: "dev@acme.com", levels: selected } },
+        { cmd: "set_debug_config", args: { org: "dev@acme.com", levels: { ...selected, apexCode: "INFO" } } },
+      ]);
+    });
 
     for (const phase of ["read", "presets", "write", "write-error"] as const) {
       test(`ignores previous-org ${phase} feedback / 忽略前一组织 ${phase} 反馈`, async ({ page }) => {
@@ -65,7 +104,7 @@ for (const language of ["en-US", "zh-CN"] as const) {
         if (phase !== "read") {
           await page.getByRole("button", { name: words.debug, exact: true }).click();
           if (phase === "write" || phase === "write-error") {
-            await page.getByRole("combobox", { name: "Apex Code debug level", exact: true }).selectOption("INFO");
+            await page.getByRole("combobox", { name: words.apex, exact: true }).selectOption("INFO");
           }
         }
         await expect.poll(() => page.evaluate(() => (window as unknown as Scope).__ufDebugPending())).toBeGreaterThan(0);
@@ -73,12 +112,12 @@ for (const language of ["en-US", "zh-CN"] as const) {
         await page.getByRole("dialog").getByText("Staging", { exact: true }).click();
         await expect(page.getByRole("button", { name: words.current, exact: true })).toBeVisible();
         if (phase === "read") await page.getByRole("button", { name: words.debug, exact: true }).click();
-        const category = page.getByRole("combobox", { name: "Apex Code debug level", exact: true });
+        const category = page.getByRole("combobox", { name: words.apex, exact: true });
         await expect(category).toHaveValue("FINEST");
-        await expect(page.getByRole("combobox", { name: "Debug level preset", exact: true })).toHaveValue("B_CURRENT");
+        await expect(page.getByRole("combobox", { name: words.preset, exact: true })).toHaveValue("B_CURRENT");
         await page.evaluate(() => (window as unknown as Scope).__ufSettleDebug());
         await expect(category).toHaveValue("FINEST");
-        await expect(page.getByRole("combobox", { name: "Debug level preset", exact: true })).toHaveValue("B_CURRENT");
+        await expect(page.getByRole("combobox", { name: words.preset, exact: true })).toHaveValue("B_CURRENT");
         await expect(page.getByText(/OLD_A_ERROR/)).toHaveCount(0);
       });
     }
@@ -100,7 +139,7 @@ for (const language of ["en-US", "zh-CN"] as const) {
       await page.getByRole("button", { name: words.previous, exact: true }).click();
       await page.getByRole("dialog").getByText("Staging", { exact: true }).click();
       await expect(page.getByRole("alert").filter({ hasText: "CURRENT_B_ERROR / 当前 B 错误" })).toBeVisible();
-      await expect(page.getByRole("combobox", { name: "Apex Code debug level", exact: true })).toHaveCount(0);
+      await expect(page.getByRole("combobox", { name: words.apex, exact: true })).toHaveCount(0);
       expect(await page.evaluate(() => (window as unknown as Scope).__ufCalls.filter(call => call.cmd === "load_logging_config" && call.args.org === "stg@acme.com"))).toEqual([]);
     });
   });
