@@ -50,6 +50,10 @@ jobs:
         working-directory: desktop
         run: pnpm exec tsc --noEmit
 
+      - name: Built syntax checker regressions / 构建语法检查器回归
+        working-directory: desktop
+        run: node --test scripts/check-built-syntax.test.mjs
+
       - name: Frontend tests
         working-directory: desktop
         run: pnpm exec vitest run --coverage
@@ -75,6 +79,10 @@ jobs:
         env:
           PERF_PROD: '1'
         run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts e2e/org-i18n.spec.ts e2e/soql-i18n.spec.ts e2e/apex-org-diagnostics.spec.ts --reporter=line
+
+      - name: Built browser syntax / 构建浏览器语法
+        working-directory: desktop
+        run: node scripts/check-built-syntax.mjs
 
       - name: Browser failure evidence / 浏览器失败证据
         if: failure()
