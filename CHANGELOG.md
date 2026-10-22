@@ -6,9 +6,23 @@
 ### Bug Fixes / 缺陷修复
 
 * enable keyboard log source jumps / 启用日志源码跳转键盘操作 ([#137](https://github.com/dormonbear/ultraforce-desktop/issues/137)) ([6fbef29](https://github.com/dormonbear/ultraforce-desktop/commit/6fbef2944446d8c1b4ddd30aa9fe51c8e2e77bfb))
+  Mapped log source rows support Tab, Enter and Space through native button behavior. Filtering preserves original raw-line mapping, and mouse source jumps remain unchanged.
+  映射日志源码行通过原生按钮行为支持 Tab、Enter 和空格。筛选后保留原始日志行映射，鼠标源码跳转保持不变。
 * localize Apex history feedback / 本地化 Apex 历史反馈 ([#136](https://github.com/dormonbear/ultraforce-desktop/issues/136)) ([dc3753e](https://github.com/dormonbear/ultraforce-desktop/commit/dc3753ec428a47a8dfdbd15aea57f16434b453e0))
+  Apex history drawer controls, status feedback and age labels support English and Simplified Chinese. Copy/load/clear preserve raw source, error/log contents and existing local-history behavior.
+  Apex 历史抽屉控件、状态反馈和时间标签支持英文及简体中文。复制／加载／清除保留原始源码、错误／日志内容及既有本地历史行为。
 * refresh Apex actions on locale changes / 语言变化时刷新 Apex 动作 ([#133](https://github.com/dormonbear/ultraforce-desktop/issues/133)) ([eb6f169](https://github.com/dormonbear/ultraforce-desktop/commit/eb6f169ec57f0ac2b02edeebc71ae4458162bedc))
+  Apex Run and Save command labels refresh when the language changes after editor mount, preserving current source, execution target and editor-scoped shortcuts.
+  编辑器挂载后语言变化时，Apex 运行及保存命令标签会更新，保留当前源码、执行目标及编辑器范围快捷键。
 * scope self-trace feedback to its org / 将自身跟踪反馈限定于所属组织 ([#131](https://github.com/dormonbear/ultraforce-desktop/issues/131)) ([0c8668c](https://github.com/dormonbear/ultraforce-desktop/commit/0c8668c1aa0fd52521bde0668a7e9e724ce6ca33))
+  Self-trace status and pending feedback follow the selected organization. Older requests no longer replace current feedback; already-started backend requests retain their original target.
+  自身跟踪状态及等待反馈跟随所选组织。旧请求不再替换当前反馈；已启动的后端请求保留原目标。
+
+### Documentation / 文档
+
+* complete bilingual privacy policy / 补全双语隐私政策 ([#130](https://github.com/dormonbear/ultraforce-desktop/pull/130)) ([c248aef](https://github.com/dormonbear/ultraforce-desktop/commit/c248aeffe9862897117e1973fd20fc665c505c59))
+  The privacy document now has a complete Simplified Chinese translation while preserving the English policy, link targets and legacy anchors. Collection, networking and local-storage behavior are unchanged.
+  隐私文档现提供完整简体中文翻译，保留英文政策、链接目标和旧锚点。收集、网络通信及本地存储行为保持不变。
 
 ## [0.3.25](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.24...v0.3.25) (2026-10-22)
 
