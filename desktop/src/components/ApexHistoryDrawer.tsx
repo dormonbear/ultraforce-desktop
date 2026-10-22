@@ -3,6 +3,7 @@ import { Trash2, X, ChevronLeft, Copy, FileInput } from "lucide-react";
 import { Badge } from "@astryxdesign/core/Badge";
 import { useOverlayExit } from "../hooks/useOverlayExit";
 import { copyText } from "../clipboard";
+import { translate, useI18n, type Locale, type MessageKey } from "../i18n";
 import { LogView } from "./LogView";
 import {
   clearApexHistory,
@@ -11,31 +12,32 @@ import {
   type ApexHistoryEntry,
 } from "../apexHistory";
 
-function relTime(at: number): string {
+function relTime(at: number, locale: Locale): string {
   const s = Math.round((Date.now() - at) / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return translate(locale, "{count}s ago", { count: s });
   const m = Math.round(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return translate(locale, "{count}m ago", { count: m });
   const h = Math.round(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return new Date(at).toLocaleDateString();
+  if (h < 24) return translate(locale, "{count}h ago", { count: h });
+  return new Date(at).toLocaleDateString(locale);
 }
 
-/** First non-empty line of the source, for the list preview. */
-function firstLine(src: string): string {
-  return src.split("\n").find((l) => l.trim() !== "") ?? "(empty)";
+/** Preview source verbatim, with a localized empty placeholder. / 原样预览源码，并本地化空值占位符。 */
+function firstLine(src: string, locale: Locale): string {
+  return src.split("\n").find((l) => l.trim() !== "") ?? translate(locale, "(empty)");
 }
 
-function statusLabel(e: ApexHistoryEntry): string {
+function statusLabel(e: ApexHistoryEntry): MessageKey {
   if (!e.compiled) return "Compile error";
   return e.success ? "Success" : "Failed";
 }
 
 function StatusBadge({ e }: { e: ApexHistoryEntry }) {
+  const { t } = useI18n();
   return (
     <Badge
       variant={e.compiled && e.success ? "success" : "error"}
-      label={statusLabel(e)}
+      label={t(statusLabel(e))}
       className="text-[11px]"
     />
   );
@@ -50,10 +52,11 @@ function HistoryList({
   entries: ApexHistoryEntry[];
   onSelect: (id: string) => void;
 }) {
+  const { locale, t } = useI18n();
   if (entries.length === 0) {
     return (
       <div className="flex h-full items-center justify-center text-[13px] text-muted-foreground">
-        No runs yet
+        {t("No runs yet")}
       </div>
     );
   }
@@ -69,11 +72,11 @@ function HistoryList({
             <div className="flex items-center gap-2">
               <StatusBadge e={e} />
               <span className="tnum ml-auto text-[11px] text-muted-foreground">
-                {relTime(e.at)}
+                {relTime(e.at, locale)}
               </span>
             </div>
             <code className="line-clamp-2 break-all font-mono text-[11px] text-muted-foreground">
-              {firstLine(e.source)}
+              {firstLine(e.source, locale)}
             </code>
           </button>
         </li>
@@ -91,27 +94,28 @@ function HistoryDetail({
   entry: ApexHistoryEntry;
   onLoad: (source: string) => void;
 }) {
+  const { locale, t } = useI18n();
   return (
     <div className="select-text flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4">
       <div className="flex items-center gap-2">
         <StatusBadge e={entry} />
         <span className="tnum text-[11px] text-muted-foreground">
-          {relTime(entry.at)}
+          {relTime(entry.at, locale)}
         </span>
         <span className="ml-auto flex items-center gap-1">
           <button
             type="button"
-            onClick={() => void copyText(entry.source, "Source copied")}
+            onClick={() => void copyText(entry.source, t("Source copied"))}
             className="focus-accent inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-foreground hover:border-primary cursor-pointer"
           >
-            <Copy size={12} /> Copy
+            <Copy size={12} /> {t("Copy")}
           </button>
           <button
             type="button"
             onClick={() => onLoad(entry.source)}
             className="focus-accent inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-foreground hover:border-primary cursor-pointer"
           >
-            <FileInput size={12} /> Load
+            <FileInput size={12} /> {t("Load")}
           </button>
         </span>
       </div>
@@ -123,21 +127,21 @@ function HistoryDetail({
       )}
 
       <div>
-        <div className="micro-label pb-1">Source</div>
+        <div className="micro-label pb-1">{t("Source")}</div>
         <pre className="max-h-48 overflow-auto rounded-md border border-border bg-background p-2 font-mono text-[11px] text-foreground">
           {entry.source}
         </pre>
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        <div className="micro-label pb-1">Debug log</div>
+        <div className="micro-label pb-1">{t("Debug log")}</div>
         {entry.logs ? (
           <div className="min-h-0 flex-1 overflow-hidden rounded-md border border-border">
             <LogView raw={entry.logs} />
           </div>
         ) : (
           <div className="rounded-md border border-border p-2 text-[13px] text-muted-foreground">
-            No debug log
+            {t("No debug log")}
           </div>
         )}
       </div>
@@ -159,6 +163,7 @@ export function ApexHistoryDrawer({
   onOpenChange,
   onLoad,
 }: ApexHistoryDrawerProps) {
+  const { t } = useI18n();
   const [entries, setEntries] = useState<ApexHistoryEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Keep the drawer mounted through its slide-out so close is symmetric.
@@ -192,7 +197,7 @@ export function ApexHistoryDrawer({
     <div
       className="fixed inset-0 z-50 flex justify-end"
       role="dialog"
-      aria-label="Apex execution history"
+      aria-label={t("Apex execution history")}
       data-motion-phase={exiting ? "exit" : undefined}
       onAnimationEnd={onAnimationEnd}
     >
@@ -209,16 +214,16 @@ export function ApexHistoryDrawer({
               className="focus-accent inline-flex items-center gap-1 cursor-pointer text-text-dim hover:text-foreground"
             >
               <ChevronLeft size={14} />
-              <span className="micro-label">Back</span>
+              <span className="micro-label">{t("Back")}</span>
             </button>
           ) : (
-            <span className="micro-label">Apex history</span>
+            <span className="micro-label">{t("Apex history")}</span>
           )}
           <div className="flex items-center gap-1">
             {!selected && entries.length > 0 && (
               <button
                 type="button"
-                aria-label="Clear history"
+                aria-label={t("Clear history")}
                 onClick={() => void clearApexHistory()}
                 className="focus-accent cursor-pointer rounded-md p-1 text-text-dim hover:text-destructive"
               >
@@ -227,7 +232,7 @@ export function ApexHistoryDrawer({
             )}
             <button
               type="button"
-              aria-label="Close history"
+              aria-label={t("Close history")}
               onClick={() => onOpenChange(false)}
               className="focus-accent cursor-pointer rounded-md p-1 text-text-dim hover:text-foreground"
             >
