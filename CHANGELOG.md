@@ -6,8 +6,14 @@
 ### Bug Fixes / 缺陷修复
 
 * localize Apex panel feedback / 本地化 Apex 面板反馈 ([#124](https://github.com/dormonbear/ultraforce-desktop/issues/124)) ([29b4fbd](https://github.com/dormonbear/ultraforce-desktop/commit/29b4fbd55cb559b508e3cdcd9d4ba01b2226f68d))
+  Apex run/replace confirmations and result/exception feedback follow the system language (English or Simplified Chinese), preserving source code, organization identifiers and raw Salesforce error/stack content.
+  Apex 运行／替换确认和结果／异常反馈跟随系统语言（英文或简体中文），保留源码、组织标识符及 Salesforce 原始错误／堆栈内容。
 * localize shared clipboard feedback / 本地化共享剪贴板反馈 ([#126](https://github.com/dormonbear/ultraforce-desktop/issues/126)) ([3d0158c](https://github.com/dormonbear/ultraforce-desktop/commit/3d0158c26b3b3d2bbf4f1cf40fe1ffa5aca02cf5))
+  Default clipboard success/failure feedback uses the system language when the operation finishes. Copied contents and explicit custom messages remain unchanged.
+  剪贴板操作完成时，默认成功／失败反馈采用系统语言。复制内容及显式自定义提示保持不变。
 * scope debug config feedback to its org / 将调试配置反馈限定于所属组织 ([#128](https://github.com/dormonbear/ultraforce-desktop/issues/128)) ([5e002f5](https://github.com/dormonbear/ultraforce-desktop/commit/5e002f5fda3e284d06b4fb3625848fa188f5234f))
+  Switching organizations keeps debug levels and presets on the current target. Late results and errors from an older view no longer replace current feedback; current loading failures remain visible.
+  切换组织后，调试级别和预设保持属于当前目标。旧视图的迟到结果及错误不再替换当前反馈；当前加载失败仍会显示。
 
 ## [0.3.24](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.23...v0.3.24) (2026-10-22)
 
