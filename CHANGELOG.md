@@ -1,5 +1,15 @@
 # Changelog / 更新日志
 
+## [0.3.26](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.25...v0.3.26) (2026-10-22)
+
+
+### Bug Fixes / 缺陷修复
+
+* enable keyboard log source jumps / 启用日志源码跳转键盘操作 ([#137](https://github.com/dormonbear/ultraforce-desktop/issues/137)) ([6fbef29](https://github.com/dormonbear/ultraforce-desktop/commit/6fbef2944446d8c1b4ddd30aa9fe51c8e2e77bfb))
+* localize Apex history feedback / 本地化 Apex 历史反馈 ([#136](https://github.com/dormonbear/ultraforce-desktop/issues/136)) ([dc3753e](https://github.com/dormonbear/ultraforce-desktop/commit/dc3753ec428a47a8dfdbd15aea57f16434b453e0))
+* refresh Apex actions on locale changes / 语言变化时刷新 Apex 动作 ([#133](https://github.com/dormonbear/ultraforce-desktop/issues/133)) ([eb6f169](https://github.com/dormonbear/ultraforce-desktop/commit/eb6f169ec57f0ac2b02edeebc71ae4458162bedc))
+* scope self-trace feedback to its org / 将自身跟踪反馈限定于所属组织 ([#131](https://github.com/dormonbear/ultraforce-desktop/issues/131)) ([0c8668c](https://github.com/dormonbear/ultraforce-desktop/commit/0c8668c1aa0fd52521bde0668a7e9e724ce6ca33))
+
 ## [0.3.25](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.24...v0.3.25) (2026-10-22)
 
 
