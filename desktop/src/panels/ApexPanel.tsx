@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Monaco, OnMount } from "@monaco-editor/react";
 import Editor from "../editor/LocalEditor";
@@ -77,9 +77,13 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   onSaveRef.current = onSave;
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  // Flips once the editor has mounted so the diagnostics effect runs on first
-  // open (editorRef is null on the initial render, before onMount).
-  const [mounted, setMounted] = useState(false);
+  // Track the actual instance so actions follow replacements and locale changes.
+  // 跟踪实际实例，让动作随实例替换及语言变化更新。
+  const [editorTarget, setEditorTarget] = useState<{
+    instance: editor.IStandaloneCodeEditor;
+    monaco: Monaco;
+  } | null>(null);
+  const mounted = editorTarget !== null;
   srcRef.current = src;
   const { flushPending } = useMonacoReveal(editorRef, reveal);
   // Persist the editor/result split across launches (matches the SOQL panel).
@@ -138,6 +142,29 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const runRef = useRef(run);
   runRef.current = run;
 
+  useEffect(() => {
+    if (!editorTarget) return;
+    const { instance, monaco } = editorTarget;
+    // addAction scopes shortcuts to the focused editor; cleanup removes old labels.
+    // addAction 将快捷键限定于聚焦编辑器；清理时移除旧标签。
+    const runAction = instance.addAction({
+      id: "uf.runAnonymousApex",
+      label: t("Run anonymous Apex"),
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
+      run: () => runRef.current(),
+    });
+    const saveAction = instance.addAction({
+      id: "uf.saveApex",
+      label: t("Save"),
+      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
+      run: () => onSaveRef.current?.(),
+    });
+    return () => {
+      runAction.dispose();
+      saveAction.dispose();
+    };
+  }, [editorTarget, t]);
+
   const beforeMount = (monaco: Monaco) => {
     configureMonacoApex(monaco);
     registerApexFormatter(monaco);
@@ -145,25 +172,10 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   const onMount: OnMount = (instance, monaco) => {
     editorRef.current = instance;
     monacoRef.current = monaco;
-    // addAction (not addCommand) scopes each keybinding to this editor instance
-    // via an `editorId == this.getId()` precondition, so the Apex shortcuts only
-    // fire when this editor is focused — not in a focused SOQL tab.
-    instance.addAction({
-      id: "uf.runAnonymousApex",
-      label: t("Run anonymous Apex"),
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-      run: () => runRef.current(),
-    });
-    instance.addAction({
-      id: "uf.saveApex",
-      label: t("Save"),
-      keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS],
-      run: () => onSaveRef.current?.(),
-    });
     retriggerSuggestOnEdit(instance);
     trimContextMenu(instance);
     flushPending();
-    setMounted(true);
+    setEditorTarget({ instance, monaco });
     // Focus so a freshly opened/created tab is ready to type into.
     instance.focus();
   };
