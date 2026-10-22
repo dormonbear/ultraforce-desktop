@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { StrictMode } from "react";
+import { Component, StrictMode, type PropsWithChildren } from "react";
 import { ReferencesSection } from "./ReferencesSection";
 import type { FieldDependencies, SchemaField } from "../../types";
 
@@ -44,11 +44,18 @@ const supported: FieldDependencies = {
   ],
 };
 
+class CapabilityBoundary extends Component<PropsWithChildren, { error: string | null }> {
+  state: { error: string | null } = { error: null };
+  static getDerivedStateFromError(error: Error) { return { error: error.message }; }
+  render() { return this.state.error ? <div role="alert">{this.state.error}</div> : this.props.children; }
+}
+
 describe("ReferencesSection", () => {
   afterEach(() => {
     cleanup();
     vi.resetAllMocks();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it.each([false, true])("sends one request per expansion and reuses cached results / 展开仅请求一次并复用缓存结果 (StrictMode: %s)", async (strict) => {
@@ -90,6 +97,26 @@ describe("ReferencesSection", () => {
       unsupported: "Dependency API 不跟踪标准字段。", disclaimer: "由测试版 Dependency API 提供支持",
       minute: "1分钟前获取", now: "刚刚获取", hours: "2小时前获取", days: "3天前获取" },
   ])("reference locale / 引用语言: $language", (words) => {
+    it.each([
+      { label: "now", age: 0, en: "fetched just now", zh: "刚刚获取" },
+      { label: "minute", age: 60_000, en: "fetched 1 minute ago", zh: "1分钟前获取" },
+      { label: "minutes", age: 120_000, en: "fetched 2 minutes ago", zh: "2分钟前获取" },
+      { label: "hour", age: 3_600_000, en: "fetched 1 hour ago", zh: "1小时前获取" },
+      { label: "hours", age: 7_200_000, en: "fetched 2 hours ago", zh: "2小时前获取" },
+      { label: "day", age: 86_400_000, en: "fetched 1 day ago", zh: "1天前获取" },
+      { label: "days", age: 259_200_000, en: "fetched 3 days ago", zh: "3天前获取" },
+    ])("formats age without native RelativeTimeFormat / 无原生相对时间格式化 API 时显示时间: $label", async (age) => {
+      vi.spyOn(navigator, "languages", "get").mockReturnValue([words.language]);
+      vi.stubGlobal("Intl", Object.create(Intl, { RelativeTimeFormat: { value: undefined } }));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(getFieldDependencies).mockResolvedValue({ ...supported, fetchedAt: Date.now() - age.age });
+      render(<CapabilityBoundary><ReferencesSection org="synthetic@example.invalid" object="Account" field={field("Synthetic__c")} /></CapabilityBoundary>);
+      fireEvent.click(screen.getByRole("button", { name: words.title }));
+      await act(async () => {});
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByText(words.language === "zh-CN" ? age.zh : age.en)).toBeTruthy();
+    });
+
     function renderLocalized() {
       vi.spyOn(navigator, "languages", "get").mockReturnValue([words.language]);
       return render(<ReferencesSection org="synthetic@example.invalid" object="Account" field={field("Synthetic__c")} />);
