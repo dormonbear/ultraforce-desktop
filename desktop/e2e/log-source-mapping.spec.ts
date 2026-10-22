@@ -58,3 +58,37 @@ test("clicking a raw log line jumps to its source", async ({ page }) => {
   await expect(dialog.getByRole("heading")).toContainText("MyClass");
   await expect(dialog.locator(".monaco-editor")).toBeVisible();
 });
+
+for (const locale of ["en-US", "zh-CN"] as const) {
+  test.describe(`keyboard source navigation / 键盘源码导航: ${locale}`, () => {
+    test.use({ locale });
+    for (const key of ["Enter", "Space"] as const) {
+      test(`opens the mapped source with ${key} after filtering / 筛选后使用 ${key} 打开映射源码`, async ({ page }) => {
+        await gotoApp(page, {
+          get_log: {
+            raw: RAW,
+            apiVersion: "60.0",
+            units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }],
+          },
+          source_line_indices: [2],
+          source_at_line: src("MyClass", 8),
+        });
+        await page.getByRole("button", { name: locale === "zh-CN" ? "日志" : "Logs", exact: true }).click();
+        await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
+        await page.getByRole("textbox", { name: "Filter log", exact: true }).fill("hello");
+        const row = page.getByRole("button", { name: /USER_DEBUG.*hello/ });
+        await expect(row).toBeVisible();
+        await page.getByRole("button", { name: "Copy log", exact: true }).focus();
+        await page.keyboard.press("Tab");
+        await expect(row).toBeFocused();
+        await page.keyboard.press(key);
+        await expect(page.getByRole("dialog").getByRole("heading")).toContainText("MyClass");
+        await expect(page.getByRole("dialog").getByRole("heading")).toContainText("line 8");
+        await expect.poll(() => page.evaluate(() => (
+          window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] }
+        ).__ufCalls.filter(call => call.cmd === "source_at_line").map(call => call.args)))
+          .toEqual([{ body: RAW, line: 2 }]);
+      });
+    }
+  });
+}
