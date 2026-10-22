@@ -188,10 +188,11 @@ export function LogView({
                 resolveSource != null &&
                 onSource != null &&
                 (jumpableLines?.has(i) ?? false);
+              const Row = clickable ? "button" : "div";
               return (
-                <div
+                <Row
                   key={vi.key}
-                  role={clickable ? "button" : undefined}
+                  type={clickable ? "button" : undefined}
                   onClick={
                     clickable
                       ? async () => {
@@ -200,16 +201,16 @@ export function LogView({
                         }
                       : undefined
                   }
-                  className={`absolute left-0 top-0 w-full whitespace-pre ${
+                  className={`absolute left-0 top-0 w-full select-text whitespace-pre text-left ${
                     highlight ? "" : "text-text-dim"
-                  } ${clickable ? "cursor-pointer hover:bg-primary/10" : ""}`}
+                  } ${clickable ? "focus-accent cursor-pointer hover:bg-primary/10" : ""}`}
                   style={{
                     height: LINE_H,
                     transform: `translateY(${vi.start}px)`,
                   }}
                 >
                   {scrolling ? l : highlight ? renderLine(l) : highlightAll(l, q)}
-                </div>
+                </Row>
               );
             })}
           </div>
