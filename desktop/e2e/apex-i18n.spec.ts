@@ -92,9 +92,9 @@ for (const language of ["en-US", "zh-CN"] as const) {
       await open(page);
       async function loadHistory() {
         await page.getByRole("button", { name: words.history, exact: true }).click();
-        const drawer = page.getByRole("dialog", { name: "Apex execution history", exact: true });
+        const drawer = page.getByRole("dialog", { name: language === "zh-CN" ? "Apex 执行历史" : "Apex execution history", exact: true });
         await drawer.getByRole("button").filter({ hasText: "System.debug('history {org}');" }).click();
-        await drawer.getByRole("button", { name: "Load", exact: true }).click();
+        await drawer.getByRole("button", { name: language === "zh-CN" ? "加载" : "Load", exact: true }).click();
         const confirm = page.getByRole("alertdialog", { name: words.replaceTitle, exact: true });
         await expect(confirm).toContainText(words.replaceDescription);
         return confirm;
@@ -107,6 +107,47 @@ for (const language of ["en-US", "zh-CN"] as const) {
       await expect.poll(() => page.evaluate(() => (window as unknown as Scope).__ufCalls
         .filter(call => call.cmd === "run_apex").map(call => call.args.src)))
         .toEqual(["System.debug('hi');", "System.debug('history {org}');"]);
+    });
+
+    test("history empty state and close controls follow locale / 历史空状态及关闭控件跟随语言", async ({ page }) => {
+      await installMocks(page); await open(page);
+      await page.getByRole("button", { name: words.history, exact: true }).click();
+      const drawer = page.getByRole("dialog", { name: language === "zh-CN" ? "Apex 执行历史" : "Apex execution history", exact: true });
+      await expect(drawer.getByText(language === "zh-CN" ? "暂无执行记录" : "No runs yet", { exact: true })).toBeVisible();
+      await drawer.getByRole("button", { name: language === "zh-CN" ? "关闭历史" : "Close history", exact: true }).click();
+      await expect(drawer).not.toBeVisible();
+    });
+
+    test("history copy and clear preserve raw source and persistence / 历史复制和清除保留原始源码及持久化行为", async ({ page }) => {
+      await installMocks(page);
+      await page.addInitScript(() => {
+        if (localStorage.getItem("__uf_store") === null) {
+          localStorage.setItem("__uf_store", JSON.stringify({ "apex-history": [{
+            id: "synthetic", org: "dev@acme.com", source: "System.debug('RAW_{count}');", logs: "", compiled: false, success: false, exceptionMessage: "RAW_SF_{error}", at: 0,
+          }] }));
+        }
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+          writeText: async (text: string) => { (window as unknown as Scope).__copied = text; },
+        } });
+      });
+      await open(page);
+      await page.getByRole("button", { name: words.history, exact: true }).click();
+      const drawer = page.getByRole("dialog", { name: language === "zh-CN" ? "Apex 执行历史" : "Apex execution history", exact: true });
+      await expect(drawer.getByText(language === "zh-CN" ? "编译错误" : "Compile error", { exact: true })).toBeVisible();
+      await drawer.getByRole("button").filter({ hasText: "System.debug('RAW_{count}');" }).click();
+      await expect(drawer.getByText("RAW_SF_{error}", { exact: true })).toBeVisible();
+      await expect(drawer.getByText(words.noLog, { exact: true })).toBeVisible();
+      await drawer.getByRole("button", { name: language === "zh-CN" ? "复制" : "Copy", exact: true }).click();
+      await expect(page.getByText(language === "zh-CN" ? "源码已复制" : "Source copied", { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => (window as unknown as Scope).__copied)).toBe("System.debug('RAW_{count}');");
+      await drawer.getByRole("button", { name: language === "zh-CN" ? "返回" : "Back", exact: true }).click();
+      await drawer.getByRole("button", { name: language === "zh-CN" ? "清除历史" : "Clear history", exact: true }).click();
+      await expect(drawer.getByText(language === "zh-CN" ? "暂无执行记录" : "No runs yet", { exact: true })).toBeVisible();
+      await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("__uf_store") ?? "{}")["apex-history"])).toEqual([]);
+      await page.reload();
+      await openApexFile(page);
+      await page.getByRole("button", { name: words.history, exact: true }).click();
+      await expect(page.getByRole("dialog").getByText(language === "zh-CN" ? "暂无执行记录" : "No runs yet", { exact: true })).toBeVisible();
     });
 
     test("mounted language changes preserve source and execution / 挂载后语言变化保留源码及执行", async ({ page }) => {
