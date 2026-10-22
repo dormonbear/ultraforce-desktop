@@ -1,5 +1,17 @@
 # Changelog / 更新日志
 
+## [0.3.27](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.26...v0.3.27) (2026-10-22)
+
+
+### Bug Fixes / 缺陷修复
+
+* **i18n:** localize debug configuration controls / 本地化调试配置控件 ([#140](https://github.com/dormonbear/ultraforce-desktop/issues/140)) ([87b20ff](https://github.com/dormonbear/ultraforce-desktop/commit/87b20ffa13ac746332598ee83df648912f7dedab))
+  Debug preset controls, category headings, accessible names and loading/applying feedback follow English or Simplified Chinese, including live language changes. Preset names, raw errors, Salesforce level values and write arguments retain their original values.
+  调试预设控件、分类表头、无障碍名称及加载／应用反馈支持英文和简体中文，并响应实时语言变化。预设名称、原始错误、Salesforce 等级值及写入参数保留原值。
+* **i18n:** support runtimes without Object.hasOwn / 兼容缺少 Object.hasOwn 的运行环境 ([#138](https://github.com/dormonbear/ultraforce-desktop/issues/138)) ([2275263](https://github.com/dormonbear/ultraforce-desktop/commit/2275263e75902cfb882faee5f7067b14a5a2c684))
+  Interpolated messages work when Object.hasOwn is unavailable, preventing the reproduced workspace startup failure. Own-property checks, missing placeholders and literal parameter substitution retain their behavior.
+  缺少 Object.hasOwn 时，插值消息仍可正常工作，防止已复现的工作区启动失败。自有属性检查、缺失占位符和字面参数替换保留既有行为。
+
 ## [0.3.26](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.25...v0.3.26) (2026-10-22)
 
 
