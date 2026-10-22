@@ -155,6 +155,9 @@ export const ReferencesSection = memo(function ReferencesSection({
     setData(null);
     setLoading(false);
     setError(false);
+    return () => {
+      genRef.current += 1;
+    };
   }, [org, object, field.name]);
 
   const load = useCallback(
@@ -180,12 +183,9 @@ export const ReferencesSection = memo(function ReferencesSection({
   );
 
   const onToggle = useCallback(() => {
-    setExpanded((prev) => {
-      const next = !prev;
-      if (next && data === null && !loading && !error) load(false);
-      return next;
-    });
-  }, [data, loading, error, load]);
+    setExpanded((prev) => !prev);
+    if (!expanded && data === null && !loading && !error) load(false);
+  }, [expanded, data, loading, error, load]);
 
   const showRefresh = expanded && !loading && Boolean(data?.supported);
 

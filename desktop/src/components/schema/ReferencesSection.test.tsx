@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { ReferencesSection } from "./ReferencesSection";
 import type { FieldDependencies, SchemaField } from "../../types";
 
@@ -47,6 +48,35 @@ describe("ReferencesSection", () => {
   afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+  });
+
+  it.each([false, true])("sends one request per expansion and reuses cached results / 展开仅请求一次并复用缓存结果 (StrictMode: %s)", async (strict) => {
+    let resolve!: (value: FieldDependencies) => void;
+    vi.mocked(getFieldDependencies).mockReturnValue(new Promise<FieldDependencies>((done) => { resolve = done; }));
+    const view = <ReferencesSection org="synthetic@example.invalid" object="Account" field={field("Synthetic__c")} />;
+    render(strict ? <StrictMode>{view}</StrictMode> : view);
+    const toggle = screen.getByRole("button", { name: "Where is this used?" });
+    expect(getFieldDependencies).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    expect(getFieldDependencies).toHaveBeenCalledExactlyOnceWith("synthetic@example.invalid", "Account", "Synthetic__c", false);
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    expect(getFieldDependencies).toHaveBeenCalledTimes(1);
+    await act(async () => { resolve(supported); });
+    expect(screen.getByText("AccountService")).toBeTruthy();
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    expect(getFieldDependencies).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a late failure after unmount / 卸载后忽略迟到的失败", async () => {
+    let reject!: (error: Error) => void;
+    vi.mocked(getFieldDependencies).mockReturnValue(new Promise<FieldDependencies>((_resolve, fail) => { reject = fail; }));
+    const { unmount } = render(<ReferencesSection org="synthetic@example.invalid" object="Account" field={field("Synthetic__c")} />);
+    fireEvent.click(screen.getByRole("button", { name: "Where is this used?" }));
+    unmount();
+    await act(async () => { reject(new Error("Synthetic / 合成")); });
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("is collapsed by default and does not fetch until expanded", () => {
