@@ -13,9 +13,11 @@ export interface ApexSource {
 // the org (~1s) only once while exploring one log. Scoped per-log — cleared on
 // log switch via `clearApexSourceCache` so a different log starts fresh.
 const sourceCache = new Map<string, ApexSource>();
+let sourceGeneration = 0;
 
 /** Drop all cached Apex source. Call when switching to a different log. */
 export function clearApexSourceCache(): void {
+  sourceGeneration += 1;
   sourceCache.clear();
 }
 
@@ -52,10 +54,13 @@ export function useApexSource(
     }
     setSrc(null);
     let alive = true;
+    const generation = sourceGeneration;
     fetchApexSource(className, org)
       .then((s) => {
-        sourceCache.set(key, s);
-        if (alive) setSrc(s);
+        // Disposed views and cleared log scopes cannot repopulate the cache. / 已销毁视图及已清空日志范围不能重新填充缓存。
+        if (!alive) return;
+        if (generation === sourceGeneration) sourceCache.set(key, s);
+        setSrc(s);
       })
       .catch((e) => alive && setError(formatIpcError(e)));
     return () => {
