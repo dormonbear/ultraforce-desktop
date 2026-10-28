@@ -5,6 +5,7 @@ type Invoke = (command: string, args?: Record<string, unknown>, options?: { head
 type IpcScope = {
   __TAURI_INTERNALS__: { invoke: Invoke };
   __ufCalls: { cmd: string; args: Record<string, unknown> }[];
+  __finishOld?: () => void;
 };
 
 for (const language of ["en-US", "zh-CN"] as const) {
@@ -26,6 +27,13 @@ for (const language of ["en-US", "zh-CN"] as const) {
       await page.getByRole("button", { name: "SOQL", exact: true }).click();
       await page.getByRole("treeitem", { name: "accounts.soql" }).click();
       await expect(page.getByRole("button", { name: words.explain, exact: true })).toBeVisible();
+    }
+
+    async function selectStaging(page: Page) {
+      await page.getByRole("button", { name: words.org, exact: true }).click();
+      await page.getByRole("dialog").getByText("Staging", { exact: true }).click();
+      const selected = language === "zh-CN" ? "当前组织：Staging。切换组织" : "Current org: Staging. Switch org";
+      await expect(page.getByRole("button", { name: selected, exact: true })).toBeVisible();
     }
 
     test("query plans follow the selected organization / 查询计划跟随所选组织", async ({ page }) => {
@@ -109,6 +117,92 @@ for (const language of ["en-US", "zh-CN"] as const) {
       expect(calls).toHaveLength(1);
       expect(calls[0].args.query).toBe("SELECT Id, Name, AnnualRevenue FROM Account\nLIMIT 2000");
       expect(calls[0].args.org).toBe("dev@acme.com");
+    });
+
+    test("organization changes discard delayed preflight / 组织变化后丢弃延迟预检", async ({ page }) => {
+      await installMocks(page, { count_soql: 1 });
+      await openQuery(page);
+      await page.evaluate(() => {
+        const scope = window as unknown as IpcScope;
+        const invoke = scope.__TAURI_INTERNALS__.invoke;
+        scope.__TAURI_INTERNALS__.invoke = (command, args = {}, options) => {
+          if (command === "count_soql" && args.org === "dev@acme.com") {
+            void invoke(command, args, options);
+            return new Promise<null>((resolve) => { scope.__finishOld = () => resolve(null); });
+          }
+          return invoke(command, args, options);
+        };
+      });
+      await page.getByRole("button", { name: words.run, exact: true }).click();
+      await expect(page.getByText(words.checking, { exact: true })).toBeVisible();
+      await selectStaging(page);
+      await expect(page.getByRole("button", { name: words.run, exact: true })).toBeEnabled();
+      await page.evaluate(async () => {
+        (window as unknown as IpcScope).__finishOld?.();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      const calls = await page.evaluate(() => (window as unknown as IpcScope).__ufCalls);
+      const count = calls.find((call) => call.cmd === "count_soql");
+      expect(count).toBeTruthy();
+      expect(calls.filter((call) => call.cmd === "cancel_soql").map((call) => call.args.queryId)).toEqual([count?.args.queryId]);
+      expect(calls.filter((call) => call.cmd === "run_soql")).toHaveLength(0);
+      await page.getByRole("button", { name: words.run, exact: true }).click();
+      await expect.poll(() => page.evaluate(() => (window as unknown as IpcScope).__ufCalls
+        .filter((call) => call.cmd === "run_soql").map((call) => call.args.org))).toEqual(["stg@acme.com"]);
+    });
+
+    test("late query completion cannot replace another organization's result / 迟到查询不能替换另一组织的结果", async ({ page }) => {
+      await installMocks(page, {
+        count_soql: 1,
+        run_soql: { columns: ["Name"], rows: [["Current fixture / 当前夹具"]], totalSize: 1, done: true, childTables: [] },
+      });
+      await openQuery(page);
+      await page.evaluate(() => {
+        const scope = window as unknown as IpcScope;
+        const invoke = scope.__TAURI_INTERNALS__.invoke;
+        scope.__TAURI_INTERNALS__.invoke = (command, args = {}, options) => {
+          if (command === "run_soql" && args.org === "dev@acme.com") {
+            void invoke(command, args, options);
+            return new Promise((resolve) => { scope.__finishOld = () => resolve({
+              columns: ["Name"], rows: [["Old fixture / 旧夹具"]], totalSize: 1, done: true, childTables: [],
+            }); });
+          }
+          return invoke(command, args, options);
+        };
+      });
+      await page.getByRole("button", { name: words.run, exact: true }).click();
+      await expect.poll(() => page.evaluate(() => (window as unknown as IpcScope).__ufCalls
+        .filter((call) => call.cmd === "run_soql").length)).toBe(1);
+      await selectStaging(page);
+      await page.getByRole("button", { name: words.run, exact: true }).click();
+      await expect(page.getByText("Current fixture / 当前夹具", { exact: true })).toBeVisible();
+      await page.evaluate(async () => {
+        (window as unknown as IpcScope).__finishOld?.();
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      await expect(page.getByText("Current fixture / 当前夹具", { exact: true })).toBeVisible();
+      await expect(page.getByText("Old fixture / 旧夹具", { exact: true })).toHaveCount(0);
+    });
+
+    test("listener registration failure restores the query controls / 监听注册失败后恢复查询控件", async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await installMocks(page, { count_soql: 1 });
+      await openQuery(page);
+      await page.evaluate(() => {
+        const scope = window as unknown as IpcScope;
+        const invoke = scope.__TAURI_INTERNALS__.invoke;
+        scope.__TAURI_INTERNALS__.invoke = (command, args = {}, options) => {
+          if (command === "plugin:event|listen" && args.event === "soql-progress")
+            return Promise.reject(new Error("Synthetic registration failure / 合成注册失败"));
+          return invoke(command, args, options);
+        };
+      });
+      await page.getByRole("button", { name: words.run, exact: true }).click();
+      await expect(page.getByText("Synthetic registration failure / 合成注册失败", { exact: false }).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: words.run, exact: true })).toBeEnabled();
+      expect(errors).toEqual([]);
+      expect(await page.evaluate(() => (window as unknown as IpcScope).__ufCalls.filter((call) => call.cmd === "run_soql"))).toHaveLength(0);
     });
   });
 }
