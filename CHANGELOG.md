@@ -1,5 +1,14 @@
 # Changelog / 更新日志
 
+## [0.3.28](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.27...v0.3.28) (2026-10-28)
+
+
+### Bug Fixes / 缺陷修复
+
+* guard selected log response ownership / 保护选中日志的响应归属 ([#147](https://github.com/dormonbear/ultraforce-desktop/issues/147)) ([ab47b96](https://github.com/dormonbear/ultraforce-desktop/commit/ab47b960863b30d7c800005d5c58fdf156023c4e))
+* reject obsolete Apex source cache writes / 拒绝过期 Apex 源码缓存写入 ([#145](https://github.com/dormonbear/ultraforce-desktop/issues/145)) ([bc44456](https://github.com/dormonbear/ultraforce-desktop/commit/bc444561f7bb6e9c892fd4de86e4223f6d1184a6))
+* **ui:** localize shared log and source views / 本地化共享日志及源码视图 ([#142](https://github.com/dormonbear/ultraforce-desktop/issues/142)) ([bc0e942](https://github.com/dormonbear/ultraforce-desktop/commit/bc0e9426d86d9dd45bbdb32ad696a3ef8cd163b8))
+
 ## [0.3.27](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.26...v0.3.27) (2026-10-22)
 
 
