@@ -28,20 +28,33 @@ export function useLogView(org: string | null) {
   // Parsed-log cache (logs are immutable once written). Avoids re-fetching a
   // large log from the org on every click; cleared on org switch / REFRESH.
   const viewCache = useRef<Map<string, LogViewDto>>(new Map());
+  const viewRevision = useRef(0);
+  const cacheGeneration = useRef(0);
   // Id of the log whose Apex source cache is currently held (null = local file).
   const lastLogId = useRef<string | null>(null);
   // Log ids whose body is cached on disk — drives the "downloaded" list marker.
   const [cachedIds, setCachedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    void listCachedIds().then(setCachedIds);
+    let alive = true;
+    void listCachedIds().then((ids) => { if (alive) setCachedIds(ids); });
+    return () => {
+      alive = false;
+      viewRevision.current += 1;
+      cacheGeneration.current += 1;
+    };
   }, []);
 
   /** Drop all per-log state on org switch: selection, parsed view, and the
    * Apex source cache (a different org has different source). */
   const resetForOrg = useCallback(() => {
+    viewRevision.current += 1;
+    cacheGeneration.current += 1;
+    viewCache.current.clear();
     setSelectedId(null);
     setView(null);
+    setViewLoading(false);
+    setSourceRef(null);
     setSourceLines(new Set());
     setViewError(null);
     setOrgless(false);
@@ -51,18 +64,21 @@ export function useLogView(org: string | null) {
 
   /** Drop the parsed-log cache (used on list refresh). */
   const clearViewCache = useCallback(() => {
+    cacheGeneration.current += 1;
     viewCache.current.clear();
   }, []);
 
   /** Fetch the raw-line indices that resolve to Apex source for the given log
    * body, so the raw viewer can mark only those lines clickable. */
-  const loadSourceLines = useCallback((raw: string) => {
+  const loadSourceLines = useCallback((raw: string, revision: number) => {
     sourceLineIndices(raw)
-      .then((idx) => setSourceLines(new Set(idx)))
-      .catch(() => setSourceLines(new Set()));
+      .then((idx) => { if (revision === viewRevision.current) setSourceLines(new Set(idx)); })
+      .catch(() => { if (revision === viewRevision.current) setSourceLines(new Set()); });
   }, []);
 
   const select = useCallback(async (id: string) => {
+    const revision = ++viewRevision.current;
+    const generation = cacheGeneration.current;
     // Switching to a different log: drop the previous log's Apex source cache.
     if (lastLogId.current !== id) {
       clearApexSourceCache();
@@ -71,30 +87,34 @@ export function useLogView(org: string | null) {
     setSelectedId(id);
     setOrgless(false);
     setViewError(null);
+    setSourceLines(new Set());
+    setSourceRef(null);
     setTab("raw");
     const cached = viewCache.current.get(id);
     if (cached) {
       setView(cached);
-      loadSourceLines(cached.raw);
+      loadSourceLines(cached.raw, revision);
       setViewLoading(false);
       return;
     }
     setView(null);
-    setSourceLines(new Set());
     setViewLoading(true);
     try {
       // Cache-first (logs are immutable): parse a locally cached body, else
       // download from the org and write it to cache for next time.
       const dto = await fetchLogView(id, org);
-      viewCache.current.set(id, dto);
+      // A reset/refresh invalidates cache writes; selection owns visible state. / 重置／刷新使缓存写入失效，选择决定可见状态归属。
+      if (generation === cacheGeneration.current) {
+        viewCache.current.set(id, dto);
+        setCachedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+      }
+      if (revision !== viewRevision.current) return;
       setView(dto);
-      loadSourceLines(dto.raw);
-      // loadLogView writes the body to disk on a download; reflect that marker.
-      setCachedIds((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+      loadSourceLines(dto.raw, revision);
     } catch (e) {
-      setViewError(formatIpcError(e));
+      if (revision === viewRevision.current) setViewError(formatIpcError(e));
     } finally {
-      setViewLoading(false);
+      if (revision === viewRevision.current) setViewLoading(false);
     }
   }, [loadSourceLines, org]);
 
@@ -103,6 +123,7 @@ export function useLogView(org: string | null) {
    * reliable org, so raw click-to-source and hotspot/timeline source jumps
    * stay disabled for it (see `orgless`). */
   const showLocalLog = useCallback(async (body: string) => {
+    const revision = ++viewRevision.current;
     setSelectedId(null);
     // A freshly opened local log: start with an empty Apex source cache.
     clearApexSourceCache();
@@ -111,14 +132,16 @@ export function useLogView(org: string | null) {
     setViewLoading(true);
     setViewError(null);
     setView(null);
+    setSourceRef(null);
     setSourceLines(new Set());
     setTab("raw");
     try {
-      setView(await parseLogView(body));
+      const dto = await parseLogView(body);
+      if (revision === viewRevision.current) setView(dto);
     } catch (e) {
-      setViewError(formatIpcError(e));
+      if (revision === viewRevision.current) setViewError(formatIpcError(e));
     } finally {
-      setViewLoading(false);
+      if (revision === viewRevision.current) setViewLoading(false);
     }
   }, []);
 
@@ -127,9 +150,12 @@ export function useLogView(org: string | null) {
   const getBody = useCallback(async (log: LogRefDto): Promise<string> => {
     const cached = viewCache.current.get(log.id);
     if (cached) return cached.raw;
+    const generation = cacheGeneration.current;
     const dto = await fetchLogView(log.id, org);
-    viewCache.current.set(log.id, dto);
-    setCachedIds((prev) => (prev.has(log.id) ? prev : new Set(prev).add(log.id)));
+    if (generation === cacheGeneration.current) {
+      viewCache.current.set(log.id, dto);
+      setCachedIds((prev) => (prev.has(log.id) ? prev : new Set(prev).add(log.id)));
+    }
     return dto.raw;
   }, [org]);
 
