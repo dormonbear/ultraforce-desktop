@@ -1,5 +1,12 @@
 # Changelog / 更新日志
 
+## [0.3.29](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.28...v0.3.29) (2026-10-28)
+
+
+### Bug Fixes / 缺陷修复
+
+* scope SOQL request lifetime and stale responses / 限定 SOQL 请求生命周期并丢弃过期响应 ([3234853](https://github.com/dormonbear/ultraforce-desktop/commit/32348539a791c4e2549a6f9f3916593c551d27ac))
+
 ## [0.3.28](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.27...v0.3.28) (2026-10-28)
 
 
