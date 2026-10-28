@@ -1,5 +1,12 @@
 # Changelog / 更新日志
 
+## [0.3.30](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.29...v0.3.30) (2026-10-28)
+
+
+### Bug Fixes / 缺陷修复
+
+* localize schema browsing controls / 本地化对象结构浏览控件 ([a19e846](https://github.com/dormonbear/ultraforce-desktop/commit/a19e8462c98f28bd2f43a4a9a34623596b77f0a7)), closes [#151](https://github.com/dormonbear/ultraforce-desktop/issues/151)
+
 ## [0.3.29](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.28...v0.3.29) (2026-10-28)
 
 
