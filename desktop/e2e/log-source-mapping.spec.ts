@@ -17,6 +17,53 @@ async function changeLocale(page: Page, locale: string) {
   }, locale);
 }
 
+test("a closed log's late source cannot replace the new log cache / 已关闭日志的迟到源码不能覆盖新日志缓存", async ({ page }) => {
+  await gotoApp(page, {
+    get_log: { raw: RAW, apiVersion: "60.0", units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }] },
+    source_line_indices: [2],
+    source_at_line: src("MyClass", 8),
+  });
+  await page.evaluate(() => {
+    const win = window as unknown as {
+      __TAURI_INTERNALS__: { invoke: (cmd: string, args?: unknown) => Promise<unknown> };
+      __sourceRequests: number;
+      __finishOldSource: () => Promise<void>;
+    };
+    const invoke = win.__TAURI_INTERNALS__.invoke;
+    win.__sourceRequests = 0;
+    win.__TAURI_INTERNALS__.invoke = (cmd, args) => {
+      if (cmd !== "fetch_apex_source") return invoke(cmd, args);
+      win.__sourceRequests += 1;
+      const result = (marker: string) => ({ name: "MyClass", kind: "ApexClass", body: `public class MyClass {\n  // ${marker}\n}` });
+      if (win.__sourceRequests !== 1) return Promise.resolve(result("CURRENT_BODY"));
+      let resolve!: (value: unknown) => void;
+      const pending = new Promise(yes => { resolve = yes; });
+      win.__finishOldSource = async () => { resolve(result("OLD_BODY")); await pending; };
+      return pending;
+    };
+  });
+  const requestCount = () => page.evaluate(() => (window as unknown as { __sourceRequests: number }).__sourceRequests);
+  const dialog = page.getByRole("dialog");
+  const row = page.getByRole("button", { name: /USER_DEBUG.*hello/ });
+  const close = () => dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await page.getByRole("button", { name: "Logs", exact: true }).click();
+  await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
+  await row.click();
+  await expect.poll(requestCount).toBe(1);
+  await expect(dialog.getByText("Fetching source…", { exact: true })).toBeVisible();
+  await close();
+  await page.getByRole("button", { name: /opalrest/ }).click();
+  await row.click();
+  await expect(dialog.locator(".view-lines")).toContainText("CURRENT_BODY");
+  await expect.poll(requestCount).toBe(2);
+  await page.evaluate(() => (window as unknown as { __finishOldSource: () => Promise<void> }).__finishOldSource());
+  await expect(dialog.locator(".view-lines")).toContainText("CURRENT_BODY");
+  await close();
+  await row.click();
+  await expect(dialog.locator(".view-lines")).toContainText("CURRENT_BODY");
+  expect(await requestCount()).toBe(2);
+});
+
 test("clicking a statement line jumps to its inherited class", async ({
   page,
 }) => {
