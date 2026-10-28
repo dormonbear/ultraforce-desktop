@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { filterFields } from "./schemaFilter";
 import { SchemaListFilter } from "./SchemaListFilter";
 import { useVirtualRows } from "./useVirtualRows";
+import { useI18n, type MessageKey } from "../../i18n";
 
 /** Human-readable type label, e.g. `reference→Account` for lookups. */
 function typeLabel(f: SchemaField): string {
@@ -19,8 +20,8 @@ function Chip({ children }: { children: string }) {
   );
 }
 
-function attributeChips(f: SchemaField): string[] {
-  const chips: string[] = [];
+function attributeChips(f: SchemaField): MessageKey[] {
+  const chips: MessageKey[] = [];
   if (!f.nillable) chips.push("required");
   if (f.unique) chips.push("unique");
   if (f.calculated) chips.push("formula");
@@ -47,6 +48,7 @@ export const FieldTable = memo(function FieldTable({
   onFilterChange: (q: string) => void;
   onSelect: (name: string) => void;
 }) {
+  const { t } = useI18n();
   const shown = useMemo(() => filterFields(fields, filter), [fields, filter]);
   const { viewportRef, rowVirtualizer } = useVirtualRows(shown, selected, 44);
 
@@ -55,7 +57,7 @@ export const FieldTable = memo(function FieldTable({
       <SchemaListFilter
         value={filter}
         onChange={onFilterChange}
-        placeholder="Filter fields"
+        placeholder={t("Filter fields")}
       />
       <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
         {loading ? (
@@ -69,7 +71,7 @@ export const FieldTable = memo(function FieldTable({
           </div>
         ) : shown.length === 0 ? (
           <div className="px-3 py-3 text-[12px] text-muted-foreground">
-            No matching fields
+            {t("No matching fields")}
           </div>
         ) : (
           <div className="p-1">
@@ -107,10 +109,10 @@ export const FieldTable = memo(function FieldTable({
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
                       {chips.map((c) => (
-                        <Chip key={c}>{c}</Chip>
+                        <Chip key={c}>{t(c)}</Chip>
                       ))}
                       {f.picklistValues.length > 0 && (
-                        <Chip>{`${f.picklistValues.length} values`}</Chip>
+                        <Chip>{t("{count} values", { count: f.picklistValues.length })}</Chip>
                       )}
                       <span className="rounded bg-secondary px-1.5 py-px font-mono text-[10px] text-foreground">
                         {typeLabel(f)}

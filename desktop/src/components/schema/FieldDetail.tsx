@@ -17,6 +17,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ReferencesSection } from "./ReferencesSection";
 import { useRemeasureOnVisible } from "./useRemeasureOnVisible";
+import { useI18n } from "../../i18n";
 
 // Shared 4-column grid template so the header row lines up with the virtualized
 // body rows (two separate grids, identical tracks → aligned columns).
@@ -35,6 +36,7 @@ const PICKLIST_MAX_H = 288; // px cap on the bounded scroll region
  * LogListPane approach.
  */
 function PicklistValues({ values }: { values: SchemaPicklistValue[] }) {
+  const { t } = useI18n();
   const viewportRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
     count: values.length,
@@ -52,10 +54,10 @@ function PicklistValues({ values }: { values: SchemaPicklistValue[] }) {
       <div
         className={`grid ${PICKLIST_COLS} gap-2 border-b border-border bg-secondary px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground`}
       >
-        <div>Label</div>
-        <div>Value</div>
-        <div>Active</div>
-        <div>Default</div>
+        <div>{t("Label")}</div>
+        <div>{t("Value")}</div>
+        <div>{t("Active")}</div>
+        <div>{t("Default")}</div>
       </div>
       <ScrollArea
         className="uf-scroll"
@@ -75,8 +77,8 @@ function PicklistValues({ values }: { values: SchemaPicklistValue[] }) {
               >
                 <div className="truncate">{p.label}</div>
                 <div className="truncate font-mono text-[11px]">{p.value}</div>
-                <div>{p.active ? "Yes" : "No"}</div>
-                <div>{p.defaultValue ? "Yes" : ""}</div>
+                <div>{t(p.active ? "Yes" : "No")}</div>
+                <div>{p.defaultValue ? t("Yes") : ""}</div>
               </div>
             );
           })}
@@ -98,34 +100,35 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function FieldView({ field }: { field: SchemaField }) {
+  const { t } = useI18n();
   const typeLabel =
     field.referenceTo.length > 0
       ? `reference→${field.referenceTo.join(", ")}`
       : field.fieldType;
   return (
     <>
-      <Section title="Type">
+      <Section title={t("Type")}>
         <div className="font-mono text-[12px] text-foreground">{typeLabel}</div>
       </Section>
       {field.label && field.label !== field.name && (
-        <Section title="Label">
+        <Section title={t("Label")}>
           <div className="text-[12px] text-foreground">{field.label}</div>
         </Section>
       )}
       {field.inlineHelpText && (
-        <Section title="Help text">
+        <Section title={t("Help text")}>
           <div className="text-[12px] text-foreground">{field.inlineHelpText}</div>
         </Section>
       )}
       {field.calculatedFormula && (
-        <Section title="Formula">
+        <Section title={t("Formula")}>
           <pre className="uf-scroll overflow-auto rounded border border-border bg-secondary p-2 text-[11px] text-foreground">
             {field.calculatedFormula}
           </pre>
         </Section>
       )}
       {field.picklistValues.length > 0 && (
-        <Section title={`Picklist values (${field.picklistValues.length})`}>
+        <Section title={t("Picklist values ({count})", { count: field.picklistValues.length })}>
           <PicklistValues values={field.picklistValues} />
         </Section>
       )}
@@ -134,22 +137,23 @@ function FieldView({ field }: { field: SchemaField }) {
 }
 
 function RecordTypesView({ recordTypes }: { recordTypes: SchemaRecordType[] }) {
+  const { t } = useI18n();
   if (recordTypes.length === 0) {
     return (
       <div className="text-[12px] text-muted-foreground">
-        Select a field to see its detail.
+        {t("Select a field to see its detail.")}
       </div>
     );
   }
   return (
-    <Section title={`Record types (${recordTypes.length})`}>
+    <Section title={t("Record types ({count})", { count: recordTypes.length })}>
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Developer name</TableHead>
-            <TableHead>Active</TableHead>
-            <TableHead>Default</TableHead>
+            <TableHead>{t("Name")}</TableHead>
+            <TableHead>{t("Developer name")}</TableHead>
+            <TableHead>{t("Active")}</TableHead>
+            <TableHead>{t("Default")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -159,8 +163,8 @@ function RecordTypesView({ recordTypes }: { recordTypes: SchemaRecordType[] }) {
               <TableCell className="font-mono text-[11px]">
                 {rt.developerName}
               </TableCell>
-              <TableCell>{rt.active ? "Yes" : "No"}</TableCell>
-              <TableCell>{rt.master ? "Yes" : ""}</TableCell>
+              <TableCell>{t(rt.active ? "Yes" : "No")}</TableCell>
+              <TableCell>{rt.master ? t("Yes") : ""}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -188,16 +192,17 @@ export const FieldDetail = memo(function FieldDetail({
   recordTypes: SchemaRecordType[];
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex h-full flex-col border-l border-border">
       <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary px-3 py-2">
         <div className="min-w-0 truncate text-[12px] font-semibold text-foreground">
-          {field ? field.name : (objectName ?? "Detail")}
+          {field ? field.name : (objectName ?? t("Detail"))}
         </div>
         {field && (
           <button
             type="button"
-            aria-label="Close field detail"
+            aria-label={t("Close field detail")}
             onClick={onClose}
             className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground"
           >

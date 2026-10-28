@@ -69,6 +69,26 @@ describe("SchemaSearchBar", () => {
     expect(searchSchema).toHaveBeenCalledWith("ultraforce", "ind", 30);
   });
 
+  it("changing language preserves the query without another search / 切换语言保留查询且不重复搜索", async () => {
+    const language = vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
+    try {
+      vi.mocked(searchSchema).mockResolvedValue(hits);
+      render(<SchemaSearchBar org="ultraforce" />);
+      const input = await typeAndSettle("Owned {count}");
+      expect(searchSchema).toHaveBeenCalledTimes(1);
+      act(() => {
+        language.mockReturnValue(["zh-CN"]);
+        window.dispatchEvent(new Event("languagechange"));
+      });
+      await act(async () => { vi.advanceTimersByTime(150); });
+      expect(screen.getByLabelText("搜索对象结构")).toBe(input);
+      expect(input.value).toBe("Owned {count}");
+      expect(searchSchema).toHaveBeenCalledExactlyOnceWith("ultraforce", "Owned {count}", 30);
+    } finally {
+      language.mockRestore();
+    }
+  });
+
   it("renders results as object.field, label and a highlighted snippet", async () => {
     vi.mocked(searchSchema).mockResolvedValue(hits);
     render(<SchemaSearchBar org="ultraforce" />);

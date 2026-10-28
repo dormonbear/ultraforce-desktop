@@ -19,6 +19,7 @@ import { FieldTable } from "./FieldTable";
 import { FieldDetail } from "./FieldDetail";
 import { SchemaSearchBar } from "./SchemaSearchBar";
 import { subscribe, type SchemaNavTarget } from "./useSchemaNav";
+import { browserLocale, translate, useI18n } from "../../i18n";
 
 const HANDLE_CLASS =
   "w-px bg-line transition-colors data-[resize-handle-state=hover]:bg-primary data-[resize-handle-state=drag]:bg-primary";
@@ -43,6 +44,7 @@ export const SchemaPanel = memo(function SchemaPanel({
 }: {
   org: string | null;
 }) {
+  const { t } = useI18n();
   const [objects, setObjects] = useState<SchemaObject[]>([]);
   const [objectsLoading, setObjectsLoading] = useState(false);
   const [noIndex, setNoIndex] = useState(false);
@@ -90,7 +92,7 @@ export const SchemaPanel = memo(function SchemaPanel({
         if (isNoIndex(e)) {
           setNoIndex(true);
         } else {
-          toast.error(`Schema: ${formatIpcError(e)}`);
+          toast.error(translate(browserLocale(), "Schema: {error}", { error: formatIpcError(e) }));
         }
       })
       .finally(() => {
@@ -133,7 +135,7 @@ export const SchemaPanel = memo(function SchemaPanel({
         setDetailCache((prev) => new Map(prev).set(detail.name, detail));
       })
       .catch((e: unknown) => {
-        if (!cancelled) toast.error(`Schema: ${formatIpcError(e)}`);
+        if (!cancelled) toast.error(translate(browserLocale(), "Schema: {error}", { error: formatIpcError(e) }));
       })
       .finally(() => {
         if (!cancelled) setDetailLoading(false);
@@ -166,9 +168,9 @@ export const SchemaPanel = memo(function SchemaPanel({
     if (!org) return;
     try {
       await reindexOrg(org, await getNamespacePolicy());
-      toast.success("Reindexing org…");
+      toast.success(translate(browserLocale(), "Reindexing org…"));
     } catch (e) {
-      toast.error(`Schema: ${formatIpcError(e)}`);
+      toast.error(translate(browserLocale(), "Schema: {error}", { error: formatIpcError(e) }));
     }
   }, [org]);
 
@@ -189,18 +191,17 @@ export const SchemaPanel = memo(function SchemaPanel({
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
         <div className="text-[13px] font-medium text-foreground">
-          This org isn’t indexed yet
+          {t("This org isn’t indexed yet")}
         </div>
         <div className="max-w-sm text-[12px] text-muted-foreground">
-          Build the offline schema index for this org to browse its objects and
-          fields here.
+          {t("Build the offline schema index for this org to browse its objects and fields here.")}
         </div>
         <button
           type="button"
           onClick={() => void onReindex()}
           className="focus-accent mt-1 cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
         >
-          Reindex org
+          {t("Reindex org")}
         </button>
       </div>
     );
@@ -234,8 +235,8 @@ export const SchemaPanel = memo(function SchemaPanel({
             ) : (
               <div className="flex h-full items-center justify-center px-6 text-center text-[12px] text-muted-foreground">
                 {objectsLoading
-                  ? "Loading objects…"
-                  : "Select an object to browse its fields."}
+                  ? t("Loading objects…")
+                  : t("Select an object to browse its fields.")}
               </div>
             )}
           </ResizablePanel>

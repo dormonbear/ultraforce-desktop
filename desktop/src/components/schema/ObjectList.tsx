@@ -4,6 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { filterObjects } from "./schemaFilter";
 import { SchemaListFilter } from "./SchemaListFilter";
 import { useVirtualRows } from "./useVirtualRows";
+import { useI18n } from "../../i18n";
 
 /**
  * Left pane of the schema browser: a filter box over the org's sObjects and a
@@ -23,6 +24,7 @@ export const ObjectList = memo(function ObjectList({
   onFilterChange: (q: string) => void;
   onSelect: (name: string) => void;
 }) {
+  const { t } = useI18n();
   const shown = useMemo(
     () => filterObjects(objects, filter),
     [objects, filter],
@@ -34,12 +36,12 @@ export const ObjectList = memo(function ObjectList({
       <SchemaListFilter
         value={filter}
         onChange={onFilterChange}
-        placeholder="Filter objects"
+        placeholder={t("Filter objects")}
       />
       <ScrollArea className="min-h-0 flex-1" viewportRef={viewportRef}>
         {shown.length === 0 ? (
           <div className="px-2 py-2 text-[12px] text-muted-foreground">
-            No matching objects
+            {t("No matching objects")}
           </div>
         ) : (
           <div className="p-1">
