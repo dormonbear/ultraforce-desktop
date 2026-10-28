@@ -7,6 +7,7 @@ import { useOrgs } from "../org";
 import { getNamespacePolicy } from "../indexSettings";
 import { reindexOrg } from "../ipc/schema";
 import { useIndexProgress } from "./IndexProgress";
+import { browserLocale, translate, useI18n } from "../i18n";
 
 /**
  * Rebuilds the cached offline sObject schema for the active org. The schema
@@ -14,6 +15,7 @@ import { useIndexProgress } from "./IndexProgress";
  * after metadata changes in the org.
  */
 export function SchemaRefresh() {
+  const { t } = useI18n();
   const { selected: org } = useOrgs();
   const [busy, setBusy] = useState(false);
   // The top-bar progress pill already shows the indexing spinner + phase. Hide
@@ -24,15 +26,15 @@ export function SchemaRefresh() {
 
   const refresh = async () => {
     if (!org) {
-      toast.error("No org selected");
+      toast.error(t("No org selected"));
       return;
     }
     setBusy(true);
     try {
       await reindexOrg(org, await getNamespacePolicy());
-      toast.success("Reindexing org...");
+      toast.success(translate(browserLocale(), "Reindexing org…"));
     } catch (e) {
-      toast.error(`Schema refresh failed: ${formatIpcError(e)}`);
+      toast.error(translate(browserLocale(), "Schema refresh failed: {error}", { error: formatIpcError(e) }));
     } finally {
       setBusy(false);
     }
@@ -42,8 +44,8 @@ export function SchemaRefresh() {
 
   return (
     <IconButton
-      label="Reindex org"
-      tooltip="Reindex org"
+      label={t("Reindex org")}
+      tooltip={t("Reindex org")}
       variant="ghost"
       size="sm"
       icon={<RefreshCw size={15} />}

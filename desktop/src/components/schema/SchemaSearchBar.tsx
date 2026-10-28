@@ -6,6 +6,7 @@ import type { SchemaSearchHit } from "../../types";
 import { searchSchema } from "../../ipc/schema";
 import { formatIpcError } from "../../errorFormat";
 import { navigateTo } from "./useSchemaNav";
+import { browserLocale, translate, useI18n } from "../../i18n";
 
 const DEBOUNCE_MS = 150;
 const LIMIT = 30;
@@ -47,6 +48,7 @@ export const SchemaSearchBar = memo(function SchemaSearchBar({
 }: {
   org: string | null;
 }) {
+  const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SchemaSearchHit[]>([]);
   const [open, setOpen] = useState(false);
@@ -78,7 +80,7 @@ export const SchemaSearchBar = memo(function SchemaSearchBar({
         })
         .catch((e: unknown) => {
           if (latestQuery.current !== query) return;
-          toast.error(`Schema: ${formatIpcError(e)}`);
+          toast.error(translate(browserLocale(), "Schema: {error}", { error: formatIpcError(e) }));
           setResults([]);
           setOpen(false);
         });
@@ -139,15 +141,15 @@ export const SchemaSearchBar = memo(function SchemaSearchBar({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
           onBlur={() => setOpen(false)}
-          placeholder="Search fields, picklist values, formulas…"
+          placeholder={t("Search fields, picklist values, formulas…")}
           data-uf-search=""
-          aria-label="Search schema"
+          aria-label={t("Search schema")}
           className="focus-accent w-full rounded-md border border-border bg-input py-1 pl-7 pr-7 text-[12px] text-foreground placeholder:text-muted-foreground"
         />
         {query && (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={t("Clear search")}
             onMouseDown={(e) => e.preventDefault()}
             onClick={clear}
             className="focus-accent absolute right-2 top-1/2 -translate-y-1/2 rounded text-muted-foreground hover:text-foreground"
@@ -160,7 +162,7 @@ export const SchemaSearchBar = memo(function SchemaSearchBar({
         <div className="absolute left-2 right-2 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md">
           {!org ? (
             <div className="px-3 py-2 text-[12px] text-muted-foreground">
-              Select an org first
+              {t("Select an org first")}
             </div>
           ) : (
             <ul className="max-h-72 overflow-y-auto p-1">
