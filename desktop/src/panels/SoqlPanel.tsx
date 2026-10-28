@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { useDefaultLayout } from "react-resizable-panels";
@@ -36,27 +36,72 @@ interface SoqlViewProps {
   reveal?: Reveal;
 }
 
-/** SOQL tool (single tab): editor on top, Table/Tree result toggle + status line below. */
+interface QueryRequest {
+  owner: RequestScope;
+  active: boolean;
+  aborted: boolean;
+  id: string | null;
+  unlisten: (() => void) | null;
+  query: string;
+  useToolingApi: boolean;
+  allRows: boolean;
+}
+
+interface RequestScope {
+  key: symbol;
+  active: boolean;
+  query: QueryRequest | null;
+  plan: object | null;
+}
+
+interface RequestUi {
+  running: boolean;
+  counting: boolean;
+  explaining: boolean;
+  largeConfirm: { count: number; request: QueryRequest } | null;
+  progress: { fetched: number; total: number } | null;
+}
+
+const idleRequests: RequestUi = {
+  running: false, counting: false, explaining: false, largeConfirm: null, progress: null,
+};
+
+function releaseQuery(request: QueryRequest, cancel: boolean) {
+  request.active = false;
+  request.unlisten?.();
+  request.unlisten = null;
+  if (cancel && request.id && !request.aborted) {
+    request.aborted = true;
+    // Disposal is silent; a late cancel failure must not notify another view. / 销毁静默处理，迟到的取消失败不通知其他视图。
+    void cancelSoql(request.id).catch(() => {});
+  }
+}
+
+/** Scope requests independently of editor lifetime. / 请求归属独立于编辑器生命周期。 */
 export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
+  const { selected: org } = useOrgs();
   const { locale, t } = useI18n();
   const { query, result, error, useToolingApi, allRows, plan, lastMs } = tab;
-  const [running, setRunning] = useState(false);
-  // True while the pre-flight COUNT() is in flight (before the real query).
-  const [counting, setCounting] = useState(false);
-  // True while the Explain query-plan request is in flight.
-  const [explaining, setExplaining] = useState(false);
-  // Set when a no-LIMIT query would return more than LARGE_THRESHOLD rows; holds
-  // the count for the confirm dialog.
-  const [largeConfirm, setLargeConfirm] = useState<{ count: number } | null>(null);
-  // Live pagination progress for the in-flight query (fetched / totalSize).
-  const [progress, setProgress] = useState<{ fetched: number; total: number } | null>(
-    null,
-  );
-  const queryIdRef = useRef<string | null>(null);
-  // Set by Cancel during the pre-flight count so the run aborts after it returns.
-  const abortedRef = useRef(false);
+  const scope = useMemo(() => Symbol(), [org, tab.id]);
+  const ownerRef = useRef<RequestScope | null>(null);
+  const [requestUi, setRequestUi] = useState<RequestUi & { scope: symbol }>(() => ({ ...idleRequests, scope }));
+  // Hide a previous scope's transient UI immediately without resetting the editor. / 立即隐藏上一归属的临时界面，不重置编辑器。
+  const { running, counting, explaining, largeConfirm, progress } = requestUi.scope === scope ? requestUi : idleRequests;
+  const patchUi = useCallback((patch: Partial<RequestUi>) => {
+    if (!ownerRef.current?.active || ownerRef.current.key !== scope) return;
+    setRequestUi((previous) => ({ ...(previous.scope === scope ? previous : idleRequests), ...patch, scope }));
+  }, [scope]);
   const startRef = useRef(0);
-  const { selected: org } = useOrgs();
+  useLayoutEffect(() => {
+    const owner: RequestScope = { key: scope, active: true, query: null, plan: null };
+    ownerRef.current = owner;
+    return () => {
+      owner.active = false;
+      if (owner.query) releaseQuery(owner.query, true);
+      owner.query = null;
+      owner.plan = null;
+    };
+  }, [scope]);
   // Persist the editor/results split to localStorage; restored on next launch.
   // First run falls back to the editor's ~5-line default size below.
   const layout = useDefaultLayout({
@@ -66,49 +111,62 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
   });
 
   const execute = useCallback(
-    async (q: string) => {
-      setRunning(true);
-      setProgress(null);
+    async (request: QueryRequest, q = request.query) => {
+      const owner = request.owner;
+      const current = () => owner.active && ownerRef.current === owner && request.active && owner.query === request;
+      if (!current() || request.aborted) return;
+      patchUi({ running: true, progress: null });
       onPatch({ error: null });
       const queryId = crypto.randomUUID();
-      queryIdRef.current = queryId;
+      request.id = queryId;
       startRef.current = performance.now();
       const t0 = startRef.current;
-      // Stream pagination progress for THIS query (ignore other tabs' events).
-      const unlisten = await listen<{ id: string; fetched: number; total: number }>(
-        "soql-progress",
-        (e) => {
-          if (e.payload.id === queryId)
-            setProgress({ fetched: e.payload.fetched, total: e.payload.total });
-        },
-      );
       try {
+        // Registration is owned too: disposal can happen before its promise resolves. / 注册也有归属：其 Promise 完成前视图可能已销毁。
+        const unlisten = await listen<{ id: string; fetched: number; total: number }>(
+          "soql-progress",
+          (e) => {
+            if (current() && e.payload.id === queryId)
+              patchUi({ progress: { fetched: e.payload.fetched, total: e.payload.total } });
+          },
+        );
+        if (!current() || request.aborted) {
+          unlisten();
+          return;
+        }
+        request.unlisten = unlisten;
         const dto = await runSoql({
           query: q,
-          useToolingApi,
-          allRows,
+          useToolingApi: request.useToolingApi,
+          allRows: request.allRows,
           queryId,
           org,
         });
+        if (!current()) return;
         const ms = performance.now() - t0;
         onPatch({ result: dto, lastMs: ms });
         if (!dto.done)
           toast.info(t("Cancelled — showing {count} rows", { count: dto.rows.length.toLocaleString(locale) }));
       } catch (e) {
+        if (!current()) return;
         const message = formatIpcError(e);
         toast.error(parseSfError(message).detail);
         onPatch({ error: message });
       } finally {
-        unlisten();
-        queryIdRef.current = null;
-        setProgress(null);
-        setRunning(false);
+        const owned = current();
+        releaseQuery(request, false);
+        if (owned) {
+          owner.query = null;
+          patchUi({ progress: null, running: false });
+        }
       }
     },
-    [onPatch, org, useToolingApi, allRows, locale, t],
+    [onPatch, org, locale, t, patchUi],
   );
 
   const run = useCallback(async () => {
+    const owner = ownerRef.current;
+    if (!owner?.active || owner.key !== scope || owner.query) return;
     if (!query.trim()) {
       toast.error(t("Write a query to run"));
       return;
@@ -117,9 +175,13 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     // (mirrors Illuminated Cloud's COUNT() guard). Best-effort — never blocks a
     // run if the count fails. Cancellable: shares the query id / cancel registry.
     const countId = crypto.randomUUID();
-    queryIdRef.current = countId;
-    abortedRef.current = false;
-    setCounting(true);
+    const request: QueryRequest = {
+      owner, active: true, aborted: false, id: countId, unlisten: null,
+      query, useToolingApi, allRows,
+    };
+    owner.query = request;
+    const current = () => owner.active && ownerRef.current === owner && request.active && owner.query === request;
+    patchUi({ counting: true });
     let count: number | null = null;
     try {
       count = await countSoql({
@@ -131,35 +193,66 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
     } catch {
       count = null;
     } finally {
-      setCounting(false);
-      queryIdRef.current = null;
+      request.id = null;
+      if (current()) patchUi({ counting: false });
     }
-    if (abortedRef.current) return; // cancelled during the size check
-    if (count != null && count > LARGE_THRESHOLD) {
-      setLargeConfirm({ count });
+    if (!current()) return;
+    if (request.aborted) {
+      releaseQuery(request, false);
+      owner.query = null;
       return;
     }
-    await execute(query);
-  }, [query, useToolingApi, org, execute, t]);
+    if (count != null && count > LARGE_THRESHOLD) {
+      patchUi({ largeConfirm: { count, request } });
+      return;
+    }
+    await execute(request);
+  }, [query, useToolingApi, allRows, org, execute, t, scope, patchUi]);
 
   const cancel = useCallback(() => {
-    abortedRef.current = true;
-    if (queryIdRef.current)
-      void cancelSoql(queryIdRef.current);
-  }, []);
+    const owner = ownerRef.current;
+    if (!owner || owner.key !== scope) return;
+    const request = owner.query;
+    if (!request || request.aborted) return;
+    request.aborted = true;
+    if (request.id) void cancelSoql(request.id).catch((error: unknown) => {
+      if (owner.active && ownerRef.current === owner && owner.query === request && request.active) {
+        request.aborted = false;
+        toast.error(parseSfError(formatIpcError(error)).detail);
+      }
+    });
+  }, [scope]);
+
+  const dismissLarge = useCallback(() => {
+    if (largeConfirm) {
+      releaseQuery(largeConfirm.request, false);
+      const owner = largeConfirm.request.owner;
+      if (owner.query === largeConfirm.request) owner.query = null;
+    }
+    patchUi({ largeConfirm: null });
+  }, [largeConfirm, patchUi]);
 
   const explain = useCallback(async () => {
-    setExplaining(true);
+    const owner = ownerRef.current;
+    if (!owner?.active || owner.key !== scope || owner.plan) return;
+    const request = {};
+    owner.plan = request;
+    patchUi({ explaining: true });
     try {
       const dto = await queryPlan(query, org);
+      if (!owner.active || ownerRef.current !== owner || owner.plan !== request) return;
       onPatch({ plan: dto });
     } catch (e) {
+      if (!owner.active || ownerRef.current !== owner || owner.plan !== request) return;
       const message = formatIpcError(e);
       toast.error(parseSfError(message).detail);
     } finally {
-      setExplaining(false);
+      if (owner.active && ownerRef.current === owner && owner.plan === request) {
+        owner.plan = null;
+        patchUi({ explaining: false });
+      }
     }
-  }, [query, org, onPatch]);
+  }, [query, org, onPatch, scope, patchUi]);
 
   const ms = lastMs != null
     ? ` · ${t("{milliseconds} ms", { milliseconds: Math.round(lastMs).toLocaleString(locale) })}`
@@ -311,12 +404,12 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
 
     <MotionDialog
       isOpen={largeConfirm != null}
-      onOpenChange={(o) => !o && setLargeConfirm(null)}
+      onOpenChange={(o) => !o && dismissLarge()}
       width={480}
     >
       <DialogHeader
         title={t("Large result set")}
-        onOpenChange={(o) => !o && setLargeConfirm(null)}
+        onOpenChange={(o) => !o && dismissLarge()}
       />
       <div className="flex flex-col gap-4">
         <p className="text-sm text-text-dim">
@@ -332,21 +425,23 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           <Button
             label={t("Cancel")}
             variant="ghost"
-            onClick={() => setLargeConfirm(null)}
+            onClick={dismissLarge}
           />
           <Button
             label={t("Add LIMIT {count}", { count: PREVIEW_LIMIT.toLocaleString(locale) })}
             variant="secondary"
             onClick={() => {
-              setLargeConfirm(null);
-              void execute(`${query}\nLIMIT ${PREVIEW_LIMIT}`);
+              if (!largeConfirm) return;
+              patchUi({ largeConfirm: null });
+              void execute(largeConfirm.request, `${largeConfirm.request.query}\nLIMIT ${PREVIEW_LIMIT}`);
             }}
           />
           <Button
             label={t("Run anyway")}
             onClick={() => {
-              setLargeConfirm(null);
-              void execute(query);
+              if (!largeConfirm) return;
+              patchUi({ largeConfirm: null });
+              void execute(largeConfirm.request);
             }}
           />
         </div>
