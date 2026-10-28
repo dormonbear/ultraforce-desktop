@@ -6,8 +6,14 @@
 ### Bug Fixes / 缺陷修复
 
 * guard selected log response ownership / 保护选中日志的响应归属 ([#147](https://github.com/dormonbear/ultraforce-desktop/issues/147)) ([ab47b96](https://github.com/dormonbear/ultraforce-desktop/commit/ab47b960863b30d7c800005d5c58fdf156023c4e))
+  Rapid log switches keep the selected body, error, loading state and clickable source lines together. Late remote/local loads and mapping responses cannot replace the current view, and invalidated parsed caches cannot be refilled by old responses.
+  快速切换日志时，选中正文、错误、加载状态及可点击源码行保持一致。迟到的远程／本地加载及映射响应不能替换当前视图，旧响应也不能重新填充已失效的解析缓存。
 * reject obsolete Apex source cache writes / 拒绝过期 Apex 源码缓存写入 ([#145](https://github.com/dormonbear/ultraforce-desktop/issues/145)) ([bc44456](https://github.com/dormonbear/ultraforce-desktop/commit/bc444561f7bb6e9c892fd4de86e4223f6d1184a6))
+  Closing source, switching logs and reopening a class no longer lets a late request replace newer cached source. Completed current-log reuse and organization cache keys are preserved.
+  关闭源码、切换日志并重新打开类时，迟到请求不再覆盖较新的缓存源码。保留当前日志已完成缓存的复用及组织缓存键。
 * **ui:** localize shared log and source views / 本地化共享日志及源码视图 ([#142](https://github.com/dormonbear/ultraforce-desktop/issues/142)) ([bc0e942](https://github.com/dormonbear/ultraforce-desktop/commit/bc0e9426d86d9dd45bbdb32ad696a3ef8cd163b8))
+  Shared log filters, copy feedback and source-dialog controls follow English or Simplified Chinese, including live language changes. Raw logs, source, clipboard contents and errors retain their original values; changing language does not refetch source.
+  共享日志筛选、复制反馈及源码对话框控件支持英文和简体中文，并响应实时语言变化。原始日志、源码、剪贴板内容及错误保留原值；切换语言不会重新请求源码。
 
 ## [0.3.27](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.26...v0.3.27) (2026-10-22)
 
