@@ -5,6 +5,7 @@ import { copyText } from "../clipboard";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { CheckboxInput } from "@astryxdesign/core/CheckboxInput";
 import type { SourceRef } from "../panels/sourceRef";
+import { useI18n } from "../i18n";
 
 const LINE_H = 18;
 
@@ -96,6 +97,7 @@ export function LogView({
   onSource?: (ref: SourceRef) => void;
   jumpableLines?: Set<number>;
 }) {
+  const { t } = useI18n();
   const [q, setQ] = useState("");
   const [debugOnly, setDebugOnly] = useState(false);
   const [highlight, setHighlight] = useState(true);
@@ -138,11 +140,11 @@ export function LogView({
       <div className="flex items-center gap-3 border-b border-border px-3 py-1.5 text-[11px]">
         <div className="flex-1">
           <TextInput
-            label="Filter log"
+            label={t("Filter log")}
             isLabelHidden
             value={q}
             onChange={(value) => setQ(value)}
-            placeholder="filter log…"
+            placeholder={t("filter log…")}
             data-uf-search=""
             size="sm"
             startIcon={<Search size={12} />}
@@ -151,21 +153,21 @@ export function LogView({
           />
         </div>
         <CheckboxInput
-          label="Debug Only"
+          label={t("Debug Only")}
           size="sm"
           value={debugOnly}
           onChange={(v) => setDebugOnly(v)}
         />
         <CheckboxInput
-          label="Highlight"
+          label={t("Highlight")}
           size="sm"
           value={highlight}
           onChange={(v) => setHighlight(v)}
         />
         <button
           type="button"
-          aria-label="Copy log"
-          onClick={() => void copyText(raw, "Log copied")}
+          aria-label={t("Copy log")}
+          onClick={() => void copyText(raw, t("Log copied"))}
           className="focus-accent flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-foreground"
         >
           <Copy size={13} />
@@ -176,7 +178,7 @@ export function LogView({
         className="min-h-0 flex-1 overflow-auto bg-background px-3 py-2 font-mono text-[12px] leading-relaxed"
       >
         {count === 0 ? (
-          <div className="text-[13px] text-muted-foreground">No matching lines</div>
+          <div className="text-[13px] text-muted-foreground">{t("No matching lines")}</div>
         ) : (
           <div
             style={{ height: virtualizer.getTotalSize(), position: "relative" }}

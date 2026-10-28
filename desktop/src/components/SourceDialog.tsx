@@ -4,6 +4,8 @@ import Editor from "../editor/LocalEditor";
 import type { editor } from "monaco-editor";
 import { Loader2 } from "lucide-react";
 import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { Button } from "@astryxdesign/core/Button";
+import { Icon } from "@astryxdesign/core/Icon";
 import { MotionDialog } from "./motion/MotionDialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
@@ -11,6 +13,7 @@ import { useTheme, monacoTheme } from "../theme";
 import type { SourceRef } from "../panels/sourceRef";
 import { useOrgs } from "../org";
 import { revealLine, useApexSource } from "./useApexSource";
+import { useI18n } from "../i18n";
 
 /** Read-only viewer for an Apex class/trigger's source, fetched from the org on
  * open. Syntax-highlighted via Monaco (Apex language) and scrolled to + line-
@@ -22,6 +25,7 @@ export function SourceDialog({
   target: SourceRef | null;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
   const { src, error } = useApexSource(target?.className ?? null, org);
@@ -64,7 +68,7 @@ export function SourceDialog({
   const title = [
     target?.className,
     src ? src.kind : null,
-    target?.line != null ? `line ${target.line}` : null,
+    target?.line != null ? t("line {line}", { line: target.line }) : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -76,11 +80,14 @@ export function SourceDialog({
       width="85vw"
       maxHeight="85vh"
     >
-      <DialogHeader title={title} onOpenChange={(o) => !o && onClose()} />
+      <DialogHeader
+        title={title}
+        endContent={<Button variant="ghost" label={t("Close")} tooltip={t("Close")} icon={<Icon icon="close" color="inherit" />} onClick={onClose} isIconOnly />}
+      />
       <div className="flex flex-col gap-3">
         {!src && !error && (
           <div className="flex items-center gap-2 py-6 text-sm text-text-dim">
-            <Loader2 className="spin" size={16} /> Fetching source…
+            <Loader2 className="spin" size={16} /> {t("Fetching source…")}
           </div>
         )}
         {error && <div className="py-4 text-[12px] text-destructive">{error}</div>}
