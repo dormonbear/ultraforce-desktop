@@ -5,7 +5,11 @@
 
 ### Bug Fixes / 缺陷修复
 
-* scope SOQL request lifetime and stale responses / 限定 SOQL 请求生命周期并丢弃过期响应 ([3234853](https://github.com/dormonbear/ultraforce-desktop/commit/32348539a791c4e2549a6f9f3916593c551d27ac))
+* scope SOQL request lifetime and stale responses / 限定 SOQL 请求生命周期并丢弃过期响应 ([#149](https://github.com/dormonbear/ultraforce-desktop/pull/149)) ([3234853](https://github.com/dormonbear/ultraforce-desktop/commit/32348539a791c4e2549a6f9f3916593c551d27ac))
+  Switching organizations or closing a query view invalidates pending size checks, query results, progress and plan feedback. Late responses cannot replace current results or display stale errors; failed listener initialization restores the controls.
+  切换组织或关闭查询视图会令待处理的规模检查、查询结果、进度及执行计划反馈失效。迟到响应不能替换当前结果或显示过期错误；监听初始化失败后控件正常恢复。
+  Preserve the mounted editor, captured query/run options in large-result confirmation, and partial rows after active cancellation. A failed cancellation can be retried without notifying another organization.
+  保留已挂载编辑器、大结果集确认中的查询／运行选项快照，以及当前取消后的部分行。取消失败后可重试，不向其他组织显示反馈。
 
 ## [0.3.28](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.27...v0.3.28) (2026-10-28)
 
