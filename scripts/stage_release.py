@@ -102,6 +102,8 @@ def stage_release(tag: str, *, gh=run_gh) -> None:
             current = metadata()
         if current.get("draft") is not False:
             raise ValueError("Release was not published / 发布尚未公开")
+        if required_snapshot(current, tag) != (snapshot, staged_at):
+            raise ValueError("Release assets changed during publication / 发布期间产物已变化")
         verified = build_manifest(current, root, require_complete=True)
         # The staged manifest records the last required upload time. / 暂存清单记录最后一个必需产物的上传时间。
         verified["pub_date"] = staged_at

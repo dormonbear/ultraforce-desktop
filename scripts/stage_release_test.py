@@ -23,6 +23,7 @@ class FakeGitHub:
         self.fail_download = False
         self.mutate_before_upload = False
         self.mutate_after_upload = False
+        self.mutate_after_publish = False
         self.metadata_reads = 0
         self.release_id = "42\n"
 
@@ -35,6 +36,8 @@ class FakeGitHub:
             if self.mutate_before_upload and self.metadata_reads == 2:
                 self.metadata["assets"].pop()
             if self.mutate_after_upload and self.metadata_reads == 3:
+                self.metadata["assets"][0]["digest"] = "sha256:" + "b" * 64
+            if self.mutate_after_publish and self.metadata_reads == 4:
                 self.metadata["assets"][0]["digest"] = "sha256:" + "b" * 64
             return json.dumps(self.metadata)
         if args[:2] == ("release", "download"):
@@ -147,6 +150,14 @@ class StageReleaseTest(unittest.TestCase):
         self.assertTrue(self.gh.metadata["draft"])
         self.assertEqual(len(self.actions("upload")), 1)
         self.assertEqual(self.actions("edit"), [])
+
+    def test_changed_asset_during_publication_is_reported(self):
+        self.gh.mutate_after_publish = True
+        with self.assertRaises(ValueError):
+            stage_release("v1.2.3", gh=self.gh)
+        self.assertFalse(self.gh.metadata["draft"])
+        self.assertEqual(len(self.actions("upload")), 1)
+        self.assertEqual(len(self.actions("edit")), 1)
 
     def test_invalid_existing_draft_manifest_is_never_replaced(self):
         self.gh.latest = b'{"version":"wrong"}'
