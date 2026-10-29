@@ -60,7 +60,7 @@ jobs:
 
       - name: Build and toolchain regressions / 构建及工具链回归
         working-directory: desktop
-        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs scripts/check-jsdom-undici.test.mjs scripts/check-source-map.test.mjs scripts/check-nanoid.test.mjs
+        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs scripts/check-jsdom-undici.test.mjs scripts/check-source-map.test.mjs scripts/check-nanoid.test.mjs scripts/check-browserslist.test.mjs
 
       - name: Frontend tests
         working-directory: desktop
