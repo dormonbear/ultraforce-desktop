@@ -61,7 +61,7 @@ export function LogListPane({
   onSelect: (id: string) => void;
   onSaveLog: (log: LogRefDto) => void;
 }) {
-  const { locale, t } = useI18n();
+  const { t } = useI18n();
   const { tracing, tracingBusy, traceExpiry, traceMinsLeft, quickSelfTrace } = trace;
 
   // Virtualize the log list — it can run to thousands of rows.
@@ -112,7 +112,7 @@ export function LogListPane({
           }
           tooltip={
             tracing
-              ? t("Traced until {time} — click to extend 30 min", { time: new Date(traceExpiry!).toLocaleTimeString(locale) })
+              ? t("Traced until {time} — click to extend 30 min", { time: new Date(traceExpiry!).toLocaleTimeString() })
               : t("Trace yourself for 30 minutes")
           }
           icon={

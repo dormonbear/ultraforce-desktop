@@ -83,3 +83,16 @@ for (const locale of ["en-US", "zh-CN"] as const) {
     });
   });
 }
+
+test.describe("regional time formatting / 地区时间格式", () => {
+  test.use({ locale: "en-GB" });
+  test("retains the browser's regional time format for trace expiry / 跟踪到期时间保留浏览器地区格式", async ({ page }) => {
+    await gotoApp(page);
+    await page.getByRole("button", { name: "Logs", exact: true }).click();
+    await page.getByRole("button", { name: "Trace myself for 30 minutes" }).click();
+    const trace = page.getByRole("button", { name: /Tracing you —/ });
+    await trace.hover();
+    const expected = await page.evaluate(() => new Date("2099-01-01T00:00:00.000+0000").toLocaleTimeString());
+    await expect(page.getByRole("tooltip")).toContainText(expected);
+  });
+});
