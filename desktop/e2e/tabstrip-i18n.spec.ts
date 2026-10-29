@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 import { gotoApp } from "./fixtures";
 
 const panels = [
-  { name: "SOQL", newLabel: "New query" },
-  { name: "Apex", newLabel: "New script" },
+  { name: "SOQL", newEn: "New query", newZh: "新建查询" },
+  { name: "Apex", newEn: "New script", newZh: "新建脚本" },
 ] as const;
 
 for (const panel of panels) for (const locale of ["en-US", "zh-CN"] as const) {
@@ -12,7 +12,7 @@ for (const panel of panels) for (const locale of ["en-US", "zh-CN"] as const) {
     test("localizes tab actions and retains a live rename / 本地化标签操作并保留进行中的重命名", async ({ page }) => {
       await gotoApp(page);
       if (panel.name === "Apex") await page.getByRole("button", { name: "Apex", exact: true }).click();
-      await page.getByRole("button", { name: panel.newLabel, exact: true }).click();
+      await page.getByRole("button", { name: locale === "zh-CN" ? panel.newZh : panel.newEn, exact: true }).click();
       await expect(page.getByRole("textbox", { name: "Editor content" })).toBeFocused();
       await page.getByRole("button", { name: locale === "zh-CN" ? "新建标签" : "New tab", exact: true }).click();
       await expect(page.getByRole("tab", { name: "Untitled-2" })).toHaveAttribute("aria-selected", "true");

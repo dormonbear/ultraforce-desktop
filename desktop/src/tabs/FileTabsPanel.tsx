@@ -13,6 +13,7 @@ import { getRoot, type Tool } from "../fs/workspace";
 import { renameNode } from "../fs/tree";
 import { formatIpcError } from "../errorFormat";
 import { renameIntent } from "./nameEdit";
+import { useI18n } from "../i18n";
 import type { Reveal } from "../editor/monaco-reveal";
 import type { TabBase } from "./types";
 
@@ -54,6 +55,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   newLabel,
   renderView,
 }: FileTabsPanelProps<T>) {
+  const { t: tr } = useI18n();
   const [root, setRoot] = useState<string | null>(null);
   useEffect(() => {
     void getRoot(tool).then(setRoot);
@@ -96,13 +98,13 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
       const t = tabs.find((x) => x.id === id);
       close(id);
       if (t && isDirtyUntitled(t)) {
-        toast(`Closed ${t.title}`, {
-          action: { label: "Undo", onClick: () => restore(t) },
+        toast(tr("Closed {name}", { name: t.title }), {
+          action: { label: tr("Undo"), onClick: () => restore(t) },
         });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tabs, close, restore],
+    [tabs, close, restore, tr],
   );
 
   const activeReveal =
