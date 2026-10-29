@@ -12,6 +12,7 @@ for (const locale of ["en-US", "zh-CN"] as const) test.describe(locale, () => {
 test.use({ locale });
 for (const missing of ["native", "ResizeObserver", "Array.at", "randomUUID", "combined"]) {
   test(`startup and query with ${missing} APIs / 启动及查询 API 兼容`, async ({ page }) => {
+    const language = locale === "zh-CN" ? "zh-CN" : "en";
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.addInitScript((missing) => {
@@ -46,15 +47,15 @@ for (const missing of ["native", "ResizeObserver", "Array.at", "randomUUID", "co
     await expect.poll(() => page.evaluate(() =>
       (window as unknown as Scope).__ufReadFile("/ws/workspace/soql/accounts.soql"),
     )).toBe(query);
-    await page.getByRole("button", { name: translate(locale === "zh-CN" ? "zh-CN" : "en", "Run"), exact: true }).click();
+    await page.getByRole("button", { name: translate(language, "Run"), exact: true }).click();
     await expect(page.getByRole("cell", { name: /^Account \d+$/ })).toHaveCount(12);
     if (missing === "native" || missing === "randomUUID" || missing === "combined") {
       // The query-builder dependency also creates UUIDs. / 查询构建器依赖也会创建 UUID。
-      await page.getByRole("button", { name: "Advanced filter" }).click();
+      await page.getByRole("button", { name: translate(language, "Advanced filter") }).click();
       const builder = page.locator(".uf-querybuilder");
       await expect(builder).toBeVisible();
-      await builder.getByTitle("Add rule").click();
-      await expect(builder.getByTitle("Remove rule")).toBeVisible();
+      await builder.getByTitle(translate(language, "Add rule")).click();
+      await expect(builder.getByTitle(translate(language, "Remove rule"))).toBeVisible();
     }
     const preserved = await page.evaluate((missing) => {
       const before = (window as unknown as Scope).__ownedNativeApi;
@@ -90,7 +91,6 @@ for (const missing of ["native", "ResizeObserver", "Array.at", "randomUUID", "co
       await openApexFile(page);
       const apex = new MonacoEditor(page);
       await expect.poll(() => apex.text()).toBe("System.debug('hi');");
-      const language = locale === "zh-CN" ? "zh-CN" : "en";
       await page.getByRole("button", { name: translate(language, "Run"), exact: true }).click();
       await expect(page.getByText(translate(language, "Success"), { exact: true })).toBeVisible();
       await page.getByRole("button", { name: translate(language, "Execution history") }).click();

@@ -251,6 +251,63 @@ const chinese = {
     "行，超过 {threshold} 行保护阈值。获取全部记录可能较慢。",
   "Add LIMIT {count}": "添加 LIMIT {count}",
   "Run anyway": "仍然运行",
+  "Filter rows": "筛选行",
+  "Filter rows…": "筛选行…",
+  Columns: "列",
+  "Toggle columns": "显示／隐藏列",
+  "Show field labels": "显示字段标签",
+  "Advanced filter": "高级筛选",
+  Filter: "筛选",
+  Nested: "嵌套",
+  Flat: "平铺",
+  "Copy result": "复制结果",
+  "Copy as Markdown": "复制为 Markdown",
+  "Copy as JSON": "复制为 JSON",
+  Export: "导出",
+  "Export as {format}": "导出为 {format}",
+  "{shown} / {total} shown": "显示 {shown} / {total}",
+  Field: "字段",
+  Operator: "操作符",
+  Values: "值",
+  "Add rule": "添加规则",
+  "+ Rule": "+ 规则",
+  "Add group": "添加分组",
+  "+ Group": "+ 分组",
+  "Remove rule": "删除规则",
+  "Remove group": "删除分组",
+  Combinator: "逻辑关系",
+  Not: "非",
+  "Invert this group": "取反此分组",
+  AND: "且",
+  OR: "或",
+  contains: "包含",
+  "begins with": "开头为",
+  "ends with": "结尾为",
+  "does not contain": "不包含",
+  "does not begin with": "开头不是",
+  "does not end with": "结尾不是",
+  "is null": "为空",
+  "is not null": "不为空",
+  in: "属于",
+  "not in": "不属于",
+  between: "介于",
+  "not between": "不介于",
+  "Match mode": "匹配模式",
+  "Match threshold": "匹配数量",
+  all: "全部",
+  some: "至少一个",
+  none: "无",
+  "at least": "至少",
+  "at most": "至多",
+  exactly: "恰好",
+  "{field} (subquery)": "{field}（子查询）",
+  Open: "打开",
+  "Exported {count} rows to {format}": "已将 {count} 行导出为 {format}",
+  "Export failed: {error}": "导出失败：{error}",
+  "{count} row": "{count} 行",
+  "{count} rows": "{count} 行",
+  "Copied {rows} as {format}": "已将 {rows} 复制为 {format}",
+  "Copied {rows}": "已复制 {rows}",
 } as const;
 
 export type Locale = "en" | "zh-CN";
@@ -279,7 +336,9 @@ export function translate(
 
 export function browserLocale(): Locale {
   if (typeof navigator === "undefined") return "en";
-  return resolveLocale(navigator.languages.length ? navigator.languages : [navigator.language]);
+  const languages = navigator.languages;
+  if (Array.isArray(languages) && languages.length) return resolveLocale(languages);
+  return resolveLocale(typeof navigator.language === "string" ? [navigator.language] : []);
 }
 
 function subscribe(callback: () => void) {
