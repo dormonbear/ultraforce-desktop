@@ -14,6 +14,8 @@ import { renameNode } from "../fs/tree";
 import { formatIpcError } from "../errorFormat";
 import { renameIntent } from "./nameEdit";
 import { useI18n } from "../i18n";
+import { normalizePath } from "../fs/paths";
+import { useEditorFocusIntent } from "../editor/focus-intent";
 import type { Reveal } from "../editor/monaco-reveal";
 import type { TabBase } from "./types";
 
@@ -22,6 +24,7 @@ interface ViewArgs<T> {
   onPatch: (partial: Partial<T>) => void;
   onSave: () => void;
   reveal?: Reveal;
+  shouldFocusEditor: () => boolean;
 }
 
 interface FileTabsPanelProps<T extends TabBase & { path: string }> {
@@ -63,6 +66,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   // Bumped after a tab-strip rename so the Explorer tree re-reads from disk
   // (it otherwise only refreshes on mount / window focus / its own edits).
   const [treeRefresh, setTreeRefresh] = useState(0);
+  const { capture: captureFocus, allows: allowsFocus } = useEditorFocusIntent();
 
   const {
     tabs,
@@ -96,16 +100,22 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   const handleClose = useCallback(
     (id: string) => {
       const t = tabs.find((x) => x.id === id);
+      captureFocus({ ids: tabs.filter((tab) => tab.id !== id).map((tab) => tab.id) });
       close(id);
       if (t && isDirtyUntitled(t)) {
         toast(tr("Closed {name}", { name: t.title }), {
-          action: { label: tr("Undo"), onClick: () => restore(t) },
+          action: { label: tr("Undo"), onClick: () => { captureFocus({ id: t.id }); restore(t); } },
         });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tabs, close, restore, tr],
+    [tabs, close, restore, tr, captureFocus],
   );
+
+  const addTab = () => {
+    const id = newUntitled();
+    captureFocus({ id });
+  };
 
   const activeReveal =
     reveal && active && reveal.id === active.id
@@ -174,11 +184,12 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
             root={root}
             ext={ext}
             activePath={active?.path ?? null}
-            onOpen={(p, line) =>
+            onOpen={(p, line) => {
+              captureFocus({ path: normalizePath(p) });
               void openFile(p, line).catch((error: unknown) => {
                 toast.error(formatIpcError(error));
-              })
-            }
+              });
+            }}
             onRenamed={retitle}
             onRemoved={closeByPath}
             refreshToken={treeRefresh}
@@ -194,10 +205,10 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
                 tabs={tabs}
                 activeId={activeId ?? ""}
                 ariaLabel={ariaLabel}
-                onSelect={select}
+                onSelect={(id) => { captureFocus({ id }); select(id); }}
                 onClose={handleClose}
                 onRename={onRenameTab}
-                onAdd={newUntitled}
+                onAdd={addTab}
                 dirtyIds={tabs.filter(isDirtyUntitled).map((t) => t.id)}
               />
               <div role="tabpanel" className="min-h-0 flex-1">
@@ -206,6 +217,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
                   onPatch,
                   onSave,
                   reveal: activeReveal,
+                  shouldFocusEditor: () => allowsFocus(active.id, active.path),
                 })}
               </div>
             </>
@@ -214,7 +226,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
               <span>{emptyHint}</span>
               <button
                 type="button"
-                onClick={newUntitled}
+                onClick={addTab}
                 className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
               >
                 {newLabel}
