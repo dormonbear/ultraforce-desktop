@@ -30,4 +30,15 @@ describe("tray locale updates / 托盘语言更新", () => {
     await second;
     expect(invoke).toHaveBeenLastCalledWith("set_tray_locale", { locale: "zh-CN" });
   });
+
+  it("preserves a structured native failure and processes the next update / 保留结构化原生错误并处理后续更新", async () => {
+    const failure = { code: "tray", message: "Could not update tray menu / 无法更新托盘菜单" };
+    invoke.mockRejectedValueOnce(failure);
+    invoke.mockResolvedValueOnce(null);
+    const first = setTrayLocale("en");
+    const second = setTrayLocale("zh-CN");
+    await expect(first).rejects.toEqual(failure);
+    await second;
+    expect(invoke).toHaveBeenLastCalledWith("set_tray_locale", { locale: "zh-CN" });
+  });
 });

@@ -3,6 +3,7 @@
 //! start again. On macOS that makes the tray icon the *only* way back and the
 //! only Quit — hence the fail-loud rule below.
 
+use crate::error::CommandError;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -34,7 +35,18 @@ fn menu(
     Ok((menu, show, quit))
 }
 
-pub(crate) fn set_locale(app: &AppHandle, locale: &str) -> tauri::Result<Option<[String; 2]>> {
+fn locale_error(_error: impl std::fmt::Display) -> CommandError {
+    CommandError::new("tray", "Could not update tray menu / 无法更新托盘菜单")
+}
+
+pub(crate) fn set_locale(
+    app: &AppHandle,
+    locale: &str,
+) -> Result<Option<[String; 2]>, CommandError> {
+    set_locale_impl(app, locale).map_err(locale_error)
+}
+
+fn set_locale_impl(app: &AppHandle, locale: &str) -> tauri::Result<Option<[String; 2]>> {
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return Ok(None);
     };
@@ -123,12 +135,23 @@ fn toggle(app: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::labels;
+    use super::{labels, locale_error};
 
     #[test]
     fn tray_labels_follow_locale_and_fall_back_to_english() {
         assert_eq!(labels("zh-CN"), ("显示 Ultraforce", "退出 Ultraforce"));
         assert_eq!(labels("en"), ("Show Ultraforce", "Quit Ultraforce"));
         assert_eq!(labels("unknown"), labels("en"));
+    }
+
+    #[test]
+    fn tray_locale_error_has_structured_bilingual_ipc_shape() {
+        let error = locale_error("Synthetic native failure / 合成原生失败");
+        let value = serde_json::to_value(error).unwrap();
+        assert_eq!(value["code"], "tray");
+        assert_eq!(
+            value["message"],
+            "Could not update tray menu / 无法更新托盘菜单"
+        );
     }
 }

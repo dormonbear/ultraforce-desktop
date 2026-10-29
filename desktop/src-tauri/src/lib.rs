@@ -437,8 +437,8 @@ fn hide_to_tray(app: AppHandle) -> bool {
 
 // Menu operations dispatch to the native main thread. / 菜单操作需调度到原生主线程。
 #[tauri::command(async)]
-fn set_tray_locale(app: AppHandle, locale: String) -> Result<Option<[String; 2]>, String> {
-    tray::set_locale(&app, &locale).map_err(|error| error.to_string())
+fn set_tray_locale(app: AppHandle, locale: String) -> Result<Option<[String; 2]>, CommandError> {
+    tray::set_locale(&app, &locale)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
