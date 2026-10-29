@@ -1,26 +1,29 @@
 import { test, expect } from "@playwright/test";
-import { gotoApp } from "./fixtures";
+import { gotoApp, openApexFile } from "./fixtures";
 import { translate } from "../src/i18n";
 import { MonacoEditor } from "./monaco";
 
 type Scope = {
   __ufReadFile: (path: string) => string | null;
-  __ownedNativeApi: { at: typeof Array.prototype.at; resize: typeof ResizeObserver };
+  __ownedNativeApi: { at: typeof Array.prototype.at; resize: typeof ResizeObserver; uuid: typeof crypto.randomUUID };
   __ownedResize: { target: HTMLDivElement; observer: ResizeObserver; width: number };
 };
 for (const locale of ["en-US", "zh-CN"] as const) test.describe(locale, () => {
 test.use({ locale });
-for (const missing of ["native", "ResizeObserver", "Array.at", "combined"]) {
+for (const missing of ["native", "ResizeObserver", "Array.at", "randomUUID", "combined"]) {
   test(`startup and query with ${missing} APIs / 启动及查询 API 兼容`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     await page.addInitScript((missing) => {
-      Object.assign(window, { __ownedNativeApi: { at: Array.prototype.at, resize: window.ResizeObserver } });
+      Object.assign(window, { __ownedNativeApi: { at: Array.prototype.at, resize: window.ResizeObserver, uuid: crypto.randomUUID } });
       if (missing === "ResizeObserver" || missing === "combined") {
         Object.defineProperty(window, "ResizeObserver", { value: undefined, configurable: true });
       }
       if (missing === "Array.at" || missing === "combined") {
         Object.defineProperty(Array.prototype, "at", { value: undefined, configurable: true });
+      }
+      if (missing === "randomUUID" || missing === "combined") {
+        Object.defineProperty(crypto, "randomUUID", { value: undefined, configurable: true });
       }
     }, missing);
     // Listen before navigation so initialization errors cannot race registration. / 导航前监听，避免初始化错误早于注册。
@@ -45,14 +48,26 @@ for (const missing of ["native", "ResizeObserver", "Array.at", "combined"]) {
     )).toBe(query);
     await page.getByRole("button", { name: translate(locale === "zh-CN" ? "zh-CN" : "en", "Run"), exact: true }).click();
     await expect(page.getByRole("cell", { name: /^Account \d+$/ })).toHaveCount(12);
+    if (missing === "native" || missing === "randomUUID" || missing === "combined") {
+      // The query-builder dependency also creates UUIDs. / 查询构建器依赖也会创建 UUID。
+      await page.getByRole("button", { name: "Advanced filter" }).click();
+      const builder = page.locator(".uf-querybuilder");
+      await expect(builder).toBeVisible();
+      await builder.getByTitle("Add rule").click();
+      await expect(builder.getByTitle("Remove rule")).toBeVisible();
+    }
     const preserved = await page.evaluate((missing) => {
       const before = (window as unknown as Scope).__ownedNativeApi;
       return {
         at: missing === "Array.at" || missing === "combined" || typeof before.at !== "function" || Array.prototype.at === before.at,
         resize: missing === "ResizeObserver" || missing === "combined" || typeof before.resize !== "function" || window.ResizeObserver === before.resize,
+        uuid: missing === "randomUUID" || missing === "combined" || typeof before.uuid !== "function" || crypto.randomUUID === before.uuid,
+        uuidAvailable: typeof crypto.randomUUID === "function",
       };
     }, missing);
-    expect(preserved).toEqual({ at: true, resize: true });
+    expect(preserved).toEqual({ at: true, resize: true, uuid: true, uuidAvailable: true });
+    const uuid = await page.evaluate(() => crypto.randomUUID());
+    expect(uuid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     // Require real resize delivery, not merely a constructor that avoids throwing. / 要求真实尺寸通知，而非仅构造时不抛错。
     await page.evaluate(() => {
       const target = document.createElement("div");
@@ -70,6 +85,18 @@ for (const missing of ["native", "ResizeObserver", "Array.at", "combined"]) {
       probe.observer.disconnect();
       probe.target.remove();
     });
+    if (missing === "native" || missing === "randomUUID" || missing === "combined") {
+      // Exercise Apex tab creation and persistent run history. / 验证 Apex 标签创建和持久执行历史。
+      await openApexFile(page);
+      const apex = new MonacoEditor(page);
+      await expect.poll(() => apex.text()).toBe("System.debug('hi');");
+      const language = locale === "zh-CN" ? "zh-CN" : "en";
+      await page.getByRole("button", { name: translate(language, "Run"), exact: true }).click();
+      await expect(page.getByText(translate(language, "Success"), { exact: true })).toBeVisible();
+      await page.getByRole("button", { name: translate(language, "Execution history") }).click();
+      const history = page.getByRole("dialog", { name: translate(language, "Apex execution history") });
+      await expect(history.getByRole("button").filter({ hasText: "System.debug('hi')" })).toBeVisible();
+    }
     expect(errors).toEqual([]);
   });
 }
