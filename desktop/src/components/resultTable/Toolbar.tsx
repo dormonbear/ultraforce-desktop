@@ -130,7 +130,7 @@ export function Toolbar({
                       onCheckedChange={(v) => setGroup(g.columns, !!v)}
                       onSelect={(e) => e.preventDefault()}
                     >
-                      {`${g.relationship} (${g.columns.length} cols)`}
+                      {t("{relationship} ({count} cols)", { relationship: g.relationship, count: g.columns.length })}
                     </DropdownMenuCheckboxItem>
                   ))}
               </>
