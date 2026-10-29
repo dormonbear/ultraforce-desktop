@@ -25,6 +25,7 @@ import { focusSearch, trackSearchOrigin } from "./focusSearch";
 import { Toaster } from "@/components/ui/sonner";
 import { Tooltip } from "@astryxdesign/core/Tooltip";
 import { useI18n } from "./i18n";
+import { setTrayLocale } from "./ipc/window";
 
 type ActivePanel = "soql" | "apex" | "logs" | "schema" | "settings";
 
@@ -39,6 +40,11 @@ export default function App() {
   const { locale, t } = useI18n();
   useEffect(() => {
     document.documentElement.lang = locale;
+    if ("__TAURI_INTERNALS__" in window) {
+      void setTrayLocale(locale).catch((error) => {
+        console.warn("Could not update tray language / 无法更新托盘语言", error);
+      });
+    }
   }, [locale]);
   const [active, setActive] = useState<ActivePanel>("soql");
   // Bumped when a workspace root changes, to remount the affected tool panel.

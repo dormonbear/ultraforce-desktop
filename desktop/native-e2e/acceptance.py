@@ -115,6 +115,16 @@ def application(application_path, environment, artifacts, name):
                 stop_process_tree(app)
 
 
+def verify_tray_localization(driver):
+    for locale, expected in (
+        ("zh-CN", ["显示 Ultraforce", "退出 Ultraforce"]),
+        ("en", ["Show Ultraforce", "Quit Ultraforce"]),
+    ):
+        actual = driver.invoke("set_tray_locale", {"locale": locale})
+        assert actual == expected, actual
+    print("PASS: native tray locale changes / 原生托盘语言切换验证通过")
+
+
 def verify_completions(driver):
     query = "SELECT  FROM Synthetic__c"
     fields = driver.invoke("soql_complete", {"query": query, "offset": 7, "org": ORG})
@@ -223,6 +233,8 @@ def run(application_path, artifacts):
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
             driver.invoke("ensure_ready", {"org": "NativeFixture", "namespaces": "all"})
             verify_completions(driver)
+            # Exercise the tray after app startup and indexing. / 在应用启动及索引后验证托盘。
+            verify_tray_localization(driver)
             generation = verify_database(root, False)
             verify_schema_ui(driver)
             driver.screenshot(artifacts / "native-schema.png")
