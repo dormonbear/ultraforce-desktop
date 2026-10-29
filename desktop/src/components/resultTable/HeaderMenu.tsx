@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import type { GridRow } from "../ResultTable";
+import { translate, type Locale } from "../../i18n";
 import type { QuickMode } from "./quickFilter";
 
 /** Fixed-width slot so items align whether or not the checkmark shows. */
@@ -31,6 +32,7 @@ export function HeaderContextMenu({
   quickMode,
   onQuickFilter,
   onCopy,
+  locale,
   children,
 }: {
   column: Column<GridRow>;
@@ -38,6 +40,7 @@ export function HeaderContextMenu({
   quickMode: QuickMode | null;
   onQuickFilter: (mode: QuickMode | null) => void;
   onCopy: () => void;
+  locale: Locale;
   children: ReactNode;
 }) {
   return (
@@ -45,16 +48,16 @@ export function HeaderContextMenu({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onSelect={() => column.toggleSorting(false)}>
-          Sort ascending
+          {translate(locale, "Sort ascending")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => column.toggleSorting(true)}>
-          Sort descending
+          {translate(locale, "Sort descending")}
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => column.clearSorting()}>
-          Clear sort
+          {translate(locale, "Clear sort")}
         </ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={onCopy}>Copy column</ContextMenuItem>
+        <ContextMenuItem onSelect={onCopy}>{translate(locale, "Copy column")}</ContextMenuItem>
         {isChildColumn && (
           <>
             <ContextMenuSeparator />
@@ -62,13 +65,13 @@ export function HeaderContextMenu({
               onSelect={() => onQuickFilter(quickMode === "some" ? null : "some")}
             >
               <CheckSlot active={quickMode === "some"} />
-              Only with child records
+              {translate(locale, "Only with child records")}
             </ContextMenuItem>
             <ContextMenuItem
               onSelect={() => onQuickFilter(quickMode === "none" ? null : "none")}
             >
               <CheckSlot active={quickMode === "none"} />
-              Only without child records
+              {translate(locale, "Only without child records")}
             </ContextMenuItem>
           </>
         )}
