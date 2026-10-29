@@ -13,6 +13,7 @@ import { getRoot, type Tool } from "../fs/workspace";
 import { renameNode } from "../fs/tree";
 import { formatIpcError } from "../errorFormat";
 import { renameIntent } from "./nameEdit";
+import { useI18n } from "../i18n";
 import { normalizePath } from "../fs/paths";
 import { useEditorFocusIntent } from "../editor/focus-intent";
 import type { Reveal } from "../editor/monaco-reveal";
@@ -57,6 +58,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   newLabel,
   renderView,
 }: FileTabsPanelProps<T>) {
+  const { t: tr } = useI18n();
   const [root, setRoot] = useState<string | null>(null);
   useEffect(() => {
     void getRoot(tool).then(setRoot);
@@ -101,13 +103,13 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
       captureFocus({ ids: tabs.filter((tab) => tab.id !== id).map((tab) => tab.id) });
       close(id);
       if (t && isDirtyUntitled(t)) {
-        toast(`Closed ${t.title}`, {
-          action: { label: "Undo", onClick: () => { captureFocus({ id: t.id }); restore(t); } },
+        toast(tr("Closed {name}", { name: t.title }), {
+          action: { label: tr("Undo"), onClick: () => { captureFocus({ id: t.id }); restore(t); } },
         });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tabs, close, restore, captureFocus],
+    [tabs, close, restore, tr, captureFocus],
   );
 
   const addTab = () => {
