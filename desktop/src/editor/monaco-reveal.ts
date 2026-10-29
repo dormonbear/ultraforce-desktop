@@ -15,6 +15,7 @@ export interface Reveal {
 export function useMonacoReveal(
   editorRef: RefObject<editor.IStandaloneCodeEditor | null>,
   reveal: Reveal | undefined,
+  shouldFocusEditor?: () => boolean,
 ) {
   const pending = useRef<number | null>(null);
 
@@ -28,7 +29,7 @@ export function useMonacoReveal(
     setTimeout(() => {
       ed.revealLineInCenter(line);
       ed.setPosition({ lineNumber: line, column: 1 });
-      ed.focus();
+      if (shouldFocusEditor?.() ?? true) ed.focus();
     }, 0);
   };
 
