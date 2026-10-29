@@ -9,7 +9,7 @@ const copy = {
     badApi: "API version must be a number like 58 or 58.0",
     badTimeout: "Timeout must be a positive whole number of seconds",
     currentAlias: "Current org: {name}<组织>. Switch org", target: "Target org: {name}<组织>",
-    staging: "Current org: Staging. Switch org", sandbox: "Sandbox", defaultVersion: "60.0 (default)",
+    staging: "Current org: Staging. Switch org", sandbox: "Sandbox", defaultVersion: "60.0 (default)", newQuery: "New query",
   },
   "zh-CN": {
     switcher: "切换组织", current: "当前组织：DevHub。切换组织", configure: "配置 DevHub",
@@ -18,7 +18,7 @@ const copy = {
     badApi: "API 版本必须是 58 或 58.0 这样的数字",
     badTimeout: "超时时长必须为正整数秒",
     currentAlias: "当前组织：{name}<组织>。切换组织", target: "目标组织：{name}<组织>",
-    staging: "当前组织：Staging。切换组织", sandbox: "沙盒", defaultVersion: "60.0（默认）",
+    staging: "当前组织：Staging。切换组织", sandbox: "沙盒", defaultVersion: "60.0（默认）", newQuery: "新建查询",
   },
 } as const;
 
@@ -55,7 +55,7 @@ for (const language of ["en-US", "zh-CN"] as const) {
       expect(stored["orgConfig.dev@acme.com"]).toEqual({
         alias: "{name}<组织>", color: "blue", apiVersion: "60.0", timeoutSecs: 30,
       });
-      await page.getByRole("button", { name: "New query", exact: true }).click();
+      await page.getByRole("button", { name: labels.newQuery, exact: true }).click();
       await expect(page.getByLabel(labels.target, { exact: true })).toBeVisible();
     });
 
