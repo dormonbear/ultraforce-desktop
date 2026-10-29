@@ -159,3 +159,60 @@ describe("edge behavior", () => {
     ).toBe(true);
   });
 });
+
+describe("advertised filter operators / 界面提供的筛选操作符", () => {
+  it.each([
+    ["doesNotBeginWith", "aC", false],
+    ["doesNotBeginWith", "xy", true],
+    ["doesNotEndWith", "ME", false],
+    ["doesNotEndWith", "xy", true],
+    ["in", "Beta, Acme", true],
+    ["in", "Beta, Gamma", false],
+    ["notIn", "Beta, Acme", false],
+    ["notIn", "Beta, Gamma", true],
+  ])("evaluates %s with %s / 按指定值计算操作符", (operator, value, expected) => {
+    expect(evaluateGroup(g([{ field: "Name", operator, value }]), ctx())).toBe(expected);
+  });
+
+  it("uses existing numeric equality for list values / 对列表值沿用现有数字相等语义", () => {
+    expect(evaluateGroup(g([{ field: "Amount", operator: "in", value: "9, 150.0" }]), ctx())).toBe(true);
+    expect(evaluateGroup(g([{ field: "Amount", operator: "notIn", value: "9, 150.0" }]), ctx())).toBe(false);
+  });
+
+  it("preserves commas in array-valued items / 保留数组值元素中的逗号", () => {
+    const row: RowCtx = { parent: { Name: "Acme, Inc" }, children: new Map() };
+    expect(evaluateGroup(g([{ field: "Name", operator: "in", value: ["Acme, Inc", "Beta"] }]), row)).toBe(true);
+    expect(evaluateGroup(g([{ field: "Name", operator: "notIn", value: ["Acme, Inc", "Beta"] }]), row)).toBe(false);
+  });
+
+  it("applies list operators to child rows / 对子表行应用列表操作符", () => {
+    const sub = g([{ field: "LastName", operator: "in", value: "Yin, Wu" }]);
+    const rule = g([{ field: "Contacts", operator: "=", match: { mode: "some" }, value: sub } as never]);
+    expect(evaluateGroup(rule, ctx(contacts([["Yin", 9], ["Zhao", 10]])))).toBe(true);
+    expect(evaluateGroup(rule, ctx(contacts([["Zhao", 10]])))).toBe(false);
+  });
+
+  it("ignores incomplete child rules without hiding rows / 忽略未完成的子规则且不隐藏行", () => {
+    for (const value of ["", null, undefined, {}, { rules: null }]) {
+      const rule = { field: "Contacts", operator: "=", match: { mode: "some" }, value } as never;
+      for (const group of [g([rule]), { combinator: "or", not: true, rules: [rule] }]) {
+        expect(evaluateGroup(group, ctx(contacts([["Yin", 9]])))).toBe(true);
+        expect(evaluateGroup(group, ctx())).toBe(true);
+      }
+    }
+  });
+
+  it("keeps complete sibling rules effective / 保持完整的同级规则生效", () => {
+    const incomplete = { field: "Contacts", operator: "=", match: { mode: "some" }, value: "" } as never;
+    const mismatch = { field: "Name", operator: "=", value: "Other" };
+    expect(evaluateGroup(g([mismatch, incomplete], "and"), ctx(contacts([["Yin", 9]])))).toBe(false);
+    expect(evaluateGroup(g([mismatch, incomplete], "or"), ctx(contacts([["Yin", 9]])))).toBe(false);
+  });
+
+  it("skips incomplete nested groups before negation / 在取反前跳过未完成的嵌套分组", () => {
+    const incomplete = { field: "Contacts", operator: "=", match: { mode: "some" }, value: "" } as never;
+    const nested = g([incomplete]);
+    expect(evaluateGroup({ combinator: "and", not: true, rules: [nested] }, ctx())).toBe(true);
+    expect(evaluateGroup({ combinator: "and", not: true, rules: [g([])] }, ctx())).toBe(false);
+  });
+});
