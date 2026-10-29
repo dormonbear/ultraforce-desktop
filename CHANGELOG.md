@@ -1,5 +1,19 @@
 # Changelog / 更新日志
 
+## [0.3.32](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.31...v0.3.32) (2026-10-29)
+
+
+### Bug Fixes / 缺陷修复
+
+* correct result filters and child rules / 修复结果筛选与子规则 ([9f72e16](https://github.com/dormonbear/ultraforce-desktop/commit/9f72e1651b770d00e0e23c847b03be2523990447))
+* handle missing crypto.randomUUID / 修复缺少 crypto.randomUUID 的兼容性 ([593e4c9](https://github.com/dormonbear/ultraforce-desktop/commit/593e4c97a037226677ce9630f02a2e08f0e6a1f8))
+* localize native tray menu / 本地化原生托盘菜单 ([d61f3e3](https://github.com/dormonbear/ultraforce-desktop/commit/d61f3e3d6515972b2a6e359cae3dfccb3d665e16))
+* localize result details and menus / 本地化结果详情与菜单 ([9eafd31](https://github.com/dormonbear/ultraforce-desktop/commit/9eafd3146041638340d9e6da7cf14823b231fd70))
+* localize result filters / 修复结果筛选本地化 ([595d8ee](https://github.com/dormonbear/ultraforce-desktop/commit/595d8ee944e64c4ff0af86cdf6baecad2924c991))
+* localize workspace explorer / 本地化工作区文件浏览器 ([47dd458](https://github.com/dormonbear/ultraforce-desktop/commit/47dd458e1c273ae71fd3ad946873ba38ed55d64b))
+* preserve newer editor focus / 保留用户后续焦点 ([1453883](https://github.com/dormonbear/ultraforce-desktop/commit/1453883be8f74b77fb5dd81cd7a187eca3e376e6))
+* update jsdom Undici transport / 更新 jsdom Undici 传输依赖 ([#161](https://github.com/dormonbear/ultraforce-desktop/issues/161)) ([152f8fe](https://github.com/dormonbear/ultraforce-desktop/commit/152f8fe86e9b5106b860e8fa5eeee8d18e00b560))
+
 ## [0.3.31](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.30...v0.3.31) (2026-10-29)
 
 
