@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import type { ColumnLabelsDto, SoqlResultDto } from "../types";
 import { soqlColumnLabels } from "../ipc/soql";
 import { useOrgs } from "../org";
+import { useI18n } from "../i18n";
 import { autoFitWidths, createGridMeasurer, sizingKey } from "./resultTable/autoFit";
 import { buildChildLookup } from "./resultTable/childData";
 import { displayColumnLabel } from "./resultTable/columnLabel";
@@ -98,6 +99,7 @@ export function ResultTable({
   arrivalNonce?: number;
 }) {
   const { selected: org } = useOrgs();
+  const { locale, t } = useI18n();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = useState("");
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -126,8 +128,8 @@ export function ResultTable({
 
   const lookup = useMemo(() => buildChildLookup(data.childTables), [data.childTables]);
   const filterFields = useMemo(
-    () => buildFilterFields(data.columns, lookup),
-    [data.columns, lookup],
+    () => buildFilterFields(data.columns, lookup, locale),
+    [data.columns, lookup, locale],
   );
 
   const flat = useMemo(
@@ -162,32 +164,32 @@ export function ResultTable({
         filters: [{ name: fmt.label, extensions: [fmt.ext] }],
       });
       if (!path) return;
-      const t = exportTable();
-      await writeExportFile(path, fmt, t.columns, t.rows);
-      toast.success(`Exported ${t.rows.length} rows to ${fmt.label}`, {
-        action: { label: "Open", onClick: () => void openPath(path) },
+      const result = exportTable();
+      await writeExportFile(path, fmt, result.columns, result.rows);
+      toast.success(t("Exported {count} rows to {format}", { count: result.rows.length, format: fmt.label }), {
+        action: { label: t("Open"), onClick: () => void openPath(path) },
       });
     } catch (e) {
-      toast.error(`Export failed: ${formatIpcError(e)}`);
+      toast.error(t("Export failed: {error}", { error: formatIpcError(e) }));
     }
   };
 
   const copyAs = (kind: "tsv" | "md" | "json") => {
-    const t = exportTable();
-    const n = t.rows.length;
-    const suffix = `${n} row${n === 1 ? "" : "s"}`;
+    const result = exportTable();
+    const n = result.rows.length;
+    const suffix = t(n === 1 ? "{count} row" : "{count} rows", { count: n });
     if (kind === "md") {
-      void copyText(toMarkdown(t.columns, t.rows), `Copied ${suffix} as Markdown`);
+      void copyText(toMarkdown(result.columns, result.rows), t("Copied {rows} as {format}", { rows: suffix, format: "Markdown" }));
     } else if (kind === "json") {
-      void copyText(toJson(t.columns, t.rows), `Copied ${suffix} as JSON`);
+      void copyText(toJson(result.columns, result.rows), t("Copied {rows} as {format}", { rows: suffix, format: "JSON" }));
     } else {
       const tsv = [
-        t.columns.join("\t"),
-        ...t.rows.map((r) =>
+        result.columns.join("\t"),
+        ...result.rows.map((r) =>
           r.map((c) => (c == null ? "" : String(c))).join("\t"),
         ),
       ].join("\n");
-      void copyText(tsv, `Copied ${suffix}`);
+      void copyText(tsv, t("Copied {rows}", { rows: suffix }));
     }
   };
 
