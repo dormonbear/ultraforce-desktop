@@ -114,6 +114,10 @@ export function TabStrip({
             aria-selected={active}
             tabIndex={active ? 0 : -1}
             onClick={() => onSelect(t.id)}
+            onMouseDown={(e) => {
+              // Cancel middle-button autoscroll before auxclick closes the tab. / 在 auxclick 关闭标签前取消中键自动滚动。
+              if (e.button === 1) e.preventDefault();
+            }}
             onAuxClick={(e) => {
               // Middle-click closes the tab (unless it's the last one).
               if (e.button === 1 && !lone) {

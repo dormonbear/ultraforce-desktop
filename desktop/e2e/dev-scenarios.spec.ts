@@ -591,7 +591,8 @@ test("the result toolbar copies all rows as TSV to the clipboard", async ({
   await page.getByRole("button", { name: "Copy result" }).click();
   await expect(page.getByText(/Copied 12 rows/).first()).toBeVisible();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
-  const lines = clip.split("\n");
+  // Clipboard line endings follow the host platform. / 剪贴板换行遵循宿主平台。
+  const lines = clip.replace(/\r\n/g, "\n").split("\n");
   expect(lines).toHaveLength(13); // header + 12 rows
   expect(lines[0]).toBe("Id\tName\tIndustry");
   expect(lines[1].split("\t")[1]).toBe("Account 0");
