@@ -1,17 +1,19 @@
 import { test, expect } from "@playwright/test";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gotoApp } from "./fixtures";
 import { MonacoEditor } from "./monaco";
+import { documentationArtifactPath } from "./documentation-artifact-path.mjs";
 
 /**
- * README screenshot generator (not an assertion suite). Drives the app to a
- * representative, populated state via the mocked IPC and captures the viewport
- * to ../docs/images. Run explicitly: `pnpm exec playwright test screenshots`.
+ * Capture README screenshots in test output; update docs with `pnpm exec playwright test screenshots -u`.
+ * 将 README 截图保存到测试输出；使用 `pnpm exec playwright test screenshots -u` 更新文档。
  */
 
-const OUT = "../docs/images";
+const OUT = fileURLToPath(new URL("../../docs/images/", import.meta.url));
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 
-test("soql panel with results", async ({ page }) => {
+test("soql panel with results", async ({ page }, testInfo) => {
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
   const ed = new MonacoEditor(page);
@@ -23,10 +25,10 @@ test("soql panel with results", async ({ page }) => {
   await page.evaluate(() => (document.activeElement as HTMLElement)?.blur?.());
   await page.mouse.move(1400, 880);
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `${OUT}/soql.png` });
+  await page.screenshot({ path: documentationArtifactPath(testInfo, join(OUT, "soql.png"), "soql.png") });
 });
 
-test("apex panel with debug log", async ({ page }) => {
+test("apex panel with debug log", async ({ page }, testInfo) => {
   await gotoApp(page);
   await page.getByLabel("Apex").click();
   await page.getByText("hello.apex").click();
@@ -37,15 +39,15 @@ test("apex panel with debug log", async ({ page }) => {
   await expect(page.getByText(/USER_DEBUG/).first()).toBeVisible();
   await page.getByText("DEBUG LOG", { exact: false }).first().hover();
   await page.waitForTimeout(400);
-  await page.screenshot({ path: `${OUT}/apex.png` });
+  await page.screenshot({ path: documentationArtifactPath(testInfo, join(OUT, "apex.png"), "apex.png") });
 });
 
-test("soql completion dropdown", async ({ page }) => {
+test("soql completion dropdown", async ({ page }, testInfo) => {
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
   const ed = new MonacoEditor(page);
   await ed.setValueViaApi("SELECT Id, ");
   await ed.waitForSuggestion("Name");
   await page.waitForTimeout(300);
-  await page.screenshot({ path: `${OUT}/completion.png` });
+  await page.screenshot({ path: documentationArtifactPath(testInfo, join(OUT, "completion.png"), "completion.png") });
 });
