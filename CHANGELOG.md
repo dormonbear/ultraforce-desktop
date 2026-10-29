@@ -1,5 +1,13 @@
 # Changelog / 更新日志
 
+## [0.3.33](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.32...v0.3.33) (2026-10-29)
+
+
+### Bug Fixes / 缺陷修复
+
+* localize editor tab controls / 本地化编辑器标签控件 ([7efb898](https://github.com/dormonbear/ultraforce-desktop/commit/7efb898e1310cc2bf96ca7b8a2632b4d71507398))
+* publish only complete releases / 仅公开产物齐全的发布 ([a210fb1](https://github.com/dormonbear/ultraforce-desktop/commit/a210fb191f0ae4361117d423db359507ac3eff56))
+
 ## [0.3.32](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.31...v0.3.32) (2026-10-29)
 
 
