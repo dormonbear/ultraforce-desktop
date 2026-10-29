@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { APEX_LOG_ACCESS_HINT } from "./errorFormat";
 
 const chinese = {
   SOQL: "SOQL",
@@ -85,6 +86,7 @@ const chinese = {
   "Filter operation / user": "筛选操作 / 用户",
   "No debug logs yet. Set a trace flag, then refresh to fetch them.": "暂无调试日志。请设置跟踪标志，然后刷新以获取日志。",
   "No logs match this filter.": "没有日志匹配此筛选条件。",
+  [APEX_LOG_ACCESS_HINT]: '此组织用户无法查看调试日志：查询 ApexLog 需要 "View All Data"（查看所有数据）权限。请联系管理员授予该权限（或使用已有权限的用户），然后刷新。',
   "Clear filter": "清除筛选",
   "Cached locally": "已缓存到本地",
   "Save log…": "保存日志…",

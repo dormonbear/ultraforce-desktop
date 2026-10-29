@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { LogRefDto } from "../types";
+import { APEX_LOG_ACCESS_HINT } from "../errorFormat";
 import { filterLogs } from "./logList";
 import { LogListPane } from "./LogListPane";
 
@@ -20,11 +21,11 @@ const logs: LogRefDto[] = [
 ];
 const trace = { tracing: false, tracingBusy: false, traceExpiry: null, traceMinsLeft: 1, quickSelfTrace: vi.fn() };
 
-function Harness({ empty = false }: { empty?: boolean }) {
+function Harness({ empty = false, listError = null }: { empty?: boolean; listError?: string | null }) {
   const [filter, setFilter] = useState({ query: "" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const rows = empty ? [] : logs;
-  return <LogListPane logs={rows} visibleLogs={filterLogs(rows, filter)} listError={null} listLoading={false}
+  return <LogListPane logs={rows} visibleLogs={filterLogs(rows, filter)} listError={listError} listLoading={false}
     filter={filter} setFilter={setFilter} selectedId={selectedId} cachedIds={new Set(["1"])} dragOver
     trace={trace} onRefresh={() => {}} onOpenConfig={() => {}} onSelect={setSelectedId} onSaveLog={() => {}} />;
 }
@@ -71,4 +72,16 @@ it("localizes active trace countdown / 本地化进行中的跟踪倒计时", ()
     onRefresh={() => {}} onOpenConfig={() => {}} onSelect={() => {}} onSaveLog={() => {}} />);
   expect(screen.getByRole("button", { name: "正在跟踪您，剩余 12 分钟；点击延长" })).toBeTruthy();
   expect(screen.getByText("跟踪中 · 12 分钟")).toBeTruthy();
+});
+
+it("switches log-access guidance while preserving other errors / 切换日志访问提示语言并保留其他错误", () => {
+  const languages = vi.spyOn(navigator, "languages", "get").mockReturnValue(["en-US"]);
+  const { rerender } = render(<Harness listError={APEX_LOG_ACCESS_HINT} />);
+  expect(screen.getByText(APEX_LOG_ACCESS_HINT)).toBeTruthy();
+  languages.mockReturnValue(["zh-CN"]);
+  act(() => window.dispatchEvent(new Event("languagechange")));
+  expect(screen.getByText(/此组织用户无法查看调试日志/)).toBeTruthy();
+  expect(screen.getByText(/"View All Data"（查看所有数据）权限/)).toBeTruthy();
+  rerender(<Harness listError="Synthetic backend error / 合成后端错误" />);
+  expect(screen.getByText("Synthetic backend error / 合成后端错误")).toBeTruthy();
 });

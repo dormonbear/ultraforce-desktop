@@ -18,6 +18,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { useI18n } from "../i18n";
+import { APEX_LOG_ACCESS_HINT } from "../errorFormat";
 import { fmtDuration, fmtSize, fmtTime, type LogFilter } from "./logList";
 import type { useSelfTrace } from "./useSelfTrace";
 import type { LogRefDto } from "../types";
@@ -154,7 +155,7 @@ export function LogListPane({
 
       {listError ? (
         <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-          {listError}
+          {listError === APEX_LOG_ACCESS_HINT ? t(APEX_LOG_ACCESS_HINT) : listError}
         </pre>
       ) : logs.length === 0 && !listLoading ? (
         <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted-foreground">

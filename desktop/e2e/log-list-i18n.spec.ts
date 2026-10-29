@@ -54,5 +54,32 @@ for (const locale of ["en-US", "zh-CN"] as const) {
       await page.getByRole("menuitem", { name: zh ? "保存日志…" : "Save log…" }).click();
       await expect(page.getByText(zh ? "保存失败：synthetic failure" : "Save failed: synthetic failure")).toBeVisible();
     });
+
+    test("switches log-access guidance without reloading / 切换日志访问提示语言而不重新加载", async ({ page }) => {
+      const zh = locale === "zh-CN";
+      await installMocks(page);
+      await page.addInitScript(() => {
+        type Scope = { __TAURI_INTERNALS__: { invoke: (command: string, args?: Record<string, unknown>, options?: unknown) => Promise<unknown> }; __ufLogCalls: number };
+        const scope = window as unknown as Scope, invoke = scope.__TAURI_INTERNALS__.invoke;
+        scope.__ufLogCalls = 0;
+        scope.__TAURI_INTERNALS__.invoke = (command, args, options) => {
+          if (command === "list_logs") {
+            scope.__ufLogCalls++;
+            return Promise.reject(new Error("INVALID_TYPE: sObject type 'ApexLog' is not supported"));
+          }
+          return invoke(command, args, options);
+        };
+      });
+      await page.goto("/");
+      await page.getByRole("button", { name: zh ? "日志" : "Logs", exact: true }).click();
+      await expect(page.getByText(zh ? /此组织用户无法查看调试日志/ : /This org user can't view debug logs/)).toBeVisible();
+      const calls = await page.evaluate(() => (window as unknown as { __ufLogCalls: number }).__ufLogCalls);
+      await page.evaluate(language => {
+        Object.defineProperty(navigator, "languages", { configurable: true, value: [language] });
+        window.dispatchEvent(new Event("languagechange"));
+      }, zh ? "en-US" : "zh-CN");
+      await expect(page.getByText(zh ? /This org user can't view debug logs/ : /此组织用户无法查看调试日志/)).toBeVisible();
+      expect(await page.evaluate(() => (window as unknown as { __ufLogCalls: number }).__ufLogCalls)).toBe(calls);
+    });
   });
 }
