@@ -50,13 +50,17 @@ jobs:
         working-directory: desktop
         run: pnpm exec tsc --noEmit
 
+      - name: Build configuration types / 构建配置类型
+        working-directory: desktop
+        run: pnpm exec tsc --project tsconfig.node.json --noEmit
+
       - name: Browser fixture contracts / 浏览器夹具契约
         working-directory: desktop
         run: pnpm exec tsc --project tsconfig.e2e-fixtures.json
 
-      - name: Built syntax checker regressions / 构建语法检查器回归
+      - name: Build integrity regressions / 构建完整性回归
         working-directory: desktop
-        run: node --test scripts/check-built-syntax.test.mjs
+        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs
 
       - name: Frontend tests
         working-directory: desktop
