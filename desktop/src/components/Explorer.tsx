@@ -26,6 +26,7 @@ import {
 import { dirname, ancestorsWithin } from "../fs/paths";
 import { toast } from "sonner";
 import { formatIpcError } from "../errorFormat";
+import { translate, useI18n, type Locale } from "../i18n";
 import { TreeNode } from "./TreeNode";
 import {
   ContextMenu,
@@ -62,6 +63,7 @@ export function Explorer({
   onRemoved,
   refreshToken,
 }: Props) {
+  const { locale, t } = useI18n();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [expanded, setExpanded] = useState<string[]>([]);
   const [edit, setEdit] = useState<Edit | null>(null);
@@ -291,7 +293,7 @@ export function Explorer({
         <Search size={12} className="shrink-0 text-text-dim" />
         <input
           value={query}
-          placeholder={mode === "name" ? "Filter by name" : "Search in files"}
+          placeholder={t(mode === "name" ? "Filter by name" : "Search in files")}
           data-uf-search=""
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -306,7 +308,7 @@ export function Explorer({
         {query && (
           <button
             type="button"
-            aria-label="Clear search"
+            aria-label={t("Clear search")}
             onClick={() => {
               setQuery("");
               setHits(null);
@@ -318,7 +320,7 @@ export function Explorer({
         )}
         <button
           type="button"
-          aria-label="Toggle search mode"
+          aria-label={t("Toggle search mode")}
           onClick={() => {
             setMode((m) => (m === "name" ? "content" : "name"));
             setHits(null);
@@ -329,11 +331,11 @@ export function Explorer({
               : "text-text-dim hover:text-foreground"
           }`}
         >
-          {mode === "name" ? "Name" : "Txt"}
+          {t(mode === "name" ? "Name" : "Txt")}
         </button>
         <button
           type="button"
-          aria-label="Match case"
+          aria-label={t("Match case")}
           onClick={() => setOpts((o) => ({ ...o, caseSensitive: !o.caseSensitive }))}
           className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             opts.caseSensitive
@@ -345,7 +347,7 @@ export function Explorer({
         </button>
         <button
           type="button"
-          aria-label="Use regular expression"
+          aria-label={t("Use regular expression")}
           onClick={() => setOpts((o) => ({ ...o, regex: !o.regex }))}
           className={`shrink-0 rounded px-1 text-[10px] font-medium ${
             opts.regex
@@ -357,20 +359,20 @@ export function Explorer({
         </button>
       </div>
       <div className="flex h-9 items-center justify-end gap-1 border-b border-border px-2">
-        <IconBtn label="New file" onClick={() => newAt("new-file")}>
+        <IconBtn label={t("New file")} onClick={() => newAt("new-file")}>
           <FilePlus size={14} />
         </IconBtn>
-        <IconBtn label="New folder" onClick={() => newAt("new-dir")}>
+        <IconBtn label={t("New folder")} onClick={() => newAt("new-dir")}>
           <FolderPlus size={14} />
         </IconBtn>
-        <IconBtn label="Refresh" onClick={refresh}>
+        <IconBtn label={t("Refresh")} onClick={refresh}>
           <RefreshCw size={13} />
         </IconBtn>
       </div>
       {mode === "content" && hits !== null ? (
         <div className="min-h-0 flex-1 overflow-auto py-1 text-[12px]">
           {hits.length === 0 ? (
-            <div className="px-3 py-2 text-text-dim">No matches</div>
+            <div className="px-3 py-2 text-text-dim">{t("No matches")}</div>
           ) : (
             hits.map((h) => (
               <div key={h.path} className="mb-1">
@@ -403,12 +405,12 @@ export function Explorer({
         <ContextMenu>
           <ContextMenuTrigger asChild>
             <div
-              {...tree.getContainerProps("Files")}
+              {...tree.getContainerProps(t("Files"))}
               className="min-h-0 flex-1 overflow-auto py-1 outline-none"
             >
               {shown.length === 0 && !edit && (
                 <div className="px-3 py-2 text-text-dim">
-                  {nameFilter ? "No files match" : "No files yet"}
+                  {t(nameFilter ? "No files match" : "No files yet")}
                 </div>
               )}
               {tree.getItems().map((item) => {
@@ -426,24 +428,24 @@ export function Explorer({
                       <ContextMenuItem
                         onSelect={() => deferMenuAction(item.getId(), () => setEdit({ kind: "new-file", dir: parentDir }))}
                       >
-                        New File
+                        {t("New File")}
                       </ContextMenuItem>
                       <ContextMenuItem
                         onSelect={() => deferMenuAction(item.getId(), () => setEdit({ kind: "new-dir", dir: parentDir }))}
                       >
-                        New Folder
+                        {t("New Folder")}
                       </ContextMenuItem>
                       <ContextMenuSeparator />
                       <ContextMenuItem onSelect={() => deferMenuAction(item.getId(), () => {
                         if (itemsRef.current.has(item.getId())) item.startRenaming();
                       })}>
-                        Rename
+                        {t("Rename")}
                       </ContextMenuItem>
                       <ContextMenuItem
                         className="text-destructive data-[highlighted]:bg-destructive/15 data-[highlighted]:text-destructive"
                         onSelect={() => void del(n)}
                       >
-                        Delete
+                        {t("Delete")}
                       </ContextMenuItem>
                     </ContextMenuContent>
                   </ContextMenu>
@@ -453,6 +455,7 @@ export function Explorer({
                 <NewRow
                   ext={ext}
                   kind={edit.kind}
+                  locale={locale}
                   onCommit={(name) => void commitNew(name)}
                   onCancel={() => setEdit(null)}
                 />
@@ -461,10 +464,10 @@ export function Explorer({
           </ContextMenuTrigger>
           <ContextMenuContent onCloseAutoFocus={(e) => closeMenu(root, e)}>
             <ContextMenuItem onSelect={() => deferMenuAction(root, () => setEdit({ kind: "new-file", dir: root }))}>
-              New File
+              {t("New File")}
             </ContextMenuItem>
             <ContextMenuItem onSelect={() => deferMenuAction(root, () => setEdit({ kind: "new-dir", dir: root }))}>
-              New Folder
+              {t("New Folder")}
             </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
@@ -501,18 +504,20 @@ function IconBtn({
 function NewRow({
   ext,
   kind,
+  locale,
   onCommit,
   onCancel,
 }: {
   ext: string;
   kind: "new-file" | "new-dir";
+  locale: Locale;
   onCommit: (name: string) => void;
   onCancel: () => void;
 }) {
   return (
     <input
       autoFocus
-      placeholder={kind === "new-file" ? `name.${ext}` : "folder name"}
+      placeholder={kind === "new-file" ? translate(locale, "name.{ext}", { ext }) : translate(locale, "folder name")}
       onBlur={(e) => onCommit(e.currentTarget.value)}
       onKeyDown={(e) => {
         if (e.key === "Enter") onCommit(e.currentTarget.value);
