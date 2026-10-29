@@ -1,5 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import type { Locale } from "../i18n";
+
+let trayUpdate: Promise<unknown> = Promise.resolve();
+
+/** Keep menu changes in locale order. / 按语言变化顺序更新菜单。 */
+export function setTrayLocale(locale: Locale): Promise<unknown> {
+  const next = trayUpdate.catch(() => {}).then(() => invoke("set_tray_locale", { locale }));
+  trayUpdate = next;
+  return next;
+}
 
 /** Fires when the window is brought back from the menu bar. */
 export function onWindowShown(cb: () => void): Promise<() => void> {

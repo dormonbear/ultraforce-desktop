@@ -435,6 +435,12 @@ fn hide_to_tray(app: AppHandle) -> bool {
     tray::hide_to_tray(&app)
 }
 
+// Menu operations dispatch to the native main thread. / 菜单操作需调度到原生主线程。
+#[tauri::command(async)]
+fn set_tray_locale(app: AppHandle, locale: String) -> Result<Option<[String; 2]>, String> {
+    tray::set_locale(&app, &locale).map_err(|error| error.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let started = std::time::Instant::now();
@@ -496,7 +502,8 @@ pub fn run() {
             sf_status,
             login_org,
             read_log_file,
-            hide_to_tray
+            hide_to_tray,
+            set_tray_locale
         ])
         .setup(move |app| {
             tracing::info!(

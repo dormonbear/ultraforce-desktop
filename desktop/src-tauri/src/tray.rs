@@ -16,6 +16,33 @@ const TRAY_ID: &str = "main";
 /// colored app icon would come out as a solid black square here.
 const TRAY_ICON: &[u8] = include_bytes!("../icons/tray-template.png");
 
+fn labels(locale: &str) -> (&'static str, &'static str) {
+    match locale {
+        "zh-CN" => ("显示 Ultraforce", "退出 Ultraforce"),
+        _ => ("Show Ultraforce", "Quit Ultraforce"),
+    }
+}
+
+fn menu(
+    app: &AppHandle,
+    locale: &str,
+) -> tauri::Result<(Menu<tauri::Wry>, MenuItem<tauri::Wry>, MenuItem<tauri::Wry>)> {
+    let (show_label, quit_label) = labels(locale);
+    let show = MenuItem::with_id(app, "show", show_label, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", quit_label, true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+    Ok((menu, show, quit))
+}
+
+pub(crate) fn set_locale(app: &AppHandle, locale: &str) -> tauri::Result<Option<[String; 2]>> {
+    let Some(tray) = app.tray_by_id(TRAY_ID) else {
+        return Ok(None);
+    };
+    let (menu, show, quit) = menu(app, locale)?;
+    tray.set_menu(Some(menu))?;
+    Ok(Some([show.text()?, quit.text()?]))
+}
+
 /// Bring the window back. Dock first, then show, then focus: reversing this
 /// leaves the restored window sitting behind whatever app was frontmost.
 pub(crate) fn show_main(app: &AppHandle) {
@@ -52,9 +79,7 @@ pub(crate) fn hide_to_tray(app: &AppHandle) -> bool {
 /// Quit lives here because a hidden, dock-less app is not frontmost, so ⌘Q never
 /// reaches it.
 pub(crate) fn build(app: &AppHandle) -> tauri::Result<()> {
-    let show = MenuItem::with_id(app, "show", "Show Ultraforce", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Ultraforce", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &quit])?;
+    let (menu, _show, _quit) = menu(app, "en")?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(TRAY_ICON)?)
@@ -93,5 +118,17 @@ fn toggle(app: &AppHandle) {
         hide_to_tray(app);
     } else {
         show_main(app);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::labels;
+
+    #[test]
+    fn tray_labels_follow_locale_and_fall_back_to_english() {
+        assert_eq!(labels("zh-CN"), ("显示 Ultraforce", "退出 Ultraforce"));
+        assert_eq!(labels("en"), ("Show Ultraforce", "Quit Ultraforce"));
+        assert_eq!(labels("unknown"), labels("en"));
     }
 }

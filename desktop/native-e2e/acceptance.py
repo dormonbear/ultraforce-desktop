@@ -115,6 +115,15 @@ def application(application_path, environment, artifacts, name):
                 stop_process_tree(app)
 
 
+def verify_tray_localization(driver):
+    for locale, expected in (
+        ("zh-CN", ["显示 Ultraforce", "退出 Ultraforce"]),
+        ("en", ["Show Ultraforce", "Quit Ultraforce"]),
+    ):
+        actual = driver.invoke("set_tray_locale", {"locale": locale})
+        assert actual == expected, actual
+
+
 def verify_completions(driver):
     query = "SELECT  FROM Synthetic__c"
     fields = driver.invoke("soql_complete", {"query": query, "offset": 7, "org": ORG})
@@ -219,6 +228,7 @@ def run(application_path, artifacts):
         root = Path(directory) / "normal"
         environment = fixture(root, runtime)
         with application(application_path, environment, artifacts, "full") as driver:
+            verify_tray_localization(driver)
             assert driver.invoke("sf_status", {})["state"] == "ok"
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
             driver.invoke("ensure_ready", {"org": "NativeFixture", "namespaces": "all"})
