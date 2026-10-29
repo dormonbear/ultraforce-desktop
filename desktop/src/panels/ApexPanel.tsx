@@ -52,11 +52,12 @@ interface ApexViewProps {
   onPatch: (partial: Partial<ApexTab>) => void;
   onSave?: () => void;
   reveal?: Reveal;
+  shouldFocusEditor?: () => boolean;
 }
 
 /** Anonymous-Apex runner (single tab): Monaco editor + status chips + error + debug log. */
 // fallow-ignore-next-line complexity
-export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
+export function ApexView({ tab, onPatch, onSave, reveal, shouldFocusEditor }: ApexViewProps) {
   const { t } = useI18n();
   const { theme, scheme } = useTheme();
   const { selected: org } = useOrgs();
@@ -85,7 +86,7 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
   } | null>(null);
   const mounted = editorTarget !== null;
   srcRef.current = src;
-  const { flushPending } = useMonacoReveal(editorRef, reveal);
+  const { flushPending } = useMonacoReveal(editorRef, reveal, shouldFocusEditor);
   // Persist the editor/result split across launches (matches the SOQL panel).
   const layout = useDefaultLayout({
     id: "uf-apex-split",
@@ -176,8 +177,8 @@ export function ApexView({ tab, onPatch, onSave, reveal }: ApexViewProps) {
     trimContextMenu(instance);
     flushPending();
     setEditorTarget({ instance, monaco });
-    // Focus so a freshly opened/created tab is ready to type into.
-    instance.focus();
+    // Keep newer user focus while loading. / 加载时保留用户后续选择的焦点。
+    if (shouldFocusEditor?.() ?? true) instance.focus();
   };
 
   useApexDiagnostics({ src, org, mounted, editorRef, monacoRef });
