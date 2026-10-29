@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
 import { FilePlus, FolderPlus, RefreshCw, Search, X } from "lucide-react";
 import {
   dragAndDropFeature,
@@ -69,6 +69,18 @@ export function Explorer({
   const [mode, setMode] = useState<"name" | "content">("name");
   const [hits, setHits] = useState<FileHit[] | null>(null);
   const [opts, setOpts] = useState<SearchOpts>({});
+  const pendingMenuAction = useRef<{ owner: string; run: () => void } | null>(null);
+  const deferMenuAction = (owner: string, run: () => void) => {
+    pendingMenuAction.current = { owner, run };
+  };
+  const closeMenu = (owner: string, event: Event) => {
+    event.preventDefault();
+    const pending = pendingMenuAction.current;
+    if (pending?.owner !== owner) return;
+    pendingMenuAction.current = null;
+    // Mount inline inputs after the menu releases its focus trap. / 菜单释放焦点锁定后再挂载内联输入框。
+    pending.run();
+  };
 
   const refresh = useCallback(() => {
     void readTree(root).then(setNodes);
@@ -140,8 +152,19 @@ export function Explorer({
   const commitRename = async (path: string, value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+    const owner = document.activeElement;
+    const ownerRow = owner?.closest('[role="treeitem"]');
+    const previousFocus = tree.getFocusedItem()?.getId();
     try {
-      await renameNode(path, trimmed, onRenamed);
+      const next = await renameNode(path, trimmed, onRenamed);
+      // The tree uses paths as IDs; delayed focus must follow the renamed item. / 目录树以路径为 ID，延迟聚焦必须跟随重命名后的项目。
+      if (tree.getFocusedItem()?.getId() === previousFocus) {
+        tree.getItemInstance(next).setFocused();
+      }
+      const active = document.activeElement;
+      if (active === owner || active === ownerRow || (active === document.body && !owner?.isConnected)) {
+        tree.updateDomFocus();
+      }
     } catch (err) {
       toast.error(formatIpcError(err));
       return;
@@ -162,6 +185,19 @@ export function Explorer({
     const dir = activePath ? dirname(activePath) : root;
     setEdit({ kind, dir });
   };
+
+  const focusOwner = useRef<Element | null>(null);
+  const appliedFocus = useRef(0);
+  const [focusVersion, requestFocus] = useReducer((version: number) => version + 1, 0);
+  const focusFeature = useMemo(() => ({
+    key: "workspace-focus",
+    treeInstance: {
+      updateDomFocus: () => {
+        focusOwner.current = document.activeElement;
+        requestFocus();
+      },
+    },
+  }), []);
 
   const tree = useTree<Node>({
     rootItemId: root,
@@ -212,7 +248,23 @@ export function Explorer({
       hotkeysCoreFeature,
       renamingFeature,
       dragAndDropFeature,
+      focusFeature,
     ],
+  });
+
+  useLayoutEffect(() => {
+    if (!focusVersion || focusVersion === appliedFocus.current) return;
+    const owner = focusOwner.current;
+    const active = document.activeElement;
+    if (tree.isRenamingItem() || (active !== owner && !(active === document.body && !owner?.isConnected))) {
+      appliedFocus.current = focusVersion;
+      return;
+    }
+    const target = tree.getFocusedItem()?.getElement();
+    if (!target?.isConnected) return;
+    appliedFocus.current = focusVersion;
+    // Rows are fully rendered: focus after React commits, without polling stale path IDs. / 行完整渲染：React 提交后再聚焦，不轮询失效的路径 ID。
+    target.focus();
   });
 
   // The sync data loader reads itemsRef; tell the tree when that data moved.
@@ -370,21 +422,21 @@ export function Explorer({
                         <TreeNode item={item} active={n.path === activePath} />
                       </div>
                     </ContextMenuTrigger>
-                    {/* Don't restore focus to the row on close: the freshly mounted
-                        rename/new-name input must keep its autofocus. */}
-                    <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
+                    <ContextMenuContent onCloseAutoFocus={(e) => closeMenu(item.getId(), e)}>
                       <ContextMenuItem
-                        onSelect={() => setEdit({ kind: "new-file", dir: parentDir })}
+                        onSelect={() => deferMenuAction(item.getId(), () => setEdit({ kind: "new-file", dir: parentDir }))}
                       >
                         New File
                       </ContextMenuItem>
                       <ContextMenuItem
-                        onSelect={() => setEdit({ kind: "new-dir", dir: parentDir })}
+                        onSelect={() => deferMenuAction(item.getId(), () => setEdit({ kind: "new-dir", dir: parentDir }))}
                       >
                         New Folder
                       </ContextMenuItem>
                       <ContextMenuSeparator />
-                      <ContextMenuItem onSelect={() => item.startRenaming()}>
+                      <ContextMenuItem onSelect={() => deferMenuAction(item.getId(), () => {
+                        if (itemsRef.current.has(item.getId())) item.startRenaming();
+                      })}>
                         Rename
                       </ContextMenuItem>
                       <ContextMenuItem
@@ -407,11 +459,11 @@ export function Explorer({
               )}
             </div>
           </ContextMenuTrigger>
-          <ContextMenuContent onCloseAutoFocus={(e) => e.preventDefault()}>
-            <ContextMenuItem onSelect={() => setEdit({ kind: "new-file", dir: root })}>
+          <ContextMenuContent onCloseAutoFocus={(e) => closeMenu(root, e)}>
+            <ContextMenuItem onSelect={() => deferMenuAction(root, () => setEdit({ kind: "new-file", dir: root }))}>
               New File
             </ContextMenuItem>
-            <ContextMenuItem onSelect={() => setEdit({ kind: "new-dir", dir: root })}>
+            <ContextMenuItem onSelect={() => deferMenuAction(root, () => setEdit({ kind: "new-dir", dir: root }))}>
               New Folder
             </ContextMenuItem>
           </ContextMenuContent>
