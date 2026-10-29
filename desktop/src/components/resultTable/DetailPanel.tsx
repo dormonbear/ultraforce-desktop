@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import type { ChildLabelsDto, ChildTableDto } from "../../types";
+import { useI18n } from "../../i18n";
 import { RelationshipSection } from "./RecordCards";
 
 /**
@@ -22,11 +23,12 @@ export function DetailPanel({
   childLabels?: Record<string, ChildLabelsDto>;
   onClose: () => void;
 }) {
+  const { locale, t } = useI18n();
   return (
     <div className="flex h-full flex-col border-l border-border">
       <div className="flex items-center justify-between gap-2 border-b border-border bg-secondary px-3 py-2">
         <div className="min-w-0 truncate text-[12px] font-semibold text-foreground">
-          Row {rowOrdinal + 1}
+          {t("Row {number}", { number: rowOrdinal + 1 })}
           {parentId && (
             <span className="ml-2 font-normal tabular-nums text-muted-foreground">
               {parentId}
@@ -35,7 +37,7 @@ export function DetailPanel({
         </div>
         <button
           type="button"
-          aria-label="Close detail panel"
+          aria-label={t("Close detail panel")}
           onClick={onClose}
           className="shrink-0 cursor-pointer rounded p-0.5 text-muted-foreground hover:text-foreground"
         >
@@ -44,13 +46,14 @@ export function DetailPanel({
       </div>
       <div className="uf-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-3">
         {tables.length === 0 ? (
-          <div className="text-[12px] text-muted-foreground">No child records</div>
+          <div className="text-[12px] text-muted-foreground">{t("No child records")}</div>
         ) : (
-          tables.map((t) => (
+          tables.map((table) => (
             <RelationshipSection
-              key={t.column}
-              table={t}
-              labels={childLabels?.[t.column]}
+              key={table.column}
+              table={table}
+              locale={locale}
+              labels={childLabels?.[table.column]}
             />
           ))
         )}
