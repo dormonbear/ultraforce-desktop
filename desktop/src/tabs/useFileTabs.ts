@@ -299,6 +299,7 @@ export function useFileTabs<T extends TabBase & { path: string }>(
     };
     setTabs((prev) => [...prev, tab]);
     setActiveId(tab.id);
+    return tab.id;
   }, [make]);
 
   // Save a tab. A saved tab writes its live content and awaits IO; an untitled
