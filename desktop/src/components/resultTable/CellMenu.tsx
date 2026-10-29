@@ -6,6 +6,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { copyText } from "../../clipboard";
+import { useI18n } from "../../i18n";
 
 /**
  * One shared right-click menu for every result cell: the trigger wraps the
@@ -20,12 +21,13 @@ export function CellContextMenu({
   text: string;
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onSelect={() => void copyText(text, "Copied cell value")}>
-          Copy value
+        <ContextMenuItem onSelect={() => void copyText(text, t("Copied cell value"))}>
+          {t("Copy value")}
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
