@@ -58,9 +58,9 @@ jobs:
         working-directory: desktop
         run: pnpm exec tsc --project tsconfig.e2e-fixtures.json
 
-      - name: Build integrity regressions / 构建完整性回归
+      - name: Build and toolchain regressions / 构建及工具链回归
         working-directory: desktop
-        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs
+        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs scripts/check-jsdom-undici.test.mjs
 
       - name: Frontend tests
         working-directory: desktop
