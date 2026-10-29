@@ -81,7 +81,7 @@ const chinese = {
   "Trace myself for 30 minutes": "为自己跟踪 30 分钟",
   "Traced until {time} — click to extend 30 min": "跟踪至 {time}；点击延长 30 分钟",
   "Trace yourself for 30 minutes": "为自己跟踪 30 分钟",
-  "Filter logs": "筛选日志",
+  "Filter logs": "筛选日志列表",
   "Filter operation / user": "筛选操作 / 用户",
   "No debug logs yet. Set a trace flag, then refresh to fetch them.": "暂无调试日志。请设置跟踪标志，然后刷新以获取日志。",
   "No logs match this filter.": "没有日志匹配此筛选条件。",

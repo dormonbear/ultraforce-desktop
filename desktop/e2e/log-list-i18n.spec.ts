@@ -11,7 +11,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
       await page.getByRole("button", { name: zh ? "日志" : "Logs", exact: true }).click();
       const row = page.getByRole("button", { name: /runTestsSynchronous/ });
       await row.click();
-      const input = page.getByPlaceholder(zh ? "筛选操作 / 用户" : "Filter operation / user");
+      const input = page.getByLabel(zh ? "筛选日志列表" : "Filter logs", { exact: true });
       await input.fill("Xu");
       await expect(row).toHaveClass(/bg-primary\/10/);
       await expect(row.locator(`[aria-label="${zh ? "已缓存到本地" : "Cached locally"}"]`)).toBeVisible();
@@ -23,7 +23,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
         window.dispatchEvent(new Event("languagechange"));
       }, zh ? "en-US" : "zh-CN");
 
-      const translatedInput = page.getByPlaceholder(zh ? "Filter operation / user" : "筛选操作 / 用户");
+      const translatedInput = page.getByLabel(zh ? "Filter logs" : "筛选日志列表", { exact: true });
       await expect(translatedInput).toHaveValue("Xu");
       await expect(row).toHaveClass(/bg-primary\/10/);
       await expect(row).toContainText(zh ? "Success" : "成功");

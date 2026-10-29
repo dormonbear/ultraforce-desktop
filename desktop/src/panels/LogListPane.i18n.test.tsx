@@ -52,11 +52,11 @@ it("retains filter and selection when the language changes / 切换语言时保�
   expect(screen.getByLabelText("Cached locally")).toBeTruthy();
   languages.mockReturnValue(["zh-CN"]);
   act(() => window.dispatchEvent(new Event("languagechange")));
-  expect((screen.getByLabelText("筛选日志") as HTMLInputElement).value).toBe("Ada");
+  expect((screen.getByLabelText("筛选日志列表") as HTMLInputElement).value).toBe("Ada");
   expect(screen.getByRole("button", { name: /Synthetic first/ }).className).toContain("bg-primary/10");
   expect(screen.getByLabelText("已缓存到本地")).toBeTruthy();
   expect(screen.getByText("成功")).toBeTruthy();
-  fireEvent.change(screen.getByLabelText("筛选日志"), { target: { value: "missing" } });
+  fireEvent.change(screen.getByLabelText("筛选日志列表"), { target: { value: "missing" } });
   expect(screen.getByText("没有日志匹配此筛选条件。")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "清除筛选" }));
   expect(screen.getByRole("button", { name: /Synthetic second/ })).toBeTruthy();
