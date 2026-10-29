@@ -18,6 +18,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/i18n";
 import { EXPORT_FORMATS, type ExportFormatDef } from "../export";
 
 /** Left-clicking the export button runs this format directly (no menu). */
@@ -72,15 +73,16 @@ export function Toolbar({
   shownCount,
   totalSize,
 }: ToolbarProps) {
+  const { locale, t } = useI18n();
   return (
     <div className="flex items-center gap-2 px-4 py-2">
       <div>
         <TextInput
-          label="Filter rows"
+          label={t("Filter rows")}
           isLabelHidden
           value={globalFilter}
           onChange={(value) => onGlobalFilterChange(value)}
-          placeholder="Filter rows…"
+          placeholder={t("Filter rows…")}
           data-uf-search=""
           size="sm"
           startIcon={<Search className="size-3.5" />}
@@ -90,10 +92,10 @@ export function Toolbar({
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger className="focus-accent inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12px] text-muted-foreground hover:text-foreground cursor-pointer">
-          <SlidersHorizontal size={13} /> Columns
+          <SlidersHorizontal size={13} /> {t("Columns")}
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-72 overflow-auto">
-          <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+          <DropdownMenuLabel>{t("Toggle columns")}</DropdownMenuLabel>
           {(() => {
             // In flatten mode the generated `rel[k].col` position columns are
             // hidden from the individual list and toggled as one group each.
@@ -140,7 +142,7 @@ export function Toolbar({
       {onToggleLabelMode && (
         <button
           type="button"
-          aria-label="Show field labels"
+          aria-label={t("Show field labels")}
           aria-pressed={labelMode}
           aria-busy={labelsLoading || undefined}
           onClick={onToggleLabelMode}
@@ -161,7 +163,7 @@ export function Toolbar({
 
       <button
         type="button"
-        aria-label="Advanced filter"
+        aria-label={t("Advanced filter")}
         onClick={onToggleFilter}
         className={cn(
           "focus-accent relative inline-flex h-7 items-center gap-1.5 rounded-md border border-input bg-card px-2.5 text-[12px] cursor-pointer",
@@ -170,7 +172,7 @@ export function Toolbar({
             : "text-muted-foreground hover:text-foreground"
         )}
       >
-        <Filter size={13} /> Filter
+        <Filter size={13} /> {t("Filter")}
         {advancedFilter.rules.length > 0 && (
           <span className="absolute -right-1 -top-1 size-2 rounded-full bg-primary" />
         )}
@@ -190,7 +192,7 @@ export function Toolbar({
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              {m === "expand" ? "Nested" : "Flat"}
+              {m === "expand" ? t("Nested") : t("Flat")}
             </button>
           ))}
         </div>
@@ -202,7 +204,7 @@ export function Toolbar({
         <ContextMenuTrigger asChild>
           <button
             type="button"
-            aria-label="Copy result"
+            aria-label={t("Copy result")}
             onClick={() => copyAs("tsv")}
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
@@ -211,10 +213,10 @@ export function Toolbar({
         </ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onSelect={() => copyAs("md")}>
-            Copy as Markdown
+            {t("Copy as Markdown")}
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => copyAs("json")}>
-            Copy as JSON
+            {t("Copy as JSON")}
           </ContextMenuItem>
         </ContextMenuContent>
       </ContextMenu>
@@ -222,7 +224,7 @@ export function Toolbar({
         <ContextMenuTrigger asChild>
           <button
             type="button"
-            aria-label="Export"
+            aria-label={t("Export")}
             onClick={() => void exportAs(CSV_FORMAT)}
             className="focus-accent inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground cursor-pointer"
           >
@@ -232,7 +234,7 @@ export function Toolbar({
         <ContextMenuContent>
           {EXPORT_FORMATS.map((fmt) => (
             <ContextMenuItem key={fmt.id} onSelect={() => void exportAs(fmt)}>
-              Export as {fmt.label}
+              {t("Export as {format}", { format: fmt.label })}
             </ContextMenuItem>
           ))}
         </ContextMenuContent>
@@ -241,7 +243,7 @@ export function Toolbar({
           or partially loaded); the full count lives in the panel status line. */}
       {shownCount !== totalSize && (
         <span className="tnum text-[11px] text-muted-foreground">
-          {shownCount.toLocaleString()} / {totalSize.toLocaleString()} shown
+          {t("{shown} / {total} shown", { shown: shownCount.toLocaleString(locale), total: totalSize.toLocaleString(locale) })}
         </span>
       )}
     </div>

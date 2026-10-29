@@ -78,4 +78,31 @@ describe("export button", () => {
     opts.action.onClick();
     expect(openPath).toHaveBeenCalledWith("/tmp/query-result.out");
   });
+
+  it("localizes copy and export feedback / 本地化复制和导出反馈", async () => {
+    const languages = Object.getOwnPropertyDescriptor(navigator, "languages");
+    const clipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    const writeText = vi.fn(async () => {});
+    Object.defineProperty(navigator, "languages", { value: ["zh-CN"], configurable: true });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    try {
+      render(<ResultTable data={data} />);
+      fireEvent.click(screen.getByRole("button", { name: "复制结果" }));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith("已复制 1 行"));
+      expect(writeText).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "导出" }));
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith(
+        "已将 1 行导出为 CSV", expect.objectContaining({ action: expect.objectContaining({ label: "打开" }) }),
+      ));
+      vi.mocked(writeExportFile).mockRejectedValueOnce(new Error("Synthetic error / 合成错误"));
+      fireEvent.click(screen.getByRole("button", { name: "导出" }));
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("导出失败：Synthetic error / 合成错误"));
+    } finally {
+      if (languages) Object.defineProperty(navigator, "languages", languages);
+      else Reflect.deleteProperty(navigator, "languages");
+      if (clipboard) Object.defineProperty(navigator, "clipboard", clipboard);
+      else Reflect.deleteProperty(navigator, "clipboard");
+    }
+  });
 });

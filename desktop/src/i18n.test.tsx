@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveLocale, translate, useI18n } from "./i18n";
+import { browserLocale, resolveLocale, translate, useI18n } from "./i18n";
 
 function Control() {
   const { locale, t } = useI18n();
@@ -11,6 +11,7 @@ function Control() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("system language / 系统语言", () => {
@@ -30,6 +31,15 @@ describe("system language / 系统语言", () => {
     expect(translate("zh-CN", "Reindex failed: {error}", { error }))
       .toBe(`重新索引失败：${error}`);
     expect(translate("en", "{tool} workspace", { tool: "soql" })).toBe("soql workspace");
+  });
+
+  it("falls back when navigator language lists are unavailable / 语言列表不可用时回退", () => {
+    vi.stubGlobal("navigator", { language: "zh-CN" });
+    expect(browserLocale()).toBe("zh-CN");
+    vi.stubGlobal("navigator", { languages: [], language: "zh-CN" });
+    expect(browserLocale()).toBe("zh-CN");
+    vi.stubGlobal("navigator", {});
+    expect(browserLocale()).toBe("en");
   });
 
   it.each(["en", "zh-CN"] as const)(
