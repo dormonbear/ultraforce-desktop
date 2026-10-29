@@ -1,5 +1,15 @@
 # Changelog / 更新日志
 
+## [0.3.31](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.30...v0.3.31) (2026-10-29)
+
+
+### Bug Fixes / 缺陷修复
+
+* initialize missing browser runtime APIs / 初始化缺失的浏览器运行时 API ([7bce681](https://github.com/dormonbear/ultraforce-desktop/commit/7bce6811bcbee59bc0bc2671377ee3413e0228a7))
+* preserve tab focus and schema scroll geometry / 保留标签焦点及模式滚动尺寸 ([4491ff1](https://github.com/dormonbear/ultraforce-desktop/commit/4491ff1364fa0d0f61b92672d816e1b6d633a38b)), closes [#153](https://github.com/dormonbear/ultraforce-desktop/issues/153)
+* preserve workspace input and tree focus / 保留工作区输入与目录树焦点 ([948a766](https://github.com/dormonbear/ultraforce-desktop/commit/948a766f6fd1c0f93373012c6a6d733992101256))
+* replace the bundled Monaco sanitizer / 替换打包的 Monaco 净化器 ([6e85496](https://github.com/dormonbear/ultraforce-desktop/commit/6e85496600b941448580c2232a00c8bd855755b9))
+
 ## [0.3.30](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.29...v0.3.30) (2026-10-28)
 
 
