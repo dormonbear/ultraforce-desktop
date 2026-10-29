@@ -122,6 +122,7 @@ def verify_tray_localization(driver):
     ):
         actual = driver.invoke("set_tray_locale", {"locale": locale})
         assert actual == expected, actual
+    print("PASS: native tray locale changes / 原生托盘语言切换验证通过")
 
 
 def verify_completions(driver):
@@ -228,11 +229,12 @@ def run(application_path, artifacts):
         root = Path(directory) / "normal"
         environment = fixture(root, runtime)
         with application(application_path, environment, artifacts, "full") as driver:
-            verify_tray_localization(driver)
             assert driver.invoke("sf_status", {})["state"] == "ok"
             driver.invoke("ensure_ready", {"org": ORG, "namespaces": "all"})
             driver.invoke("ensure_ready", {"org": "NativeFixture", "namespaces": "all"})
             verify_completions(driver)
+            # Exercise the tray after app startup and indexing. / 在应用启动及索引后验证托盘。
+            verify_tray_localization(driver)
             generation = verify_database(root, False)
             verify_schema_ui(driver)
             driver.screenshot(artifacts / "native-schema.png")
