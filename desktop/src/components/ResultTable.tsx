@@ -362,7 +362,7 @@ export function ResultTable({
     const vals = table.getRowModel().rows.map((r) => String(r.getValue(col) ?? ""));
     void copyText(
       vals.join("\n"),
-      `Copied ${vals.length} ${col} value${vals.length === 1 ? "" : "s"}`,
+      t(vals.length === 1 ? "Copied {count} {field} value" : "Copied {count} {field} values", { count: vals.length, field: col }),
     );
   };
 
@@ -384,7 +384,7 @@ export function ResultTable({
         org,
       )
         .then(setLabels)
-        .catch((e) => toast.error(`Label lookup failed: ${formatIpcError(e)}`))
+        .catch((e) => toast.error(t("Label lookup failed: {error}", { error: formatIpcError(e) })))
         .finally(() => setLabelsLoading(false));
     }
   };
@@ -471,7 +471,7 @@ export function ResultTable({
 
       {data.rows.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-[13px] text-muted-foreground">
-          No rows
+          {t("No rows")}
         </div>
       ) : (
         <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
@@ -519,6 +519,7 @@ export function ResultTable({
                         column={header.column}
                         isChildColumn={lookup.childColumns.has(header.column.id)}
                         quickMode={getQuickMode(advancedFilter, header.column.id)}
+                        locale={locale}
                         onQuickFilter={(m) =>
                           setAdvancedFilter((f) =>
                             setQuickFilter(f, header.column.id, m),
@@ -559,7 +560,7 @@ export function ResultTable({
                         {/* copy this column's values (respects filter/sort) */}
                         <button
                           type="button"
-                          aria-label={`Copy ${header.column.id} column`}
+                          aria-label={t("Copy {field} column", { field: header.column.id })}
                           onClick={(e) => {
                             e.stopPropagation();
                             copyColumn(header.column.id);

@@ -1,5 +1,6 @@
 import { displayValue } from "./childData";
 import type { ChildLabelsDto, ChildTableDto, Scalar } from "../../types";
+import { translate, type Locale } from "../../i18n";
 
 /**
  * One relationship inside the detail panel: section header (name + total +
@@ -11,25 +12,27 @@ import type { ChildLabelsDto, ChildTableDto, Scalar } from "../../types";
 export function RelationshipSection({
   table,
   labels,
+  locale,
 }: {
   table: ChildTableDto;
   labels?: ChildLabelsDto;
+  locale: Locale;
 }) {
   return (
     <div className="min-w-0">
       <div className="mb-1 flex items-baseline gap-2">
         <span className="text-[12px] font-semibold text-foreground">
-          {labels?.label ?? table.column} ({table.totalSize.toLocaleString()})
+          {labels?.label ?? table.column} ({table.totalSize.toLocaleString(locale)})
         </span>
         {!table.done && (
           <span className="text-[11px] text-muted-foreground">
-            {table.rows.length.toLocaleString()} of {table.totalSize.toLocaleString()} loaded
+            {translate(locale, "{loaded} of {total} loaded", { loaded: table.rows.length.toLocaleString(locale), total: table.totalSize.toLocaleString(locale) })}
           </span>
         )}
       </div>
       <div className="flex flex-col gap-2">
         {table.rows.map((row, i) => (
-          <RecordCard key={i} table={table} row={row} ordinal={i} labels={labels} />
+          <RecordCard key={i} table={table} row={row} ordinal={i} labels={labels} locale={locale} />
         ))}
       </div>
     </div>
@@ -42,11 +45,13 @@ function RecordCard({
   row,
   ordinal,
   labels,
+  locale,
 }: {
   table: ChildTableDto;
   row: Scalar[];
   ordinal: number;
   labels?: ChildLabelsDto;
+  locale: Locale;
 }) {
   const nested = table.children.filter((c) => c.rowIndex === ordinal);
   // Relationships shown as nested sections skip their scalar count field.
@@ -85,7 +90,7 @@ function RecordCard({
       {nested.length > 0 && (
         <div className="flex flex-col gap-2 py-2 pl-4 pr-2">
           {nested.map((t) => (
-            <RelationshipSection key={t.column} table={t} />
+            <RelationshipSection key={t.column} table={t} locale={locale} />
           ))}
         </div>
       )}
