@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { gotoApp, dropLogFile } from "./fixtures";
+import type { StatementDto } from "../src/types";
 
 // The Insights tab runs detectors over a parsed log and lists actionable
 // findings. Here a query that runs 6× (varying the bind literal) must be flagged
 // as in-a-loop — proving fingerprint grouping + the detector + the UI wiring.
 test("Insights tab flags SOQL run in a loop", async ({ page }) => {
-  const statements = Array.from({ length: 6 }, (_, i) => ({
+  const statements: StatementDto[] = Array.from({ length: 6 }, (_, i) => ({
     kind: "soql",
     text: `SELECT Id FROM Contact WHERE AccountId = '001x${i}'`,
     rows: 2,
@@ -13,7 +14,6 @@ test("Insights tab flags SOQL run in a loop", async ({ page }) => {
   }));
   await gotoApp(page, {
     parse_log: {
-      raw: "x",
       apiVersion: "67.0",
       units: [{ tree: [], hotspots: [], statements, limits: [], exceptions: [] }],
     },

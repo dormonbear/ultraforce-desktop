@@ -52,6 +52,36 @@ const tabTitles = () =>
 describe("tab context menu", () => {
   afterEach(cleanup);
 
+  it("middle click prevents autoscroll before closing the target tab / 中键关闭目标标签前阻止自动滚动", () => {
+    render(<Harness initial={three} />);
+    const target = tab("Beta");
+    const down = new MouseEvent("mousedown", { button: 1, bubbles: true, cancelable: true });
+    fireEvent(target, down);
+    expect(down.defaultPrevented).toBe(true);
+    fireEvent(target, new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true }));
+    expect(tabTitles()).toEqual(["Alpha", "Gamma"]);
+  });
+
+  it.each([0, 2])("preserves button %i defaults and leaves tabs open / 保留鼠标按钮默认行为且不关闭标签", (button) => {
+    render(<Harness initial={three} />);
+    const target = tab("Beta");
+    const down = new MouseEvent("mousedown", { button, bubbles: true, cancelable: true });
+    fireEvent(target, down);
+    expect(down.defaultPrevented).toBe(false);
+    fireEvent(target, new MouseEvent("auxclick", { button, bubbles: true, cancelable: true }));
+    expect(tabTitles()).toEqual(["Alpha", "Beta", "Gamma"]);
+  });
+
+  it("middle click keeps the last tab without starting autoscroll / 中键保留最后标签且不启动自动滚动", () => {
+    render(<Harness initial={[three[0]]} />);
+    const target = tab("Alpha");
+    const down = new MouseEvent("mousedown", { button: 1, bubbles: true, cancelable: true });
+    fireEvent(target, down);
+    expect(down.defaultPrevented).toBe(true);
+    fireEvent(target, new MouseEvent("auxclick", { button: 1, bubbles: true, cancelable: true }));
+    expect(tabTitles()).toEqual(["Alpha"]);
+  });
+
   it("opens with the four close operations", () => {
     render(<Harness initial={three} />);
     fireEvent.contextMenu(tab("Beta"));

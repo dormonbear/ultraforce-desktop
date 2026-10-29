@@ -50,6 +50,10 @@ jobs:
         working-directory: desktop
         run: pnpm exec tsc --noEmit
 
+      - name: Browser fixture contracts / 浏览器夹具契约
+        working-directory: desktop
+        run: pnpm exec tsc --project tsconfig.e2e-fixtures.json
+
       - name: Built syntax checker regressions / 构建语法检查器回归
         working-directory: desktop
         run: node --test scripts/check-built-syntax.test.mjs
@@ -74,11 +78,11 @@ jobs:
         working-directory: desktop
         run: pnpm exec playwright install --with-deps --only-shell chromium
 
-      - name: Editor and localization regressions / 编辑器与本地化回归
+      - name: Production browser regressions / 正式构建浏览器回归
         working-directory: desktop
         env:
           PERF_PROD: '1'
-        run: pnpm exec playwright test e2e/editor-input-integrity.spec.ts e2e/setup-i18n.spec.ts e2e/org-i18n.spec.ts e2e/soql-i18n.spec.ts e2e/schema-i18n.spec.ts e2e/apex-org-diagnostics.spec.ts e2e/apex-i18n.spec.ts e2e/debug-config-org.spec.ts e2e/self-trace-org.spec.ts e2e/log-source-mapping.spec.ts e2e/log-view-ownership.spec.ts --reporter=line
+        run: pnpm exec playwright test --reporter=line
 
       - name: Built browser syntax / 构建浏览器语法
         working-directory: desktop

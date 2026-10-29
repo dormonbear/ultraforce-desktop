@@ -6,7 +6,6 @@ import { gotoApp, dropLogFile } from "./fixtures";
 test("Queries tab lists SOQL statements with a summary", async ({ page }) => {
   await gotoApp(page, {
     parse_log: {
-      raw: "x",
       apiVersion: "60.0",
       units: [
         {
@@ -59,18 +58,34 @@ test("Raw tab renders plain lines while scrolling and re-colours on settle", asy
   ).join("\n");
   await gotoApp(page, {
     parse_log: {
-      raw,
       apiVersion: "60.0",
       units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }],
     },
   });
+  type Scope = {
+    __TAURI_INTERNALS__: { invoke: (cmd: string, args?: Record<string, unknown>, options?: unknown) => Promise<unknown> };
+    __ufReleaseParse?: () => void;
+  };
+  // Hold parsing so the first viewport observation deterministically sees loading. / 暂停解析，使首次视口观测确定处于加载状态。
+  await page.evaluate(() => {
+    const scope = window as unknown as Scope;
+    const invoke = scope.__TAURI_INTERNALS__.invoke;
+    scope.__TAURI_INTERNALS__.invoke = (cmd, args, options) => cmd === "parse_log"
+      ? new Promise((resolve, reject) => {
+        scope.__ufReleaseParse = () => { void invoke(cmd, args, options).then(resolve, reject); };
+      })
+      : invoke(cmd, args, options);
+  });
   await page.getByRole("button", { name: "Logs" }).click();
-  await dropLogFile(page, "x");
+  await dropLogFile(page, raw);
+  await expect.poll(() => page.evaluate(() => typeof (window as unknown as Scope).__ufReleaseParse)).toBe("function");
 
   const find = `[...document.querySelectorAll("div")].find((d) => d.scrollHeight > 50000)`;
   const spans = () =>
-    page.evaluate(`${find}.querySelectorAll("div[style*='translateY'] span").length`);
+    page.evaluate(`${find}?.querySelectorAll("div[style*='translateY'] span").length ?? 0`);
 
+  expect(await spans()).toBe(0);
+  await page.evaluate(() => (window as unknown as Scope).__ufReleaseParse!());
   // Coloured at rest.
   await expect.poll(spans).toBeGreaterThan(0);
   // Plain mid-scroll. Scroll and count in one evaluate: isScrolling resets 100ms

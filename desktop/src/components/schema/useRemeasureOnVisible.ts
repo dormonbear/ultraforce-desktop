@@ -1,28 +1,20 @@
-import { useLayoutEffect, useRef, type RefObject } from "react";
+import { useLayoutEffect, useReducer, useRef, type RefObject } from "react";
 import { usePanelActivity } from "../../panels/host/panelActivity";
 
-/** Minimal virtual-core surface this hook pokes — a Virtualizer satisfies it. */
+/** Viewport geometry used by virtual-core. / virtual-core 使用的视口尺寸。 */
 interface Remeasurable {
   scrollRect: { width: number; height: number } | null;
-  measure: () => void;
 }
 
 /**
- * Kill the first-show blank frame for a virtualizer that mounted under
- * `display:none` (a preheated, hidden panel). While the panel is hidden its
- * ScrollArea viewport has 0 height, so the virtualizer measured an empty range;
- * its own ResizeObserver only re-measures one frame *after* the panel is shown
- * (async), so the first painted frame would be blank.
- *
- * On the hidden→visible transition we re-seed the virtualizer's container rect
- * from the now-laid-out viewport and force a synchronous re-measure, so rows are
- * committed in the SAME frame the panel becomes visible. This runs in a layout
- * effect (before paint); the panel-switch click flushes it synchronously, so the
- * measure lands before the browser paints frame 1.
- *
- * `scrollRect` is the virtual-core instance field its `getSize()` reads when it
- * recomputes the range; `measure()` then triggers the re-render. react-virtual
- * is pinned, so writing the field here is safe.
+ * Seed visible viewport geometry before paint, including a preheated hidden mount.
+ * Preserve row measurements: measure() clears them and repeatedly compensates the
+ * scroll offset for the same estimate-to-actual difference on every reveal.
+ * Re-render with the new scrollRect so getVirtualItems() computes the visible range.
+ * react-virtual is pinned; scrollRect is the instance field read by getSize().
+ * 显示前填充视口尺寸，覆盖预热的隐藏挂载。保留行测量值：measure() 会清空它们，
+ * 导致每次显示都为同一估算与实际尺寸差重复补偿滚动位置。使用新 scrollRect 重新渲染，
+ * 让 getVirtualItems() 计算可见范围。react-virtual 版本已锁定，getSize() 读取该实例字段。
  */
 export function useRemeasureOnVisible(
   viewportRef: RefObject<HTMLDivElement | null>,
@@ -30,6 +22,7 @@ export function useRemeasureOnVisible(
 ): void {
   const { active } = usePanelActivity();
   const wasActive = useRef(active);
+  const [, renderVisibleRange] = useReducer((revision: number) => revision + 1, 0);
   useLayoutEffect(() => {
     const becameVisible = active && !wasActive.current;
     wasActive.current = active;
@@ -37,14 +30,7 @@ export function useRemeasureOnVisible(
     const el = viewportRef.current;
     if (!el) return;
     const rect = { width: el.clientWidth, height: el.clientHeight };
-    // Hot-switch fast path: a kept-alive hidden panel keeps its virtualizer
-    // instance and last-measured rect. If the pane dimensions are unchanged
-    // since the previous reveal, the committed range is already correct — the
-    // rows are in the DOM, just hidden — so force a synchronous re-measure
-    // would only re-render the visible rows in the same frame as the click,
-    // adding to the reveal cost for zero change. Skip it. The blank-frame
-    // guarantee is unaffected: first mount (or a real resize) has a stale/null
-    // rect and still goes through the measure path.
+    // An unchanged rect already has the correct range; retain the hot-switch fast path. / 尺寸不变时范围已正确，保留快速切换路径。
     const prev = rowVirtualizer.scrollRect;
     if (
       prev &&
@@ -54,6 +40,6 @@ export function useRemeasureOnVisible(
       return;
     }
     rowVirtualizer.scrollRect = rect;
-    rowVirtualizer.measure();
+    renderVisibleRange();
   }, [active, rowVirtualizer, viewportRef]);
 }

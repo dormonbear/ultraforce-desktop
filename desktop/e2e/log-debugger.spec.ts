@@ -1,13 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { gotoApp, dropLogFile } from "./fixtures";
+import type { LogViewDto } from "../src/types";
 
 // A minimal parsed view so the Logs detail (and its Debug button) renders.
 const VIEW = {
-  raw: "67.0 APEX\nx\ny",
   apiVersion: "60.0",
-  raw_sources: [],
   units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }],
-};
+} satisfies Omit<LogViewDto, "raw">;
 
 const SOURCE = {
   name: "MyClass",
@@ -52,11 +51,12 @@ async function openDebugger(
   await page.getByRole("button", { name: "Debug" }).click();
 }
 
-test("steps through the outline, showing call stack and variables", async ({ page }) => {
+test("steps through the outline, showing call stack and variables / 遍历大纲并显示调用栈及变量", async ({ page }) => {
   await openDebugger(page, OUTLINE, FRAMES);
 
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByRole("heading")).toContainText("step 1/2");
+  await expect(dialog.getByRole("heading", { name: "Debug", exact: true })).toBeVisible();
+  await expect(dialog.getByText(/step 1\/2/)).toBeVisible();
   await expect(dialog.locator(".monaco-editor")).toBeVisible();
   // Call stack + variables come from debug_frames_at.
   await expect(dialog.getByText("MyClass.run()")).toBeVisible();
@@ -64,7 +64,7 @@ test("steps through the outline, showing call stack and variables", async ({ pag
 
   // Stepping forward advances the playhead.
   await dialog.getByRole("button", { name: "Step", exact: true }).click();
-  await expect(dialog.getByRole("heading")).toContainText("step 2/2");
+  await expect(dialog.getByText(/step 2\/2/)).toBeVisible();
 });
 
 test("shows a FINEST hint when the log carries no variable data", async ({ page }) => {
