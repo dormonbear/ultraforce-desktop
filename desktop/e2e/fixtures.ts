@@ -1,4 +1,11 @@
 import type { Page } from "@playwright/test";
+import type { LogViewDto, SoqlResultDto } from "../src/types";
+
+export type MockOverrides = Record<string, unknown> & {
+  run_soql?: SoqlResultDto;
+  parse_log?: Omit<LogViewDto, "raw">;
+  get_log?: LogViewDto;
+};
 
 /**
  * Mocked Tauri IPC for the e2e suite. App commands return fixed fixtures;
@@ -55,7 +62,7 @@ const FAKE_FILES: Record<string, string> = {
 };
 
 // App-command fixtures (everything that is NOT plugin:store|*).
-const RESP: Record<string, unknown> = {
+const RESP: Record<string, unknown> & Required<Pick<MockOverrides, "run_soql" | "parse_log" | "get_log">> = {
   list_orgs: [
     { username: "dev@acme.com", alias: "DevHub", instanceUrl: "x", isDefault: true },
     { username: "stg@acme.com", alias: "Staging", instanceUrl: null, isDefault: false },
@@ -109,8 +116,8 @@ const RESP: Record<string, unknown> = {
     ]),
     totalSize: 12,
     done: true,
-    tree: [],
-  },
+    childTables: [],
+  } satisfies SoqlResultDto,
   query_plan: {
     plans: [
       {
@@ -150,7 +157,6 @@ const RESP: Record<string, unknown> = {
     },
   ],
   parse_log: {
-    raw: "minimal opened log body",
     apiVersion: "60.0",
     units: [
       {
@@ -160,6 +166,8 @@ const RESP: Record<string, unknown> = {
             detail: "MyClass.run",
             durNs: 2_000_000,
             selfNs: 2_000_000,
+            startNs: 0,
+            source: null,
             children: [],
           },
         ],
@@ -229,7 +237,7 @@ const RESP: Record<string, unknown> = {
  * (e.g. force `list_orgs` empty to exercise the setup page). */
 export async function installMocks(
   page: Page,
-  overrides: Record<string, unknown> = {},
+  overrides: MockOverrides = {},
 ): Promise<void> {
   await page.addInitScript(
     (bundle: {
@@ -238,6 +246,19 @@ export async function installMocks(
       files: Record<string, string>;
     }) => {
     const { resp, dirs, files } = bundle;
+    // Track actual window drop registration without changing event delivery. / 记录窗口实际拖放注册，不改变事件传递。
+    const dropListeners = new Set<unknown>();
+    const addListener = window.addEventListener;
+    const removeListener = window.removeEventListener;
+    window.addEventListener = function (...args: Parameters<typeof addListener>) {
+      if (args[0] === "drop") dropListeners.add(args[1]);
+      return addListener.apply(this, args);
+    };
+    window.removeEventListener = function (...args: Parameters<typeof removeListener>) {
+      if (args[0] === "drop") dropListeners.delete(args[1]);
+      return removeListener.apply(this, args);
+    };
+    Object.assign(window, { __ufDropReady: () => dropListeners.size > 0 });
     const SKEY = "__uf_store";
     const readStore = (): Record<string, unknown> => {
       try {
@@ -411,6 +432,8 @@ export async function openApexFile(page: Page): Promise<void> {
  * `.log` file and parses the body via `parse_log` (the orgless path). Call
  * after the Logs panel is mounted (i.e. after clicking the "Logs" tool). */
 export async function dropLogFile(page: Page, body = "sample log body"): Promise<void> {
+  // Wait for effect registration, not just the rail click or painted panel. / 等待 effect 完成注册，而非仅等待导航点击或面板绘制。
+  await page.waitForFunction(() => (window as unknown as { __ufDropReady: () => boolean }).__ufDropReady());
   await page.evaluate((text) => {
     const dt = new DataTransfer();
     dt.items.add(new File([text], "sample.log", { type: "text/plain" }));
@@ -426,7 +449,7 @@ export async function dropLogFile(page: Page, body = "sample log body"): Promise
  * `overrides` patches the command fixtures (e.g. empty `list_orgs`). */
 export async function gotoApp(
   page: Page,
-  overrides: Record<string, unknown> = {},
+  overrides: MockOverrides = {},
 ): Promise<void> {
   await installMocks(page, overrides);
   await page.goto("/");

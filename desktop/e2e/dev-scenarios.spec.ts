@@ -23,9 +23,10 @@ test("run anonymous Apex success: COMPILED/SUCCESS chips and debug log appear", 
   await gotoApp(page);
   await openApex(page);
 
-  // The RUN button advertises its keyboard shortcut (discoverability).
+  // The tooltip advertises the keyboard shortcut. / 提示框展示键盘快捷键。
   const runBtn = page.getByRole("button", { name: "Run", exact: true });
-  await expect(runBtn).toHaveAttribute("title", /^Run \(/);
+  await runBtn.hover();
+  await expect(page.getByRole("tooltip", { name: /^Run \(/ })).toBeVisible();
 
   await runBtn.click();
 
@@ -508,18 +509,22 @@ test("middle-clicking a tab closes it", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /leads\.soql/ })).toBeVisible();
 });
 
-// ── 16. Result cells expose their full value on hover ─────────────────────
+// Full values remain available through the context menu. / 完整值仍可通过上下文菜单获取。
 
-test("a result cell shows its full value as a hover title", async ({ page }) => {
-  await gotoApp(page);
+test("a result cell copies its complete value from the context menu / 通过上下文菜单复制单元格完整值", async ({ page }) => {
+  const value = "Owned 中文 {count} " + "long value ".repeat(50);
+  await gotoApp(page, { run_soql: {
+    columns: ["Name"], rows: [[value]], totalSize: 1, done: true, childTables: [],
+  } });
   await openSoql(page);
   await page.getByText("RUN", { exact: false }).first().click();
-  await expect(page.getByText(/rows returned/)).toBeVisible();
-  // The cell's title is its value (so truncated long values are readable),
-  // not a generic action hint.
-  await expect(
-    page.getByRole("cell", { name: "Account 0", exact: true }),
-  ).toHaveAttribute("title", "Account 0");
+  await expect(page.getByText(/1 row returned/)).toBeVisible();
+  const cell = page.getByRole("cell", { name: value.trimEnd(), exact: true });
+  await expect(cell).not.toHaveAttribute("title");
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await cell.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Copy value", exact: true }).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(value);
 });
 
 // ── 17. Running an empty editor nudges instead of erroring ────────────────
@@ -592,15 +597,23 @@ test("the result toolbar copies all rows as TSV to the clipboard", async ({
   expect(lines[1].split("\t")[1]).toBe("Account 0");
 });
 
-// ── 20. A file tab shows its full path on hover ───────────────────────────
+// File tabs retain names and roving keyboard focus. / 文件标签保留名称及漫游键盘焦点。
 
-test("a file tab exposes its full path as a hover title", async ({ page }) => {
+test("file tabs preserve accessible names and keyboard navigation / 文件标签保留无障碍名称及键盘导航", async ({ page }) => {
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
-  const tab = page.getByRole("tab", { name: /accounts\.soql/ });
-  await expect(tab).toBeVisible();
-  // Disambiguates same-named files in different folders.
-  await expect(tab).toHaveAttribute("title", "/ws/workspace/soql/accounts.soql");
+  await page.getByText("leads.soql").click();
+  const account = page.getByRole("tab", { name: /accounts\.soql/ });
+  const lead = page.getByRole("tab", { name: /leads\.soql/ });
+  await expect(account).not.toHaveAttribute("title");
+  await expect(lead).toHaveAttribute("aria-selected", "true");
+  await lead.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(account).toHaveAttribute("aria-selected", "true");
+  await expect(account).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(lead).toHaveAttribute("aria-selected", "true");
+  await expect(lead).toBeFocused();
 });
 
 // ── 21. The Apex editor/result split persists ─────────────────────────────

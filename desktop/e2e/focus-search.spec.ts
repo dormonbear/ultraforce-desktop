@@ -14,12 +14,13 @@ const focused = (page: import("@playwright/test").Page) =>
       "",
   );
 
-test("Cmd+F focuses the log list filter", async ({ page }) => {
+test("Cmd+F focuses the ready log list filter / Cmd+F 聚焦已就绪的日志列表筛选", async ({ page }) => {
   await gotoApp(page);
   await page.getByRole("button", { name: "Logs" }).click();
-
+  const filter = page.getByRole("textbox", { name: "Filter logs", exact: true });
+  await expect(filter).toBeVisible();
   await page.keyboard.press("ControlOrMeta+f");
-  expect(await focused(page)).toBe("Filter operation / user");
+  await expect(filter).toBeFocused();
 });
 
 test("Cmd+F picks the filter of the pane in scope, not the first on screen", async ({
@@ -27,13 +28,12 @@ test("Cmd+F picks the filter of the pane in scope, not the first on screen", asy
 }) => {
   await gotoApp(page, {
     parse_log: {
-      raw: "12:00:00.1 (1)|USER_DEBUG|[1]|DEBUG|hello",
       apiVersion: "60.0",
       units: [{ tree: [], hotspots: [], statements: [], limits: [], exceptions: [] }],
     },
   });
   await page.getByRole("button", { name: "Logs" }).click();
-  await dropLogFile(page, "x");
+  await dropLogFile(page, "12:00:00.1 (1)|USER_DEBUG|[1]|DEBUG|hello");
 
   // The log list filter comes first in the DOM; focus inside the detail pane
   // must still resolve to the raw log's own filter.

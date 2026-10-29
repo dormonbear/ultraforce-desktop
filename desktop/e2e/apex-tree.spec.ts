@@ -1,12 +1,15 @@
 import { test, expect } from "@playwright/test";
 import { gotoApp, dropLogFile } from "./fixtures";
+import type { ExecNodeDto } from "../src/types";
 
-const leaf = (label: string, dur: number) => ({
+const leaf = (label: string, dur: number): ExecNodeDto => ({
   label,
   detail: "",
   durNs: dur,
   selfNs: dur,
-  children: [] as unknown[],
+  children: [],
+  startNs: 0,
+  source: null,
 });
 
 // The execution tree is visualized as a flame timeline (the old collapsible
@@ -25,9 +28,11 @@ test("execution tree renders as a flame timeline", async ({ page }) => {
               detail: "",
               durNs: 1000,
               selfNs: 10,
+              startNs: 0,
+              source: null,
               children: [
-                { label: "HOT", detail: "", durNs: 900, selfNs: 10, children: [leaf("DEEP", 880)] },
-                { label: "COLD", detail: "", durNs: 50, selfNs: 10, children: [leaf("HIDDEN", 40)] },
+                { ...leaf("HOT", 900), selfNs: 10, children: [leaf("DEEP", 880)] },
+                { ...leaf("COLD", 50), selfNs: 10, startNs: 900, children: [leaf("HIDDEN", 40)] },
               ],
             },
           ],

@@ -1,4 +1,6 @@
 import type { Page } from "@playwright/test";
+import type { LogViewDto } from "../src/types";
+import type { MockOverrides } from "./fixtures";
 
 /**
  * Page-switch performance harness (Step 1 of the page-switch perf plan).
@@ -380,7 +382,7 @@ function buildFieldDependencies(): unknown {
 }
 
 /** A large log body + parsed detail for the "Logs with a big log detail" case. */
-function buildLargeLog(): { view: unknown; body: string } {
+function buildLargeLog(): { view: LogViewDto; body: string } {
   const body = Array.from({ length: 4000 }, (_, i) =>
     `08:00:${pad(i % 60, 2)}.${i} (${i})|USER_DEBUG|[${i}]|DEBUG|log row ${i}`,
   ).join("\n");
@@ -409,7 +411,7 @@ function buildLargeLog(): { view: unknown; body: string } {
 }
 
 /** IPC command overrides for gotoApp: big schema + a large log body. */
-export function schemaMockOverrides(): Record<string, unknown> {
+export function schemaMockOverrides(): MockOverrides {
   const { view } = buildLargeLog();
   return {
     schema_list_objects: buildObjects(),
@@ -418,6 +420,6 @@ export function schemaMockOverrides(): Record<string, unknown> {
     schema_search: [],
     // Large log for the "big detail open" Logs scenario.
     get_log: view,
-    parse_log: { apiVersion: view.apiVersion, units: (view as { units: unknown[] }).units },
+    parse_log: { apiVersion: view.apiVersion, units: view.units },
   };
 }

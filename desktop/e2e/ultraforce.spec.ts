@@ -61,15 +61,14 @@ test("running a query renders results in the active tab", async ({ page }) => {
   await expect(page.getByRole("tab", { name: /accounts\.soql/ })).toBeVisible();
 });
 
-test("exporting query results writes a CSV file", async ({ page }) => {
+test("exporting query results writes a CSV file / 导出查询结果写入 CSV 文件", async ({ page }) => {
   await gotoApp(page);
   await page.getByText("accounts.soql").click();
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
-  // Export is a dropdown: open it, then pick the CSV format.
+  // Primary export writes CSV directly. / 主导出操作直接写入 CSV。
   await page.getByRole("button", { name: "Export" }).click();
-  await page.getByRole("menuitem", { name: "CSV" }).click();
   await expect(page.getByText(/Exported .* rows to CSV/)).toBeVisible();
 
   const csv = await page.evaluate(() =>
@@ -82,7 +81,7 @@ test("exporting query results writes a CSV file", async ({ page }) => {
   expect((csv ?? "").trimEnd().split("\r\n")).toHaveLength(13); // header + 12 rows
 });
 
-test("exporting query results as JSON writes a parseable array", async ({
+test("exporting query results as JSON writes a parseable array / 导出 JSON 写入可解析的数组", async ({
   page,
 }) => {
   await gotoApp(page);
@@ -90,8 +89,9 @@ test("exporting query results as JSON writes a parseable array", async ({
   await page.getByText("RUN", { exact: false }).first().click();
   await expect(page.getByText(/rows returned/)).toBeVisible();
 
-  await page.getByRole("button", { name: "Export" }).click();
-  await page.getByRole("menuitem", { name: "JSON" }).click();
+  // Alternate formats live in the context menu. / 其他格式位于上下文菜单。
+  await page.getByRole("button", { name: "Export" }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Export as JSON", exact: true }).click();
   await expect(page.getByText(/Exported .* rows to JSON/)).toBeVisible();
 
   const written = await page.evaluate(() =>
@@ -159,7 +159,7 @@ test("opening a local .log file parses and renders it", async ({ page }) => {
   await page.getByRole("button", { name: "Logs" }).click();
   // Local files open via HTML5 drop (no more OPEN button); parse_log (mocked)
   // returns one unit at API 60.0 with a CODE_UNIT_STARTED tree node.
-  await dropLogFile(page);
+  await dropLogFile(page, "minimal opened log body");
 
   // The detail header reports the parsed metadata, and the default raw tab
   // shows the log body.
@@ -219,8 +219,8 @@ test("switching org re-fetches the debug config", async ({ page }) => {
   const before = await getCalls();
 
   // Switch to the other org → the hook's `org` dep re-fetches the config.
-  await page.getByLabel("Select Salesforce org").click();
-  await page.getByText("stg@acme.com", { exact: false }).click();
+  await page.getByRole("button", { name: "Current org: DevHub. Switch org", exact: true }).click();
+  await page.getByRole("dialog").getByText("Staging", { exact: true }).click();
 
   await expect.poll(getCalls).toBeGreaterThan(before);
 });
@@ -244,8 +244,7 @@ test("Configure Logging dialog adds a trace flag and saves the diff", async ({
     .getByRole("row")
     .filter({ has: page.getByRole("combobox", { name: "Log type" }) });
   // The traced entity is a searchable combobox (~2000-user lists freeze a Select).
-  await newRow.getByText("Select user").click();
-  await page.getByPlaceholder("Search…").fill("Carol");
+  await newRow.getByRole("combobox", { name: "Select user", exact: true }).fill("Carol");
   await page.getByRole("option", { name: /Carol/ }).click();
   // Debug level stays a native <select>.
   await newRow
@@ -352,7 +351,7 @@ test("sync-result event is handled silently (no toast)", async ({ page }) => {
 
 test("setup page guides login when no org is authed", async ({ page }) => {
   await gotoApp(page, { list_orgs: [] });
-  await expect(page.getByText("Connect a Salesforce org")).toBeVisible();
+  await expect(page.getByRole("main").getByRole("heading", { name: "Connect a Salesforce org", exact: true })).toBeVisible();
   // One-click login invokes login_org with the selected environment.
   await page.getByRole("button", { name: "Log in" }).click();
   const calls = await page.evaluate(

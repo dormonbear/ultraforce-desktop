@@ -1,16 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { gotoApp } from "./fixtures";
+import type { ChildTableDto } from "../src/types";
 
 /**
- * RUNTIME verification for the subquery-display branch. jsdom cannot exercise
- * the two delicate mechanisms this branch introduced, so we drive the real app
- * in Chromium:
- *   (1) horizontal COLUMN virtualization that rides on programmatic `scrollLeft`
- *       writes into an `overflow-x: hidden` body (floating bar + wheel forwarder);
- *   (2) inline expandable subquery grids under dynamic-height ROW virtualization.
- *
- * The mocked `run_soql` (fixtures.ts overrides) returns a real SoqlResultDto with
- * a typed `childTables` sidecar; everything else is the actual production render.
+ * Verify horizontal column windowing and virtualized parent rows with child
+ * details in the side panel, using the real production render in Chromium.
+ * 使用 Chromium 中的真实正式渲染，验证横向列窗口化、父记录行虚拟化及侧栏子记录详情。
+ * The mocked query returns the current typed childTables contract.
+ * 模拟查询返回当前具备类型约束的 childTables 契约。
  */
 
 // ---- Fixtures -------------------------------------------------------------
@@ -28,14 +25,7 @@ const WIDE = {
 // subquery on the first 41 rows (row 1 is done:false), a second `Cases`
 // relationship on a few. Child rows carry TYPED scalars (numbers stay numbers).
 const NESTED_COLS = ["Id", "Name", "Contacts", "Cases"];
-type ChildEntry = {
-  rowIndex: number;
-  column: string;
-  totalSize: number;
-  done: boolean;
-  columns: string[];
-  rows: (string | number | boolean | null)[][];
-};
+type ChildEntry = ChildTableDto;
 
 const CASES_ROWS = new Set([0, 3, 7]);
 /** Row 0 is done/3-rows (clean grid); row 1 is done:false (2 of 5 loaded). */
@@ -49,6 +39,7 @@ function contactsEntry(i: number): ChildEntry {
     column: "Contacts",
     totalSize: total,
     done,
+    children: [],
     columns: ["ContactId", "FirstName", "LastName", "Age"],
     rows: Array.from({ length: loaded }, (_, k) => [
       `003x${i}_${k}`,
@@ -64,6 +55,7 @@ function casesEntry(i: number): ChildEntry {
     column: "Cases",
     totalSize: 2,
     done: true,
+    children: [],
     columns: ["CaseId", "Subject", "Priority"],
     rows: [
       [`500x${i}_0`, `Subject ${i}`, 1],
@@ -120,10 +112,8 @@ async function firstColId(page: Page): Promise<string> {
 
 type RowBox = { y: number; h: number; tag: string };
 /**
- * Vertical boundingBoxes of the OUTER grid's parent + detail rows, sorted
- * top→bottom. Both carry `data-index`; the ChildGrid's own nested <table> rows
- * do NOT, so this scoping excludes them (they naturally sit inside the detail
- * row's box and would be false "overlaps").
+ * Measure parent-grid rows, excluding the separate child-detail panel.
+ * 测量父记录网格行，排除独立的子记录详情侧栏。
  */
 async function rowBoxes(page: Page): Promise<RowBox[]> {
   return page.evaluate(() =>
@@ -131,8 +121,7 @@ async function rowBoxes(page: Page): Promise<RowBox[]> {
       .map((tr) => {
         const r = tr.getBoundingClientRect();
         const idx = tr.getAttribute("data-index");
-        const isDetail = !!tr.querySelector("table"); // detail row hosts ChildGrids
-        return { y: r.y, h: r.height, tag: `${idx}:${isDetail ? "detail" : "row"}` };
+        return { y: r.y, h: r.height, tag: `${idx}:row` };
       })
       .sort((a, b) => a.y - b.y),
   );
@@ -264,7 +253,7 @@ test("check3: sticky gutter stays at x0 and header/body cell counts match", asyn
   expect(headTh).toBe(bodyTd);
 });
 
-test("check4: expansion renders labeled child grids correctly under virtualization", async ({
+test("check4: row selection preserves child details under virtualization / 行选择在虚拟化下保留子记录详情", async ({
   page,
 }) => {
   await gotoApp(page, { run_soql: NESTED });
@@ -274,12 +263,15 @@ test("check4: expansion renders labeled child grids correctly under virtualizati
   const trCount = await page.locator("tbody tr").count();
   expect(trCount).toBeLessThan(60);
 
-  // Expand row 0's Contacts (count-cell) → labeled grid + a typed child value.
-  await page.getByRole("button", { name: "Expand Contacts" }).first().click();
-  await expect(page.getByText("Contacts (3)")).toBeVisible();
-  await expect(page.getByText("ZephyrUnique0")).toBeVisible();
+  // Selecting a parent opens its child cards beside the stable grid. / 选择父记录，在稳定网格旁打开子记录卡片。
+  const first = page.getByRole("cell", { name: "Account 0", exact: true });
+  await first.click();
+  const detail = page.getByRole("button", { name: "Close detail panel", exact: true }).locator("..").locator("..");
+  await expect(detail.getByText("Contacts (3)", { exact: true })).toBeVisible();
+  await expect(detail.getByText("ZephyrUnique0", { exact: true })).toBeVisible();
+  await expect(detail.getByText("20", { exact: true })).toBeVisible();
 
-  // No overlap between adjacent rendered rows (detail row inserted in-flow).
+  // Detail selection keeps adjacent virtualized rows separate. / 详情选择不使相邻虚拟行重叠。
   assertNoOverlap(await rowBoxes(page));
 
   // Scroll far down and back; the expanded row must re-render intact.
@@ -287,18 +279,19 @@ test("check4: expansion renders labeled child grids correctly under virtualizati
   await body.evaluate((el) => {
     (el as HTMLElement).scrollTop = 2000;
   });
-  await page.waitForTimeout(200);
+  await expect(first).toHaveCount(0);
   await body.evaluate((el) => {
     (el as HTMLElement).scrollTop = 0;
   });
-  await expect(page.getByText("Contacts (3)")).toBeVisible();
+  await expect(first).toBeVisible();
+  await expect(detail.getByText("Contacts (3)", { exact: true })).toBeVisible();
+  await expect(detail.getByText("ZephyrUnique0", { exact: true })).toBeVisible();
   assertNoOverlap(await rowBoxes(page));
 
-  // The done:false Contacts entry (row 1) shows the "N of M loaded" hint. Row 0
-  // is now "Collapse Contacts", so row 1 is the first remaining "Expand".
-  await page.getByRole("button", { name: "Expand Contacts" }).first().click();
-  await expect(page.getByText("Contacts (5)")).toBeVisible();
-  await expect(page.getByText("2 of 5 loaded")).toBeVisible();
+  // Select the truncated second row and retain its loaded/total distinction. / 选择被截断的第二行，保留已加载量与总量区别。
+  await page.getByRole("cell", { name: "Account 1", exact: true }).click();
+  await expect(detail.getByText("Contacts (5)", { exact: true })).toBeVisible();
+  await expect(detail.getByText("2 of 5 loaded", { exact: true })).toBeVisible();
 });
 
 test("check5: windowed DOM stays small vs. total size", async ({ page }) => {
