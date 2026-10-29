@@ -34,6 +34,7 @@ interface SoqlViewProps {
   onPatch: (partial: Partial<SoqlTab>) => void;
   onSave?: () => void;
   reveal?: Reveal;
+  shouldFocusEditor?: () => boolean;
 }
 
 interface QueryRequest {
@@ -78,7 +79,7 @@ function releaseQuery(request: QueryRequest, cancel: boolean) {
 }
 
 /** Scope requests independently of editor lifetime. / 请求归属独立于编辑器生命周期。 */
-export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
+export function SoqlView({ tab, onPatch, onSave, reveal, shouldFocusEditor }: SoqlViewProps) {
   const { selected: org } = useOrgs();
   const { locale, t } = useI18n();
   const { query, result, error, useToolingApi, allRows, plan, lastMs } = tab;
@@ -309,6 +310,7 @@ export function SoqlView({ tab, onPatch, onSave, reveal }: SoqlViewProps) {
           onSave={onSave}
           running={running || counting}
           reveal={reveal}
+          shouldFocusEditor={shouldFocusEditor}
           useToolingApi={useToolingApi}
           onToggleToolingApi={() => onPatch({ useToolingApi: !useToolingApi })}
           allRows={allRows}
