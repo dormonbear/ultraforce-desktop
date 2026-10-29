@@ -94,6 +94,67 @@ class UpdaterManifestTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build_manifest(metadata, self.root)
 
+    def staged_metadata(self):
+        metadata = copy.deepcopy(self.metadata)
+        metadata.update(draft=True, published_at=None)
+        for asset in metadata["assets"]:
+            asset["state"] = "uploaded"
+        for name in [
+            "Ultraforce_1.2.3_aarch64.dmg", "Ultraforce_1.2.3_x64.dmg",
+            "uf-ost-aarch64-apple-darwin", "uf-ost-x86_64-apple-darwin",
+            "uf-ost-x86_64-unknown-linux-gnu", "uf-ost-x86_64-pc-windows-msvc.exe",
+        ]:
+            metadata["assets"].append({
+                "name": name, "size": 10, "state": "uploaded", "digest": "sha256:" + "a" * 64,
+                "browser_download_url": "https://github.com/dormonbear/ultraforce-desktop/releases/download/v1.2.3/" + name,
+            })
+        return metadata
+
+    def test_complete_draft_can_be_staged_with_an_explicit_utc_date(self):
+        metadata = self.staged_metadata()
+        manifest = build_manifest(metadata, self.root, staged_at="2026-10-30T00:00:00Z")
+        self.assertEqual(manifest["version"], "1.2.3")
+        self.assertEqual(manifest["pub_date"], "2026-10-30T00:00:00Z")
+        self.assertEqual(len(manifest["platforms"]), 11)
+        self.assertTrue(all(entry["signature"] == self.signature for entry in manifest["platforms"].values()))
+
+    def test_draft_staging_rejects_missing_or_unready_release_assets(self):
+        metadata = self.staged_metadata()
+        for asset in metadata["assets"]:
+            with self.subTest(asset=asset["name"]):
+                incomplete = copy.deepcopy(metadata)
+                incomplete["assets"].remove(asset)
+                with self.assertRaises((KeyError, ValueError)):
+                    build_manifest(incomplete, self.root, staged_at="2026-10-30T00:00:00Z")
+        for field, value in [("size", 0), ("state", "new"), ("digest", None),
+                             ("browser_download_url", "https://example.invalid/file")]:
+            incomplete = copy.deepcopy(metadata)
+            incomplete["assets"][-1][field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                build_manifest(incomplete, self.root, staged_at="2026-10-30T00:00:00Z")
+
+    def test_complete_published_release_can_be_checked_on_retry(self):
+        metadata = self.staged_metadata()
+        metadata.update(draft=False, published_at="2026-10-30T00:05:00Z")
+        manifest = build_manifest(metadata, self.root, require_complete=True)
+        self.assertEqual(manifest["pub_date"], "2026-10-30T00:05:00Z")
+        with self.assertRaises(ValueError):
+            build_manifest({**metadata, "published_at": None}, self.root, require_complete=True)
+        metadata["assets"].pop()
+        with self.assertRaises(KeyError):
+            build_manifest(metadata, self.root, require_complete=True)
+
+    def test_staging_cannot_weaken_published_or_prerelease_checks(self):
+        for metadata, date in [
+            (self.staged_metadata(), None),
+            (self.metadata, "2026-10-30T00:00:00Z"),
+            ({**self.staged_metadata(), "prerelease": True}, "2026-10-30T00:00:00Z"),
+            (self.staged_metadata(), "invalid"),
+            (self.staged_metadata(), "2026-02-30T00:00:00Z"),
+        ]:
+            with self.subTest(draft=metadata["draft"], date=date), self.assertRaises(ValueError):
+                build_manifest(metadata, self.root, staged_at=date)
+
     def test_failed_cli_preserves_existing_manifest(self):
         # An incomplete matrix must never replace a good manifest. / 不完整的平台矩阵绝不能替换有效清单。
         metadata_path = self.root / "metadata.json"
