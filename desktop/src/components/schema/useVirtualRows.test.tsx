@@ -2,6 +2,7 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { useVirtualRows } from "./useVirtualRows";
+import { PanelActivityProvider } from "../../panels/host/panelActivity";
 
 let rowHeight = 40;
 let current: ReturnType<typeof useVirtualRows>;
@@ -38,8 +39,10 @@ beforeEach(() => {
     return this.hasAttribute("data-index") ? rowHeight : 200;
   });
   vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(600);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(200);
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(600);
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 it("hidden row notifications preserve measured heights / 隐藏行通知保留已测高度", () => {
   render(<Harness />);
@@ -64,4 +67,32 @@ it("hidden first mounts retain estimates until rows can be measured / 首次隐�
   rowHeight = 40;
   emitRows();
   expect(current.rowVirtualizer.itemSizeCache.get(0)).toBe(40);
+});
+
+it("revealing the same viewport preserves measured row geometry / 重新显示同一视口保留已测行尺寸", () => {
+  vi.useFakeTimers();
+  rowHeight = 47;
+  const view = render(<PanelActivityProvider active><Harness /></PanelActivityProvider>);
+  const viewport = current.viewportRef.current!;
+  viewport.scrollTo = (options?: ScrollToOptions | number, y?: number) => {
+    viewport.scrollTop = typeof options === "number" ? y ?? 0 : options?.top ?? viewport.scrollTop;
+    setTimeout(() => viewport.dispatchEvent(new Event("scroll")), 0);
+  };
+  act(() => { viewport.scrollTop = 235; viewport.dispatchEvent(new Event("scroll")); });
+  act(() => vi.advanceTimersByTime(200));
+  expect(current.rowVirtualizer.itemSizeCache.get(0)).toBe(47);
+  view.rerender(<PanelActivityProvider active={false}><Harness /></PanelActivityProvider>);
+  act(() => {
+    for (const observer of ControlledObserver.all) {
+      const entries = [...observer.targets].filter((target) => !target.hasAttribute("data-index"))
+        .map((target) => ({ target, borderBoxSize: [{ inlineSize: 0, blockSize: 0 }] }) as unknown as ResizeObserverEntry);
+      if (entries.length) observer.callback(entries, observer as unknown as ResizeObserver);
+    }
+  });
+  expect(current.rowVirtualizer.scrollRect).toEqual({ width: 0, height: 0 });
+  view.rerender(<PanelActivityProvider active><Harness /></PanelActivityProvider>);
+  emitRows();
+  expect(current.rowVirtualizer.scrollRect).toEqual({ width: 600, height: 200 });
+  expect(current.rowVirtualizer.itemSizeCache.get(0)).toBe(47);
+  expect(viewport.scrollTop).toBe(235);
 });
