@@ -2,10 +2,11 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { monacoSanitizer } from "./build/monacoSanitizer";
 
 // Tauri expects a fixed port and a static host during dev.
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), monacoSanitizer()],
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
