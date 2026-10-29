@@ -2,6 +2,7 @@
 
 import argparse
 import base64
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -12,19 +13,15 @@ import sys
 REPOSITORY = "dormonbear/ultraforce-desktop"
 
 
-def build_manifest(metadata: dict, signatures: Path) -> dict:
-    tag = metadata["tag_name"]
-    if not re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag):
-        raise ValueError("Invalid release tag / 无效的发布标签")
-    if metadata.get("draft") or metadata.get("prerelease"):
-        raise ValueError("Expected stable release / 需要稳定发布")
-    version = tag[1:]
-    names = [asset["name"] for asset in metadata["assets"]]
-    if len(names) != len(set(names)):
-        raise ValueError("Duplicate release assets / 发布产物名称重复")
-    assets = {asset["name"]: asset for asset in metadata["assets"]}
-    platforms = {}
-    bundles = {
+def utc_date(value: str) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", value):
+        raise ValueError("Invalid release date / 无效的发布日期")
+    datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    return value
+
+
+def updater_bundles(version: str) -> dict:
+    return {
         "Ultraforce_aarch64.app.tar.gz": ["darwin-aarch64", "darwin-aarch64-app"],
         "Ultraforce_x64.app.tar.gz": ["darwin-x86_64", "darwin-x86_64-app"],
         f"Ultraforce_{version}_amd64.AppImage": ["linux-x86_64", "linux-x86_64-appimage"],
@@ -33,7 +30,51 @@ def build_manifest(metadata: dict, signatures: Path) -> dict:
         f"Ultraforce_{version}_x64_en-US.msi": ["windows-x86_64", "windows-x86_64-msi"],
         f"Ultraforce_{version}_x64-setup.exe": ["windows-x86_64-nsis"],
     }
+
+
+def required_assets(version: str) -> list[str]:
+    support = [
+        f"Ultraforce_{version}_aarch64.dmg", f"Ultraforce_{version}_x64.dmg",
+        "uf-ost-aarch64-apple-darwin", "uf-ost-x86_64-apple-darwin",
+        "uf-ost-x86_64-unknown-linux-gnu", "uf-ost-x86_64-pc-windows-msvc.exe",
+    ]
+    return [name + suffix for name in updater_bundles(version) for suffix in ("", ".sig")] + support
+
+
+def build_manifest(
+    metadata: dict, signatures: Path, *, staged_at: str | None = None, require_complete: bool = False,
+) -> dict:
+    tag = metadata["tag_name"]
+    if not re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag):
+        raise ValueError("Invalid release tag / 无效的发布标签")
+    if metadata.get("prerelease"):
+        raise ValueError("Expected stable release / 需要稳定发布")
+    if staged_at is None:
+        if metadata.get("draft"):
+            raise ValueError("Expected stable release / 需要稳定发布")
+        published_at = metadata["published_at"]
+        if require_complete:
+            utc_date(published_at)
+    else:
+        if metadata.get("draft") is not True or metadata.get("published_at") is not None:
+            raise ValueError("Expected unpublished draft / 需要未公开的草稿")
+        published_at = utc_date(staged_at)
+    version = tag[1:]
+    names = [asset["name"] for asset in metadata["assets"]]
+    if len(names) != len(set(names)):
+        raise ValueError("Duplicate release assets / 发布产物名称重复")
+    assets = {asset["name"]: asset for asset in metadata["assets"]}
+    platforms = {}
+    bundles = updater_bundles(version)
     prefix = f"https://github.com/{REPOSITORY}/releases/download/{tag}/"
+    if staged_at is not None or require_complete:
+        for name in required_assets(version):
+            asset = assets[name]
+            if (asset.get("state") != "uploaded" or asset["size"] <= 0
+                    or asset["browser_download_url"] != prefix + name
+                    or not isinstance(asset.get("digest"), str)
+                    or not re.fullmatch(r"sha256:[0-9a-f]{64}", asset["digest"])):
+                raise ValueError("Incomplete release asset / 发布产物不完整")
     for name, keys in bundles.items():
         payload = assets[name]
         signature_asset = assets[name + ".sig"]
@@ -52,7 +93,7 @@ def build_manifest(metadata: dict, signatures: Path) -> dict:
     return {
         "version": version,
         "notes": "",
-        "pub_date": metadata["published_at"],
+        "pub_date": published_at,
         "platforms": platforms,
     }
 
