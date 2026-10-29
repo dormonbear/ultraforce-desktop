@@ -113,31 +113,37 @@ for (const [kind, appData, override] of [
     await page.locator('input[value="accounts.soql"]').fill("renamed.soql");
     await page.keyboard.press("Enter");
     await expect(page.getByRole("tab", { name: /renamed.soql/ })).toBeVisible();
-    await page.getByRole("treeitem", { name: "nested", exact: true }).click();
-    await page.getByRole("treeitem", { name: "child.soql" }).click();
-    await editor.setValueViaApi("SELECT Name FROM Contact");
-    await page
-      .getByRole("treeitem", { name: "nested", exact: true })
-      .click({ button: "right" });
-    await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
-    await page.locator('input[value="nested"]').fill("archive");
-    await page.keyboard.press("Enter");
-    await expect
-      .poll(() =>
-        page.evaluate(
-          (p) => (window as any).__windowsDisk[p],
-          root + "\\archive\\child.soql",
-        ),
-      )
-      .toBe("SELECT Name FROM Contact");
-    await expect
-      .poll(() =>
-        page.evaluate(
-          (p) => (window as any).__windowsDisk[p] ?? null,
-          root + "\\nested\\child.soql",
-        ),
-      )
-      .toBeNull();
+    // Repeated handoffs expose delayed menu cleanup between folder renames. / 重复交接暴露目录重命名之间迟到的菜单清理。
+    for (let cycle = 0; cycle < 3; cycle++) {
+      const from = cycle % 2 === 0 ? "nested" : "archive";
+      const to = cycle % 2 === 0 ? "archive" : "nested";
+      const folder = page.getByRole("treeitem", { name: from, exact: true });
+      if (await folder.getAttribute("aria-expanded") !== "true") await folder.click();
+      await page.getByRole("treeitem", { name: "child.soql" }).click();
+      await editor.setValueViaApi("SELECT Name FROM Contact");
+      await page
+        .getByRole("treeitem", { name: from, exact: true })
+        .click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Rename", exact: true }).click();
+      await page.locator(`input[value="${from}"]`).fill(to);
+      await page.keyboard.press("Enter");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (p) => (window as any).__windowsDisk[p],
+            root + "\\" + to + "\\child.soql",
+          ),
+        )
+        .toBe("SELECT Name FROM Contact");
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (p) => (window as any).__windowsDisk[p] ?? null,
+            root + "\\" + from + "\\child.soql",
+          ),
+        )
+        .toBeNull();
+    }
     await editor.setValueViaApi("SELECT Id, Name FROM Contact");
     await page
       .getByRole("treeitem", { name: "archive", exact: true })
