@@ -9,6 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { stemSelectionEnd } from "./nameEdit";
+import { useI18n } from "../i18n";
 import type { TabBase } from "./types";
 
 interface TabStripProps {
@@ -39,6 +40,7 @@ export function TabStrip({
   onRename,
   dirtyIds,
 }: TabStripProps) {
+  const { t: tr } = useI18n();
   const lone = tabs.length === 1;
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -137,7 +139,7 @@ export function TabStrip({
               <input
                 ref={inputRef}
                 value={draft}
-                aria-label={`Rename ${t.title}`}
+                aria-label={tr("Rename {name}", { name: t.title })}
                 onChange={(e) => setDraft(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 onBlur={() => {
@@ -161,7 +163,7 @@ export function TabStrip({
                 {dirtyIds?.includes(t.id) && (
                   <span
                     data-testid="unsaved-dot"
-                    aria-label="Unsaved changes"
+                    aria-label={tr("Unsaved changes")}
                     className="size-1.5 shrink-0 rounded-full bg-current"
                   />
                 )}
@@ -170,7 +172,7 @@ export function TabStrip({
             )}
             <button
               type="button"
-              aria-label={`Close ${t.title}`}
+              aria-label={tr("Close {name}", { name: t.title })}
               onClick={(e) => {
                 e.stopPropagation();
                 onClose(t.id);
@@ -189,29 +191,29 @@ export function TabStrip({
             {onRename && (
               <>
                 <ContextMenuItem onSelect={() => startEdit(t)}>
-                  Rename
+                  {tr("Rename")}
                 </ContextMenuItem>
                 <ContextMenuSeparator />
               </>
             )}
-            <ContextMenuItem onSelect={() => onClose(t.id)}>Close</ContextMenuItem>
+            <ContextMenuItem onSelect={() => onClose(t.id)}>{tr("Close")}</ContextMenuItem>
             <ContextMenuItem
               disabled={tabs.length === 1}
               onSelect={() =>
                 tabs.filter((x) => x.id !== t.id).forEach((x) => onClose(x.id))
               }
             >
-              Close Others
+              {tr("Close Others")}
             </ContextMenuItem>
             <ContextMenuItem
               disabled={idx === tabs.length - 1}
               onSelect={() => tabs.slice(idx + 1).forEach((x) => onClose(x.id))}
             >
-              Close Tabs to the Right
+              {tr("Close Tabs to the Right")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuItem onSelect={() => tabs.forEach((x) => onClose(x.id))}>
-              Close All
+              {tr("Close All")}
             </ContextMenuItem>
           </ContextMenuContent>
           </ContextMenu>
@@ -220,7 +222,7 @@ export function TabStrip({
       </div>
       <button
         type="button"
-        aria-label="New tab"
+        aria-label={tr("New tab")}
         onClick={onAdd}
         className="focus-accent ml-1 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-text-dim transition-colors hover:text-primary"
       >
@@ -232,9 +234,9 @@ export function TabStrip({
           hasChevron={false}
           className="max-h-72 overflow-auto"
           button={{
-            label: "All tabs",
-            "aria-label": "All tabs",
-            tooltip: "All tabs",
+            label: tr("All tabs"),
+            "aria-label": tr("All tabs"),
+            tooltip: tr("All tabs"),
             variant: "ghost",
             size: "sm",
             isIconOnly: true,
