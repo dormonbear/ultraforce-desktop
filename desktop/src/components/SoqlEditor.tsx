@@ -25,6 +25,7 @@ interface Props {
   onSave?: () => void;
   running: boolean;
   reveal?: Reveal;
+  shouldFocusEditor?: () => boolean;
   /** Route this query through the Tooling API instead of the Data API. */
   useToolingApi: boolean;
   onToggleToolingApi: () => void;
@@ -109,6 +110,7 @@ export function SoqlEditor({
   onSave,
   running,
   reveal,
+  shouldFocusEditor,
   useToolingApi,
   onToggleToolingApi,
   allRows,
@@ -128,7 +130,7 @@ export function SoqlEditor({
   const [mounted, setMounted] = useState(false);
   onRunRef.current = onRun;
   onSaveRef.current = onSave;
-  const { flushPending } = useMonacoReveal(editorRef, reveal);
+  const { flushPending } = useMonacoReveal(editorRef, reveal, shouldFocusEditor);
 
   function beforeMount(monaco: Monaco) {
     configureMonaco(monaco);
@@ -158,8 +160,8 @@ export function SoqlEditor({
     trimContextMenu(editorInstance);
     flushPending();
     setMounted(true);
-    // Focus so a freshly opened/created tab is ready to type into.
-    editorInstance.focus();
+    // Keep newer user focus while loading. / 加载时保留用户后续选择的焦点。
+    if (shouldFocusEditor?.() ?? true) editorInstance.focus();
   };
 
   useEffect(() => {
