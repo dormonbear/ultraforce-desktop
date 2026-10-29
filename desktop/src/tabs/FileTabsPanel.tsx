@@ -98,7 +98,7 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   const handleClose = useCallback(
     (id: string) => {
       const t = tabs.find((x) => x.id === id);
-      captureFocus();
+      captureFocus({ ids: tabs.filter((tab) => tab.id !== id).map((tab) => tab.id) });
       close(id);
       if (t && isDirtyUntitled(t)) {
         toast(`Closed ${t.title}`, {
