@@ -38,6 +38,7 @@ for (const panel of panels) for (const locale of ["en-US", "zh-CN"] as const) {
       await page.getByRole("button", { name: locale === "zh-CN" ? "撤销" : "Undo" }).first().click();
       await expect(page.getByRole("tab", { name: "Untitled-2" })).toBeVisible();
       await expect.poll(() => editor.text()).toBe(panel.content);
+      await expect(page.getByRole("textbox", { name: "Editor content" })).toBeFocused();
     });
   });
 }
