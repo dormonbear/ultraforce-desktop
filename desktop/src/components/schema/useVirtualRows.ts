@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { measureElement, useVirtualizer } from "@tanstack/react-virtual";
 import { useRemeasureOnVisible } from "./useRemeasureOnVisible";
 
 /**
@@ -24,6 +24,13 @@ export function useVirtualRows<T extends { name: string }>(
     getScrollElement: () => viewportRef.current,
     estimateSize: () => estimateSize,
     overscan: 12,
+    measureElement: (element, entry, instance) => {
+      const size = measureElement(element, entry, instance);
+      if (size > 0) return size;
+      // Hidden rows report zero; preserve their geometry instead of shifting the scroll anchor. / 隐藏行报告零高度；保留其几何尺寸，避免滚动锚点位移。
+      const key = instance.options.getItemKey(instance.indexFromElement(element));
+      return instance.itemSizeCache.get(key) ?? estimateSize;
+    },
   });
 
   useEffect(() => {
