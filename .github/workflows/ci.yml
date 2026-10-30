@@ -87,10 +87,15 @@ jobs:
         run: pnpm exec playwright install --with-deps --only-shell chromium
 
       - name: Production browser regressions / 正式构建浏览器回归
+        id: production_browser
         working-directory: desktop
         env:
           PERF_PROD: '1'
         run: pnpm exec playwright test --reporter=line
+
+      - name: Windows browser resource summary / Windows 浏览器资源汇总
+        if: ${{ failure() && runner.os == 'Windows' && steps.production_browser.outcome == 'failure' }}
+        run: python scripts/report_windows_browser_resources.py
 
       - name: Browser run preserves documentation / 浏览器运行保留文档
         shell: bash

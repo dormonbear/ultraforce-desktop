@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { APEX_LOG_ACCESS_HINT } from "./errorFormat";
 
 const chinese = {
   SOQL: "SOQL",
@@ -87,6 +88,25 @@ const chinese = {
   "Replace the current editor content?": "替换当前编辑器内容？",
   Replace: "替换",
   Logs: "日志",
+  Logging: "日志设置",
+  "Configure logging": "配置日志",
+  "Set My Trace": "跟踪我",
+  "Tracing · {minutes}m": "跟踪中 · {minutes} 分钟",
+  "Tracing you — {minutes} min left; click to extend": "正在跟踪您，剩余 {minutes} 分钟；点击延长",
+  "Trace myself for 30 minutes": "为自己跟踪 30 分钟",
+  "Traced until {time} — click to extend 30 min": "跟踪至 {time}；点击延长 30 分钟",
+  "Trace yourself for 30 minutes": "为自己跟踪 30 分钟",
+  "Filter logs": "筛选日志列表",
+  "Filter operation / user": "筛选操作 / 用户",
+  "No debug logs yet. Set a trace flag, then refresh to fetch them.": "暂无调试日志。请设置跟踪标志，然后刷新以获取日志。",
+  "No logs match this filter.": "没有日志匹配此筛选条件。",
+  [APEX_LOG_ACCESS_HINT]: '此组织用户无法查看调试日志：查询 ApexLog 需要 "View All Data"（查看所有数据）权限。请联系管理员授予该权限（或使用已有权限的用户），然后刷新。',
+  "Clear filter": "清除筛选",
+  "Cached locally": "已缓存到本地",
+  "Save log…": "保存日志…",
+  "Log saved": "日志已保存",
+  "Save failed: {error}": "保存失败：{error}",
+  "Drop a .log file to view": "拖入 .log 文件以查看",
   "Tracing you for 30 min": "已为您启用 30 分钟跟踪",
   "Trace failed: {error}": "跟踪失败：{error}",
   Schema: "对象结构",
