@@ -1,4 +1,5 @@
 import { parseSourceRef, type SourceRef } from "../sourceRef";
+import { useI18n } from "../../i18n";
 import { formatMs, formatBytes } from "./format";
 import type { HotspotDto, UnitDto } from "../../types";
 
@@ -10,11 +11,12 @@ export function HotspotsView({
   units: UnitDto[];
   onSource?: (ref: SourceRef) => void;
 }) {
+  const { t } = useI18n();
   const all = units.flatMap((u) => u.hotspots);
   if (all.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        No method frames
+        {t("No method frames")}
       </div>
     );
   }
@@ -37,11 +39,11 @@ export function HotspotsView({
     <table className="w-full text-[12px]">
       <thead>
         <tr className="fjord-th border-b border-border">
-          <th className="py-1 text-left">Method</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right">Self</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right">Total</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right">Heap</th>
-          <th className="whitespace-nowrap px-1.5 py-1 text-right">Calls</th>
+          <th className="py-1 text-left">{t("Method")}</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">{t("Self")}</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">{t("Total")}</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">{t("Heap")}</th>
+          <th className="whitespace-nowrap px-1.5 py-1 text-right">{t("Calls")}</th>
         </tr>
       </thead>
       <tbody>
