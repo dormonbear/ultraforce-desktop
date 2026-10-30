@@ -1,17 +1,22 @@
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { toast } from "sonner";
+import { browserLocale, translate, type MessageKey } from "./i18n";
+
+function message(key: MessageKey, values?: Readonly<Record<string, string | number>>): string {
+  return translate(browserLocale(), key, values);
+}
 
 /** Download + install the update, then relaunch; surfaces progress via toasts. */
 async function installUpdate(update: Update): Promise<void> {
-  const t = toast.loading("Downloading update…");
+  const t = toast.loading(message("Downloading update…"));
   try {
     await update.downloadAndInstall();
     toast.dismiss(t);
     await relaunch();
   } catch (e) {
     toast.dismiss(t);
-    toast.error(`Update failed: ${e}`);
+    toast.error(message("Update failed: {error}", { error: String(e) }));
   }
 }
 
@@ -20,11 +25,11 @@ async function installUpdate(update: Update): Promise<void> {
 // Settings button; the silent startup check stays quiet when up to date/offline.
 /** Prompt the user that an update is available, with a one-click install action. */
 function offerUpdate(update: Update): void {
-  toast(`Update ${update.version} available`, {
-    description: update.body || "A new version is ready to install.",
+  toast(message("Update {version} available", { version: update.version }), {
+    description: update.body || message("A new version is ready to install."),
     duration: Infinity,
     action: {
-      label: "Install & restart",
+      label: message("Install & restart"),
       onClick: () => void installUpdate(update),
     },
   });
@@ -32,7 +37,7 @@ function offerUpdate(update: Update): void {
 
 // fallow-ignore-next-line complexity
 export async function checkForUpdates(verbose = false): Promise<void> {
-  const checking = verbose ? toast.loading("Checking for updates…") : null;
+  const checking = verbose ? toast.loading(message("Checking for updates…")) : null;
   const done = () => {
     if (checking) toast.dismiss(checking);
   };
@@ -40,10 +45,10 @@ export async function checkForUpdates(verbose = false): Promise<void> {
     const update = await check();
     done();
     if (update) offerUpdate(update);
-    else if (verbose) toast.success("You're up to date");
+    else if (verbose) toast.success(message("You're up to date"));
   } catch (e) {
     // Network error / no release yet — stay silent on startup.
     done();
-    if (verbose) toast.error(`Update check failed: ${e}`);
+    if (verbose) toast.error(message("Update check failed: {error}", { error: String(e) }));
   }
 }
