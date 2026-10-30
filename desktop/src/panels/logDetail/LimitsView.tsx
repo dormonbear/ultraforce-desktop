@@ -4,6 +4,7 @@ import {
   rankByUsage,
   type LimitSeverity,
 } from "../limitStats";
+import { useI18n } from "../../i18n";
 import type { UnitDto } from "../../types";
 
 const SEVERITY_BAR: Record<LimitSeverity, string> = {
@@ -20,11 +21,12 @@ const SEVERITY_TEXT: Record<LimitSeverity, string> = {
 /** Governor-limit dashboard: per namespace, each limit as a usage bar ranked
  * tightest-first, so the limit closest to breaching is obvious at a glance. */
 export function LimitsView({ units }: { units: UnitDto[] }) {
+  const { t } = useI18n();
   const rollups = units.flatMap((u) => u.limits);
   if (rollups.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        No limit usage
+        {t("No limit usage")}
       </div>
     );
   }
@@ -33,7 +35,7 @@ export function LimitsView({ units }: { units: UnitDto[] }) {
       {rollups.map((rollup, ri) => (
         <div key={ri}>
           <div className="micro-label pb-1.5">
-            {rollup.namespace || "(default)"}
+            {rollup.namespace || t("(default)")}
           </div>
           <div className="flex flex-col gap-1.5">
             {rankByUsage(rollup.entries).map((e, ei) => {
