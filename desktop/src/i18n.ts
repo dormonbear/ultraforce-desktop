@@ -189,7 +189,7 @@ const chinese = {
   "No match.": "没有匹配项。",
   "Previous month": "上个月",
   "Next month": "下个月",
-  Time: "时间",
+  "Time of day": "时间",
   "Logging configuration saved": "日志配置已保存",
   "Logging config: {count} failed": "日志配置：{count} 项失败",
   "Logging config: {error}": "日志配置：{error}",

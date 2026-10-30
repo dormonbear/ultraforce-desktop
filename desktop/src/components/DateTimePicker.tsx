@@ -163,11 +163,11 @@ export function DateTimePicker({
             })}
           </div>
           <div className="mt-2 flex items-center gap-1 border-t border-border pt-2">
-            <span className="text-text-dim">{t("Time")}</span>
+            <span className="text-text-dim">{t("Time of day")}</span>
             <input
               type="time"
               step="1"
-              aria-label={t("Time")}
+              aria-label={t("Time of day")}
               value={valid ? `${p2(valid.getHours())}:${p2(valid.getMinutes())}:${p2(valid.getSeconds())}` : ""}
               onChange={(e) => e.target.value && setTime(e.target.value)}
               className="focus-accent ml-auto h-6 rounded border border-border bg-card px-1 text-[11px] text-foreground"

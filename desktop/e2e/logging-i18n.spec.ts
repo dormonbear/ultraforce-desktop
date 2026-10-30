@@ -18,7 +18,7 @@ for (const language of ["en-US", "zh-CN"]) {
       await saved.locator("td").nth(4).getByRole("button").first().click();
       await expect(page.getByRole("button", { name: zh ? "上个月" : "Previous month" })).toBeVisible();
       await expect(page.getByRole("button", { name: zh ? "下个月" : "Next month" })).toBeVisible();
-      await expect(page.getByLabel(zh ? "时间" : "Time", { exact: true })).toBeVisible();
+      await expect(page.getByLabel(zh ? "时间" : "Time of day", { exact: true })).toBeVisible();
       if (zh) await expect(page.getByText(/\d{4}年\d{1,2}月/)).toBeVisible();
       await page.keyboard.press("Escape");
 
