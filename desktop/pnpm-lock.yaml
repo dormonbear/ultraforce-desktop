@@ -11,6 +11,9 @@ patchedDependencies:
   monaco-editor@0.54.0:
     hash: c7f64946d625e479b23bdb9d4061de89e58669cad61f1ce650b62157bb8a7200
     path: patches/monaco-editor@0.54.0.patch
+  playwright-core@1.61.0:
+    hash: 5da6c72b3cda8868adc235fbdccb10d019c2c1598385e2e47e97b4e219dae970
+    path: patches/playwright-core@1.61.0.patch
 
 importers:
 
@@ -5172,11 +5175,11 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  playwright-core@1.61.0: {}
+  playwright-core@1.61.0(patch_hash=5da6c72b3cda8868adc235fbdccb10d019c2c1598385e2e47e97b4e219dae970): {}
 
   playwright@1.61.0:
     dependencies:
-      playwright-core: 1.61.0
+      playwright-core: 1.61.0(patch_hash=5da6c72b3cda8868adc235fbdccb10d019c2c1598385e2e47e97b4e219dae970)
     optionalDependencies:
       fsevents: 2.3.2
 
