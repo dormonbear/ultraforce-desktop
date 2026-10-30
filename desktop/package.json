@@ -69,7 +69,8 @@
       "monaco-editor@0.54.0>dompurify": "3.4.17"
     },
     "patchedDependencies": {
-      "monaco-editor@0.54.0": "patches/monaco-editor@0.54.0.patch"
+      "monaco-editor@0.54.0": "patches/monaco-editor@0.54.0.patch",
+      "playwright-core@1.61.0": "patches/playwright-core@1.61.0.patch"
     }
   }
 }
