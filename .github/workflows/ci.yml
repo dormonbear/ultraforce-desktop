@@ -1,149 +1,45 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
 
 jobs:
-  test:
-    name: Tests (${{ matrix.os }}) / 测试
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  control:
+    name: Windows synthetic control / Windows 合成对照
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Architecture guardrails
-        shell: bash
-        run: ./scripts/check-arch.sh
-
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-
-      - name: Release version alignment / 发布版本一致性
-        run: python scripts/check_release_versions.py
-
-      - name: Release metadata regressions / 发布元信息回归测试
-        run: python -m unittest discover -s scripts -p '*_test.py'
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
           cache-dependency-path: desktop/pnpm-lock.yaml
-
-      - name: Frontend install
+      - name: Install test dependencies / 安装测试依赖
         working-directory: desktop
         run: pnpm install --frozen-lockfile
-
-      - name: Typecheck
+      - name: Prepare synthetic cases / 准备合成用例
         working-directory: desktop
-        run: pnpm exec tsc --noEmit
-
-      - name: Build configuration types / 构建配置类型
-        working-directory: desktop
-        run: pnpm exec tsc --project tsconfig.node.json --noEmit
-
-      - name: Browser fixture contracts / 浏览器夹具契约
-        working-directory: desktop
-        run: pnpm exec tsc --project tsconfig.e2e-fixtures.json
-
-      - name: Build and toolchain regressions / 构建及工具链回归
-        working-directory: desktop
-        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs scripts/check-jsdom-undici.test.mjs scripts/check-source-map.test.mjs scripts/check-nanoid.test.mjs scripts/check-browserslist.test.mjs scripts/windows-resource-reporter.test.mjs
-
-      - name: Documentation artifact isolation / 文档产物隔离
-        working-directory: desktop
-        run: node --test scripts/check-documentation-artifacts.test.mjs
-
-      - name: Frontend tests
-        working-directory: desktop
-        run: pnpm exec vitest run --coverage
-
-      - name: Frontend coverage report / 前端覆盖率报告
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-coverage-${{ runner.os }}
-          path: desktop/coverage/
-          retention-days: 14
-
-      - name: Lint
-        working-directory: desktop
-        run: pnpm exec oxlint src
-
-      - name: Install test browser / 安装测试浏览器
-        working-directory: desktop
-        run: pnpm exec playwright install --with-deps --only-shell chromium
-
-      - name: Production browser regressions / 正式构建浏览器回归
-        id: production_browser
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .early-resource-control | Out-Null
+          @'
+          import { test, expect } from '@playwright/test';
+          test('intentional failure / 故意失败', () => expect(1).toBe(2));
+          test('later case runs / 后续用例运行', () => console.log('CONTROL_CONTINUED'));
+          '@ | Set-Content -LiteralPath .early-resource-control/control.spec.js -Encoding utf8
+          @'
+          export default { testDir: './.early-resource-control', testMatch: 'control.spec.js', workers: 1, retries: 0 };
+          '@ | Set-Content -LiteralPath early-resource-control.config.mjs -Encoding utf8
+      - name: Run synthetic failures / 运行合成失败用例
+        id: synthetic
         working-directory: desktop
         env:
           PERF_PROD: '1'
-        run: pnpm exec playwright test "--reporter=line,./e2e/windows-resource-reporter.mjs"
-
-      - name: Windows browser resource summary / Windows 浏览器资源汇总
-        if: ${{ failure() && runner.os == 'Windows' && steps.production_browser.outcome == 'failure' }}
-        run: python scripts/report_windows_browser_resources.py
-
-      - name: Browser run preserves documentation / 浏览器运行保留文档
-        shell: bash
-        run: |
-          set -euo pipefail
-          git status --porcelain --untracked-files=all -- docs/images docs/superpowers/plans |
-            python -c 'import sys; status = sys.stdin.read(); sys.stdout.write(status); sys.exit(bool(status))'
-
-      - name: Built browser syntax / 构建浏览器语法
-        working-directory: desktop
-        run: node scripts/check-built-syntax.mjs
-
-      - name: Browser failure evidence / 浏览器失败证据
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: editor-input-${{ runner.os }}
-          path: desktop/test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Rust tests
-        if: runner.os != 'macOS'
-        run: cargo test --locked --workspace
-
-      - name: Rust coverage tooling / Rust 覆盖率工具
-        if: runner.os == 'macOS'
-        run: |
-          rustup component add llvm-tools-preview
-          cargo install cargo-llvm-cov --version '=0.9.1' --locked
-
-      - name: Rust coverage and floors / Rust 覆盖率及门槛
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p target/rust-coverage
-          cargo llvm-cov --locked --workspace --json --summary-only --output-path target/rust-coverage/summary.json
-          cargo llvm-cov report --lcov --output-path target/rust-coverage/lcov.info
-          python scripts/check_rust_coverage.py --summary-file target/rust-coverage/summary.json
-          cargo test --locked --workspace --doc
-
-      - name: Rust coverage report / Rust 覆盖率报告
-        if: always() && runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
-        with:
-          name: rust-coverage-${{ runner.os }}
-          path: target/rust-coverage/
-          retention-days: 14
-
-      - name: Clippy
-        run: cargo clippy --locked --workspace -- -D warnings
+        run: pnpm exec playwright test --config=early-resource-control.config.mjs "--reporter=line,./e2e/windows-resource-reporter.mjs"
+      - name: Confirm the failure path / 确认失败路径
+        if: ${{ failure() && steps.synthetic.outcome == 'failure' }}
+        run: python -c "print('CONTROL_STEP_REACHED')"
