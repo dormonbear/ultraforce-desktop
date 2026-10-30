@@ -1,5 +1,26 @@
 # Changelog / 更新日志
 
+## [0.3.34](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.33...v0.3.34) (2026-10-30)
+
+
+### Bug Fixes / 缺陷修复
+
+* disable Fallow telemetry in commit hook / 在提交钩子中禁用 Fallow 遥测 ([6d0ff3c](https://github.com/dormonbear/ultraforce-desktop/commit/6d0ff3c3b2e6341b3d56806dfc3c716f6747c13a))
+* isolate routine browser artifacts / 隔离常规浏览器测试产物 ([b2a53b0](https://github.com/dormonbear/ultraforce-desktop/commit/b2a53b0421656d91a818af1b99c3189dbbe610e5))
+* localize log timeline / 本地化日志时间线 ([639c0ff](https://github.com/dormonbear/ultraforce-desktop/commit/639c0ff8ee52d61b73d23f766e10cc0a18b29450))
+* localize log-list controls / 本地化日志列表控件 ([472f65f](https://github.com/dormonbear/ultraforce-desktop/commit/472f65fa89ef57fb4809b4cc313860ed9da7d9c6))
+* localize logging and update feedback / 修复：本地化日志与更新反馈 ([af21993](https://github.com/dormonbear/ultraforce-desktop/commit/af2199304b837e5a944db53ff7aab10484bdca78))
+* localize offline log debugger / 修复：本地化离线日志调试器 ([743a6d8](https://github.com/dormonbear/ultraforce-desktop/commit/743a6d843f7405886d72b3879c1f0d02953b27d0))
+* localize query, log and save flows / 本地化查询、日志及保存流程 ([600ce6f](https://github.com/dormonbear/ultraforce-desktop/commit/600ce6f9f525c6718c20357ed8759ff2ffd661e9))
+* mitigate Windows Chromium socket failures / 缓解 Windows Chromium 套接字故障 ([64216f9](https://github.com/dormonbear/ultraforce-desktop/commit/64216f95dc76b7ff24989279f5446f215aa10afb))
+* protect temporary anonymous Apex source / 保护临时匿名 Apex 源码 ([99594a8](https://github.com/dormonbear/ultraforce-desktop/commit/99594a8b175fc187329ea18c35f2ddfe743a5ba3))
+* recover staged releases with draft URLs / 修复草稿地址并恢复暂存发布 ([1923047](https://github.com/dormonbear/ultraforce-desktop/commit/1923047411ad42cc8aa243f2f9023d34d77e2fdf))
+* stop timed-out CLI lookup shells / 修复：停止超时的 CLI 查找 shell ([1f5f5f4](https://github.com/dormonbear/ultraforce-desktop/commit/1f5f5f46c4846a5de384cb9a15e79e89ceaacbfb))
+* update security-related dependency resolutions / 更新安全相关依赖解析 ([ca47e7f](https://github.com/dormonbear/ultraforce-desktop/commit/ca47e7f0ab1854d4936c89cd1f939feb6abdbaf2))
+* upgrade Fallow security baseline / 升级 Fallow 安全基线 ([d707fa4](https://github.com/dormonbear/ultraforce-desktop/commit/d707fa418e166b862c08573fdd5e08c5ebac560f))
+* upgrade pnpm security baseline / 升级 pnpm 安全基线 ([2f53210](https://github.com/dormonbear/ultraforce-desktop/commit/2f53210ed471d37987c5a0f79f144dac59ba62e7))
+* wait for npm publication propagation / 等待 npm 发布同步完成 ([a88123b](https://github.com/dormonbear/ultraforce-desktop/commit/a88123b4a282517079b8cd0f7cea4d2dd746b91d))
+
 ## [0.3.33](https://github.com/dormonbear/ultraforce-desktop/compare/v0.3.32...v0.3.33) (2026-10-29)
 
 
