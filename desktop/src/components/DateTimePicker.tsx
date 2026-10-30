@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Popover as PopoverPrimitive } from "radix-ui";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useI18n } from "../i18n";
+import { useI18n, type Locale } from "../i18n";
 
 interface Props {
   /** ISO8601 value, or null/"" when unset. */
@@ -26,9 +26,11 @@ const sameDay = (a: Date, b: Date) =>
   a.getMonth() === b.getMonth() &&
   a.getDate() === b.getDate();
 
-const fmt = (d: Date) =>
-  `${p2(d.getMonth() + 1)}/${p2(d.getDate())}/${d.getFullYear()} ` +
-  `${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+const fmt = (d: Date, locale: Locale) => {
+  const month = p2(d.getMonth() + 1), day = p2(d.getDate()), year = d.getFullYear();
+  const date = locale === "zh-CN" ? `${year}/${month}/${day}` : `${month}/${day}/${year}`;
+  return `${date} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())}`;
+};
 
 /** Styled datetime picker: a custom month grid + a native time input, in a
  * Popover. Replaces the unstylable native `datetime-local` calendar. */
@@ -103,7 +105,7 @@ export function DateTimePicker({
           className,
         )}
       >
-        <span className="truncate">{valid ? fmt(valid) : placeholder}</span>
+        <span className="truncate">{valid ? fmt(valid, locale) : placeholder}</span>
         <CalendarDays size={12} className="ml-auto shrink-0 text-text-dim" />
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>

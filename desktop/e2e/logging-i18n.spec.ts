@@ -15,7 +15,15 @@ for (const language of ["en-US", "zh-CN"]) {
       await expect(page.getByRole("columnheader", { name: zh ? "被跟踪实体" : "Traced Entity" })).toBeVisible();
 
       const saved = page.getByRole("row").filter({ hasText: "Bob (bob@x.com)" });
-      await saved.locator("td").nth(4).getByRole("button").first().click();
+      const expiration = saved.locator("td").nth(4).getByRole("button").first();
+      const dateText = await page.evaluate((chinese) => {
+        const date = new Date("2099-01-01T00:00:00.000+0000");
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return chinese ? `${date.getFullYear()}/${month}/${day}` : `${month}/${day}/${date.getFullYear()}`;
+      }, zh);
+      await expect(expiration).toContainText(dateText);
+      await expiration.click();
       await expect(page.getByRole("button", { name: zh ? "上个月" : "Previous month" })).toBeVisible();
       await expect(page.getByRole("button", { name: zh ? "下个月" : "Next month" })).toBeVisible();
       await expect(page.getByLabel(zh ? "时间" : "Time of day", { exact: true })).toBeVisible();
@@ -42,11 +50,33 @@ for (const language of ["en-US", "zh-CN"]) {
         const calls = (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] }).__ufCalls ?? [];
         return calls.filter((call) => call.cmd === "save_logging_config").at(-1)?.args.diff as {
           traceFlagsAdded: { tracedEntityId: string; debugLevelRef: string }[];
+          traceFlagsModified: unknown[];
           debugLevelsAdded: { developerName: string; levels: { apexCode: string } }[];
         };
       });
       expect(diff.traceFlagsAdded[0]).toMatchObject({ tracedEntityId: "005BBB", debugLevelRef: "7dl1" });
+      expect(diff.traceFlagsModified).toEqual([]);
       expect(diff.debugLevelsAdded[0]).toMatchObject({ developerName: "NEW_LEVEL", levels: { apexCode: "DEBUG" } });
+    });
+
+    test("preserves ISO timestamps when choosing a day / 选择日期时保留 ISO 时间戳", async ({ page }) => {
+      await gotoApp(page);
+      await page.getByRole("button", { name: zh ? "日志" : "Logs" }).click();
+      await page.getByRole("button", { name: zh ? "配置日志" : "Configure logging" }).click();
+      const saved = page.getByRole("row").filter({ hasText: "Bob (bob@x.com)" });
+      await saved.locator("td").nth(4).getByRole("button").first().click();
+      await page.getByRole("dialog").getByRole("button", { name: "15", exact: true }).click();
+      await page.getByRole("button", { name: zh ? "保存" : "Save", exact: true }).click();
+      const { expected, actual } = await page.evaluate(() => {
+        const date = new Date("2099-01-01T00:00:00.000+0000");
+        const expected = new Date(date.getFullYear(), date.getMonth(), 15, date.getHours(), date.getMinutes(), date.getSeconds()).toISOString();
+        const calls = (window as unknown as { __ufCalls: { cmd: string; args: Record<string, unknown> }[] }).__ufCalls ?? [];
+        const diff = calls.filter((call) => call.cmd === "save_logging_config").at(-1)?.args.diff as {
+          traceFlagsModified: { expirationDate: string }[];
+        };
+        return { expected, actual: diff.traceFlagsModified[0].expirationDate };
+      });
+      expect(actual).toBe(expected);
     });
 
     test("retains a partial save failure after reload / 重新加载后保留部分保存失败详情", async ({ page }) => {
