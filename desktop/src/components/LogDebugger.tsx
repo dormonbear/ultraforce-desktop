@@ -13,7 +13,7 @@ import {
   SkipBack,
   SkipForward,
 } from "lucide-react";
-import { DialogHeader } from "@astryxdesign/core/Dialog";
+import { LocalizedDialogHeader } from "./LocalizedDialogHeader";
 import { MotionDialog } from "./motion/MotionDialog";
 import { configureMonacoApex } from "../editor/monaco-apex";
 import { EDITOR_OPTS } from "../editor/monaco-opts";
@@ -21,6 +21,7 @@ import { useTheme, monacoTheme } from "../theme";
 import { useOrgs } from "../org";
 import { revealLine, useApexSource } from "./useApexSource";
 import { debugFramesAt, debugSession } from "../ipc/logs";
+import { useI18n, type MessageKey } from "../i18n";
 import {
   nextFn,
   prevFn,
@@ -45,6 +46,7 @@ export function LogDebugger({
   onClose: () => void;
 }) {
   const { theme, scheme } = useTheme();
+  const { t } = useI18n();
   const [session, setSession] = useState<DebugSession | null>(null);
   const [i, setI] = useState(0);
   // Call stack for the current step, fetched on demand (kept off the outline so
@@ -115,7 +117,7 @@ export function LogDebugger({
 
   const atStart = i <= 0;
   const atEnd = i >= steps.length - 1;
-  const controls: [string, React.ReactNode, () => void, boolean][] = [
+  const controls: [MessageKey, React.ReactNode, () => void, boolean][] = [
     ["First", <SkipBack size={15} />, () => go(0), atStart],
     ["Previous function", <ChevronsLeft size={15} />, () => go(prevFn(steps, i)), atStart],
     ["Previous", <ChevronLeft size={15} />, () => go(stepPrev(steps, i)), atStart],
@@ -133,11 +135,15 @@ export function LogDebugger({
       width="85vw"
       maxHeight="85vh"
     >
-      <DialogHeader
-        title="Debug"
+      <LocalizedDialogHeader
+        title={t("Debug")}
         subtitle={
           step
-            ? `${frame?.signature} · line ${frame?.line ?? "—"} · step ${i + 1}/${steps.length}`
+            ? [
+                frame?.signature,
+                t("line {line}", { line: frame?.line ?? "—" }),
+                t("step {current}/{total}", { current: i + 1, total: steps.length }),
+              ].filter(Boolean).join(" · ")
             : undefined
         }
         onOpenChange={(o) => !o && onClose()}
@@ -150,7 +156,7 @@ export function LogDebugger({
             <button
               key={label}
               type="button"
-              aria-label={label}
+              aria-label={t(label)}
               onClick={onClick}
               disabled={disabled || steps.length === 0}
               className="focus-accent flex h-7 w-7 items-center justify-center rounded-md border border-border text-foreground transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
@@ -162,12 +168,12 @@ export function LogDebugger({
 
         {!session && (
           <div className="flex items-center gap-2 py-6 text-[13px] text-text-dim">
-            <Loader2 className="spin" size={16} /> Building session…
+            <Loader2 className="spin" size={16} /> {t("Building session…")}
           </div>
         )}
         {session && steps.length === 0 && (
           <div className="py-6 text-[13px] text-text-dim">
-            No executable source lines in this log unit.
+            {t("No executable source lines in this log unit.")}
           </div>
         )}
 
@@ -193,7 +199,7 @@ export function LogDebugger({
 
             {/* Call stack + variables */}
             <div className="flex w-72 shrink-0 flex-col gap-3">
-              <Panel title="Call stack">
+              <Panel title={t("Call stack")}>
                 {/* Innermost frame first (top of stack). */}
                 {frames.map((_f, k) => frames.length - 1 - k).map((idx) => {
                   const f = frames[idx];
@@ -208,17 +214,17 @@ export function LogDebugger({
                     >
                       <span className="truncate">{f.signature}</span>
                       <span className="text-[11px] text-text-dim">
-                        line {f.line ?? "—"}
+                        {t("line {line}", { line: f.line ?? "—" })}
                       </span>
                     </button>
                   );
                 })}
               </Panel>
 
-              <Panel title="Variables">
+              <Panel title={t("Variables")}>
                 {!hasVars ? (
                   <p className="px-2 py-1 text-[11px] text-text-dim">
-                    Variable values need a log captured at APEX_CODE=FINEST.
+                    {t("Variable values need a log captured at APEX_CODE=FINEST.")}
                   </p>
                 ) : frame && frame.variables.length > 0 ? (
                   frame.variables.map((v) => (
@@ -233,7 +239,7 @@ export function LogDebugger({
                   ))
                 ) : (
                   <p className="px-2 py-1 text-[11px] text-text-dim">
-                    No variables in scope.
+                    {t("No variables in scope.")}
                   </p>
                 )}
               </Panel>

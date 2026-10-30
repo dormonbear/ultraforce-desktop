@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import Lottie, { type LottieRefCurrentProps } from "lottie-react";
 import logoLoading from "../assets/logo-loading.json";
 import { useReducedMotion } from "../hooks/useReducedMotion";
+import { useI18n } from "../i18n";
 
 interface Props {
   /** Rendered size in px (square). */
@@ -14,6 +15,7 @@ interface Props {
  * a single centered frame instead of running the Lottie loop. */
 export function LogoLoader({ size = 96, className }: Props) {
   const reduced = useReducedMotion();
+  const { t } = useI18n();
   const ref = useRef<LottieRefCurrentProps>(null);
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function LogoLoader({ size = 96, className }: Props) {
       data-motion="decorative"
       className={className}
       style={{ width: size, height: size }}
-      aria-label="Loading"
+      aria-label={t("Loading")}
     />
   );
 }
