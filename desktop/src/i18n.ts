@@ -381,6 +381,16 @@ const chinese = {
   Delete: "删除",
   "name.{ext}": "名称.{ext}",
   "folder name": "文件夹名称",
+  "No execution tree": "无执行树",
+  "Scroll to zoom · drag to pan": "滚动缩放 · 拖动平移",
+  "scroll to zoom · drag to pan": "滚动缩放 · 拖动平移",
+  "Reset zoom": "重置缩放",
+  "start {time}": "开始 {time}",
+  "end {time}": "结束 {time}",
+  "duration {time}": "时长 {time}",
+  "depth {depth}": "深度 {depth}",
+  "Open source": "打开源码",
+  "Select a flame block to inspect timing and source details.": "选择火焰块以查看时间与源码详情。",
 } as const;
 
 export type Locale = "en" | "zh-CN";
