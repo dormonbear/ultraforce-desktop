@@ -4,10 +4,14 @@
  * testable (no React). Each detector emits ranked, actionable {@link Finding}s.
  */
 import type { ExecNodeDto, UnitDto } from "../types";
+import type { MessageKey } from "../i18n";
+import { formatMessage } from "../formatMessage";
 import { soqlFingerprint } from "./soqlFingerprint";
 import { limitSeverity } from "./limitStats";
 
 export type Severity = "crit" | "warn" | "info";
+type InsightTranslate = (key: MessageKey, values?: Readonly<Record<string, string | number>>) => string;
+const english: InsightTranslate = (key, values) => formatMessage(key, values);
 
 export interface Finding {
   severity: Severity;
@@ -36,16 +40,16 @@ const SLOW_NS = 100_000_000; // 100 ms
 const SEVERITY_ORDER: Record<Severity, number> = { crit: 0, warn: 1, info: 2 };
 
 /** Run all detectors and return findings ranked by severity then impact. */
-export function detectInsights(units: UnitDto[]): Finding[] {
+export function detectInsights(units: UnitDto[], t: InsightTranslate = english): Finding[] {
   const findings: Finding[] = [];
-  detectExceptions(units, findings);
-  detectStatementsInLoop(units, findings);
-  detectLoopBody(units, findings);
-  detectRepeatedMethods(units, findings);
-  detectRecursion(units, findings);
-  detectLargeSlowQueries(units, findings);
-  detectLimits(units, findings);
-  detectCriticalPath(units, findings);
+  detectExceptions(units, findings, t);
+  detectStatementsInLoop(units, findings, t);
+  detectLoopBody(units, findings, t);
+  detectRepeatedMethods(units, findings, t);
+  detectRecursion(units, findings, t);
+  detectLargeSlowQueries(units, findings, t);
+  detectLimits(units, findings, t);
+  detectCriticalPath(units, findings, t);
   return findings.sort(
     (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || b.sort - a.sort,
   );
@@ -57,7 +61,7 @@ function fmtMs(ns: number): string {
 
 /** Exceptions thrown / fatal errors — grouped by message so a loop that throws
  * repeatedly is one finding with a count. */
-function detectExceptions(units: UnitDto[], out: Finding[]): void {
+function detectExceptions(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const groups = new Map<string, { kind: string; msg: string; count: number }>();
   for (const u of units) {
     for (const e of u.exceptions ?? []) {
@@ -74,9 +78,9 @@ function detectExceptions(units: UnitDto[], out: Finding[]): void {
     out.push({
       severity: fatal ? "crit" : "warn",
       kind: "exception",
-      title: `${fatal ? "Fatal error" : "Exception thrown"}${times}: ${firstLine}`,
+      title: t(fatal ? "Fatal error{times}: {message}" : "Exception thrown{times}: {message}", { times, message: firstLine }),
       detail: g.msg.length > 240 ? `${g.msg.slice(0, 240)}…` : g.msg,
-      fix: fatal ? undefined : "Catch or guard the failing operation, or fix the root cause.",
+      fix: fatal ? undefined : t("Catch or guard the failing operation, or fix the root cause."),
       sort: g.count + (fatal ? 1_000_000 : 0),
     });
   }
@@ -84,7 +88,7 @@ function detectExceptions(units: UnitDto[], out: Finding[]): void {
 
 /** SOQL/DML issued repeatedly (grouped by fingerprint) → almost certainly inside
  * a loop. The headline detector. */
-function detectStatementsInLoop(units: UnitDto[], out: Finding[]): void {
+function detectStatementsInLoop(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const groups = new Map<
     string,
     { kind: string; fp: string; count: number; rows: number; ns: number }
@@ -106,23 +110,23 @@ function detectStatementsInLoop(units: UnitDto[], out: Finding[]): void {
   for (const g of groups.values()) {
     if (g.count < LOOP_STMT_MIN) continue;
     const KIND = g.kind === "dml" ? "DML" : "SOQL";
-    const time = g.ns > 0 ? `, ${fmtMs(g.ns)} total` : "";
+    const time = g.ns > 0 ? t(", {time} total", { time: fmtMs(g.ns) }) : "";
     out.push({
       severity: "crit",
       kind: "stmt-in-loop",
-      title: `${KIND} run ${g.count}× — likely inside a loop`,
-      detail: `${g.fp} (${g.rows} rows${time})`,
+      title: t("{kind} run {count}× — likely inside a loop", { kind: KIND, count: g.count }),
+      detail: t("{query} ({rows} rows{time})", { query: g.fp, rows: g.rows, time }),
       fix:
         g.kind === "dml"
-          ? "Collect records and do one bulk DML after the loop."
-          : "Move the query out of the loop — query once with a Set of ids (bulkify).",
+          ? t("Collect records and do one bulk DML after the loop.")
+          : t("Move the query out of the loop — query once with a Set of ids (bulkify)."),
       sort: g.ns || g.count,
     });
   }
 }
 
 /** A method invoked very many times — a loop body worth bulkifying. */
-function detectRepeatedMethods(units: UnitDto[], out: Finding[]): void {
+function detectRepeatedMethods(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const byName = new Map<string, { self: number; count: number }>();
   for (const u of units) {
     for (const h of u.hotspots) {
@@ -140,9 +144,9 @@ function detectRepeatedMethods(units: UnitDto[], out: Finding[]): void {
     out.push({
       severity: "warn",
       kind: "method-loop",
-      title: `${sig} called ${m.count}×`,
-      detail: m.self > 0 ? `${fmtMs(m.self)} self time total` : "called repeatedly",
-      fix: "If this runs per-record, move work out of the loop or bulkify it.",
+      title: t("{signature} called {count}×", { signature: sig, count: m.count }),
+      detail: m.self > 0 ? t("{time} self time total", { time: fmtMs(m.self) }) : t("called repeatedly"),
+      fix: t("If this runs per-record, move work out of the loop or bulkify it."),
       sort: m.self || m.count,
     });
   }
@@ -151,7 +155,7 @@ function detectRepeatedMethods(units: UnitDto[], out: Finding[]): void {
 /** Loop-body detection (lightweight motif mining): a node whose children repeat
  * the same label consecutively is a loop body. Pinpoints *where* the loop is and
  * catches smaller loops the global repeated-method threshold misses. */
-function detectLoopBody(units: UnitDto[], out: Finding[]): void {
+function detectLoopBody(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const reported = new Set<string>();
   const visit = (node: ExecNodeDto): void => {
     const ch = node.children;
@@ -166,9 +170,9 @@ function detectLoopBody(units: UnitDto[], out: Finding[]): void {
         out.push({
           severity: "warn",
           kind: "loop-body",
-          title: `${ch[i].label} runs ${run}× in a row under ${node.label}`,
-          detail: "A node repeated consecutively under one parent — a loop body.",
-          fix: "Move per-iteration work (queries, DML, heavy logic) out of the loop.",
+          title: t("{child} runs {count}× in a row under {parent}", { child: ch[i].label, count: run, parent: node.label }),
+          detail: t("A node repeated consecutively under one parent — a loop body."),
+          fix: t("Move per-iteration work (queries, DML, heavy logic) out of the loop."),
           sort: run,
         });
       }
@@ -181,7 +185,7 @@ function detectLoopBody(units: UnitDto[], out: Finding[]): void {
 
 /** A method/code-unit that appears as its own ancestor in the call tree = it
  * re-enters itself (recursion / recursive trigger). */
-function detectRecursion(units: UnitDto[], out: Finding[]): void {
+function detectRecursion(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const maxDepth = new Map<string, number>();
   const walk = (node: ExecNodeDto, onPath: Map<string, number>): void => {
     const label = node.label.trim();
@@ -199,16 +203,16 @@ function detectRecursion(units: UnitDto[], out: Finding[]): void {
     out.push({
       severity: depth >= 4 ? "crit" : "warn",
       kind: "recursion",
-      title: `${label} re-enters itself (depth ${depth})`,
-      detail: "Same unit appears in its own call stack — recursion or a recursive trigger.",
-      fix: "Guard re-entry with a static flag or a processed-id Set.",
+      title: t("{label} re-enters itself (depth {depth})", { label, depth }),
+      detail: t("Same unit appears in its own call stack — recursion or a recursive trigger."),
+      fix: t("Guard re-entry with a static flag or a processed-id Set."),
       sort: depth,
     });
   }
 }
 
 /** Governor limits at/over a healthy threshold (>=60% warn, >=90% crit). */
-function detectLimits(units: UnitDto[], out: Finding[]): void {
+function detectLimits(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   for (const u of units) {
     for (const r of u.limits) {
       for (const e of r.entries) {
@@ -219,9 +223,9 @@ function detectLimits(units: UnitDto[], out: Finding[]): void {
         out.push({
           severity: sev === "crit" ? "crit" : "warn",
           kind: "limit",
-          title: `${ns}${e.name} at ${pct}% of limit`,
-          detail: `${e.used} of ${e.max} used`,
-          fix: pct >= 100 ? "Limit exceeded — reduce usage in this transaction." : undefined,
+          title: t("{namespace}{name} at {percent}% of limit", { namespace: ns, name: e.name, percent: pct }),
+          detail: t("{used} of {max} used", { used: e.used, max: e.max }),
+          fix: pct >= 100 ? t("Limit exceeded — reduce usage in this transaction.") : undefined,
           sort: pct,
         });
       }
@@ -231,7 +235,7 @@ function detectLimits(units: UnitDto[], out: Finding[]): void {
 
 /** A single query that returns a lot of rows or is slow (likely non-selective).
  * Skips queries already flagged as in-a-loop (that's the bigger finding). */
-function detectLargeSlowQueries(units: UnitDto[], out: Finding[]): void {
+function detectLargeSlowQueries(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const agg = new Map<string, { fp: string; rows: number; ns: number; count: number }>();
   for (const u of units) {
     for (const s of u.statements) {
@@ -255,16 +259,16 @@ function detectLargeSlowQueries(units: UnitDto[], out: Finding[]): void {
     if (!big && !slow) continue;
     const title =
       big && slow
-        ? `Slow, large query (${a.rows} rows, ${fmtMs(a.ns)})`
+        ? t("Slow, large query ({rows} rows, {time})", { rows: a.rows, time: fmtMs(a.ns) })
         : big
-          ? `Large query (${a.rows} rows)`
-          : `Slow query (${fmtMs(a.ns)})`;
+          ? t("Large query ({rows} rows)", { rows: a.rows })
+          : t("Slow query ({time})", { time: fmtMs(a.ns) });
     out.push({
       severity: "warn",
       kind: "slow-query",
       title,
       detail: a.fp,
-      fix: "Add a selective, indexed filter (or LIMIT); avoid returning more rows than needed.",
+      fix: t("Add a selective, indexed filter (or LIMIT); avoid returning more rows than needed."),
       sort: a.ns || a.rows,
     });
   }
@@ -273,7 +277,7 @@ function detectLargeSlowQueries(units: UnitDto[], out: Finding[]): void {
 /** The chain of frames that dominates total time (Critical Path Tracing): from
  * the busiest root, always descend into the longest child. Tells the user where
  * to optimize for wall-clock — more useful than scattered self-times. */
-function detectCriticalPath(units: UnitDto[], out: Finding[]): void {
+function detectCriticalPath(units: UnitDto[], out: Finding[], t: InsightTranslate): void {
   const dur = (n: ExecNodeDto) => n.durNs ?? 0;
   for (const u of units) {
     if (u.tree.length === 0) continue;
@@ -296,11 +300,11 @@ function detectCriticalPath(units: UnitDto[], out: Finding[]): void {
     out.push({
       severity: "info",
       kind: "critical-path",
-      title: `Critical path: ${pct}% of time ends in ${leaf.label}`,
+      title: t("Critical path: {percent}% of time ends in {label}", { percent: pct, label: leaf.label }),
       detail: path.map((n) => n.label).join(" → "),
       fix:
         (bottleneck.selfNs ?? 0) > 0
-          ? `Most self-time: ${bottleneck.label} (${fmtMs(bottleneck.selfNs ?? 0)}). Optimize here.`
+          ? t("Most self-time: {label} ({time}). Optimize here.", { label: bottleneck.label, time: fmtMs(bottleneck.selfNs ?? 0) })
           : undefined,
       sort: total,
     });
