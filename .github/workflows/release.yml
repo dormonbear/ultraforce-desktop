@@ -224,7 +224,7 @@ jobs:
   verify-npm-propagation:
     needs: [publish-npm, recover-npm]
     if: >-
-      ${{ !cancelled() &&
+      ${{ always() && !cancelled() &&
           (needs.publish-npm.result == 'success' || needs.publish-npm.result == 'failure' ||
            needs.recover-npm.result == 'success' || needs.recover-npm.result == 'failure') }}
     runs-on: ubuntu-latest

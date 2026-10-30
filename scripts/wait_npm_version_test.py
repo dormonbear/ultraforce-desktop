@@ -118,6 +118,7 @@ class NpmPropagationTest(unittest.TestCase):
         self.assertIn("  verify-npm-propagation:\n", workflow)
         job = workflow.split("  verify-npm-propagation:\n", 1)[1].split("\n  #", 1)[0]
         self.assertIn("needs: [publish-npm, recover-npm]", job)
+        self.assertIn("always()", job)
         self.assertIn("!cancelled()", job)
         self.assertIn("needs.publish-npm.result == 'success'", job)
         self.assertIn("needs.publish-npm.result == 'failure'", job)
