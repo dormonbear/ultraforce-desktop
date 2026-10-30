@@ -8,6 +8,12 @@ class PnpmVersionTests(unittest.TestCase):
     def test_workspace_pins_fixed_compatible_pnpm(self):
         root = Path(__file__).resolve().parent.parent
         manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
+        desktop = json.loads((root / "desktop" / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            desktop.get("packageManager"),
+            manifest["packageManager"],
+            "Root and desktop must select the same pnpm / 根目录和桌面须选择相同的 pnpm",
+        )
         match = re.fullmatch(r"pnpm@(\d+)\.(\d+)\.(\d+)", manifest["packageManager"])
         self.assertIsNotNone(match, "Pin an exact pnpm version / 固定精确的 pnpm 版本")
         version = tuple(map(int, match.groups()))
