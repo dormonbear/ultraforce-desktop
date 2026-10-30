@@ -2,6 +2,7 @@
   "name": "ultraforce-desktop",
   "private": true,
   "version": "0.3.33",
+  "packageManager": "pnpm@10.34.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
