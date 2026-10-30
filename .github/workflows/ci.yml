@@ -84,7 +84,7 @@ jobs:
 
       - name: Install test browser / 安装测试浏览器
         working-directory: desktop
-        run: python -c "print('Synthetic control / 合成对照')"
+        run: python -c "pass"
 
       - name: Production browser regressions / 正式构建浏览器回归
         id: production_browser
