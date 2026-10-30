@@ -27,4 +27,17 @@ for (const language of ["en-US", "zh-CN"]) {
     expect(screen.getByRole("textbox", { name: zh ? "调试级别名称" : "Debug level name" })).toBeTruthy();
     expect(screen.getByRole("option", { name: zh ? "仅 Apex" : "Apex Only" })).toBeTruthy();
   });
+
+  it(`preserves unknown log types / 保留未知日志类型: ${language}`, async () => {
+    vi.spyOn(navigator, "languages", "get").mockReturnValue([language]);
+    mock.load.mockResolvedValueOnce({
+      entities: [], debugLevels: [], traceFlags: [{
+        id: "synthetic", logType: "toString", tracedEntityId: "synthetic-user",
+        tracedEntityName: "Synthetic user / 合成用户", tracedEntityKind: "User", debugLevelId: "",
+        startDate: null, expirationDate: null, creatorName: "",
+      }],
+    });
+    render(<LoggingConfigPanel org="synthetic@example.invalid" onClose={vi.fn()} />);
+    expect(await screen.findByText("toString", { exact: true })).toBeTruthy();
+  });
 }

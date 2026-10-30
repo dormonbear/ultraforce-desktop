@@ -37,7 +37,9 @@ const inGroup = (kind: string, logType: string): boolean =>
 export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
   const { t } = useI18n();
   const typeLabel = (value: string): string => {
-    const key = LOG_TYPE_LABELS[value];
+    const key = Object.prototype.hasOwnProperty.call(LOG_TYPE_LABELS, value)
+      ? LOG_TYPE_LABELS[value]
+      : undefined;
     return key ? t(key) : value;
   };
   return (
