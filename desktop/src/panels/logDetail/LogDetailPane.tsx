@@ -9,6 +9,7 @@ import { LogoLoader } from "../../components/LogoLoader";
 import { TimelineView } from "../TimelineView";
 import { TimeBreakdownBar } from "../TimeBreakdownBar";
 import { sourceAtLine } from "../../ipc/logs";
+import { useI18n, type MessageKey } from "../../i18n";
 import type { SourceRef } from "../sourceRef";
 import type { LogViewDto } from "../../types";
 import { InsightsView } from "./InsightsView";
@@ -16,6 +17,15 @@ import { LimitsView } from "./LimitsView";
 import { HotspotsView } from "./HotspotsView";
 import { QueriesView } from "./QueriesView";
 import type { DetailTab } from "./types";
+
+const TAB_LABELS: Record<DetailTab, MessageKey> = {
+  raw: "Raw",
+  insights: "Insights",
+  timeline: "Timeline",
+  hotspots: "Hotspots",
+  queries: "Queries",
+  limits: "Limits",
+};
 
 /** Right-hand detail pane: header, tab switcher, and the selected log's raw /
  * timeline / analysis views. Purely presentational — all state comes in. */
@@ -43,20 +53,21 @@ export function LogDetailPane({
   onSource: (ref: SourceRef) => void;
   onOpenDebug: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <>
       <div className="micro-label px-4 py-2">
-        Log detail
+        {t("Log detail")}
         {orgless && (
           <span className="text-[11px] font-normal text-text-dim">
-            · local file (no org — source navigation off)
+            · {t("local file (no org — source navigation off)")}
           </span>
         )}
       </div>
 
       {!selectedId && !view && !viewLoading && !viewError ? (
         <div className="flex flex-1 items-center justify-center text-muted-foreground text-[13px]">
-          Select a log
+          {t("Select a log")}
         </div>
       ) : viewLoading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -71,19 +82,18 @@ export function LogDetailPane({
           <div className="flex items-center justify-between pb-2">
             <div className="flex items-center gap-3">
               <div className="tnum text-[12px] text-text-dim">
-                API {view.apiVersion ?? "—"} · {view.units.length}{" "}
-                {view.units.length === 1 ? "unit" : "units"}
+                API {view.apiVersion ?? "—"} · {t(view.units.length === 1 ? "{count} unit" : "{count} units", { count: view.units.length })}
               </div>
               <button
                 type="button"
                 onClick={onOpenDebug}
                 className="focus-accent flex cursor-pointer items-center gap-1 rounded-md border border-border px-2 py-0.5 text-[11px] font-medium text-foreground transition-colors hover:border-primary hover:text-primary"
               >
-                <Bug size={13} /> Debug
+                <Bug size={13} /> {t("Debug")}
               </button>
             </div>
             <SegmentedControl
-              label="Log detail view"
+              label={t("Log detail view")}
               size="sm"
               value={tab}
               onChange={(next) => setTab(next as DetailTab)}
@@ -95,11 +105,11 @@ export function LogDetailPane({
                 "hotspots",
                 "queries",
                 "limits",
-              ] as DetailTab[]).map((t) => (
+              ] as DetailTab[]).map((tabName) => (
                 <SegmentedControlItem
-                  key={t}
-                  value={t}
-                  label={t[0].toUpperCase() + t.slice(1)}
+                  key={tabName}
+                  value={tabName}
+                  label={t(TAB_LABELS[tabName])}
                 />
               ))}
             </SegmentedControl>

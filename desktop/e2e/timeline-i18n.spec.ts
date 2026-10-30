@@ -21,7 +21,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
         });
         await page.getByRole("button", { name: zh ? "日志" : "Logs", exact: true }).click();
         await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
-        await page.getByRole("radio", { name: "timeline" }).click();
+        await page.getByRole("radio", { name: zh ? "时间线" : "timeline" }).click();
         if (empty) {
           await expect(page.getByText(zh ? "无执行树" : "No execution tree")).toBeVisible();
           return;
