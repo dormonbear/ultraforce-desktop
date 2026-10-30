@@ -1,7 +1,6 @@
 use serde::{Deserialize, Deserializer};
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::io::Write;
 
 use sf_core::{SfError, SfInvoker};
 
@@ -110,18 +109,25 @@ impl ApexRunResult {
     }
 }
 
-/// Execute anonymous Apex from `apex_src`.
+/// Execute anonymous Apex from `apex_src`. / 执行 `apex_src` 中的匿名 Apex。
 ///
-/// Writes the source to a unique temp file, runs `sf apex run -f <file> --json`
-/// via `run_raw` (so a non-zero compile-failure exit still yields its payload),
-/// parses the envelope, and always deletes the temp file.
+/// Write the source to a temporary file (owner-only on Unix), run
+/// `sf apex run -f <file> --json`, and attempt cleanup on completion or cancellation.
+/// 将源码写入临时文件（Unix 下仅所有者可访问），执行
+/// `sf apex run -f <file> --json`，并在完成或取消时尝试清理。
 pub async fn run_anon(
     invoker: &SfInvoker,
     apex_src: &str,
     target_org: Option<&str>,
 ) -> Result<AnonApexOutcome, SfError> {
-    let path = unique_temp_path();
-    std::fs::write(&path, apex_src).map_err(SfError::Spawn)?;
+    let mut file = tempfile::Builder::new()
+        .prefix("ultraforce-anon-")
+        .suffix(".apex")
+        .tempfile()
+        .map_err(SfError::Spawn)?;
+    file.write_all(apex_src.as_bytes())
+        .map_err(SfError::Spawn)?;
+    let path = file.into_temp_path();
 
     let path_str = path.to_string_lossy().into_owned();
     let mut args = vec!["apex", "run", "-f", &path_str, "--json"];
@@ -131,7 +137,7 @@ pub async fn run_anon(
     }
     let raw = invoker.run_raw(&args).await;
 
-    let _ = std::fs::remove_file(&path); // best-effort cleanup, even on error
+    drop(path);
 
     let raw = raw?;
     let result = parse_run_envelope(&raw.stdout)?;
@@ -168,20 +174,6 @@ fn parse_run_envelope(stdout: &str) -> Result<ApexRunResult, SfError> {
                 .to_string(),
         }),
     }
-}
-
-/// A process-unique temp path under the system temp dir.
-fn unique_temp_path() -> std::path::PathBuf {
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    std::env::temp_dir().join(format!(
-        "ultraforce-anon-{}-{nanos}-{n}.apex",
-        std::process::id()
-    ))
 }
 
 #[cfg(test)]
@@ -253,6 +245,116 @@ mod tests {
 
     use sf_core::runner::{MockRunner, RawOutput};
     use std::sync::Arc;
+
+    struct PendingRunner(
+        std::sync::Mutex<Option<tokio::sync::oneshot::Sender<std::path::PathBuf>>>,
+    );
+
+    #[async_trait::async_trait]
+    impl sf_core::runner::CommandRunner for PendingRunner {
+        async fn run(
+            &self,
+            _program: &str,
+            args: &[String],
+            _timeout: std::time::Duration,
+        ) -> Result<RawOutput, SfError> {
+            let path = std::path::PathBuf::from(&args[3]);
+            self.0.lock().unwrap().take().unwrap().send(path).unwrap();
+            std::future::pending().await
+        }
+    }
+
+    #[tokio::test]
+    async fn cancelling_run_removes_temporary_source() {
+        let (sender, receiver) = tokio::sync::oneshot::channel();
+        let invoker = SfInvoker::new(Arc::new(PendingRunner(std::sync::Mutex::new(Some(sender)))));
+        let task =
+            tokio::spawn(
+                async move { run_anon(&invoker, "System.debug('synthetic');", None).await },
+            );
+        let path = tokio::time::timeout(std::time::Duration::from_secs(5), receiver)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&path).unwrap(),
+            "System.debug('synthetic');"
+        );
+
+        task.abort();
+        assert!(task.await.unwrap_err().is_cancelled());
+        let leaked = path.exists();
+        if leaked {
+            std::fs::remove_file(&path).unwrap();
+        }
+        assert!(
+            !leaked,
+            "cancellation left the temporary Apex source behind / 取消后临时 Apex 源码仍然存在"
+        );
+    }
+
+    #[tokio::test]
+    async fn completed_and_failed_runs_remove_temporary_source() {
+        for fail in [false, true] {
+            let path_seen = Arc::new(std::sync::Mutex::new(None));
+            let captured = Arc::clone(&path_seen);
+            let runner = MockRunner::new(move |_, args| {
+                *captured.lock().unwrap() = Some(std::path::PathBuf::from(&args[3]));
+                if fail {
+                    return Err(SfError::NotFound);
+                }
+                Ok(RawOutput {
+                    status: 0,
+                    stdout: r#"{"status":0,"result":{"compiled":true,"success":true,"logs":""}}"#
+                        .into(),
+                    stderr: String::new(),
+                })
+            });
+            let result = run_anon(
+                &SfInvoker::new(Arc::new(runner)),
+                "System.debug('synthetic');",
+                None,
+            )
+            .await;
+            assert_eq!(result.is_err(), fail);
+            let path = path_seen.lock().unwrap().take().unwrap();
+            assert!(
+                !path.exists(),
+                "finished run left the temporary Apex source behind / 执行结束后临时 Apex 源码仍然存在"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn temporary_source_is_not_readable_by_other_users() {
+        use std::os::unix::fs::PermissionsExt;
+        let mode_seen = Arc::new(std::sync::Mutex::new(None));
+        let captured = Arc::clone(&mode_seen);
+        let runner = MockRunner::new(move |_, args| {
+            let mode = std::fs::metadata(&args[3]).unwrap().permissions().mode();
+            *captured.lock().unwrap() = Some(mode);
+            Ok(RawOutput {
+                status: 0,
+                stdout: r#"{"status":0,"result":{"compiled":true,"success":true,"logs":""}}"#
+                    .into(),
+                stderr: String::new(),
+            })
+        });
+        run_anon(
+            &SfInvoker::new(Arc::new(runner)),
+            "System.debug('synthetic');",
+            None,
+        )
+        .await
+        .unwrap();
+        let mode = mode_seen.lock().unwrap().unwrap();
+        assert_eq!(
+            mode & 0o077,
+            0,
+            "temporary Apex source is accessible to other users / 其他用户可访问临时 Apex 源码"
+        );
+    }
 
     fn invoker_returning(status: i32, stdout: &str) -> SfInvoker {
         let stdout = stdout.to_string();
