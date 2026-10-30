@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import unittest
 
 from report_windows_browser_resources import POWERSHELL, STATES, collect_counts, main
@@ -82,6 +83,13 @@ class BrowserResourceSummaryTest(unittest.TestCase):
         for condition in ("failure()", "runner.os == 'Windows'", "steps.production_browser.outcome == 'failure'"):
             self.assertIn(condition, summary)
         self.assertIn("python scripts/report_windows_browser_resources.py", summary)
+
+    def test_cli_writes_bilingual_output_with_windows_legacy_encoding(self):
+        script = Path(__file__).with_name("report_windows_browser_resources.py")
+        env = {**os.environ, "PYTHONIOENCODING": "cp1252", "GITHUB_ACTIONS": "false", "RUNNER_OS": "Windows"}
+        result = subprocess.run([sys.executable, str(script)], env=env, capture_output=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("已跳过", result.stdout.decode("utf-8"))
 
     @unittest.skipUnless(os.name == "nt", "PowerShell runs on Windows / 在 Windows 运行 PowerShell")
     def test_powershell_counts_synthetic_states_without_printing_connection_details(self):
