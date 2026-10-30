@@ -26,6 +26,8 @@ async function installUpdate(update: Update): Promise<void> {
 /** Prompt the user that an update is available, with a one-click install action. */
 function offerUpdate(update: Update): void {
   toast(message("Update {version} available", { version: update.version }), {
+    // Repeated checks for the same version should update one persistent offer. / 重复检查同一版本时复用一个持久提示。
+    id: `update-available-${update.version}`,
     description: update.body || message("A new version is ready to install."),
     duration: Infinity,
     action: {

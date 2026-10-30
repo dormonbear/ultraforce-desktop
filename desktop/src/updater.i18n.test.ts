@@ -114,3 +114,17 @@ it("uses the current language when installation begins / 开始安装时使用�
   await vi.waitFor(() => expect(mock.relaunch).toHaveBeenCalledExactlyOnceWith());
   expect(mock.loading).toHaveBeenCalledExactlyOnceWith("正在下载更新…");
 });
+
+it("reuses an offer for the same version while distinguishing versions / 同一版本复用提示并区分不同版本", async () => {
+  locale("en-US");
+  mock.check.mockResolvedValue({ version: "1.2.3", body: "" });
+  await checkForUpdates();
+  await checkForUpdates();
+  mock.check.mockResolvedValue({ version: "1.2.4", body: "" });
+  await checkForUpdates();
+
+  const ids = mock.notice.mock.calls.map(([, options]) => options.id);
+  expect(typeof ids[0]).toBe("string");
+  expect(ids[1]).toBe(ids[0]);
+  expect(ids[2]).not.toBe(ids[0]);
+});
