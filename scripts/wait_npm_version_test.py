@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 import unittest
+from unittest.mock import patch
 
 from wait_npm_version import npm_latest_is, wait_for_publication
 
@@ -37,6 +38,25 @@ class NpmPropagationTest(unittest.TestCase):
                              clock=clock.clock, sleep=clock.sleep, timeout=30, interval=5)
         self.assertEqual([name for name, _ in calls], ["version", "version", "version", "latest", "version", "latest"])
         self.assertEqual(clock.sleeps, [5, 5, 5])
+
+    def test_real_npm_response_parsers_handle_the_observed_propagation_sequence(self):
+        clock = Clock()
+        responses = iter((
+            (1, '{"error":{"code":"E404"}}'),
+            (0, '"1.2.3"'), (0, '"1.2.2"'),
+            (0, '"1.2.3"'), (0, '"1.2.3"'),
+        ))
+        calls = []
+        def npm(args, **_kwargs):
+            calls.append(args[2])
+            code, output = next(responses)
+            return subprocess.CompletedProcess(args, code, output, "")
+        with patch("wait_npm_version.bounded_npm", side_effect=npm):
+            wait_for_publication("1.2.3", clock=clock.clock, sleep=clock.sleep, timeout=30, interval=5)
+        self.assertEqual(calls, ["@dormon/ultraforce-mcp@1.2.3", "@dormon/ultraforce-mcp@1.2.3",
+                                 "@dormon/ultraforce-mcp@latest", "@dormon/ultraforce-mcp@1.2.3",
+                                 "@dormon/ultraforce-mcp@latest"])
+        self.assertEqual(clock.sleeps, [5, 5])
 
     def test_timeout_is_bounded_and_never_hides_missing_version(self):
         clock = Clock()
