@@ -29,7 +29,7 @@ class ScratchCiTests(unittest.TestCase):
         return status, runner.call_args_list, output.getvalue()
 
     def test_workflow_pins_a_cli_without_the_redaction_override(self):
-        workflow = (scratch.ROOT / ".github" / "workflows" / "scratch-org-e2e.yml").read_text()
+        workflow = (scratch.ROOT / ".github" / "workflows" / "scratch-org-e2e.yml").read_text(encoding="utf-8")
         pinned = re.search(r"npm install --global @salesforce/cli@(\d+)\.(\d+)\.(\d+)(?:\s|$)", workflow)
         self.assertIsNotNone(pinned, "Scratch CI must pin a CLI version / 临时组织 CI 必须固定 CLI 版本")
         self.assertGreaterEqual(tuple(map(int, pinned.groups())), (2, 156, 8))
