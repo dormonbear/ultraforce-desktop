@@ -92,9 +92,17 @@ export function FileTabsPanel<T extends TabBase & { path: string }>({
   const onSave = useCallback(() => {
     if (active)
       void save(active.id).catch((error: unknown) => {
-        toast.error(formatIpcError(error));
+        const message = formatIpcError(error);
+        if (
+          message === "This file is already open. Save its tab or choose another path." ||
+          message === "File was deleted while saving. Choose another path."
+        ) {
+          toast.error(tr(message));
+        } else {
+          toast.error(message);
+        }
       });
-  }, [save, active?.id]);
+  }, [save, active?.id, tr]);
 
   // Closing an unsaved untitled tab discards its content — offer a quick undo.
   const handleClose = useCallback(
