@@ -1,0 +1,37 @@
+name: Scratch-org integration / 临时组织集成测试
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 4 * * 0'
+
+permissions:
+  contents: read
+
+jobs:
+  scratch-org:
+    name: Disposable Salesforce scratch org / 一次性 Salesforce 临时组织
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.UF_SCRATCH_CI_ENABLED == 'true') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    env:
+      SF_DISABLE_TELEMETRY: 'true'
+      SFDX_DISABLE_TELEMETRY: 'true'
+      SF_DISABLE_LOG_FILE: 'true'
+      SFDX_DISABLE_LOG_FILE: 'true'
+      SF_AUTOUPDATE_DISABLE: 'true'
+      SFDX_AUTOUPDATE_DISABLE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Salesforce CLI / 安装 Salesforce CLI
+        run: npm install --global @salesforce/cli@2.156.8
+      - name: Run and clean up scratch tests / 运行并清理临时组织测试
+        env:
+          UF_SCRATCH_CI_DEV_HUB_AUTH_URL: ${{ secrets.UF_SCRATCH_CI_DEV_HUB_AUTH_URL }}
+        run: python3 scripts/scratch_org_ci.py

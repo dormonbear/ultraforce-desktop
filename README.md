@@ -319,13 +319,14 @@ cargo test --locked --workspace --doc
 ```
 
 <details>
-<summary>Real-org end-to-end tests (opt-in)</summary>
+<summary>Real-org end-to-end tests (opt-in) / 真实组织端到端测试（按需启用）</summary>
 
-These target the org alias in `UF_E2E_ORG` (default `ultraforce`):
+Use an explicit disposable scratch org with the synthetic fixture and Account described in [scratch-org CI](docs/SCRATCH-ORG-CI.md). The suite performs DML; never target a production or business org.
+使用明确指定的一次性临时组织，并按[临时组织 CI](docs/SCRATCH-ORG-CI.md)准备合成夹具及 Account。测试会执行 DML，绝不要指向生产组织或业务组织。
 
 ```bash
-UF_E2E_ORG=<your-dev-org-alias> \
-  cargo test -p features --test real_org_e2e -- --ignored --test-threads=1
+UF_E2E_ORG=<scratch-alias> \
+  cargo test --locked -p features --test real_org_e2e -- --ignored --test-threads=1
 ```
 
 </details>
