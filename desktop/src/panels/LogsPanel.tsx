@@ -8,6 +8,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { formatIpcError } from "../errorFormat";
+import { browserLocale, translate } from "../i18n";
 import { SourceDialog } from "../components/SourceDialog";
 import { LogDebugger } from "../components/LogDebugger";
 import { LoggingConfigPanel } from "../components/LoggingConfigPanel";
@@ -69,13 +70,13 @@ export const LogsPanel = memo(function LogsPanel() {
       const body = await getBody(log);
       const path = await saveDialog({
         defaultPath: `${log.operation || "debug"}.log`,
-        filters: [{ name: "Debug log", extensions: ["log"] }],
+        filters: [{ name: translate(browserLocale(), "Debug log"), extensions: ["log"] }],
       });
       if (!path) return;
       await writeTextFile(path, body);
-      toast.success("Log saved");
+      toast.success(translate(browserLocale(), "Log saved"));
     } catch (e) {
-      toast.error(`Save failed: ${formatIpcError(e)}`);
+      toast.error(translate(browserLocale(), "Save failed: {error}", { error: formatIpcError(e) }));
     }
   }, [getBody]);
 
