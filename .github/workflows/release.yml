@@ -80,8 +80,8 @@ jobs:
         with:
           workspaces: "./desktop/src-tauri -> target"
 
-      # pnpm version comes from package.json `packageManager` (single source);
-      # specifying `version:` here too makes action-setup@v4 error on a mismatch.
+      # Root and desktop pins must match; the version regression enforces this. / 根目录与桌面固定版本须一致；版本回归会检查。
+      # Avoid a separate action version to prevent a mismatch. / 避免单独设置 action 版本导致不一致。
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
