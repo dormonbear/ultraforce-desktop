@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { loadLoggingConfig, saveLoggingConfig } from "./ipc/config";
 import { presetLevels } from "./debug-presets";
 import { isoIn, isExpired } from "./traceTime";
+import { browserLocale, translate } from "./i18n";
 import type {
   CategoryLevels,
   EntityDto,
@@ -251,13 +252,13 @@ export function useLoggingConfig(org: string | null) {
       const out = await saveLoggingConfig(diff, org);
       const failures = out.results.filter((r) => !r.ok);
       if (failures.length > 0) {
-        const msg = failures.map((f) => `${f.sobject} ${f.op}: ${f.error ?? "failed"}`).join("; ");
-        setError(msg);
-        toast.error(`Logging config: ${failures.length} failed`);
+        const msg = failures.map((f) => `${f.sobject} ${f.op}: ${f.error ?? translate(browserLocale(), "failed")}`).join("; ");
+        toast.error(translate(browserLocale(), "Logging config: {count} failed", { count: failures.length }));
         await load();
+        setError((reloadError) => reloadError ? `${msg}; ${reloadError}` : msg);
         return false;
       }
-      toast.success("Logging configuration saved");
+      toast.success(translate(browserLocale(), "Logging configuration saved"));
       const newLevelIds = createdIds(out, "DebugLevel");
       const newFlagIds = createdIds(out, "TraceFlag");
       if (
@@ -299,7 +300,7 @@ export function useLoggingConfig(org: string | null) {
     } catch (e) {
       const msg = formatIpcError(e);
       setError(msg);
-      toast.error(`Logging config: ${msg}`);
+      toast.error(translate(browserLocale(), "Logging config: {error}", { error: msg }));
       return false;
     } finally {
       setSaving(false);

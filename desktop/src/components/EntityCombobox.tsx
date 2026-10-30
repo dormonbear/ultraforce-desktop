@@ -4,6 +4,7 @@ import {
   createStaticSource,
   type SearchableItem,
 } from "@astryxdesign/core/Typeahead";
+import { useI18n } from "../i18n";
 
 interface ComboOption {
   id: string;
@@ -38,6 +39,7 @@ export function EntityCombobox({
   onSelect,
   className,
 }: Props) {
+  const { t } = useI18n();
   const source = useMemo(
     () =>
       createStaticSource(
@@ -64,7 +66,7 @@ export function EntityCombobox({
       maxMenuItems={MAX}
       size="sm"
       debounceMs={0}
-      emptySearchResultsText="No match."
+      emptySearchResultsText={t("No match.")}
       className={className}
     />
   );
