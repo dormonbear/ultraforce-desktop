@@ -1,0 +1,13 @@
+diff --git a/lib/coreBundle.js b/lib/coreBundle.js
+index 1d36a373cb14a856c9a69e218df5183bb250d2f0..30a4e53f61e91f359f02a08d2a647bd80d368b48 100644
+--- a/lib/coreBundle.js
++++ b/lib/coreBundle.js
+@@ -34423,6 +34423,8 @@ var init_chromiumSwitches = __esm({
+       "AutoDeElevate",
+       // See https://github.com/microsoft/playwright/issues/37714
+       "RenderDocument",
++      // Backport Playwright #43605 for Windows loopback errors. / 回移 Playwright #43605，缓解 Windows 本地回环错误。
++      "TcpPortRandomizationWin",
+       // Prevents downloading optimization hints on startup.
+       "OptimizationHints",
+       // Disables forced sign-in in Edge.
