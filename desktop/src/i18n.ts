@@ -68,6 +68,8 @@ const chinese = {
   "Log copied": "日志已复制",
   "No matching lines": "没有匹配的行",
   "No method frames": "暂无方法调用帧",
+  DML: "DML",
+  Other: "其他",
   Method: "方法",
   Self: "自身耗时",
   Total: "总耗时",

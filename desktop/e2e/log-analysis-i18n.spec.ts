@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { gotoApp } from "./fixtures";
-import type { UnitDto } from "../src/types";
+import type { ExecNodeDto, UnitDto } from "../src/types";
+
+const node = (label: string, selfNs: number): ExecNodeDto => ({
+  label, selfNs, durNs: selfNs, detail: "", startNs: 0, source: null, children: [],
+});
 
 const unit: UnitDto = {
-  tree: [], exceptions: [],
+  tree: [node("METHOD_ENTRY", 1_000_000), node("CALLOUT_REQUEST", 4_000_000), node("OTHER", 5_000_000)], exceptions: [],
   hotspots: [{ signature: "Synthetic.handle()", selfNs: 2_000_000, totalNs: 4_000_000, selfBytes: 1024, count: 2 }],
   statements: [
     { kind: "soql", text: "SELECT Id FROM Account WHERE Name = 'A'", rows: 2, durNs: 1_000_000 },
@@ -24,6 +28,10 @@ for (const locale of ["en-US", "zh-CN"] as const) {
         await page.getByRole("button", { name: zh ? "日志" : "Logs", exact: true }).click();
         await page.getByRole("button", { name: /runTestsSynchronous/ }).click();
         await page.getByRole("radio", { name: /^(Hotspots|热点)$/i }).click();
+        if (populated) {
+          await expect(page.getByLabel(zh ? "外部调用 · 4.00 ms · 40.0%" : "Callout · 4.00 ms · 40.0%")).toBeVisible();
+          await expect(page.getByLabel(zh ? "其他 · 5.00 ms · 50.0%" : "Other · 5.00 ms · 50.0%")).toBeVisible();
+        }
         if (populated) {
           await expect(page.getByRole("columnheader", { name: zh ? "方法" : "Method" })).toBeVisible();
           await expect(page.getByRole("button", { name: "Synthetic.handle()" })).toBeVisible();
@@ -47,6 +55,7 @@ for (const locale of ["en-US", "zh-CN"] as const) {
         if (populated) {
           await expect(page.getByText(zh ? "(default)" : "（默认）", { exact: true })).toBeVisible();
           await expect(page.getByText("95/100 · 95%")).toHaveClass(/text-destructive/);
+          await expect(page.getByLabel(zh ? "Callout · 4.00 ms · 40.0%" : "外部调用 · 4.00 ms · 40.0%")).toBeVisible();
         } else await expect(page.getByText(zh ? "No limit usage" : "暂无限制使用数据")).toBeVisible();
       });
     }
