@@ -34,6 +34,16 @@ It keeps working files and functional caches on your computer:
   最近 50 次匿名 Apex 执行，包括源码、返回的调试日志（每项最多 200,000 个字符）、状态及异常消息。
   打开 Apex **History（历史）**，使用 **Clear history（清除历史）** 移除这些记录。
 
+- During an anonymous Apex run, the source is staged in an `ultraforce-anon-*.apex`
+  file in the system temporary directory for the Salesforce CLI. The application
+  attempts to remove it on completion, error or cancellation; a crash or deletion
+  failure can leave it behind. Existing leftovers are not automatically removed.
+  On Unix the file is restricted to its owner; on Windows it inherits the temporary
+  directory's access controls.
+  运行匿名 Apex 时，源码会暂存到系统临时目录中的 `ultraforce-anon-*.apex` 文件，供 Salesforce CLI
+  使用。应用会在完成、出错或取消时尝试删除该文件；崩溃或删除失败可能使其残留。已有残留文件不会被
+  自动移除。Unix 上该文件仅限所有者访问；Windows 上它继承临时目录的访问控制。
+
 - Salesforce debug logs that you open, cached under the application data
   directory's `workspace/logcache` folder for reopening without downloading.
   你打开的 Salesforce 调试日志，缓存在应用数据目录的 `workspace/logcache` 文件夹中，
