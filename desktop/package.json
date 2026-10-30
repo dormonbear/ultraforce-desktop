@@ -56,7 +56,7 @@
     "@types/react-dom": "^19.2.1",
     "@vitejs/plugin-react": "^5.0.4",
     "@vitest/coverage-v8": "^4.1.9",
-    "fallow": "^2.103.0",
+    "fallow": "^3.37.0",
     "jsdom": "^29.1.1",
     "oxlint": "^1.72.0",
     "tailwindcss": "^4.1.14",

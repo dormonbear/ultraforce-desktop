@@ -269,10 +269,10 @@ or copy `skills/ost/SKILL.md` into your agent's skills directory.
 ## Development / 开发
 
 **Requirements:** [Rust](https://www.rust-lang.org/tools/install) (stable),
-[Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/), and Python 3.11+ for repository checks.
+[Node.js 22.12+](https://nodejs.org/) + [pnpm](https://pnpm.io/), and Python 3.11+ for repository checks.
 The [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`) and org login
 are needed for live Salesforce operations; default automated tests use synthetic fixtures.
-**环境要求：** Rust 稳定版、Node.js 与 pnpm，以及用于仓库检查的 Python 3.11+。
+**环境要求：** Rust 稳定版、Node.js 22.12+ 与 pnpm，以及用于仓库检查的 Python 3.11+。
 仅实际操作 Salesforce 时需要 Salesforce CLI（`sf`）及组织登录；默认自动测试使用合成数据。
 
 ```bash
