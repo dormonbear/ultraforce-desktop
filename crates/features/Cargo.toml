@@ -14,8 +14,10 @@ serde = { workspace = true }
 serde_json = { workspace = true, features = ["raw_value"] }
 tokio = { workspace = true }
 reqwest = { workspace = true }
+tempfile = "3.27.0"
 tracing = "0.1"
 
 [dev-dependencies]
+async-trait = { workspace = true }
 sf-core = { path = "../sf-core", features = ["test-util"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
