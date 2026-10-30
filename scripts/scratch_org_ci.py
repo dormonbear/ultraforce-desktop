@@ -27,7 +27,7 @@ class StageFailure(Exception):
     pass
 
 
-def run_stage(name, args, env, *, cwd=ROOT, input_text=None, timeout=120, visible=False):
+def run_stage(name, args, env, *, cwd=ROOT, input_text=None, timeout=120):
     try:
         result = subprocess.run(
             args,
@@ -35,8 +35,8 @@ def run_stage(name, args, env, *, cwd=ROOT, input_text=None, timeout=120, visibl
             env=env,
             input=input_text,
             text=True,
-            stdout=None if visible else subprocess.PIPE,
-            stderr=None if visible else subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             timeout=timeout,
             check=False,
         )
@@ -111,7 +111,6 @@ def run(environment):
              "--", "--ignored", "--test-threads=1"],
             test_env,
             timeout=45 * 60,
-            visible=True,
         )
     except StageFailure as failure:
         print(f"Scratch CI failed at {failure}. / 临时组织 CI 失败：{failure}。", file=sys.stderr)

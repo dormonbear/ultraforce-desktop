@@ -2,6 +2,7 @@ import contextlib
 import io
 import re
 import subprocess
+import sys
 import unittest
 from unittest import mock
 
@@ -75,6 +76,8 @@ class ScratchCiTests(unittest.TestCase):
         for call in calls:
             self.assertNotIn("synthetic-secret", str(call.args))
             self.assertNotIn(scratch.SECRET, call.kwargs["env"])
+            self.assertEqual(call.kwargs["stdout"], subprocess.DEVNULL)
+            self.assertEqual(call.kwargs["stderr"], subprocess.DEVNULL)
             for flag, value in scratch.PRIVACY.items():
                 self.assertEqual(call.kwargs["env"][flag], value)
         self.assertNotIn("synthetic-secret", output)
@@ -110,6 +113,34 @@ class ScratchCiTests(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("timed out", output)
         self.assertEqual(calls[-1].args[0][:4], ["sf", "org", "delete", "scratch"])
+
+    def test_live_test_output_is_not_written_to_ci_logs(self):
+        # Simulate a failing test process without starting Salesforce. / 模拟失败的测试进程，不启动 Salesforce。
+        driver = '''
+import os
+import sys
+import scratch_org_ci as scratch
+
+original = scratch.run_stage
+def fake_stage(name, args, env, **kwargs):
+    if args[0] == "cargo":
+        command = [sys.executable, "-c", "import sys; print('synthetic-org-data'); print('synthetic-access-token', file=sys.stderr); sys.exit(17)"]
+        return original(name, command, env, **kwargs)
+
+scratch.run_stage = fake_stage
+env = dict(os.environ, GITHUB_ACTIONS="true", GITHUB_REPOSITORY="dormonbear/ultraforce-desktop",
+           GITHUB_REF="refs/heads/main", GITHUB_EVENT_NAME="workflow_dispatch",
+           UF_SCRATCH_CI_DEV_HUB_AUTH_URL="synthetic-secret")
+sys.exit(scratch.run(env))
+'''
+        result = subprocess.run(
+            [sys.executable, "-c", driver], cwd=scratch.ROOT / "scripts",
+            text=True, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("exit 17", result.stderr)
+        for value in ("synthetic-org-data", "synthetic-access-token", "synthetic-secret"):
+            self.assertNotIn(value, result.stdout + result.stderr)
 
     def test_interruption_after_creation_still_attempts_cleanup(self):
         def command(args, **kwargs):

@@ -20,6 +20,10 @@ Deletion is best effort: an interrupted runner or a creation timeout before the 
 
 删除是尽力执行：运行器被中断，或创建超时发生在 CLI 记录别名之前，都可能导致无法删除。一天过期时间只是后备措施，并不证明清理成功；清理失败时应在 Dev Hub 中核查。CI 不上传 CLI 身份验证文件或日志。
 
+All child-process output from the scratch CI script, including live test failure details, is discarded to avoid exposing credentials or org data in CI logs. A failure reports the stage and exit status or timeout; detailed diagnosis requires a secure reproduction using a disposable org.
+
+临时组织 CI 脚本的所有子进程输出（包括真实测试的失败详情）均被丢弃，以免凭据或组织数据出现在 CI 日志中。失败时会报告阶段和退出码或超时；详细排查需要使用一次性组织在安全环境中复现。
+
 ## Local disposable org / 本地一次性组织
 
 Use Salesforce CLI 2.156.8 or later for the redaction regression. Deploy `tests/scratch-org/force-app` to a disposable scratch org, create an Account named `UltraForce synthetic CI`, and set `UF_E2E_ORG` to its explicit alias before running the ignored test target. Avoid the `default` sentinel. The suite does not validate that a manually supplied alias is a scratch org.
