@@ -70,7 +70,8 @@
     },
     "patchedDependencies": {
       "monaco-editor@0.54.0": "patches/monaco-editor@0.54.0.patch",
-      "playwright-core@1.61.0": "patches/playwright-core@1.61.0.patch"
+      "playwright-core@1.61.0": "patches/playwright-core@1.61.0.patch",
+      "@astryxdesign/core@0.1.4": "patches/@astryxdesign__core@0.1.4.patch"
     }
   }
 }

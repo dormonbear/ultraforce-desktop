@@ -1,0 +1,26 @@
+diff --git a/dist/Typeahead/Typeahead.js b/dist/Typeahead/Typeahead.js
+index 8a9b477b28429d451180c9efead89742065c2152..d65a556ff07197b20fa7af80c826cd4bb131c513 100644
+--- a/dist/Typeahead/Typeahead.js
++++ b/dist/Typeahead/Typeahead.js
+@@ -296,7 +296,7 @@ export function Typeahead({
+         value: value,
+         onChange: handleChange,
+         renderItem: renderItem,
+-        placeholder: showToken ? undefined : placeholder,
++        placeholder: showToken ? "" : placeholder,
+         hasEntriesOnFocus: hasEntriesOnFocus,
+         maxMenuItems: maxMenuItems,
+         emptySearchResultsText: emptySearchResultsText,
+diff --git a/src/Typeahead/Typeahead.tsx b/src/Typeahead/Typeahead.tsx
+index 1116737484b542a06cb24602e540092a0117fc42..3104ca542b303551ae76bc8472ea5b3c8136bc6d 100644
+--- a/src/Typeahead/Typeahead.tsx
++++ b/src/Typeahead/Typeahead.tsx
+@@ -440,7 +440,7 @@ export function Typeahead<T extends SearchableItem>({
+           value={value}
+           onChange={handleChange}
+           renderItem={renderItem}
+-          placeholder={showToken ? undefined : placeholder}
++          placeholder={showToken ? "" : placeholder}
+           hasEntriesOnFocus={hasEntriesOnFocus}
+           maxMenuItems={maxMenuItems}
+           emptySearchResultsText={emptySearchResultsText}
