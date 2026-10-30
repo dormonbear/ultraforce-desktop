@@ -22,9 +22,9 @@ Deletion is best effort: an interrupted runner or a creation timeout before the 
 
 ## Local disposable org / 本地一次性组织
 
-Deploy `tests/scratch-org/force-app` to a disposable scratch org, create an Account named `UltraForce synthetic CI`, and set `UF_E2E_ORG` to its explicit alias before running the ignored test target. Avoid the `default` sentinel. The suite does not validate that a manually supplied alias is a scratch org.
+Use Salesforce CLI 2.156.8 or later for the redaction regression. Deploy `tests/scratch-org/force-app` to a disposable scratch org, create an Account named `UltraForce synthetic CI`, and set `UF_E2E_ORG` to its explicit alias before running the ignored test target. Avoid the `default` sentinel. The suite does not validate that a manually supplied alias is a scratch org.
 
-将 `tests/scratch-org/force-app` 部署到一次性临时组织，创建名为 `UltraForce synthetic CI` 的 Account，并在运行默认跳过的测试目标前将 `UF_E2E_ORG` 设为其明确别名。不要使用 `default` 哨兵值。测试套件不会验证手动提供的别名是否指向临时组织。
+凭据隐藏回归需要 Salesforce CLI 2.156.8 或更高版本。将 `tests/scratch-org/force-app` 部署到一次性临时组织，创建名为 `UltraForce synthetic CI` 的 Account，并在运行默认跳过的测试目标前将 `UF_E2E_ORG` 设为其明确别名。不要使用 `default` 哨兵值。测试套件不会验证手动提供的别名是否指向临时组织。
 
 ```sh
 UF_E2E_ORG=<scratch-alias> cargo test --locked -p features --test real_org_e2e -- --ignored --test-threads=1
