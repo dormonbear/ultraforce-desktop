@@ -82,3 +82,38 @@ test("shows a FINEST hint when the log carries no variable data", async ({ page 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText(/APEX_CODE=FINEST/)).toBeVisible();
 });
+
+for (const locale of ["en-US", "zh-CN"] as const) {
+  test.describe(`debugger locale / 调试器语言: ${locale}`, () => {
+    test.use({ locale });
+
+    test("localizes controls while preserving the selected step / 本地化控件并保留当前步骤", async ({ page }) => {
+      const zh = locale === "zh-CN";
+      await gotoApp(page, {
+        parse_log: VIEW,
+        debug_session: OUTLINE,
+        debug_frames_at: FRAMES,
+        fetch_apex_source: SOURCE,
+      });
+      await page.getByRole("button", { name: zh ? "日志" : "Logs", exact: true }).click();
+      await dropLogFile(page);
+      await page.getByRole("button", { name: zh ? "调试" : "Debug", exact: true }).click();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByRole("heading", { name: zh ? "调试" : "Debug", exact: true })).toBeVisible();
+      await expect(dialog.getByText(zh ? "调用堆栈" : "Call stack", { exact: true })).toBeVisible();
+      await expect(dialog.getByText(zh ? "变量" : "Variables", { exact: true })).toBeVisible();
+      await expect(dialog.getByText("x (Integer) = 1")).toBeVisible();
+      await dialog.getByRole("button", { name: zh ? "单步进入" : "Step", exact: true }).click();
+      await expect(dialog.getByText(zh ? /第 2\/2 步/ : /step 2\/2/)).toBeVisible();
+      await page.evaluate(language => {
+        Object.defineProperty(navigator, "languages", { configurable: true, value: [language] });
+        window.dispatchEvent(new Event("languagechange"));
+      }, zh ? "en-US" : "zh-CN");
+      await expect(dialog.getByText(zh ? "Call stack" : "调用堆栈", { exact: true })).toBeVisible();
+      await expect(dialog.getByText(zh ? /step 2\/2/ : /第 2\/2 步/)).toBeVisible();
+      await expect(dialog.getByText("x (Integer) = 1")).toBeVisible();
+      await dialog.getByRole("button", { name: zh ? "Close" : "关闭", exact: true }).click();
+      await expect(dialog).not.toBeVisible();
+    });
+  });
+}
