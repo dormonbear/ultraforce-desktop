@@ -13,8 +13,10 @@ toolkit built on a Rust workspace + Tauri 2 / React 19 shell.
 ## Development setup
 
 Prerequisites: [Rust](https://www.rust-lang.org/tools/install) (stable),
-[Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/),
+[Node.js 22.12+](https://nodejs.org/) + [pnpm](https://pnpm.io/),
 [Salesforce CLI](https://developer.salesforce.com/tools/salesforcecli) (`sf`).
+
+环境要求：Rust 稳定版、Node.js 22.12+、pnpm 和 Salesforce CLI（`sf`）。
 
 ```bash
 pnpm -C desktop install        # frontend deps
