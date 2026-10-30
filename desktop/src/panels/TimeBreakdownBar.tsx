@@ -1,4 +1,5 @@
 import type { UnitDto } from "../types";
+import { useI18n, type MessageKey } from "../i18n";
 import { timeBreakdown, type TimeCategory } from "./timeBreakdown";
 
 const CAT_COLOR: Record<TimeCategory, string> = {
@@ -9,7 +10,7 @@ const CAT_COLOR: Record<TimeCategory, string> = {
   other: "bg-border",
 };
 
-const CAT_LABEL: Record<TimeCategory, string> = {
+const CAT_LABEL: Record<TimeCategory, MessageKey> = {
   apex: "Apex", soql: "SOQL", dml: "DML", callout: "Callout", other: "Other",
 };
 
@@ -19,6 +20,7 @@ function ms(ns: number): string {
 
 /** One-row stacked bar showing where execution time went, with a legend. */
 export function TimeBreakdownBar({ units }: { units: UnitDto[] }) {
+  const { t } = useI18n();
   const slices = timeBreakdown(units);
   if (slices.length === 0) return null;
   return (
@@ -29,7 +31,7 @@ export function TimeBreakdownBar({ units }: { units: UnitDto[] }) {
             key={s.category}
             className={`h-full ${CAT_COLOR[s.category]}`}
             style={{ width: `${s.pct}%` }}
-            aria-label={`${CAT_LABEL[s.category]} · ${ms(s.ns)} · ${s.pct.toFixed(1)}%`}
+            aria-label={`${t(CAT_LABEL[s.category])} · ${ms(s.ns)} · ${s.pct.toFixed(1)}%`}
           />
         ))}
       </div>
@@ -37,7 +39,7 @@ export function TimeBreakdownBar({ units }: { units: UnitDto[] }) {
         {slices.map((s) => (
           <span key={s.category} className="inline-flex items-center gap-1">
             <span className={`inline-block size-2 rounded-sm ${CAT_COLOR[s.category]}`} />
-            {CAT_LABEL[s.category]} <span className="tnum text-foreground">{ms(s.ns)}</span>
+            {t(CAT_LABEL[s.category])} <span className="tnum text-foreground">{ms(s.ns)}</span>
             <span className="tnum">{s.pct.toFixed(0)}%</span>
           </span>
         ))}
