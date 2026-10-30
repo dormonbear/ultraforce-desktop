@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 
-from build_updater_manifest import REPOSITORY, build_manifest, required_assets, utc_date
+from build_updater_manifest import REPOSITORY, build_manifest, release_download_prefix, required_assets, utc_date
 
 
 def run_gh(*args: str) -> str:
@@ -29,7 +29,13 @@ def asset_map(metadata: dict) -> dict:
 def required_snapshot(metadata: dict, tag: str) -> tuple[dict, str]:
     assets = asset_map(metadata)
     names = required_assets(tag[1:])
-    fields = ("id", "name", "size", "state", "digest", "browser_download_url", "updated_at")
+    prefix = release_download_prefix(metadata)
+    ids = [assets[name].get("id") for name in names]
+    if any(type(asset_id) is not int or asset_id <= 0 for asset_id in ids) or len(set(ids)) != len(ids):
+        raise ValueError("Invalid release asset identity / 发布产物标识无效")
+    if any(assets[name].get("browser_download_url") != prefix + name for name in names):
+        raise ValueError("Invalid release asset URL / 发布产物地址无效")
+    fields = ("id", "name", "size", "state", "digest", "updated_at")
     snapshot = {name: {key: assets[name].get(key) for key in fields} for name in names}
     updated_at = max(utc_date(assets[name]["updated_at"]) for name in names)
     return snapshot, updated_at
@@ -37,7 +43,7 @@ def required_snapshot(metadata: dict, tag: str) -> tuple[dict, str]:
 
 def validate_latest(metadata: dict, tag: str, raw: bytes, expected: dict) -> None:
     asset = asset_map(metadata)["latest.json"]
-    url = f"https://github.com/{REPOSITORY}/releases/download/{tag}/latest.json"
+    url = release_download_prefix(metadata) + "latest.json"
     if (asset.get("state") != "uploaded" or asset.get("size") != len(raw)
             or asset.get("digest") != "sha256:" + hashlib.sha256(raw).hexdigest()
             or asset.get("browser_download_url") != url):
@@ -50,16 +56,21 @@ def validate_latest(metadata: dict, tag: str, raw: bytes, expected: dict) -> Non
         raise ValueError("Existing manifest differs / 已有清单不一致")
 
 
-def stage_release(tag: str, *, gh=run_gh) -> None:
+def stage_release(
+    tag: str, *, gh=run_gh, expected_release_id: int | None = None, expected_tag_sha: str | None = None,
+) -> None:
     if not re.fullmatch(r"v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag):
         raise ValueError("Invalid release tag / 无效的发布标签")
     release_id = gh("release", "view", tag, "--repo", REPOSITORY, "--json", "databaseId", "--jq", ".databaseId").strip()
     if not re.fullmatch(r"[1-9]\d*", release_id):
         raise ValueError("Invalid release identity / 无效的发布标识")
+    if expected_release_id is not None and (type(expected_release_id) is not int or int(release_id) != expected_release_id):
+        raise ValueError("Release identity changed / 发布标识已变化")
 
     def metadata() -> dict:
         value = json.loads(gh("api", f"repos/{REPOSITORY}/releases/{release_id}"))
-        if value.get("id") != int(release_id) or value.get("tag_name") != tag:
+        if (value.get("id") != int(release_id) or value.get("tag_name") != tag
+                or (expected_tag_sha is not None and value.get("target_commitish") != expected_tag_sha)):
             raise ValueError("Release identity changed / 发布标识已变化")
         return value
 
@@ -68,6 +79,7 @@ def stage_release(tag: str, *, gh=run_gh) -> None:
         first = metadata()
         gh("release", "download", tag, "--repo", REPOSITORY, "--pattern", "*.sig", "--dir", str(root))
         snapshot, staged_at = required_snapshot(first, tag)
+        draft_prefix = release_download_prefix(first) if first.get("draft") is True else None
         if first.get("draft") is True:
             expected = build_manifest(first, root, staged_at=staged_at)
         elif first.get("draft") is False:
@@ -82,7 +94,8 @@ def stage_release(tag: str, *, gh=run_gh) -> None:
             validate_latest(first, tag, manifest_path.read_bytes(), expected)
         elif first["draft"]:
             current = metadata()
-            if current.get("draft") is not True or required_snapshot(current, tag) != (snapshot, staged_at):
+            if (current.get("draft") is not True or release_download_prefix(current) != draft_prefix
+                    or required_snapshot(current, tag) != (snapshot, staged_at)):
                 raise ValueError("Draft changed before upload / 上传前草稿已变化")
             if build_manifest(current, root, staged_at=staged_at) != expected:
                 raise ValueError("Draft assets changed / 草稿产物已变化")
@@ -96,6 +109,8 @@ def stage_release(tag: str, *, gh=run_gh) -> None:
         if required_snapshot(current, tag) != (snapshot, staged_at):
             raise ValueError("Release assets changed / 发布产物已变化")
         if current.get("draft") is True:
+            if draft_prefix is not None and release_download_prefix(current) != draft_prefix:
+                raise ValueError("Draft identity changed / 草稿标识已变化")
             verified = build_manifest(current, root, staged_at=staged_at)
             validate_latest(current, tag, manifest_path.read_bytes(), verified)
             gh("release", "edit", tag, "--repo", REPOSITORY, "--draft=false", "--verify-tag")

@@ -96,7 +96,8 @@ class UpdaterManifestTest(unittest.TestCase):
 
     def staged_metadata(self):
         metadata = copy.deepcopy(self.metadata)
-        metadata.update(draft=True, published_at=None)
+        metadata.update(draft=True, published_at=None,
+                        html_url="https://github.com/dormonbear/ultraforce-desktop/releases/tag/v1.2.3")
         for asset in metadata["assets"]:
             asset["state"] = "uploaded"
         for name in [
@@ -109,6 +110,37 @@ class UpdaterManifestTest(unittest.TestCase):
                 "browser_download_url": "https://github.com/dormonbear/ultraforce-desktop/releases/download/v1.2.3/" + name,
             })
         return metadata
+
+    def placeholder_metadata(self):
+        metadata = self.staged_metadata()
+        placeholder = "untagged-0123456789abcdef0123"
+        metadata["html_url"] = "https://github.com/dormonbear/ultraforce-desktop/releases/tag/" + placeholder
+        for asset in metadata["assets"]:
+            asset["browser_download_url"] = asset["browser_download_url"].replace("/v1.2.3/", f"/{placeholder}/")
+        return metadata
+
+    def test_real_draft_placeholder_urls_generate_final_tag_urls(self):
+        metadata = self.placeholder_metadata()
+        manifest = build_manifest(metadata, self.root, staged_at="2026-10-30T00:00:00Z")
+        prefix = "https://github.com/dormonbear/ultraforce-desktop/releases/download/v1.2.3/"
+        self.assertEqual(len(manifest["platforms"]), 11)
+        self.assertTrue(all(entry["url"].startswith(prefix) for entry in manifest["platforms"].values()))
+
+    def test_draft_placeholder_identity_and_asset_urls_must_match(self):
+        for mutation in ("foreign release", "different placeholder", "wrong tag", "published placeholder"):
+            with self.subTest(mutation=mutation):
+                metadata = self.placeholder_metadata()
+                if mutation == "foreign release":
+                    metadata["html_url"] = "https://example.invalid/releases/tag/untagged-0123456789abcdef0123"
+                elif mutation == "different placeholder":
+                    metadata["assets"][0]["browser_download_url"] = metadata["assets"][0]["browser_download_url"].replace("0123456789abcdef0123", "fedcba9876543210fedc")
+                elif mutation == "wrong tag":
+                    metadata["html_url"] = "https://github.com/dormonbear/ultraforce-desktop/releases/tag/v9.9.9"
+                else:
+                    metadata.update(draft=False, published_at="2026-10-30T00:05:00Z")
+                with self.assertRaises(ValueError):
+                    build_manifest(metadata, self.root, staged_at=None if mutation == "published placeholder" else "2026-10-30T00:00:00Z",
+                                   require_complete=mutation == "published placeholder")
 
     def test_complete_draft_can_be_staged_with_an_explicit_utc_date(self):
         metadata = self.staged_metadata()
