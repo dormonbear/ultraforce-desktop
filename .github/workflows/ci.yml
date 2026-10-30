@@ -60,7 +60,7 @@ jobs:
 
       - name: Build and toolchain regressions / 构建及工具链回归
         working-directory: desktop
-        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs scripts/check-jsdom-undici.test.mjs scripts/check-source-map.test.mjs scripts/check-nanoid.test.mjs scripts/check-browserslist.test.mjs scripts/windows-resource-reporter.test.mjs scripts/check-playwright-windows-socket.test.mjs
+        run: node --test scripts/check-built-syntax.test.mjs scripts/check-monaco-sanitizer.test.mjs scripts/check-jsdom-undici.test.mjs scripts/check-source-map.test.mjs scripts/check-nanoid.test.mjs scripts/check-browserslist.test.mjs scripts/check-vite-resolution.test.mjs scripts/check-zod.test.mjs scripts/windows-resource-reporter.test.mjs scripts/check-playwright-windows-socket.test.mjs
 
       - name: Documentation artifact isolation / 文档产物隔离
         working-directory: desktop
