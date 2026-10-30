@@ -17,6 +17,8 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useI18n } from "../i18n";
+import { APEX_LOG_ACCESS_HINT } from "../errorFormat";
 import { fmtDuration, fmtSize, fmtTime, type LogFilter } from "./logList";
 import type { useSelfTrace } from "./useSelfTrace";
 import type { LogRefDto } from "../types";
@@ -59,6 +61,7 @@ export function LogListPane({
   onSelect: (id: string) => void;
   onSaveLog: (log: LogRefDto) => void;
 }) {
+  const { t } = useI18n();
   const { tracing, tracingBusy, traceExpiry, traceMinsLeft, quickSelfTrace } = trace;
 
   // Virtualize the log list — it can run to thousands of rows.
@@ -73,11 +76,11 @@ export function LogListPane({
   return (
     <div className="relative flex h-full flex-col">
       <div className="flex items-center justify-between px-4 py-2">
-        <div className="micro-label flex-1">Logs</div>
+        <div className="micro-label flex-1">{t("Logs")}</div>
         <Button
           variant="ghost"
           size="sm"
-          label="Refresh"
+          label={t("Refresh")}
           icon={
             listLoading ? (
               <Loader2 size={12} className="spin" />
@@ -92,8 +95,8 @@ export function LogListPane({
         <Button
           variant="ghost"
           size="sm"
-          label="Logging"
-          aria-label="Configure logging"
+          label={t("Logging")}
+          aria-label={t("Configure logging")}
           icon={<SlidersHorizontal size={12} />}
           onClick={onOpenConfig}
           className="h-7 cursor-pointer gap-1 px-1.5 text-[11px] text-text-dim hover:text-foreground"
@@ -101,16 +104,16 @@ export function LogListPane({
         <Button
           variant="ghost"
           size="sm"
-          label={tracing ? `Tracing · ${traceMinsLeft}m` : "Set My Trace"}
+          label={tracing ? t("Tracing · {minutes}m", { minutes: traceMinsLeft }) : t("Set My Trace")}
           aria-label={
             tracing
-              ? `Tracing you — ${traceMinsLeft} min left; click to extend`
-              : "Trace myself for 30 minutes"
+              ? t("Tracing you — {minutes} min left; click to extend", { minutes: traceMinsLeft })
+              : t("Trace myself for 30 minutes")
           }
           tooltip={
             tracing
-              ? `Traced until ${new Date(traceExpiry!).toLocaleTimeString()} — click to extend 30 min`
-              : "Trace yourself for 30 minutes"
+              ? t("Traced until {time} — click to extend 30 min", { time: new Date(traceExpiry!).toLocaleTimeString() })
+              : t("Trace yourself for 30 minutes")
           }
           icon={
             tracingBusy ? (
@@ -133,13 +136,13 @@ export function LogListPane({
         <div className="flex items-center gap-2 border-b border-border px-4 py-2">
           <div className="flex-1">
             <TextInput
-              label="Filter logs"
+              label={t("Filter logs")}
               isLabelHidden
               value={filter.query}
               onChange={(value) =>
                 setFilter((f) => ({ ...f, query: value }))
               }
-              placeholder="Filter operation / user"
+              placeholder={t("Filter operation / user")}
               data-uf-search=""
               size="sm"
               startIcon={<Search size={12} />}
@@ -152,28 +155,28 @@ export function LogListPane({
 
       {listError ? (
         <pre className="m-4 overflow-auto whitespace-pre-wrap rounded-md border border-destructive/40 bg-card p-3 text-[12px] text-destructive">
-          {listError}
+          {listError === APEX_LOG_ACCESS_HINT ? t(APEX_LOG_ACCESS_HINT) : listError}
         </pre>
       ) : logs.length === 0 && !listLoading ? (
         <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted-foreground">
-          <span>No debug logs yet. Set a trace flag, then refresh to fetch them.</span>
+          <span>{t("No debug logs yet. Set a trace flag, then refresh to fetch them.")}</span>
           <button
             type="button"
             onClick={onRefresh}
             className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
           >
-            Refresh
+            {t("Refresh")}
           </button>
         </div>
       ) : visibleLogs.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-muted-foreground">
-          <span>No logs match this filter.</span>
+          <span>{t("No logs match this filter.")}</span>
           <button
             type="button"
             onClick={() => setFilter((f) => ({ ...f, query: "" }))}
             className="focus-accent cursor-pointer rounded-md border border-border px-3 py-1 text-[12px] text-foreground transition-colors hover:border-primary hover:text-primary"
           >
-            Clear filter
+            {t("Clear filter")}
           </button>
         </div>
       ) : (
@@ -223,13 +226,13 @@ export function LogListPane({
                             <HardDriveDownload
                               size={12}
                               className="shrink-0 text-text-dim"
-                              aria-label="Cached locally"
+                              aria-label={t("Cached locally")}
                             />
                           )}
                           <span className="shrink-0">
                             <Badge
                               variant={ok ? "success" : "error"}
-                              label={ok ? "Success" : "Failed"}
+                              label={t(ok ? "Success" : "Failed")}
                               className="px-1.5 py-0 text-[10px]"
                             />
                           </span>
@@ -247,7 +250,7 @@ export function LogListPane({
                   </ContextMenuTrigger>
                   <ContextMenuContent>
                     <ContextMenuItem onSelect={() => onSaveLog(log)}>
-                      Save log…
+                      {t("Save log…")}
                     </ContextMenuItem>
                   </ContextMenuContent>
                 </ContextMenu>
@@ -261,7 +264,7 @@ export function LogListPane({
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-md border-2 border-dashed border-primary/40 bg-background/80">
           <span className="text-[12px] font-medium text-text-dim">
-            Drop a .log file to view
+            {t("Drop a .log file to view")}
           </span>
         </div>
       )}
