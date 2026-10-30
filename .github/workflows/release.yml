@@ -151,6 +151,52 @@ jobs:
         run: |
           python scripts/stage_release.py --tag "$RELEASE_TAG"
 
+  # Resume a verified current release when an earlier publication failed. / 先前发布失败时恢复已验证的当前版本。
+  recover-release:
+    needs: release-please
+    if: ${{ !cancelled() && needs.release-please.outputs.release_created != 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      needed: ${{ steps.recover.outputs.needed }}
+      tag: ${{ steps.recover.outputs.tag }}
+      sha: ${{ steps.recover.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Recover Verified Release / 恢复已验证发布
+        id: recover
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/recover_release.py --output "$GITHUB_OUTPUT"
+
+  # Publish the exact tagged npm package only when the registry lacks it. / 仅在注册表缺失时发布精确标签对应的 npm 包。
+  recover-npm:
+    needs: recover-release
+    if: ${{ !cancelled() && needs.recover-release.result == 'success' && needs.recover-release.outputs.needed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.recover-release.outputs.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm install -g npm@latest
+      - name: Publish @dormon/ultraforce-mcp
+        working-directory: npm
+        run: npm publish --provenance --access public
+
   # Publish the npm wrapper after the release is public; installation downloads its binary.
   # 公开发布后再发布 npm 包装器；安装时会下载其中的二进制文件。
   # Trusted Publishing uses OIDC and includes provenance. / 可信发布使用 OIDC 并包含来源证明。
