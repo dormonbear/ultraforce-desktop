@@ -1,0 +1,8 @@
+{
+  "packageDirectories": [
+    { "path": "force-app", "default": true }
+  ],
+  "name": "ultraforce-scratch-e2e",
+  "namespace": "",
+  "sourceApiVersion": "60.0"
+}

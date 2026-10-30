@@ -32,11 +32,12 @@ pnpm -C desktop test           # vitest
 pnpm -C desktop e2e            # Playwright (mocked Tauri IPC)
 ```
 
-Real-org end-to-end tests are opt-in (`#[ignore]` by default):
+Real-org end-to-end tests are opt-in and perform DML. Use an explicitly selected disposable scratch org with the synthetic fixture described in [scratch-org CI](docs/SCRATCH-ORG-CI.md).
+真实组织端到端测试需按需启用且会执行 DML。请使用明确指定的一次性临时组织，并按[临时组织 CI](docs/SCRATCH-ORG-CI.md)准备合成夹具。
 
 ```bash
-UF_E2E_ORG=<your-dev-org-alias> \
-  cargo test -p features --test real_org_e2e -- --ignored --test-threads=1
+UF_E2E_ORG=<scratch-alias> \
+  cargo test --locked -p features --test real_org_e2e -- --ignored --test-threads=1
 ```
 
 ## Commit & PR conventions
