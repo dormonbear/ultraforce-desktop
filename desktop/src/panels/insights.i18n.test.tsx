@@ -22,10 +22,10 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Localized insight detectors / 洞察检测结果本地化", () => {
   const cases: { name: string; kind: string; value: UnitDto; title: string; detail?: string; fix?: string }[] = [
-    { name: "exception / 异常", kind: "exception", value: unit({ exceptions: Array(2).fill({ kind: "EXCEPTION_THROWN", message: "Synthetic {count} error" }) }), title: "抛出异常", fix: "捕获" },
+    { name: "exception / 异常", kind: "exception", value: unit({ exceptions: Array.from({ length: 2 }, () => ({ kind: "EXCEPTION_THROWN", message: "Synthetic {count} error" })) }), title: "抛出异常", fix: "捕获" },
     { name: "fatal error / 致命错误", kind: "exception", value: unit({ exceptions: [{ kind: "FATAL_ERROR", message: "Synthetic fatal" }] }), title: "致命错误" },
-    { name: "SOQL loop / SOQL 循环", kind: "stmt-in-loop", value: unit({ statements: Array(5).fill(statement("soql")) }), title: "循环", detail: "10 行，共 5.0 ms", fix: "查询" },
-    { name: "DML loop / DML 循环", kind: "stmt-in-loop", value: unit({ statements: Array(5).fill(statement("dml")) }), title: "循环", fix: "批量" },
+    { name: "SOQL loop / SOQL 循环", kind: "stmt-in-loop", value: unit({ statements: Array.from({ length: 5 }, () => statement("soql")) }), title: "循环", detail: "10 行，共 5.0 ms", fix: "查询" },
+    { name: "DML loop / DML 循环", kind: "stmt-in-loop", value: unit({ statements: Array.from({ length: 5 }, () => statement("dml")) }), title: "循环", fix: "批量" },
     { name: "repeated method / 重复方法", kind: "method-loop", value: unit({ hotspots: [{ signature: "Synthetic.handle()", count: 25, selfNs: 2_000_000, totalNs: 3_000_000, selfBytes: 0 }] }), title: "调用", detail: "自身耗时共 2.0 ms", fix: "循环" },
     { name: "repeated method without time / 无耗时的重复方法", kind: "method-loop", value: unit({ hotspots: [{ signature: "Synthetic.handle()", count: 25, selfNs: 0, totalNs: 0, selfBytes: 0 }] }), title: "调用", detail: "重复调用", fix: "循环" },
     { name: "loop body / 循环体", kind: "loop-body", value: unit({ tree: [node("Parent", Array.from({ length: 5 }, () => node("Child")))] }), title: "连续", detail: "循环体", fix: "循环" },
@@ -58,7 +58,7 @@ describe("Localized insight detectors / 洞察检测结果本地化", () => {
 });
 
 it.each([
-  { label: "查看查询 →", target: "queries", value: unit({ statements: Array(5).fill(statement("soql")) }) },
+  { label: "查看查询 →", target: "queries", value: unit({ statements: Array.from({ length: 5 }, () => statement("soql")) }) },
   { label: "查看限制 →", target: "limits", value: unit({ limits: [{ namespace: "", entries: [{ name: "SOQL", used: 95, max: 100 }] }] }) },
   { label: "查看时间线 →", target: "timeline", value: unit({ tree: [node("Root", [node("Leaf")])] }) },
 ])("keeps translated evidence navigation / 保留翻译后的证据导航: $target", ({ label, target, value }) => {
