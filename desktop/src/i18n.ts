@@ -517,6 +517,9 @@ const chinese = {
   "depth {depth}": "深度 {depth}",
   "Open source": "打开源码",
   "Select a flame block to inspect timing and source details.": "选择火焰块以查看时间与源码详情。",
+  Error: "错误",
+  "Raw error": "原始错误",
+  "Loading editor…": "正在加载编辑器…",
 } as const;
 
 export type Locale = "en" | "zh-CN";

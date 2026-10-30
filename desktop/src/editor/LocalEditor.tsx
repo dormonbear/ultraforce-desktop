@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import type { EditorProps } from "@monaco-editor/react";
+import { useI18n } from "../i18n";
 
 const BundledEditor = lazy(async () => {
   const { initializeLocalMonaco } = await import("./monaco-local");
@@ -10,6 +11,7 @@ const BundledEditor = lazy(async () => {
 
 /** Load the bundled editor on first use, after configuring its local loader. */
 export default function LocalEditor(props: EditorProps) {
+  const { t } = useI18n();
   const onChangeRef = useRef(props.onChange);
   const onMountRef = useRef(props.onMount);
   useLayoutEffect(() => {
@@ -30,7 +32,7 @@ export default function LocalEditor(props: EditorProps) {
     if (tabFocus?.isConnected) tabFocus.focus();
   }, []);
   return (
-    <Suspense fallback={<div role="status">Loading editor…</div>}>
+    <Suspense fallback={<div role="status">{t("Loading editor…")}</div>}>
       <BundledEditor {...props} onChange={props.onChange ? onChange : undefined} onMount={props.onMount ? onMount : undefined} />
     </Suspense>
   );
