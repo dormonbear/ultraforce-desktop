@@ -30,7 +30,7 @@ jobs:
           node-version: '22'
       - uses: dtolnay/rust-toolchain@stable
       - name: Install Salesforce CLI / 安装 Salesforce CLI
-        run: npm install --global @salesforce/cli@2.127.2
+        run: npm install --global @salesforce/cli@2.156.8
       - name: Run and clean up scratch tests / 运行并清理临时组织测试
         env:
           UF_SCRATCH_CI_DEV_HUB_AUTH_URL: ${{ secrets.UF_SCRATCH_CI_DEV_HUB_AUTH_URL }}

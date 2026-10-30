@@ -1,5 +1,6 @@
 import contextlib
 import io
+import re
 import subprocess
 import unittest
 from unittest import mock
@@ -26,6 +27,12 @@ class ScratchCiTests(unittest.TestCase):
              contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
             status = scratch.run(env)
         return status, runner.call_args_list, output.getvalue()
+
+    def test_workflow_pins_a_cli_without_the_redaction_override(self):
+        workflow = (scratch.ROOT / ".github" / "workflows" / "scratch-org-e2e.yml").read_text()
+        pinned = re.search(r"npm install --global @salesforce/cli@(\d+)\.(\d+)\.(\d+)(?:\s|$)", workflow)
+        self.assertIsNotNone(pinned, "Scratch CI must pin a CLI version / 临时组织 CI 必须固定 CLI 版本")
+        self.assertGreaterEqual(tuple(map(int, pinned.groups())), (2, 156, 8))
 
     def test_rejects_untrusted_context_or_missing_credential(self):
         for changes in (

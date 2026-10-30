@@ -8,11 +8,13 @@ The real-org suite runs only against an explicitly selected disposable scratch o
 
 1. Use a dedicated Dev Hub integration account with permission to create and delete scratch orgs. Store its Salesforce DX authorization URL in the GitHub Actions secret `UF_SCRATCH_CI_DEV_HUB_AUTH_URL`. Treat the URL as a credential; do not commit it or print it. See [Salesforce's CI authorization guide](https://developer.salesforce.com/docs/platform/sfdx-dev/guide/sfdx-dev-auth-url.html).
 2. Run the **Scratch-org integration** workflow manually on `main`. After the first successful real-org run, set the repository Actions variable `UF_SCRATCH_CI_ENABLED` to `true` to enable the weekly scheduled run. The schedule is otherwise skipped. A manual run without the secret fails explicitly.
-3. The workflow uses a randomly named Developer scratch org with a one-day expiry, deploys only the fixture, runs all 13 ignored live tests serially, and attempts deletion even when creation or testing fails. It is restricted to trusted `main` manual or scheduled runs; pull requests do not receive the credential. CLI telemetry and log files are disabled.
+3. The workflow uses a randomly named Developer scratch org with a one-day expiry, deploys only the fixture, runs all 14 ignored live tests serially, and attempts deletion even when creation or testing fails. It is restricted to trusted `main` manual or scheduled runs; pull requests do not receive the credential. CLI telemetry and log files are disabled.
+4. The workflow pins Salesforce CLI 2.156.8, which uses redacted org-display output; this exercises the dedicated access-token command during live REST tests. Older inline-token behavior remains covered by synthetic unit tests.
 
 1. 使用有权创建和删除临时组织的专用 Dev Hub 集成账号。将其 Salesforce DX 授权 URL 保存为 GitHub Actions 密钥 `UF_SCRATCH_CI_DEV_HUB_AUTH_URL`。该 URL 属于凭据，不要提交或打印。参见 [Salesforce CI 授权指南](https://developer.salesforce.com/docs/platform/sfdx-dev/guide/sfdx-dev-auth-url.html)。
 2. 在 `main` 上手动运行 **Scratch-org integration** 工作流。首次真实组织运行成功后，将仓库 Actions 变量 `UF_SCRATCH_CI_ENABLED` 设为 `true`，以启用每周定时运行；否则定时作业会跳过。手动运行缺少密钥时会明确失败。
-3. 工作流创建随机命名、一天后过期的 Developer 临时组织，仅部署夹具，串行运行全部 13 项默认跳过的真实测试，并在创建或测试失败时尝试删除。它仅允许可信的 `main` 手动或定时运行；拉取请求不会获得该凭据。CLI 遥测和日志文件均已禁用。
+3. 工作流创建随机命名、一天后过期的 Developer 临时组织，仅部署夹具，串行运行全部 14 项默认跳过的真实测试，并在创建或测试失败时尝试删除。它仅允许可信的 `main` 手动或定时运行；拉取请求不会获得该凭据。CLI 遥测和日志文件均已禁用。
+4. 工作流固定 Salesforce CLI 2.156.8，该版本会隐藏组织信息输出中的凭据；真实 REST 测试将覆盖专用访问令牌命令。旧版内联令牌行为仍由合成单元测试覆盖。
 
 Deletion is best effort: an interrupted runner or a creation timeout before the CLI records the alias can prevent deletion. The one-day expiration is a fallback, not proof of cleanup; investigate failed cleanup in the Dev Hub. CI does not upload CLI authentication files or logs.
 

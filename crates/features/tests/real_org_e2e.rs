@@ -11,15 +11,17 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
+    atomic::{AtomicBool, AtomicU64, Ordering},
     Arc,
 };
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use features::anon_apex::run_anon;
 use features::apex_complete::ApexCompleter;
-use features::soql::{complete_fields, diagnose, list_sobject_names, run_query, QueryOptions};
-use sf_core::{ProcessRunner, SfInvoker};
+use features::soql::{
+    complete_fields, diagnose, list_sobject_names, run_query, run_query_rest, QueryOptions,
+};
+use sf_core::{OrgRegistry, ProcessRunner, SfInvoker};
 use sf_schema::SchemaStore;
 
 fn explicit_org(value: Option<&str>) -> Result<String, &'static str> {
@@ -186,6 +188,44 @@ async fn e2e_run_soql_real() {
     assert!(
         table.columns.iter().any(|c| c == "Name"),
         "Name column expected"
+    );
+}
+
+/// Exercise the modern CLI token fallback through a real REST query.
+/// 使用真实 REST 查询验证现代 CLI 的令牌回退。
+#[tokio::test]
+#[ignore = "requires a live scratch org / 需要真实临时组织"]
+async fn e2e_run_soql_rest_with_cli_auth() {
+    let target = org();
+    let inv = invoker();
+    let display: serde_json::Value = inv
+        .run_json(&["org", "display", "--target-org", &target])
+        .await
+        .unwrap_or_else(|_| panic!("could not inspect org output / 无法检查组织输出"));
+    let displayed_token = display
+        .get("accessToken")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        displayed_token.is_empty() || displayed_token.chars().any(char::is_whitespace),
+        "CLI must redact the inline token / CLI 必须隐藏内联令牌"
+    );
+    let auth = OrgRegistry::auth_info(&inv, Some(&target))
+        .await
+        .unwrap_or_else(|_| panic!("could not obtain org auth / 无法获取组织认证信息"));
+    let result = run_query_rest(
+        &auth,
+        "SELECT Id FROM Account WHERE Name = 'UltraForce synthetic CI' LIMIT 1",
+        QueryOptions::default(),
+        &|_, _| {},
+        &AtomicBool::new(false),
+    )
+    .await
+    .unwrap_or_else(|_| panic!("REST query failed / REST 查询失败"));
+    assert!(result.done, "REST query must complete / REST 查询必须完成");
+    assert_eq!(
+        result.total_size, 1,
+        "synthetic Account is required / 需要合成 Account"
     );
 }
 
