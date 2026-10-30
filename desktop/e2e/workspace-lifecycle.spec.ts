@@ -89,6 +89,44 @@ async function save(page: Page) {
   await page.keyboard.press(mac ? "Meta+s" : "Control+s");
 }
 
+test.describe("Chinese save errors / 中文保存错误", () => {
+  test.use({ locale: "zh-CN" });
+
+  test("reports an already open file / 提示文件已打开", async ({ page }) => {
+    await start(page);
+    await page.getByRole("treeitem", { name: "accounts.soql" }).click();
+    await page.getByRole("button", { name: "新建标签" }).click();
+    await new MonacoEditor(page).setValueViaApi("SELECT Id FROM Contact");
+    await page.evaluate((path) => {
+      window.__workspaceIO.picked = path;
+    }, PATH);
+    await save(page);
+    await expect(
+      page.getByText("此文件已打开。请保存对应标签页或选择其他路径。", { exact: true }),
+    ).toBeVisible();
+  });
+
+  test("reports a file deleted during save / 提示保存时文件被删除", async ({ page }) => {
+    await start(page);
+    await page.getByRole("button", { name: "新建查询", exact: true }).click();
+    const editor = new MonacoEditor(page);
+    await editor.setValueViaApi("SELECT Id FROM Contact");
+    await page.evaluate((path) => {
+      window.__workspaceIO.picked = path;
+    }, PATH);
+    await hold(page, WRITE);
+    await save(page);
+    await waiting(page);
+    await page.getByRole("treeitem", { name: "accounts.soql" }).click({ button: "right" });
+    await page.getByRole("menuitem", { name: "删除", exact: true }).click();
+    await editor.setValueViaApi("SELECT Id FROM Opportunity");
+    await release(page);
+    await expect(page.getByText("保存时文件已被删除。请选择其他路径。", { exact: true })).toBeVisible();
+    await expect.poll(() => disk(page)).toBeNull();
+    await expect.poll(() => editor.text()).toBe("SELECT Id FROM Opportunity");
+  });
+});
+
 test("concurrent explorer opens share a slow disk read and one tab", async ({
   page,
 }) => {
