@@ -62,7 +62,7 @@ class NpmPropagationTest(unittest.TestCase):
         clock = Clock()
         with self.assertRaises(TimeoutError):
             wait_for_publication("1.2.3", has_version=lambda _version: False,
-                                 is_latest=lambda _version: self.fail("unexpected latest lookup"),
+                                 is_latest=lambda _version: self.fail("Unexpected latest lookup / 不应查询 latest"),
                                  clock=clock.clock, sleep=clock.sleep, timeout=10, interval=5)
         self.assertEqual(clock.sleeps, [5, 5])
 
@@ -91,12 +91,12 @@ class NpmPropagationTest(unittest.TestCase):
     def test_invalid_version_never_queries_or_sleeps(self):
         clock = Clock()
         with self.assertRaises(ValueError):
-            wait_for_publication("1.2.3-rc.1", has_version=lambda _version: self.fail("unexpected query"),
+            wait_for_publication("1.2.3-rc.1", has_version=lambda _version: self.fail("Unexpected query / 不应查询注册表"),
                                  clock=clock.clock, sleep=clock.sleep)
         self.assertEqual(clock.sleeps, [])
         for timeout, interval in ((0, 5), (5, 0)):
             with self.subTest(timeout=timeout, interval=interval), self.assertRaises(ValueError):
-                wait_for_publication("1.2.3", has_version=lambda _version: self.fail("unexpected query"),
+                wait_for_publication("1.2.3", has_version=lambda _version: self.fail("Unexpected query / 不应查询注册表"),
                                      clock=clock.clock, sleep=clock.sleep, timeout=timeout, interval=interval)
 
     def test_latest_only_accepts_valid_registry_responses(self):
