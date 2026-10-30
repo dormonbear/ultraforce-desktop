@@ -5,4 +5,5 @@ set -e
 # Node project lives in desktop/; hook runs from repo root.
 cd desktop
 pnpm exec oxlint src
-pnpm exec fallow audit
+# Disable Fallow telemetry for this repository's audit. / 为本仓库审计禁用 Fallow 遥测。
+FALLOW_TELEMETRY_DISABLED=1 pnpm exec fallow audit
