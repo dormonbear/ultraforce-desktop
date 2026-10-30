@@ -37,9 +37,7 @@ export function isApexLogAccessDenied(message: string): boolean {
   return /INVALID_TYPE/.test(message) && /'ApexLog' is not supported/.test(message);
 }
 
-export const APEX_LOG_ACCESS_HINT =
-  "This org user can't view debug logs: querying ApexLog requires the " +
-  '"View All Data" permission. Ask an admin to grant it (or use a user that has it), then Refresh.';
+export const APEX_LOG_ACCESS_HINT = 'This org user can\'t view debug logs: querying ApexLog requires the "View All Data" permission. Ask an admin to grant it (or use a user that has it), then Refresh.';
 
 /** SCREAMING_SNAKE → "Sentence case", e.g. MALFORMED_QUERY → "Malformed query". */
 function humanize(name: string): string {
