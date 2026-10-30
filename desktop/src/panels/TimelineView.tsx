@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n";
 import type { UnitDto } from "../types";
 import type { SourceRef } from "./sourceRef";
 import {
@@ -31,6 +32,7 @@ export function TimelineView({
   units: UnitDto[];
   onSource?: (r: SourceRef) => void;
 }) {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rects = useMemo(() => flameLayout(units.flatMap((u) => u.tree)), [units]);
   const span = useMemo(() => flameSpan(rects), [rects]);
@@ -256,7 +258,7 @@ export function TimelineView({
   if (rects.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        No execution tree
+        {t("No execution tree")}
       </div>
     );
   }
@@ -267,7 +269,7 @@ export function TimelineView({
         ref={miniRef}
         className="relative mb-1.5 h-8 w-full cursor-ew-resize overflow-hidden rounded bg-border/40"
         onMouseDown={onMiniDown}
-        aria-label="Scroll to zoom · drag to pan"
+        aria-label={t("Scroll to zoom · drag to pan")}
       >
         <div className="flex h-full w-full items-end">
           {sky.map((d, i) => (
@@ -292,9 +294,9 @@ export function TimelineView({
           onClick={() => setView(span)}
           className="focus-accent cursor-pointer rounded px-1.5 py-0.5 hover:text-foreground"
         >
-          Reset zoom
+          {t("Reset zoom")}
         </button>
-        <span>scroll to zoom · drag to pan</span>
+        <span>{t("scroll to zoom · drag to pan")}</span>
         <span className="ml-auto font-mono">
           {formatAxisTime(view.start - span.start)} – {formatAxisTime(view.end - span.start)}
         </span>
@@ -375,10 +377,10 @@ export function TimelineView({
               <div className="truncate font-medium text-foreground">{selected.label}</div>
               <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-text-dim">
                 <span>{selected.kind}</span>
-                <span>start {formatAxisTime(selected.x - span.start)}</span>
-                <span>end {formatAxisTime(selected.x + selected.w - span.start)}</span>
-                <span>duration {fmtDuration(selected.w)}</span>
-                <span>depth {selected.depth}</span>
+                <span>{t("start {time}", { time: formatAxisTime(selected.x - span.start) })}</span>
+                <span>{t("end {time}", { time: formatAxisTime(selected.x + selected.w - span.start) })}</span>
+                <span>{t("duration {time}", { time: fmtDuration(selected.w) })}</span>
+                <span>{t("depth {depth}", { depth: selected.depth })}</span>
               </div>
             </div>
             {selected.source && onSource && (
@@ -387,12 +389,12 @@ export function TimelineView({
                 onClick={() => onSource(selected.source as SourceRef)}
                 className="focus-accent h-7 cursor-pointer rounded border border-border px-2 text-[11px] text-text-dim hover:border-primary hover:text-primary"
               >
-                Open source
+                {t("Open source")}
               </button>
             )}
           </div>
         ) : (
-          <div className="text-text-dim">Select a flame block to inspect timing and source details.</div>
+          <div className="text-text-dim">{t("Select a flame block to inspect timing and source details.")}</div>
         )}
       </div>
     </div>
