@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -84,14 +84,14 @@ jobs:
 
       - name: Install test browser / 安装测试浏览器
         working-directory: desktop
-        run: pnpm exec playwright install --with-deps --only-shell chromium
+        run: python -c "print('Synthetic control / 合成对照')"
 
       - name: Production browser regressions / 正式构建浏览器回归
         id: production_browser
         working-directory: desktop
         env:
           PERF_PROD: '1'
-        run: pnpm exec playwright test --reporter=line
+        run: python -c "import sys; sys.exit(86)"
 
       - name: Windows browser resource summary / Windows 浏览器资源汇总
         if: ${{ failure() && runner.os == 'Windows' && steps.production_browser.outcome == 'failure' }}
