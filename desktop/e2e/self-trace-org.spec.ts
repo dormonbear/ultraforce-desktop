@@ -41,7 +41,7 @@ for (const language of ["en-US", "zh-CN"] as const) {
       test(`ignores old org ${phase} feedback / 忽略旧组织 ${phase} 反馈`, async ({ page }) => {
         await holdOldTrace(page, phase); await page.goto("/");
         await page.getByRole("button", { name: language === "zh-CN" ? "日志" : "Logs", exact: true }).click();
-        const trace = page.getByRole("button", { name: "Trace myself for 30 minutes", exact: true });
+        const trace = page.getByRole("button", { name: language === "zh-CN" ? "为自己跟踪 30 分钟" : "Trace myself for 30 minutes", exact: true });
         await expect(trace).toBeEnabled();
         if (phase !== "read") await trace.click();
         await expect.poll(() => page.evaluate(() => (window as unknown as Scope).__ufTracePending())).toBeGreaterThan(0);
