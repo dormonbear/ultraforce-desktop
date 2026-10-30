@@ -1,26 +1,67 @@
-//! Real end-to-end tests against a live Salesforce org (the `ultraforce` dev
-//! edition by default). These exercise the actual `sf` CLI → real org → real
-//! parse/describe path for every backend capability added in the UltraForce
-//! milestone. Ignored by default (they hit the network and one performs DML).
+//! Real end-to-end tests against an explicitly selected, disposable Salesforce
+//! scratch org. Ignored by default: they use the network and one performs DML.
+//! 针对明确指定的一次性 Salesforce 临时组织运行端到端测试。默认跳过：测试会访问网络，
+//! 其中一项会执行 DML。
 //!
-//! Run all:
-//!   cargo test -p features --test real_org_e2e -- --ignored --test-threads=1
-//! Override the target org:
-//!   UF_E2E_ORG=myalias cargo test -p features --test real_org_e2e -- --ignored
+//! Run after deploying the synthetic fixture and seeding its Account:
+//! 部署合成夹具并创建其 Account 后运行：
+//!   UF_E2E_ORG=my-scratch cargo test -p features --test real_org_e2e -- --ignored --test-threads=1
 //!
 //! Integration tests can use the crate's regular deps (soql-lang, sf-schema).
 
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Arc,
+};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use features::anon_apex::run_anon;
 use features::apex_complete::ApexCompleter;
-use features::soql::{complete_fields, diagnose, list_sobject_names, run_query, QueryOptions};
-use sf_core::{ProcessRunner, SfInvoker};
+use features::soql::{
+    complete_fields, diagnose, list_sobject_names, run_query, run_query_rest, QueryOptions,
+};
+use sf_core::{OrgRegistry, ProcessRunner, SfInvoker};
 use sf_schema::SchemaStore;
 
+fn explicit_org(value: Option<&str>) -> Result<String, &'static str> {
+    value.map(str::trim).filter(|s| !s.is_empty() && *s != "default")
+        .map(str::to_owned)
+        .ok_or("Set UF_E2E_ORG to an explicit disposable scratch org / 请将 UF_E2E_ORG 设为明确的一次性临时组织")
+}
+
 fn org() -> String {
-    std::env::var("UF_E2E_ORG").unwrap_or_else(|_| "ultraforce".to_string())
+    explicit_org(std::env::var("UF_E2E_ORG").ok().as_deref())
+        .expect("explicit scratch org required / 需要明确指定临时组织")
+}
+
+struct TestRoot(PathBuf);
+
+impl TestRoot {
+    fn new() -> Self {
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "uf-real-org-{}-{nanos}-{}",
+            std::process::id(),
+            SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir(&root).expect("create isolated test cache / 创建隔离测试缓存");
+        Self(root)
+    }
+
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for TestRoot {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
 }
 
 fn invoker() -> SfInvoker {
@@ -35,7 +76,11 @@ fn labels(cands: &[soql_lang::Candidate]) -> Vec<String> {
 #[tokio::test]
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_api_version_detected() {
-    let v = features::api_version::api_version_for(&invoker(), &org()).await;
+    let (v, detected) = features::api_version::api_version_for_checked(&invoker(), &org()).await;
+    assert!(
+        detected,
+        "version must come from the org / 版本必须来自组织"
+    );
     assert!(
         v.contains('.'),
         "api version should look like NN.0, got {v:?}"
@@ -60,11 +105,12 @@ async fn e2e_list_sobject_names() {
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_soql_completion_real() {
     let inv = invoker();
-    let root = SchemaStore::default_root();
+    let temp = TestRoot::new();
+    let root = temp.path();
 
     // SELECT position → real fields + a function + the FROM keyword (no object
     // list needed here).
-    let select = complete_fields(&inv, &root, &org(), "SELECT  FROM Account", 7, &[]).await;
+    let select = complete_fields(&inv, root, &org(), "SELECT  FROM Account", 7, &[]).await;
     let l = labels(&select);
     assert!(
         l.iter().any(|x| x == "Name"),
@@ -83,7 +129,7 @@ async fn e2e_soql_completion_real() {
     // FROM position → real object names filtered by the typed prefix (the caller
     // now owns the cached object list, mirroring the desktop app).
     let objects = list_sobject_names(&inv, &org()).await;
-    let from = complete_fields(&inv, &root, &org(), "SELECT Id FROM Acc", 18, &objects).await;
+    let from = complete_fields(&inv, root, &org(), "SELECT Id FROM Acc", 18, &objects).await;
     let lf = labels(&from);
     assert!(
         lf.iter().any(|x| x == "Account"),
@@ -101,12 +147,19 @@ async fn e2e_soql_completion_real() {
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_soql_diagnostics_real() {
     let inv = invoker();
-    let root = SchemaStore::default_root();
+    let temp = TestRoot::new();
+    let root = temp.path();
 
-    let bad = diagnose(&inv, &root, &org(), "SELECT NotARealField__c FROM Account").await;
+    let bad = diagnose(
+        &inv,
+        root,
+        &org(),
+        "SELECT NotARealField__c FROM Account LIMIT 1",
+    )
+    .await;
     assert!(!bad.is_empty(), "unknown field should be flagged");
 
-    let good = diagnose(&inv, &root, &org(), "SELECT Id, Name FROM Account").await;
+    let good = diagnose(&inv, root, &org(), "SELECT Id, Name FROM Account LIMIT 1").await;
     assert!(
         good.is_empty(),
         "valid fields should not be flagged: {good:?}"
@@ -119,7 +172,7 @@ async fn e2e_soql_diagnostics_real() {
 async fn e2e_run_soql_real() {
     let result = run_query(
         &invoker(),
-        "SELECT Id, Name FROM Account LIMIT 5",
+        "SELECT Id, Name FROM Account WHERE Name = 'UltraForce synthetic CI' LIMIT 5",
         Some(&org()),
         QueryOptions::default(),
     )
@@ -127,10 +180,52 @@ async fn e2e_run_soql_real() {
     .expect("run_soql should succeed");
     assert!(result.done, "query should be done");
     assert!(result.total_size <= 5, "LIMIT 5 should cap rows");
+    assert!(
+        result.total_size >= 1,
+        "synthetic Account is required / 需要合成 Account"
+    );
     let table = result.to_table();
     assert!(
         table.columns.iter().any(|c| c == "Name"),
         "Name column expected"
+    );
+}
+
+/// Exercise the modern CLI token fallback through a real REST query.
+/// 使用真实 REST 查询验证现代 CLI 的令牌回退。
+#[tokio::test]
+#[ignore = "requires a live scratch org / 需要真实临时组织"]
+async fn e2e_run_soql_rest_with_cli_auth() {
+    let target = org();
+    let inv = invoker();
+    let display: serde_json::Value = inv
+        .run_json(&["org", "display", "--target-org", &target])
+        .await
+        .unwrap_or_else(|_| panic!("could not inspect org output / 无法检查组织输出"));
+    let displayed_token = display
+        .get("accessToken")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    assert!(
+        displayed_token.is_empty() || displayed_token.chars().any(char::is_whitespace),
+        "CLI must redact the inline token / CLI 必须隐藏内联令牌"
+    );
+    let auth = OrgRegistry::auth_info(&inv, Some(&target))
+        .await
+        .unwrap_or_else(|_| panic!("could not obtain org auth / 无法获取组织认证信息"));
+    let result = run_query_rest(
+        &auth,
+        "SELECT Id FROM Account WHERE Name = 'UltraForce synthetic CI' LIMIT 1",
+        QueryOptions::default(),
+        &|_, _| {},
+        &AtomicBool::new(false),
+    )
+    .await
+    .unwrap_or_else(|_| panic!("REST query failed / REST 查询失败"));
+    assert!(result.done, "REST query must complete / REST 查询必须完成");
+    assert_eq!(
+        result.total_size, 1,
+        "synthetic Account is required / 需要合成 Account"
     );
 }
 
@@ -151,29 +246,51 @@ async fn e2e_run_apex_debug() {
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_schema_cache_clear() {
     let inv = invoker();
-    let root = SchemaStore::default_root();
-    let api = features::api_version::api_version_for(&inv, &org()).await;
+    let temp = TestRoot::new();
+    let target = org();
+    let api = features::api_version::api_version_for(&inv, &target).await;
+    verify_schema_cache_clear(&inv, temp.path(), &target, &api).await;
+}
 
-    let mut s1 = SchemaStore::new(&root, org());
+async fn verify_schema_cache_clear(inv: &SfInvoker, root: &Path, target: &str, api: &str) {
+    let mut s1 = SchemaStore::new(root, target);
     let schema = s1
-        .get_or_fetch(&inv, &api, "Account")
+        .get_or_fetch(inv, api, "Account")
         .await
         .expect("describe Account");
     assert!(!schema.fields.is_empty(), "Account should have fields");
 
-    let mut s2 = SchemaStore::new(&root, org());
+    let mut s2 = SchemaStore::new(root, target);
     let removed = s2.clear().expect("clear should succeed");
     assert!(
         removed >= 1,
         "clear should remove >=1 cached object, got {removed}"
     );
+    assert!(
+        !sf_schema::sqlite::db_path(root, target).exists(),
+        "cache database is removed / 缓存数据库已移除"
+    );
+    assert!(
+        s2.load_disk(api, "Account").unwrap().is_none(),
+        "cleared schema cannot be loaded / 已清除的架构无法读取"
+    );
+}
+
+#[tokio::test]
+async fn synthetic_on_demand_schema_cache_can_be_cleared() {
+    let temp = TestRoot::new();
+    let inv = SfInvoker::new(Arc::new(sf_core::runner::MockRunner::ok_json(
+        include_str!("../../sf-schema/tests/fixtures/describe_account.json"),
+    )));
+    verify_schema_cache_clear(&inv, temp.path(), "synthetic", "60.0").await;
 }
 
 /// Apex completion drives the real OST + on-demand sObject describe.
 #[tokio::test]
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_apex_completion_sobject() {
-    let completer = ApexCompleter::with_default_root();
+    let temp = TestRoot::new();
+    let completer = ApexCompleter::new(temp.path());
     // `Account a; a.Na` — receiver `a` resolves to the Account sObject, whose
     // describe is fetched on demand (no bulk org-class fetch).
     let src = "Account a; a.Na";
@@ -191,15 +308,16 @@ async fn e2e_apex_completion_sobject() {
 #[tokio::test]
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_apex_top_level_class_names() {
-    let completer = ApexCompleter::with_default_root();
-    let src = "Experience";
+    let temp = TestRoot::new();
+    let completer = ApexCompleter::new(temp.path());
+    let src = "UfE2e";
     let cands = completer
         .complete(&invoker(), &org(), src, src.len(), &[])
         .await
         .expect("apex completion should succeed");
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
     assert!(
-        l.contains(&"ExperienceController"),
+        l.contains(&"UfE2eFixture"),
         "org class name should complete at top level: {l:?}"
     );
 }
@@ -209,23 +327,24 @@ async fn e2e_apex_top_level_class_names() {
 #[tokio::test]
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_apex_class_member_on_demand() {
-    let completer = ApexCompleter::with_default_root();
+    let temp = TestRoot::new();
+    let completer = ApexCompleter::new(temp.path());
     // Empty prefix — the `.` trigger fires with nothing typed yet.
-    let src = "ExperienceController.";
+    let src = "UfE2eFixture.";
     let cands = completer
         .complete(&invoker(), &org(), src, src.len(), &[])
         .await
         .expect("apex completion should succeed");
     let l: Vec<&str> = cands.iter().map(|c| c.label.as_str()).collect();
     assert!(
-        l.contains(&"getExperiences"),
+        l.contains(&"fixtureValue"),
         "static member should complete on `.` with empty prefix: {l:?}"
     );
 }
 
-/// #DML — insert → query → delete round-trip via the app's real command surface.
-/// Cleanup (delete) runs BEFORE the assertions so a failed assert never leaks
-/// the test record.
+/// #DML — insert → query → delete through the real command surface. After a
+/// successful insert, attempt deletion even when the first query fails.
+/// #DML — 通过真实命令界面完成插入、查询和删除。插入成功后，即使首次查询失败也尝试删除。
 #[tokio::test]
 #[ignore = "hits the live org and performs DML; run with --ignored"]
 async fn e2e_dml_insert_query_delete() {
@@ -251,29 +370,14 @@ async fn e2e_dml_insert_query_delete() {
         ins.result.error()
     );
 
-    // Query for it.
-    let q1 = run_query(
-        &inv,
-        &format!("SELECT Id, Name FROM Account WHERE Name = '{marker}'"),
-        Some(&o),
-        QueryOptions::default(),
-    )
-    .await
-    .expect("post-insert query");
-
-    // Clean up FIRST (so assertion failures below never leak the record).
-    let del = run_anon(
-        &inv,
-        &format!("delete [SELECT Id FROM Account WHERE Name = '{marker}'];"),
-        Some(&o),
-    )
-    .await
-    .expect("delete call");
+    let (q1, del) = query_then_delete(&inv, &o, &marker).await;
+    let del = del.expect("delete call");
     assert!(
         del.result.success,
         "delete failed: {:?}",
         del.result.error()
     );
+    let q1 = q1.expect("post-insert query");
 
     // Verify the delete actually removed it.
     let q2 = run_query(
@@ -292,6 +396,30 @@ async fn e2e_dml_insert_query_delete() {
     assert_eq!(q2.total_size, 0, "record should be gone after delete");
 }
 
+async fn query_then_delete(
+    inv: &SfInvoker,
+    org: &str,
+    marker: &str,
+) -> (
+    Result<features::soql::QueryResult, sf_core::SfError>,
+    Result<features::anon_apex::AnonApexOutcome, sf_core::SfError>,
+) {
+    let query = run_query(
+        inv,
+        &format!("SELECT Id, Name FROM Account WHERE Name = '{marker}'"),
+        Some(org),
+        QueryOptions::default(),
+    )
+    .await;
+    let cleanup = run_anon(
+        inv,
+        &format!("delete [SELECT Id FROM Account WHERE Name = '{marker}'];"),
+        Some(org),
+    )
+    .await;
+    (query, cleanup)
+}
+
 /// Offline index (reference-plugin-style) — the full index runs end-to-end against the live
 /// org: stdlib + every Apex class + every sObject (8-concurrent describes),
 /// persisted to a snapshot that reloads identically, then served with ZERO
@@ -302,8 +430,8 @@ async fn e2e_dml_insert_query_delete() {
 async fn e2e_index_org_offline() {
     let inv = invoker();
     let o = org();
-    let root = std::env::temp_dir().join(format!("uf-e2e-index-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let temp = TestRoot::new();
+    let root = temp.path().to_path_buf();
 
     let context = features::metadata_context::resolve(&inv, &root, &o)
         .await
@@ -372,8 +500,6 @@ async fn e2e_index_org_offline() {
         cands.iter().any(|c| c.label == "Name"),
         "offline Account.Name missing: {cands:?}"
     );
-
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// Delta sync against a live org with a future watermark = no changed classes,
@@ -382,36 +508,13 @@ async fn e2e_index_org_offline() {
 #[tokio::test]
 #[ignore = "hits the live org; run with --ignored"]
 async fn e2e_sync_org_noop() {
-    use apex_lang::symbols::{ApexType, Ost};
     let inv = invoker();
     let o = org();
-    let root = std::env::temp_dir().join(format!("uf-e2e-sync-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let temp = TestRoot::new();
+    let root = temp.path().to_path_buf();
 
     let api = features::api_version::api_version_for(&inv, &o).await;
-    let seeded = Ost {
-        namespaces: vec![],
-        org_types: vec![
-            ApexType {
-                name: "Account".into(),
-                ..Default::default()
-            },
-            ApexType {
-                name: "ZzzNotARealType".into(),
-                ..Default::default()
-            },
-        ],
-    };
-    let m = apex_lang::IndexManifest {
-        org_id: o.clone(),
-        api_version: api.clone(),
-        indexed_at: "2999-01-01T00:00:00Z".into(),
-        namespaces: 0,
-        classes: 0,
-        sobjects: 0,
-        stdlib_error: None,
-    };
-    apex_lang::save_snapshot(&root, &seeded, &m).unwrap();
+    seed_sync_fixture(&root, &o, &api).unwrap();
 
     let (outcome, ost) = features::index::sync_org(
         &inv,
@@ -437,5 +540,147 @@ async fn e2e_sync_org_noop() {
 
     let (_, m2) = apex_lang::load_snapshot(&root, &o, &api).unwrap();
     assert_ne!(m2.indexed_at, "2999-01-01T00:00:00Z", "watermark advanced");
-    let _ = std::fs::remove_dir_all(&root);
+}
+
+fn seed_sync_fixture(root: &std::path::Path, org: &str, api: &str) -> std::io::Result<()> {
+    use apex_lang::symbols::{ApexType, Ost};
+    let schemas = ["Account", "ZzzNotARealType"].map(|name| sf_schema::SObjectSchema {
+        name: name.to_owned(),
+        ..Default::default()
+    });
+    let seeded = Ost {
+        namespaces: vec![],
+        org_types: vec![
+            ApexType {
+                name: "Account".into(),
+                ..Default::default()
+            },
+            ApexType {
+                name: "ZzzNotARealType".into(),
+                ..Default::default()
+            },
+        ],
+    };
+    let m = apex_lang::IndexManifest {
+        org_id: org.to_owned(),
+        api_version: api.to_owned(),
+        indexed_at: "2999-01-01T00:00:00Z".into(),
+        namespaces: 0,
+        classes: 0,
+        sobjects: schemas.len(),
+        stdlib_error: None,
+    };
+    let token = apex_lang::snapshot::generation_token(root, org)?;
+    apex_lang::snapshot::save_generation(root, &seeded, &m, &schemas, true, Some(&[]), &token)
+}
+
+#[test]
+fn synthetic_delta_fixture_has_sync_provenance() {
+    let temp = TestRoot::new();
+    seed_sync_fixture(temp.path(), "synthetic", "60.0").unwrap();
+    let loaded = apex_lang::snapshot::load_sync_snapshot(temp.path(), "synthetic", "60.0");
+    let loaded = loaded
+        .expect("fixture has provenance / 夹具包含来源信息")
+        .unwrap();
+    assert_eq!(loaded.schemas.len(), 2);
+    assert!(loaded.sources.is_empty());
+}
+
+#[tokio::test]
+async fn synthetic_delta_fixture_reconciles_with_mocked_org() {
+    use sf_core::{runner::MockRunner, RawOutput};
+
+    let temp = TestRoot::new();
+    seed_sync_fixture(temp.path(), "synthetic", "60.0").unwrap();
+    let inv = SfInvoker::new(Arc::new(MockRunner::new(|_, args| {
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--target-org", "synthetic"]));
+        let value = if args.iter().any(|arg| arg == "sobject") {
+            serde_json::json!(["Account"])
+        } else if args
+            .iter()
+            .any(|arg| arg == "SELECT Name, NamespacePrefix FROM ApexClass")
+        {
+            serde_json::json!({"done": true, "totalSize": 1, "records": [
+                {"Name": "UfE2eFixture", "NamespacePrefix": null}
+            ]})
+        } else {
+            assert!(args
+                .iter()
+                .any(|arg| arg.contains("LastModifiedDate > 2999-01-01")));
+            serde_json::json!({"done": true, "totalSize": 0, "records": []})
+        };
+        Ok(RawOutput {
+            status: 0,
+            stdout: serde_json::json!({"status": 0, "result": value}).to_string(),
+            stderr: String::new(),
+        })
+    })));
+    let result = features::index::sync_org(
+        &inv,
+        temp.path().to_path_buf(),
+        "synthetic",
+        "60.0",
+        &features::index::NamespacePolicy::All,
+    )
+    .await;
+    let (outcome, ost) = result.expect("synthetic sync succeeds / 合成同步成功");
+    assert_eq!((outcome.added, outcome.updated, outcome.removed), (0, 0, 1));
+    assert!(ost.org_types.iter().any(|ty| ty.name == "Account"));
+    assert!(!ost.org_types.iter().any(|ty| ty.name == "ZzzNotARealType"));
+}
+
+#[test]
+fn live_org_requires_an_explicit_non_default_target() {
+    for value in [None, Some(""), Some("   "), Some("default")] {
+        assert!(explicit_org(value).is_err());
+    }
+    assert_eq!(explicit_org(Some(" scratch ")).unwrap(), "scratch");
+}
+
+#[test]
+fn live_org_cache_roots_are_isolated_and_cleaned_up() {
+    let first_path;
+    {
+        let first = TestRoot::new();
+        let second = TestRoot::new();
+        assert_ne!(first.path(), second.path());
+        first_path = first.path().to_path_buf();
+        std::fs::write(first.path().join("synthetic"), "fixture").unwrap();
+        assert!(!second.path().join("synthetic").exists());
+    }
+    assert!(!first_path.exists());
+}
+
+#[tokio::test]
+async fn dml_cleanup_is_attempted_when_post_insert_query_fails() {
+    use sf_core::{runner::MockRunner, RawOutput, SfError};
+    use std::sync::atomic::AtomicBool;
+    let cleaned = Arc::new(AtomicBool::new(false));
+    let observed = Arc::clone(&cleaned);
+    let inv = SfInvoker::new(Arc::new(MockRunner::new(move |_, args| {
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["--target-org", "synthetic"]));
+        if args.first().is_some_and(|arg| arg == "data") {
+            return Err(SfError::NotFound);
+        }
+        let path = args.iter().position(|arg| arg == "-f").unwrap();
+        let source = std::fs::read_to_string(&args[path + 1]).unwrap();
+        assert_eq!(
+            source,
+            "delete [SELECT Id FROM Account WHERE Name = 'UF_E2E_123'];"
+        );
+        observed.store(true, Ordering::SeqCst);
+        Ok(RawOutput {
+            status: 0,
+            stdout: r#"{"status":0,"result":{"compiled":true,"success":true}}"#.into(),
+            stderr: String::new(),
+        })
+    })));
+    let (query, cleanup) = query_then_delete(&inv, "synthetic", "UF_E2E_123").await;
+    assert!(query.is_err());
+    assert!(cleanup.unwrap().result.success);
+    assert!(cleaned.load(Ordering::SeqCst));
 }
