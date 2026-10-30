@@ -56,21 +56,23 @@ class BrowserResourceSummaryTest(unittest.TestCase):
         self.assertIn("连接状态", lines[0])
         self.assertEqual(lines[1:], [f"{state}: {counts()[state]}" for state in STATES])
 
-    def test_unavailable_summary_does_not_print_raw_errors_or_fail_the_job(self):
-        out, err = io.StringIO(), io.StringIO()
-        def fail(): raise ValueError("private.example.invalid")
-        with redirect_stdout(out), redirect_stderr(err):
-            result = main(environment={"GITHUB_ACTIONS": "true", "RUNNER_OS": "Windows"}, collector=fail)
-        self.assertEqual(result, 0)
-        self.assertIn("不可用", err.getvalue())
-        self.assertNotIn("private.example.invalid", out.getvalue() + err.getvalue())
+    def test_unavailable_summary_fails_without_printing_raw_errors(self):
+        for error in (ValueError("private.example.invalid"), OSError("private.example.invalid"),
+                      subprocess.TimeoutExpired("private.example.invalid", 30)):
+            out, err = io.StringIO(), io.StringIO()
+            def fail(): raise error
+            with self.subTest(error=type(error).__name__), redirect_stdout(out), redirect_stderr(err):
+                result = main(environment={"GITHUB_ACTIONS": "true", "RUNNER_OS": "Windows"}, collector=fail)
+                self.assertEqual(result, 1)
+                self.assertIn("不可用", err.getvalue())
+                self.assertNotIn("private.example.invalid", out.getvalue() + err.getvalue())
 
     def test_invalid_collector_result_is_not_printed(self):
         out, err = io.StringIO(), io.StringIO()
         value = {**counts(), STATES[0]: "private.example.invalid"}
         with redirect_stdout(out), redirect_stderr(err):
             result = main(environment={"GITHUB_ACTIONS": "true", "RUNNER_OS": "Windows"}, collector=lambda: value)
-        self.assertEqual(result, 0)
+        self.assertEqual(result, 1)
         self.assertNotIn("private.example.invalid", out.getvalue() + err.getvalue())
         self.assertIn("不可用", err.getvalue())
 

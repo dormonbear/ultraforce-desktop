@@ -58,7 +58,7 @@ def main(*, environment=None, collector=None):
         value = validate_counts((collector or collect_counts)())
     except (ValueError, TypeError, OSError, subprocess.SubprocessError):
         print("Windows CI socket summary unavailable / Windows CI socket 汇总不可用", file=sys.stderr)
-        return 0
+        return 1
     print("GitHub Windows TCP state counts / GitHub Windows TCP 连接状态计数")
     for state in STATES:
         print(f"{state}: {value[state]}")
