@@ -219,3 +219,24 @@ jobs:
       - name: Publish @dormon/ultraforce-mcp
         working-directory: npm
         run: npm publish --provenance --access public
+
+  # Keep queued releases waiting until npm has propagated. / 等待 npm 同步完成后再继续排队的发布。
+  verify-npm-propagation:
+    needs: [publish-npm, recover-npm]
+    if: >-
+      ${{ !cancelled() &&
+          (needs.publish-npm.result == 'success' || needs.publish-npm.result == 'failure' ||
+           needs.recover-npm.result == 'success' || needs.recover-npm.result == 'failure') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify npm propagation / 验证 npm 发布同步
+        run: python scripts/wait_npm_version.py
