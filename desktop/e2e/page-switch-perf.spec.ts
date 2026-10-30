@@ -1,7 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { writeFileSync } from "node:fs";
+import { basename } from "node:path";
+import { fileURLToPath } from "node:url";
 import os from "node:os";
 import { gotoApp } from "./fixtures";
+import { documentationArtifactPath } from "./documentation-artifact-path.mjs";
 import {
   perfInitScript,
   measureClick,
@@ -43,8 +46,8 @@ const SAMPLES = 30;
 // baseline doc in afterAll.
 const results: SeriesStats[] = [];
 
-// PERF_PROD=1 runs against a minified `vite preview` build; write its numbers to
-// a separate file so the acceptance-gate run never clobbers the dev baseline.
+// Keep production and development reports separate; `-u` explicitly updates docs.
+// 分别保存正式和开发报告；使用 `-u` 显式更新文档。
 const PROD = !!process.env.PERF_PROD;
 const BASELINE_PATH = PROD
   ? "../../docs/superpowers/plans/2026-07-11-page-switch-perf-baseline-prod.md"
@@ -369,7 +372,7 @@ test("continuous switching SOQL ↔ Schema ↔ Logs (long-task gate)", async ({ 
 });
 
 // ── Persist the baseline doc ──────────────────────────────────────────────────
-test.afterAll(() => {
+test.afterAll(({}, testInfo) => {
   if (results.length === 0) return;
   const cpu = os.cpus()[0]?.model ?? "unknown";
   const mem = `${Math.round(os.totalmem() / 1024 / 1024 / 1024)} GB`;
@@ -437,5 +440,6 @@ ${table}
   FieldTable / picklist render eagerly). Add once Step 3/5 introduce virtualizers.
 `;
 
-  writeFileSync(new URL(BASELINE_PATH, import.meta.url), doc, "utf8");
+  const docsPath = fileURLToPath(new URL(BASELINE_PATH, import.meta.url));
+  writeFileSync(documentationArtifactPath(testInfo, docsPath, basename(BASELINE_PATH)), doc, "utf8");
 });
