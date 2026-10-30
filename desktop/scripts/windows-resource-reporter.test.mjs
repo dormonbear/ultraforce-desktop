@@ -74,11 +74,22 @@ test("captures an unexpected timeout / 采集意外超时", () => {
   assert.match(output.join(""), /First unexpected browser failure/);
 });
 
+function browserStep(workflow) {
+  return workflow.replaceAll("\r\n", "\n").split("      - name: Production browser regressions / 正式构建浏览器回归\n", 2)[1].split("\n      - name:", 1)[0];
+}
+
 test("CI explicitly registers the reporter with the production browser step / CI 在正式浏览器步骤明确注册报告器", () => {
   const workflow = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
-  const browser = workflow.split("      - name: Production browser regressions / 正式构建浏览器回归\n", 2)[1].split("\n      - name:", 1)[0];
+  const browser = browserStep(workflow);
   assert.match(browser, /PERF_PROD: '1'/);
   assert.match(browser, /--reporter=line,\.\/e2e\/windows-resource-reporter\.mjs/);
+});
+
+test("workflow inspection accepts LF and CRLF / 工作流检查支持 LF 和 CRLF 换行", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8").replaceAll("\r\n", "\n");
+  for (const source of [workflow, workflow.replaceAll("\n", "\r\n")]) {
+    assert.match(browserStep(source), /--reporter=line,\.\/e2e\/windows-resource-reporter\.mjs/);
+  }
 });
 
 test("Playwright reports promptly and still runs later tests after failure / Playwright 及时汇总且失败后继续运行后续测试", () => {
