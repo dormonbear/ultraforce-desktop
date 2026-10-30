@@ -207,22 +207,42 @@ async fn e2e_run_apex_debug() {
 async fn e2e_schema_cache_clear() {
     let inv = invoker();
     let temp = TestRoot::new();
-    let root = temp.path();
-    let api = features::api_version::api_version_for(&inv, &org()).await;
+    let target = org();
+    let api = features::api_version::api_version_for(&inv, &target).await;
+    verify_schema_cache_clear(&inv, temp.path(), &target, &api).await;
+}
 
-    let mut s1 = SchemaStore::new(root, org());
+async fn verify_schema_cache_clear(inv: &SfInvoker, root: &Path, target: &str, api: &str) {
+    let mut s1 = SchemaStore::new(root, target);
     let schema = s1
-        .get_or_fetch(&inv, &api, "Account")
+        .get_or_fetch(inv, api, "Account")
         .await
         .expect("describe Account");
     assert!(!schema.fields.is_empty(), "Account should have fields");
 
-    let mut s2 = SchemaStore::new(root, org());
+    let mut s2 = SchemaStore::new(root, target);
     let removed = s2.clear().expect("clear should succeed");
     assert!(
         removed >= 1,
         "clear should remove >=1 cached object, got {removed}"
     );
+    assert!(
+        !sf_schema::sqlite::db_path(root, target).exists(),
+        "cache database is removed / 缓存数据库已移除"
+    );
+    assert!(
+        s2.load_disk(api, "Account").unwrap().is_none(),
+        "cleared schema cannot be loaded / 已清除的架构无法读取"
+    );
+}
+
+#[tokio::test]
+async fn synthetic_on_demand_schema_cache_can_be_cleared() {
+    let temp = TestRoot::new();
+    let inv = SfInvoker::new(Arc::new(sf_core::runner::MockRunner::ok_json(
+        include_str!("../../sf-schema/tests/fixtures/describe_account.json"),
+    )));
+    verify_schema_cache_clear(&inv, temp.path(), "synthetic", "60.0").await;
 }
 
 /// Apex completion drives the real OST + on-demand sObject describe.
