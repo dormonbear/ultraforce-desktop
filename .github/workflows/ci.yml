@@ -97,6 +97,10 @@ jobs:
         if: ${{ failure() && runner.os == 'Windows' && steps.production_browser.outcome == 'failure' }}
         run: python scripts/report_windows_browser_resources.py
 
+      - name: Windows browser resource summary / Windows 浏览器资源汇总
+        if: ${{ failure() && runner.os == 'Windows' && steps.production_browser.outcome == 'failure' }}
+        run: python scripts/report_windows_browser_resources.py
+
       - name: Browser run preserves documentation / 浏览器运行保留文档
         shell: bash
         run: |
