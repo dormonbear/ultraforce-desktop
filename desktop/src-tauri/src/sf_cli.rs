@@ -22,13 +22,20 @@ fn cli_state(meets_min: Option<bool>, probe_found: bool) -> &'static str {
 #[cfg(unix)]
 async fn probe_sf_via_login_shell() -> Option<String> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+    probe_sf_via_shell(shell.as_ref(), std::time::Duration::from_secs(5)).await
+}
+
+#[cfg(unix)]
+async fn probe_sf_via_shell(
+    shell: &std::ffi::OsStr,
+    timeout: std::time::Duration,
+) -> Option<String> {
     let fut = tokio::process::Command::new(shell)
+        // Stop the probe when the timeout drops its future. / 超时丢弃 future 时停止探测进程。
+        .kill_on_drop(true)
         .args(["-ilc", "command -v sf"])
         .output();
-    let out = tokio::time::timeout(std::time::Duration::from_secs(5), fut)
-        .await
-        .ok()?
-        .ok()?;
+    let out = tokio::time::timeout(timeout, fut).await.ok()?.ok()?;
     let path = String::from_utf8_lossy(&out.stdout).trim().to_string();
     (out.status.success() && !path.is_empty()).then_some(path)
 }
@@ -120,6 +127,48 @@ pub(crate) async fn login_org(
 #[cfg(test)]
 mod tests {
     use super::{build_login_args, cli_state};
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn shell_probe_returns_the_trimmed_path() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("synthetic-shell");
+        std::fs::write(&script, "#!/bin/sh\nprintf '  /synthetic/sf  \\n'\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        assert_eq!(
+            super::probe_sf_via_shell(script.as_os_str(), Duration::from_secs(1)).await,
+            Some("/synthetic/sf".to_string())
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn timed_out_shell_probe_stops_the_shell() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("synthetic-shell");
+        std::fs::write(
+            &script,
+            "#!/bin/sh\nprintf x > \"${0%/*}/started\"\n/bin/sleep 2\nprintf x > \"${0%/*}/finished\"\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700)).unwrap();
+
+        let found = super::probe_sf_via_shell(script.as_os_str(), Duration::from_secs(1)).await;
+        assert!(found.is_none());
+        assert!(dir.path().join("started").exists());
+        tokio::time::sleep(Duration::from_millis(2500)).await;
+        assert!(
+            !dir.path().join("finished").exists(),
+            "the timed-out shell continued to run / 超时后的 shell 仍在运行"
+        );
+    }
 
     #[test]
     fn cli_state_classifies_each_case() {
