@@ -1,4 +1,5 @@
 import { groupByFingerprint, totalNs } from "../queryStats";
+import { useI18n } from "../../i18n";
 import { formatMs } from "./format";
 import type { StatementDto, UnitDto } from "../../types";
 
@@ -6,11 +7,12 @@ import type { StatementDto, UnitDto } from "../../types";
  * total DB time (hotspot first). Count > 1 is the N+1 signal. */
 // fallow-ignore-next-line complexity
 export function QueriesView({ units }: { units: UnitDto[] }) {
+  const { t } = useI18n();
   const all = units.flatMap((u) => u.statements);
   if (all.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        No SOQL or DML
+        {t("No SOQL or DML")}
       </div>
     );
   }
@@ -26,19 +28,19 @@ export function QueriesView({ units }: { units: UnitDto[] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="text-[12px] text-text-dim">
-        <span className="text-foreground">{soql.length}</span> SOQL ({sumRows(soql)} rows
+        <span className="text-foreground">{soql.length}</span> SOQL ({t("{count} rows", { count: sumRows(soql) })}
         {soqlNs > 0 ? `, ${formatMs(soqlNs)}` : ""})
         {" · "}
-        <span className="text-foreground">{dml.length}</span> DML ({sumRows(dml)} rows
+        <span className="text-foreground">{dml.length}</span> DML ({t("{count} rows", { count: sumRows(dml) })}
         {dmlNs > 0 ? `, ${formatMs(dmlNs)}` : ""})
       </div>
       <table className="w-full text-[12px]">
         <thead>
           <tr className="fjord-th border-b border-border">
-            <th className="py-1 text-left">Statement</th>
-            <th className="whitespace-nowrap px-1.5 py-1 text-right">Time</th>
+            <th className="py-1 text-left">{t("Statement")}</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right">{t("Time")}</th>
             <th className="whitespace-nowrap px-1.5 py-1 text-right">×</th>
-            <th className="whitespace-nowrap px-1.5 py-1 text-right">Rows</th>
+            <th className="whitespace-nowrap px-1.5 py-1 text-right">{t("Rows")}</th>
           </tr>
         </thead>
         <tbody>
