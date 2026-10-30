@@ -7,9 +7,19 @@ const viteRequire = createRequire(require.resolve('@tailwindcss/vite'));
 const nodeRequire = createRequire(viteRequire.resolve('@tailwindcss/node'));
 const { SourceMapConsumer, SourceNode } = nodeRequire('source-map-js');
 const { toSourceMap } = viteRequire('@tailwindcss/node');
-const postcss = createRequire(require.resolve('vite'))('postcss');
+const vitePostcssRequire = createRequire(require.resolve('vite'));
+const postcss = vitePostcssRequire('postcss');
 const flatMap = () => ({ version: 3, sources: ['fixture.css'], sourcesContent: ['x;\n'], names: [], mappings: 'AAAA' });
 const indexedMap = (offset, map = flatMap()) => ({ version: 3, sections: [{ offset: { line: offset, column: 0 }, map }] });
+
+test('Vite resolves a patched PostCSS release / Vite 解析到已修复的 PostCSS 版本', () => {
+  const version = vitePostcssRequire('postcss/package.json').version;
+  const parts = /^(\d+)\.(\d+)\.(\d+)$/.exec(version);
+  assert.ok(parts, `Expected a stable PostCSS version, got ${version} / PostCSS 版本应为稳定版：${version}`);
+  const [major, minor, patch] = parts.slice(1).map(Number);
+  assert.ok(major > 8 || (major === 8 && (minor > 5 || (minor === 5 && patch >= 23))),
+    `PostCSS must be at least 8.5.23, got ${version} / PostCSS 版本至少应为 8.5.23：${version}`);
+});
 
 test('source-node work stays bounded past generated code / 超出生成代码后 source-node 工作量保持有界', () => {
   const consumer = new SourceMapConsumer(indexedMap(200));
