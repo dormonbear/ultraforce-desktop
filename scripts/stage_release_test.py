@@ -24,6 +24,8 @@ class FakeGitHub:
         self.mutate_before_upload = False
         self.mutate_after_upload = False
         self.mutate_after_publish = False
+        self.change_draft_identity = False
+        self.change_target_after_upload = False
         self.metadata_reads = 0
         self.release_id = "42\n"
 
@@ -35,8 +37,14 @@ class FakeGitHub:
             self.metadata_reads += 1
             if self.mutate_before_upload and self.metadata_reads == 2:
                 self.metadata["assets"].pop()
+            if self.change_draft_identity and self.metadata_reads == 2:
+                self.metadata["html_url"] = self.metadata["html_url"].replace("0123456789abcdef0123", "fedcba9876543210fedc")
+                for asset in self.metadata["assets"]:
+                    asset["browser_download_url"] = asset["browser_download_url"].replace("0123456789abcdef0123", "fedcba9876543210fedc")
             if self.mutate_after_upload and self.metadata_reads == 3:
                 self.metadata["assets"][0]["digest"] = "sha256:" + "b" * 64
+            if self.change_target_after_upload and self.metadata_reads == 3:
+                self.metadata["target_commitish"] = "b" * 40
             if self.mutate_after_publish and self.metadata_reads == 4:
                 self.metadata["assets"][0]["digest"] = "sha256:" + "b" * 64
             return json.dumps(self.metadata)
@@ -57,10 +65,11 @@ class FakeGitHub:
         if args[:2] == ("release", "upload"):
             assert self.metadata["draft"] and "--clobber" not in args
             self.latest = Path(args[3]).read_bytes()
+            release_ref = self.metadata.get("html_url", "https://github.com/dormonbear/ultraforce-desktop/releases/tag/v1.2.3").rsplit("/", 1)[-1]
             self.metadata["assets"].append({
                 "name": "latest.json", "size": len(self.latest), "state": "uploaded",
                 "digest": "sha256:" + hashlib.sha256(self.latest).hexdigest(),
-                "browser_download_url": "https://github.com/dormonbear/ultraforce-desktop/releases/download/v1.2.3/latest.json",
+                "browser_download_url": f"https://github.com/dormonbear/ultraforce-desktop/releases/download/{release_ref}/latest.json",
             })
             if self.fail_after_upload:
                 self.fail_after_upload = False
@@ -69,6 +78,10 @@ class FakeGitHub:
         if args[:2] == ("release", "edit"):
             assert self.metadata["draft"] and self.latest is not None
             assert "--draft=false" in args and "--verify-tag" in args
+            for asset in self.metadata["assets"]:
+                asset["browser_download_url"] = asset["browser_download_url"].replace("/untagged-0123456789abcdef0123/", "/v1.2.3/")
+            if "html_url" in self.metadata:
+                self.metadata["html_url"] = "https://github.com/dormonbear/ultraforce-desktop/releases/tag/v1.2.3"
             self.metadata.update(draft=False, published_at="2026-10-30T00:05:00Z")
             if self.fail_after_publish:
                 self.fail_after_publish = False
@@ -84,7 +97,8 @@ class StageReleaseTest(unittest.TestCase):
         self.addCleanup(self.fixture.doCleanups)
         metadata = self.fixture.staged_metadata()
         metadata["id"] = 42
-        for asset in metadata["assets"]:
+        for index, asset in enumerate(metadata["assets"], 1):
+            asset["id"] = index
             asset["updated_at"] = "2026-10-30T00:00:00Z"
         self.gh = FakeGitHub(metadata, self.fixture.root)
 
@@ -98,6 +112,54 @@ class StageReleaseTest(unittest.TestCase):
         self.assertEqual(len(self.actions("edit")), 1)
         self.assertLess(self.gh.calls.index(self.actions("upload")[0]), self.gh.calls.index(self.actions("edit")[0]))
         self.assertEqual(json.loads(self.gh.latest)["pub_date"], "2026-10-30T00:00:00Z")
+
+    def test_placeholder_urls_change_to_tag_urls_during_publication(self):
+        metadata = self.fixture.placeholder_metadata()
+        metadata["id"] = 42
+        for index, asset in enumerate(metadata["assets"], 1):
+            asset["id"] = index
+            asset["updated_at"] = "2026-10-30T00:00:00Z"
+        gh = FakeGitHub(metadata, self.fixture.root)
+        stage_release("v1.2.3", gh=gh)
+        self.assertFalse(gh.metadata["draft"])
+        self.assertEqual(len([call for call in gh.calls if call[:2] == ("release", "upload")]), 1)
+        self.assertEqual(len([call for call in gh.calls if call[:2] == ("release", "edit")]), 1)
+        self.assertTrue(all(entry["url"].startswith("https://github.com/dormonbear/ultraforce-desktop/releases/download/v1.2.3/")
+                            for entry in json.loads(gh.latest)["platforms"].values()))
+
+    def test_placeholder_retries_after_lost_upload_or_publish_acknowledgement(self):
+        for phase in ("upload", "publish"):
+            with self.subTest(phase=phase):
+                metadata = self.fixture.placeholder_metadata()
+                metadata["id"] = 42
+                for index, asset in enumerate(metadata["assets"], 1):
+                    asset.update(id=index, updated_at="2026-10-30T00:00:00Z")
+                gh = FakeGitHub(metadata, self.fixture.root)
+                setattr(gh, f"fail_after_{phase}", True)
+                with self.assertRaises(subprocess.CalledProcessError):
+                    stage_release("v1.2.3", gh=gh)
+                stage_release("v1.2.3", gh=gh)
+                self.assertFalse(gh.metadata["draft"])
+                self.assertEqual(len([call for call in gh.calls if call[:2] == ("release", "upload")]), 1)
+                self.assertEqual(len([call for call in gh.calls if call[:2] == ("release", "edit")]), 1)
+
+    def test_changed_draft_identity_or_duplicate_asset_id_never_publishes(self):
+        for mode in ("identity", "duplicate id", "invalid id"):
+            with self.subTest(mode=mode):
+                metadata = self.fixture.placeholder_metadata()
+                metadata["id"] = 42
+                for index, asset in enumerate(metadata["assets"], 1):
+                    asset.update(id=index, updated_at="2026-10-30T00:00:00Z")
+                gh = FakeGitHub(metadata, self.fixture.root)
+                if mode == "identity":
+                    gh.change_draft_identity = True
+                elif mode == "duplicate id":
+                    gh.metadata["assets"][1]["id"] = gh.metadata["assets"][0]["id"]
+                else:
+                    gh.metadata["assets"][0]["id"] = 0
+                with self.assertRaises(ValueError):
+                    stage_release("v1.2.3", gh=gh)
+                self.assertFalse(any(call[:2] in (("release", "upload"), ("release", "edit")) for call in gh.calls))
 
     def test_incomplete_or_unreadable_draft_never_publishes(self):
         for mode in ("missing asset", "failed download", "changed assets"):
@@ -190,6 +252,31 @@ class StageReleaseTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     stage_release("v1.2.3", gh=gh)
                 self.assertFalse(any(call[:2] in (("release", "upload"), ("release", "edit")) for call in gh.calls))
+
+    def test_recovery_release_id_must_match_before_mutation(self):
+        with self.assertRaisesRegex(ValueError, "Release identity"):
+            stage_release("v1.2.3", gh=self.gh, expected_release_id=43)
+        self.assertFalse(any(call[:2] in (("release", "upload"), ("release", "edit")) for call in self.gh.calls))
+
+    def test_recovery_release_target_must_remain_the_verified_tag_commit(self):
+        self.gh.metadata["target_commitish"] = "b" * 40
+        with self.assertRaisesRegex(ValueError, "Release identity"):
+            stage_release("v1.2.3", gh=self.gh, expected_release_id=42, expected_tag_sha="a" * 40)
+        self.assertFalse(any(call[:2] in (("release", "upload"), ("release", "edit")) for call in self.gh.calls))
+
+    def test_recovery_target_is_rechecked_after_upload_and_before_publication(self):
+        self.gh.metadata["target_commitish"] = "a" * 40
+        self.gh.change_target_after_upload = True
+        with self.assertRaisesRegex(ValueError, "Release identity"):
+            stage_release("v1.2.3", gh=self.gh, expected_release_id=42, expected_tag_sha="a" * 40)
+        self.assertEqual(len(self.actions("upload")), 1)
+        self.assertEqual(self.actions("edit"), [])
+        self.assertTrue(self.gh.metadata["draft"])
+
+    def test_recovery_can_publish_when_release_identity_remains_stable(self):
+        self.gh.metadata["target_commitish"] = "a" * 40
+        stage_release("v1.2.3", gh=self.gh, expected_release_id=42, expected_tag_sha="a" * 40)
+        self.assertFalse(self.gh.metadata["draft"])
 
     def test_missing_published_manifest_is_not_recreated(self):
         stage_release("v1.2.3", gh=self.gh)
