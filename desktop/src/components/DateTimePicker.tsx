@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Popover as PopoverPrimitive } from "radix-ui";
 import { ChevronLeft, ChevronRight, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "../i18n";
 
 interface Props {
   /** ISO8601 value, or null/"" when unset. */
@@ -13,6 +14,7 @@ interface Props {
 }
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const CHINESE_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -37,6 +39,7 @@ export function DateTimePicker({
   invalid,
   className,
 }: Props) {
+  const { locale, t } = useI18n();
   const selected = value ? new Date(value) : null;
   const valid = selected && !Number.isNaN(selected.getTime()) ? selected : null;
   const [view, setView] = useState(() => {
@@ -112,18 +115,18 @@ export function DateTimePicker({
           <div className="mb-1 flex items-center justify-between">
             <button
               type="button"
-              aria-label="Previous month"
+              aria-label={t("Previous month")}
               onClick={() => shiftMonth(-1)}
               className="focus-accent flex size-5 cursor-pointer items-center justify-center rounded text-text-dim hover:text-foreground"
             >
               <ChevronLeft size={14} />
             </button>
             <span className="font-medium text-foreground">
-              {MONTHS[view.month]} {view.year}
+              {locale === "zh-CN" ? `${view.year}年${view.month + 1}月` : `${MONTHS[view.month]} ${view.year}`}
             </span>
             <button
               type="button"
-              aria-label="Next month"
+              aria-label={t("Next month")}
               onClick={() => shiftMonth(1)}
               className="focus-accent flex size-5 cursor-pointer items-center justify-center rounded text-text-dim hover:text-foreground"
             >
@@ -131,9 +134,9 @@ export function DateTimePicker({
             </button>
           </div>
           <div className="grid grid-cols-7 gap-0.5">
-            {WEEKDAYS.map((w) => (
+            {WEEKDAYS.map((w, index) => (
               <div key={w} className="py-0.5 text-center text-[10px] text-text-dim">
-                {w}
+                {locale === "zh-CN" ? CHINESE_WEEKDAYS[index] : w}
               </div>
             ))}
             {cells.map((d) => {
@@ -160,11 +163,11 @@ export function DateTimePicker({
             })}
           </div>
           <div className="mt-2 flex items-center gap-1 border-t border-border pt-2">
-            <span className="text-text-dim">Time</span>
+            <span className="text-text-dim">{t("Time")}</span>
             <input
               type="time"
               step="1"
-              aria-label="Time"
+              aria-label={t("Time")}
               value={valid ? `${p2(valid.getHours())}:${p2(valid.getMinutes())}:${p2(valid.getSeconds())}` : ""}
               onChange={(e) => e.target.value && setTime(e.target.value)}
               className="focus-accent ml-auto h-6 rounded border border-border bg-card px-1 text-[11px] text-foreground"

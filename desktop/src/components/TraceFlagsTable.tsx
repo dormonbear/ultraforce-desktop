@@ -5,18 +5,18 @@ import { isExpired, isoPlusHours } from "../traceTime";
 import { EntityCombobox } from "./EntityCombobox";
 import { DateTimePicker } from "./DateTimePicker";
 import type { useLoggingConfig } from "../useLoggingConfig";
+import { useI18n, type MessageKey } from "../i18n";
 
 type Cfg = ReturnType<typeof useLoggingConfig>;
 
 const LOG_TYPES = ["USER_DEBUG", "CLASS_TRACING", "DEVELOPER_LOG"] as const;
 
 /** Friendly labels for the SF LogType picklist values. */
-const LOG_TYPE_LABELS: Record<string, string> = {
+const LOG_TYPE_LABELS: Record<string, MessageKey> = {
   DEVELOPER_LOG: "Developer log",
   USER_DEBUG: "User debug",
   CLASS_TRACING: "Class tracing",
 };
-const typeLabel = (t: string): string => LOG_TYPE_LABELS[t] ?? t;
 
 // Native <select>: light + compact, and the entity picker holds ~2000 users
 // where a Radix Select would freeze on open.
@@ -35,16 +35,21 @@ const inGroup = (kind: string, logType: string): boolean =>
 /** Editable table of TraceFlag records across users / classes / triggers. */
 // fallow-ignore-next-line complexity
 export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
+  const { t } = useI18n();
+  const typeLabel = (value: string): string => {
+    const key = LOG_TYPE_LABELS[value];
+    return key ? t(key) : value;
+  };
   return (
     <div className="overflow-x-auto rounded-md border border-border">
       <div className="flex items-center justify-between border-b border-border px-2 py-0.5">
-        <span className="text-[11px] text-text-dim">{cfg.flags.length} trace flag(s)</span>
+        <span className="text-[11px] text-text-dim">{t("{count} trace flag(s)", { count: cfg.flags.length })}</span>
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
-            label="Add Trace Flag"
-            aria-label="Add trace flag"
+            label={t("Add Trace Flag")}
+            aria-label={t("Add trace flag")}
             icon={<Plus size={12} />}
             onClick={cfg.addFlag}
             className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
@@ -52,8 +57,8 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           <Button
             variant="ghost"
             size="sm"
-            label="Refresh expired"
-            aria-label="Refresh expired trace flags"
+            label={t("Refresh expired")}
+            aria-label={t("Refresh expired trace flags")}
             icon={<RefreshCw size={12} />}
             onClick={cfg.refreshExpired}
             className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
@@ -61,8 +66,8 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           <Button
             variant="ghost"
             size="sm"
-            label="Remove expired"
-            aria-label="Remove expired trace flags"
+            label={t("Remove expired")}
+            aria-label={t("Remove expired trace flags")}
             icon={<Eraser size={12} />}
             onClick={cfg.removeExpired}
             className="h-6 cursor-pointer gap-1 px-1.5 text-[11px]"
@@ -81,12 +86,12 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
         </colgroup>
         <thead className="text-text-dim">
           <tr className="border-b border-border">
-            <th className="px-2 py-0.5 text-left font-normal">Type</th>
-            <th className="px-2 py-0.5 text-left font-normal">Traced Entity</th>
-            <th className="px-2 py-0.5 text-left font-normal">Created By</th>
-            <th className="px-2 py-0.5 text-left font-normal">Start Date</th>
-            <th className="px-2 py-0.5 text-left font-normal">Expiration Date</th>
-            <th className="px-2 py-0.5 text-left font-normal">Debug Level</th>
+            <th className="px-2 py-0.5 text-left font-normal">{t("Type")}</th>
+            <th className="px-2 py-0.5 text-left font-normal">{t("Traced Entity")}</th>
+            <th className="px-2 py-0.5 text-left font-normal">{t("Created By")}</th>
+            <th className="px-2 py-0.5 text-left font-normal">{t("Start Date")}</th>
+            <th className="px-2 py-0.5 text-left font-normal">{t("Expiration Date")}</th>
+            <th className="px-2 py-0.5 text-left font-normal">{t("Debug Level")}</th>
             <th className="w-7" />
           </tr>
         </thead>
@@ -102,14 +107,14 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                     <span className="whitespace-nowrap text-foreground">{typeLabel(r.logType)}</span>
                   ) : (
                     <select
-                      aria-label="Log type"
+                      aria-label={t("Log type")}
                       className={`${SEL} w-32`}
                       value={r.logType}
                       onChange={(e) => cfg.updateFlag(r._key, { logType: e.target.value })}
                     >
-                      {LOG_TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {typeLabel(t)}
+                      {LOG_TYPES.map((logType) => (
+                        <option key={logType} value={logType}>
+                          {typeLabel(logType)}
                         </option>
                       ))}
                     </select>
@@ -129,8 +134,8 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                       }
                       placeholder={
                         isClassGroup(r.logType)
-                          ? "Select class / trigger"
-                          : "Select user"
+                          ? t("Select class / trigger")
+                          : t("Select user")
                       }
                       onSelect={(ent) =>
                         cfg.updateFlag(r._key, {
@@ -160,7 +165,7 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                       <button
                         key={h}
                         type="button"
-                        aria-label={`Set expiration ${h} hour${h > 1 ? "s" : ""} after start time`}
+                        aria-label={t(h === 1 ? "Set expiration {hours} hour after start time" : "Set expiration {hours} hours after start time", { hours: h })}
                         onClick={() =>
                           cfg.updateFlag(r._key, {
                             expirationDate: isoPlusHours(r.startDate, h),
@@ -168,20 +173,20 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                         }
                         className="focus-accent h-6 shrink-0 cursor-pointer rounded border border-border bg-card px-1 text-[10px] text-text-dim hover:border-primary hover:text-primary"
                       >
-                        +{h}h
+                        {t("+{hours}h", { hours: h })}
                       </button>
                     ))}
                   </div>
                 </td>
                 <td className="px-2 py-0.5 align-middle">
                   <select
-                    aria-label="Debug level"
+                    aria-label={t("Debug level")}
                     className={`${SEL} w-40`}
                     value={r.debugLevelKey}
                     onChange={(e) => cfg.updateFlag(r._key, { debugLevelKey: e.target.value })}
                   >
                     <option value="" disabled>
-                      Select level
+                      {t("Select level")}
                     </option>
                     {cfg.levels.map((l) => (
                       <option key={l._key} value={l._key}>
@@ -194,7 +199,7 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
                   <IconButton
                     variant="ghost"
                     size="sm"
-                    label="Remove trace flag"
+                    label={t("Remove trace flag")}
                     icon={<Trash2 size={12} />}
                     onClick={() => cfg.removeFlag(r._key)}
                     className="size-6 cursor-pointer text-text-dim hover:text-destructive"
@@ -206,7 +211,7 @@ export function TraceFlagsTable({ cfg }: { cfg: Cfg }) {
           {cfg.flags.length === 0 && (
             <tr>
               <td colSpan={7} className="px-2 py-3 text-center text-text-dim">
-                No trace flags
+                {t("No trace flags")}
               </td>
             </tr>
           )}
