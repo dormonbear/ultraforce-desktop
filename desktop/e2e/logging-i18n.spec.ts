@@ -25,10 +25,12 @@ for (const language of ["en-US", "zh-CN"]) {
       await page.getByRole("button", { name: zh ? "添加跟踪标志" : "Add trace flag" }).click();
       const added = page.getByRole("row").filter({ has: page.getByRole("combobox", { name: zh ? "日志类型" : "Log type" }) });
       const entity = added.getByRole("combobox", { name: zh ? "选择用户" : "Select user", exact: true });
+      await expect(entity).toHaveAttribute("placeholder", zh ? "选择用户" : "Select user");
       await entity.fill("NO_SUCH_SYNTHETIC_USER");
       await expect(page.getByText(zh ? "没有匹配项。" : "No match.").first()).toBeVisible();
       await entity.fill("Carol");
       await page.getByRole("option", { name: /Carol/ }).click();
+      await expect(entity).toHaveAttribute("placeholder", "");
       await added.getByRole("combobox", { name: zh ? "调试级别" : "Debug level", exact: true }).selectOption({ label: "FINE_LOGS" });
 
       await page.getByRole("button", { name: zh ? "添加调试级别" : "Add debug level" }).click();
