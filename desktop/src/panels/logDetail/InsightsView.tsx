@@ -1,4 +1,5 @@
 import { detectInsights, type Severity } from "../insights";
+import { useI18n } from "../../i18n";
 import type { UnitDto } from "../../types";
 import type { DetailTab } from "./types";
 
@@ -9,7 +10,13 @@ const INSIGHT_DOT: Record<Severity, string> = {
 };
 
 /** Which tab a finding's evidence lives in, so the user can jump straight to it. */
-const FINDING_TAB: Record<string, DetailTab> = {
+const GOTO_LABEL = {
+  raw: "View raw →",
+  queries: "View queries →",
+  limits: "View limits →",
+  timeline: "View timeline →",
+} as const;
+const FINDING_TAB: Record<string, keyof typeof GOTO_LABEL> = {
   exception: "raw",
   "stmt-in-loop": "queries",
   "slow-query": "queries",
@@ -31,11 +38,12 @@ export function InsightsView({
   units: UnitDto[];
   onGoto: (tab: DetailTab) => void;
 }) {
-  const findings = detectInsights(units);
+  const { t } = useI18n();
+  const findings = detectInsights(units, t);
   if (findings.length === 0) {
     return (
       <div className="py-4 text-center text-[13px] text-muted-foreground">
-        No issues detected
+        {t("No issues detected")}
       </div>
     );
   }
@@ -56,7 +64,7 @@ export function InsightsView({
                   onClick={() => onGoto(goto)}
                   className="ml-auto shrink-0 cursor-pointer text-[11px] text-text-dim hover:text-primary"
                 >
-                  View {goto} →
+                  {t(GOTO_LABEL[goto])}
                 </button>
               )}
             </div>
@@ -65,7 +73,7 @@ export function InsightsView({
             </div>
             {f.fix && (
               <div className="mt-1 pl-3.5 text-[11px] text-muted-foreground">
-                <span className="text-text-dim">Fix: </span>
+                <span className="text-text-dim">{t("Fix:")} </span>
                 {f.fix}
               </div>
             )}

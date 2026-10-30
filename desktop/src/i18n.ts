@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { formatMessage } from "./formatMessage";
 import { APEX_LOG_ACCESS_HINT } from "./errorFormat";
 
 const chinese = {
@@ -43,6 +44,39 @@ const chinese = {
   Visualforce: "Visualforce",
   Wave: "Wave",
   Workflow: "工作流",
+  "No issues detected": "未发现问题",
+  "View raw →": "查看原始日志 →",
+  "View queries →": "查看查询 →",
+  "View limits →": "查看限制 →",
+  "View timeline →": "查看时间线 →",
+  "Fix:": "修复建议：",
+  "Fatal error{times}: {message}": "致命错误{times}：{message}",
+  "Exception thrown{times}: {message}": "抛出异常{times}：{message}",
+  "Catch or guard the failing operation, or fix the root cause.": "捕获或保护失败的操作，或修复根本原因。",
+  "{kind} run {count}× — likely inside a loop": "{kind} 执行 {count} 次，可能位于循环内",
+  ", {time} total": "，共 {time}",
+  "{query} ({rows} rows{time})": "{query}（{rows} 行{time}）",
+  "Collect records and do one bulk DML after the loop.": "收集记录，在循环结束后执行一次批量 DML。",
+  "Move the query out of the loop — query once with a Set of ids (bulkify).": "将查询移出循环，使用 ID 集合执行一次批量查询。",
+  "{signature} called {count}×": "{signature} 调用 {count} 次",
+  "{time} self time total": "自身耗时共 {time}",
+  "called repeatedly": "重复调用",
+  "If this runs per-record, move work out of the loop or bulkify it.": "如果每条记录都执行此操作，请将工作移出循环或进行批量处理。",
+  "{child} runs {count}× in a row under {parent}": "{child} 在 {parent} 下连续执行 {count} 次",
+  "A node repeated consecutively under one parent — a loop body.": "同一父节点下连续重复的节点，可能是循环体。",
+  "Move per-iteration work (queries, DML, heavy logic) out of the loop.": "将每次迭代的工作（查询、DML、复杂逻辑）移出循环。",
+  "{label} re-enters itself (depth {depth})": "{label} 递归进入自身（深度 {depth}）",
+  "Same unit appears in its own call stack — recursion or a recursive trigger.": "同一执行单元出现在自己的调用堆栈中，可能是递归或递归触发器。",
+  "Guard re-entry with a static flag or a processed-id Set.": "使用静态标志或已处理 ID 集合防止重复进入。",
+  "{namespace}{name} at {percent}% of limit": "{namespace}{name} 已使用限制的 {percent}%",
+  "{used} of {max} used": "已使用 {used} / {max}",
+  "Limit exceeded — reduce usage in this transaction.": "已超过限制，请减少此事务中的使用量。",
+  "Slow, large query ({rows} rows, {time})": "慢速大查询（{rows} 行，{time}）",
+  "Large query ({rows} rows)": "大查询（{rows} 行）",
+  "Slow query ({time})": "慢查询（{time}）",
+  "Add a selective, indexed filter (or LIMIT); avoid returning more rows than needed.": "添加有选择性且已索引的筛选条件（或 LIMIT），避免返回过多行。",
+  "Critical path: {percent}% of time ends in {label}": "关键路径：{percent}% 的时间最终落在 {label}",
+  "Most self-time: {label} ({time}). Optimize here.": "自身耗时最多：{label}（{time}）。请在此处优化。",
   "Execution history": "执行历史",
   "Apex execution history": "Apex 执行历史",
   "Apex history": "Apex 历史",
@@ -434,10 +468,7 @@ export function translate(
   values: Readonly<Record<string, string | number>> = {},
 ): string {
   const message = locale === "zh-CN" ? chinese[key] : key;
-  // Replace in one pass so values are never interpreted as message templates. / 单次替换，避免将参数值解释为消息模板。
-  return message.replace(/\{(\w+)\}/g, (token, name: string) =>
-    Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : token,
-  );
+  return formatMessage(message, values);
 }
 
 export function browserLocale(): Locale {
