@@ -1039,6 +1039,7 @@ name = "features"
 version = "0.1.0"
 dependencies = [
  "apex-lang",
+ "async-trait",
  "log-parser",
  "reqwest 0.12.28",
  "serde",
@@ -1046,6 +1047,7 @@ dependencies = [
  "sf-core",
  "sf-schema",
  "soql-lang",
+ "tempfile",
  "tokio",
  "tracing",
 ]
