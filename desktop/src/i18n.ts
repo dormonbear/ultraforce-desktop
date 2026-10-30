@@ -20,6 +20,8 @@ const chinese = {
   Apex: "Apex",
   "Anonymous Apex": "匿名 Apex",
   "Write some Apex to run": "请输入要运行的 Apex 代码",
+  "This file is already open. Save its tab or choose another path.": "此文件已打开。请保存对应标签页或选择其他路径。",
+  "File was deleted while saving. Choose another path.": "保存时文件已被删除。请选择其他路径。",
   "Run anonymous Apex": "运行匿名 Apex",
   "Run this anonymous Apex against {org}?": "在 {org} 中运行此匿名 Apex？",
   "the default org": "默认组织",
